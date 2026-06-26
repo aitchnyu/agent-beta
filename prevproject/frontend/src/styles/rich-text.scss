@@ -1,0 +1,88 @@
+@use 'variables' as *;
+
+.rich-text-display {
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: $gray-700;
+
+  p {
+    margin-bottom: 0.5rem;
+  }
+
+  ul,
+  ol {
+    padding-left: 1.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  li {
+    margin-bottom: 0.25rem;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1.25;
+    margin-top: 0.25rem;
+    margin-bottom: 0.5rem;
+  }
+
+  strong {
+    font-weight: 600;
+  }
+
+  em {
+    font-style: italic;
+  }
+
+  a {
+    color: $blue-500;
+    text-decoration: underline;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid $gray-200;
+    margin: 0.5rem 0;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 0.75rem;
+  }
+
+  thead {
+    background-color: $gray-50;
+  }
+
+  th,
+  td {
+    padding: 0.5rem;
+    border: 1px solid $gray-200;
+  }
+
+  tbody {
+    background-color: #ffffff;
+  }
+
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+.article-content-input .article-content-editor-wrapper {
+  background-color: #e8f4fd;
+  border-radius: 4px;
+  padding: 0.5rem;
+}

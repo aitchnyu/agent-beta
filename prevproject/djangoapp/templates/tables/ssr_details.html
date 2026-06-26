@@ -1,0 +1,8 @@
+{% load common_filters %}
+<p><a href="{{ view_url }}">↑ Go up</a></p>
+{% for field in fields %}
+<div class="field-row">
+    <div class="field-label">{{ field.name }}</div>
+    <div class="field-value">{{ cell_values|get_cell:field.name|ashtml }}</div>
+</div>
+{% endfor %}

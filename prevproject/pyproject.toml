@@ -1,0 +1,99 @@
+[project]
+name = "my-project"
+version = "0.1.0"
+description = "A Python project"
+requires-python = ">=3.14"
+dependencies = [
+    "django>=6.0",
+    "django-allauth[socialaccount]>=65.11.2", # Use Oauth and social login
+    "django-ninja>=1.6.2",
+    "inertia-django>=1.2.0", # Inertia.js backend
+    "nh3>=0.2.21", # HTML sanitization
+    "prison>=0.2.1", # Rison URL encoding for inertia
+    "psycopg2-binary>=2.9.10", # Postgres driver
+    "pydantic>=2.11.10",
+    "python-dateutil>=2.9.0.post0",
+    "python-dotenv>=1.2.1",
+    "types-python-dateutil>=2.9.0.20260124",
+]
+
+[dependency-groups]
+dev = [
+    "coverage>=7.10.7",
+    "django-stubs[compatible-mypy]>=6.0.2",
+    "mypy>=1.20",
+    "playwright>=1.40",
+    "ruff>=0.13.2",
+]
+
+[tool.uv]
+exclude-newer = "7 days"
+
+[tool.ruff]
+exclude = [".venv", "djangoapp/migrations"]
+target-version = "py314"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",  # Trailing comma missing (conflicts with formatter)
+    "D100",  # undocumented-public-module
+    "D101",  # undocumented-public-class
+    "D102",  # undocumented-public-method
+    "D103",  # undocumented-public-function
+    "D104", # undocumented-public-package
+    "D106", # Missing docstring in public nested class
+    "D107", # undocumented-public-init
+    "D203",  # 1 blank line required before class docstring (incompatible with D211)
+    "D213",  # Multi-line docstring summary should start at the second line (incompatible with D212)
+    "DJ008",  # django-model-without-dunder-str
+    "ERA001", # commented-out-code
+    "FIX002",  # line-contains-todo
+    "PT009", # Use a regular `assert` instead of unittest-style `assert*`
+    "PT027", # Use `pytest.raises` instead of unittest-style `assertRaises`
+    "S101",  # assert
+    "S106", # Hardcoded password
+    "SIM108", # if-else-block-instead-of-if-exp
+    "TC006", # runtime-cast-value
+    "TD002",  # missing-todo-author
+    "TD003",  # missing-todo-link
+    "TD004",  # missing-todo-colon
+]
+
+# Scoped suppressions for intentional, repeated patterns. Prefer these over
+# scattering inline `# noqa`. RUF100 (in `select = ["ALL"]`) auto-flags any
+# noqa that becomes redundant, so moving a rule here and dropping the inline
+# noqa is the documented way to reduce noqa noise. See
+# prompts/20260622-minimize-noqa.md
+[tool.ruff.lint.per-file-ignores]
+# Tests legitimately reach into private fields (_changes, _fk_titles, ...).
+"djangoapp/tests/**/*.py" = [
+    "SLF001",  # tests assert on private fields/managers that have no public accessor
+]
+# Third-party-shaped stubs - mirror external library APIs (camelCase names, Any returns).
+"stubs/**/*.pyi" = [
+    "ANN401",  # stubbed return types are Any
+    "N802",  # third-party API names cannot be renamed
+]
+
+[tool.ruff.lint.pycodestyle]
+max-doc-length = 200
+ignore-overlong-task-comments = true
+
+[tool.ruff.format]
+exclude = [".venv"]
+
+[tool.mypy]
+strict = true
+warn_unused_ignores = true
+disallow_any_unimported = true
+#disallow_any_expr = true too many errors
+disallow_any_decorated = true
+disallow_any_generics = true  # Redundant but explicit
+# Additional strictness for imports and reveal_type usage
+plugins = ["mypy_django_plugin.main"]
+disable_error_code = ["import-untyped"]
+
+[tool.django-stubs]
+django_settings_module = "djangoproject.settings"

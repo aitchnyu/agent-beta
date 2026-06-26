@@ -1,0 +1,36 @@
+{% load common_filters %}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{% block title %}Tables{% endblock %}</title>
+        <link rel="stylesheet" href="/static/djangoapp/main.css">
+        {% block head_extra %}{% endblock %}
+        {% if head_tags %}
+            {% if head_tags.title %}
+                <meta property="og:title" content="{{ head_tags.title }}">
+            {% endif %}
+            {% if head_tags.type %}
+                <meta property="og:type" content="{{ head_tags.type }}">
+            {% endif %}
+            {% if head_tags.description %}
+                <meta property="og:description" content="{{ head_tags.description }}">
+            {% endif %}
+            {% if head_tags.cover_image_url %}
+                <meta property="og:image" content="{{ head_tags.cover_image_url }}">
+            {% endif %}
+        {% endif %}
+    </head>
+    <body>
+        {% block body %}
+        <div id="app" data-page='{{ page|json_escape }}'></div>
+        <script type="module" src="/static/djangoapp/main.js"></script>
+        {% endblock %}
+        {% if noscript_template_name %}
+        <noscript>
+            {{ noscript_template_name|render_fragment:noscript_template_data }}
+        </noscript>
+        {% endif %}
+    </body>
+</html>

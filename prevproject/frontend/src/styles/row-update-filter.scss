@@ -1,0 +1,58 @@
+@use 'variables' as *;
+
+.row-update-filter-section {
+  margin-bottom: 0.75rem;
+
+  &:last-of-type {
+    margin-bottom: 0;
+  }
+}
+
+.filter-label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.25rem;
+  font-size: 0.875rem;
+  color: $gray-700;
+}
+
+.action-checkboxes {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.action-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  cursor: pointer;
+  font-size: 0.875rem;
+
+  input[type='checkbox'] {
+    cursor: pointer;
+  }
+}
+
+.date-range-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.date-input {
+  padding: 0.375rem 0.5rem;
+  border: $border-default;
+  border-radius: $radius-sm;
+  font-size: 0.875rem;
+}
+
+.date-separator {
+  color: $gray-500;
+  font-size: 0.875rem;
+}
+
+.row-update-filter-buttons {
+  margin-top: 0.75rem;
+}

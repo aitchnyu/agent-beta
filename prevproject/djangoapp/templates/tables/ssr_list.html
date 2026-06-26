@@ -1,0 +1,9 @@
+{% load common_filters %}
+{% for row in rows %}
+<tr>
+    <td>{{ row.title }}</td>
+    {% for field in fields %}
+    <td>{{ row|get_cell:field.name|ashtml }}</td>
+    {% endfor %}
+</tr>
+{% endfor %}

@@ -1,0 +1,10 @@
+from django.urls import path
+
+from djangoapp.views import home, login_for_test
+from djangoapp.views.users import users_api
+
+urlpatterns = [
+    path("", home, name="home"),
+    path("", users_api.urls),
+    path("login-for-test/<int:userid>", login_for_test, name="login-for-test"),
+]
