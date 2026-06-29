@@ -1,23 +1,15 @@
 <script setup lang="ts">
-import { computed, type PropType } from "vue"
-import { Link } from "@inertiajs/vue3"
+import { computed } from "vue"
+import { Link, usePage } from "@inertiajs/vue3"
 import { getCsrfToken } from "../utils/csrf"
+import { SharedPropsSchema } from "../schemas"
 
-interface NavBarUser {
-  public_id: string
-  title: string
-}
-
-const props = defineProps({
-  user: {
-    type: Object as PropType<NavBarUser | null>,
-    default: null,
-  },
-  isSuperuser: {
-    type: Boolean,
-    default: false,
-  },
-})
+// The signed-in viewer's profile + superuser flag are Inertia shared props,
+// injected for every page by SharedPropsMiddleware (not threaded per-view).
+const page = usePage()
+const shared = computed(() => SharedPropsSchema.parse(page.props))
+const user = computed(() => shared.value.user)
+const isSuperuser = computed(() => shared.value.viewer_is_superuser)
 
 const csrfToken = computed(() => getCsrfToken())
 </script>
@@ -25,18 +17,16 @@ const csrfToken = computed(() => getCsrfToken())
 <template>
   <div class="layout-navbar">
     <Link
-      v-if="props.isSuperuser"
+      v-if="isSuperuser"
       class="btn btn-outline-secondary btn-sm"
       href="/users/list"
     >
       Users
     </Link>
-    <template v-if="props.user">
+    <template v-if="user">
       <span class="layout-user">
         Hello,
-        <Link :href="`/users/id/${props.user.public_id}`">{{
-          props.user.title
-        }}</Link
+        <Link :href="`/users/id/${user.public_id}`">{{ user.title }}</Link
         >!
       </span>
       <form action="/accounts/logout/" method="post" class="layout-logout-form">

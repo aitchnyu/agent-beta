@@ -51,7 +51,7 @@ async function onSubmit() {
 </script>
 
 <template>
-  <Layout :user="p.user" :is-superuser="true">
+  <Layout>
     <div class="container user-edit-page">
       <h1>Edit User</h1>
       <p class="text-muted">

@@ -19,7 +19,6 @@ from djangoapp.models import (
     User,
     UserHistory,
     UserHistoryEntryItem,
-    UserProfile,
 )
 from djangoapp.utils import sanitize_html
 
@@ -51,7 +50,6 @@ class UserListFilters(PydanticBaseModel):
 
 class UserListProps(PydanticBaseModel):
     path_prefix: str
-    user: UserProfile | None = None
     users: list[UserListItem]
     pagination: UserListPagination
     filters: UserListFilters
@@ -60,18 +58,16 @@ class UserListProps(PydanticBaseModel):
 class UserDetailsProps(PydanticBaseModel):
     path_prefix: str
     public_id: str
-    user: UserProfile | None = None
     first_name: str
     last_name: str
     username: str | None = None
     description: str | None = None
     is_owner: bool = False
-    # Gates admin-only UI (Back/Edit/History links + attribute panel):
-    # /users/list is superuser-only, so these must only render for superusers.
-    viewer_is_superuser: bool = False
     # Admin-only attributes of the target user. Populated only when the
-    # viewer is a superuser; the details page is otherwise public, so the
-    # real email/staff/superuser/active state is never leaked to anonymous.
+    # viewer is a superuser (gated client-side by the shared
+    # viewer_is_superuser prop); the details page is otherwise public, so
+    # the real email/staff/superuser/active state is never leaked to
+    # anonymous.
     email: str | None = None
     has_public_profile: bool = False
     is_active: bool = True
@@ -96,7 +92,6 @@ class UserEditItem(PydanticBaseModel):
 
 class UserEditProps(PydanticBaseModel):
     path_prefix: str
-    user: UserProfile | None = None
     target: UserEditItem
 
 
@@ -130,7 +125,6 @@ class UserUpdateSchema(PydanticBaseModel):
 
 class UserHistoryProps(PydanticBaseModel):
     path_prefix: str
-    user: UserProfile | None = None
     target_public_id: str
     target_title: str
     entries: list[UserHistoryEntryItem]
@@ -150,14 +144,15 @@ class UserSearchResponse(PydanticBaseModel):
     users: list[UserSearchItem]
 
 
-def viewer_profile(user: User | None) -> UserProfile | None:
-    """Build the navbar UserProfile for the requesting viewer (pk-free)."""
-    if user is None:
-        return None
-    return UserProfile(
-        public_id=user.public_id,
-        title=user.display_name,
-    )
+def viewer_is_superuser(request: HttpRequest) -> bool:
+    """Whether the requesting viewer is a superuser (drives admin-only props).
+
+    Equals the shared ``viewer_is_superuser`` prop; computed here so the
+    details page can populate the target's admin attributes only for
+    superuser viewers without re-deriving it from the request in-template.
+    """
+    user = request.user
+    return bool(user.is_authenticated and user.is_superuser)
 
 
 def superuser_or_404(request: HttpRequest) -> User:
@@ -183,7 +178,7 @@ users_router = Router()
 
 @users_router.get("/list", response=None, include_in_schema=False)
 def list_page(request: HttpRequest, filters: Query[UserListFilters]) -> HttpResponse:
-    viewer = superuser_or_404(request)
+    superuser_or_404(request)
 
     q = filters.q.strip()
     qs = User.search_users(q) if q else User.objects.all().order_by("username")
@@ -206,7 +201,6 @@ def list_page(request: HttpRequest, filters: Query[UserListFilters]) -> HttpResp
     ]
     props = UserListProps(
         path_prefix=USERS_PATH_PREFIX,
-        user=viewer_profile(viewer),
         users=items,
         pagination=UserListPagination(
             page=page.number,
@@ -244,7 +238,7 @@ def details_page(request: HttpRequest, public_id: str) -> HttpResponse:
 
     viewer = request.user if request.user.is_authenticated else None
     is_owner = viewer is not None and viewer.pk == target.pk
-    viewer_is_superuser = viewer is not None and viewer.is_superuser
+    is_super = viewer_is_superuser(request)
     # Owner is gated by the same flag: description/username only when public.
     if target.has_public_profile:
         username = target.username
@@ -256,16 +250,14 @@ def details_page(request: HttpRequest, public_id: str) -> HttpResponse:
     props = UserDetailsProps(
         path_prefix=USERS_PATH_PREFIX,
         public_id=target.public_id,
-        user=viewer_profile(viewer),
         first_name=target.first_name,
         last_name=target.last_name,
         username=username,
         description=description,
         is_owner=is_owner,
-        viewer_is_superuser=viewer_is_superuser,
     )
     # Admin-only attribute panel + history count: never leak to anonymous.
-    if viewer_is_superuser:
+    if is_super:
         props.email = target.email
         props.has_public_profile = target.has_public_profile
         props.is_active = target.is_active
@@ -277,12 +269,11 @@ def details_page(request: HttpRequest, public_id: str) -> HttpResponse:
 
 @users_router.get("/edit/{public_id}", response=None, include_in_schema=False)
 def edit_page(request: HttpRequest, public_id: str) -> HttpResponse:
-    viewer = superuser_or_404(request)
+    superuser_or_404(request)
     target = get_user_or_404(public_id)
 
     props = UserEditProps(
         path_prefix=USERS_PATH_PREFIX,
-        user=viewer_profile(viewer),
         target=UserEditItem(
             public_id=target.public_id,
             username=target.username,
@@ -326,7 +317,7 @@ def edit_submit(request: HttpRequest, public_id: str, payload: UserUpdateSchema)
 
 @users_router.get("/history/{public_id}", response=None, include_in_schema=False)
 def history_page(request: HttpRequest, public_id: str) -> HttpResponse:
-    viewer = superuser_or_404(request)
+    superuser_or_404(request)
     target = get_user_or_404(public_id)
 
     entries = [
@@ -334,7 +325,6 @@ def history_page(request: HttpRequest, public_id: str) -> HttpResponse:
     ]
     props = UserHistoryProps(
         path_prefix=USERS_PATH_PREFIX,
-        user=viewer_profile(viewer),
         target_public_id=target.public_id,
         target_title=target.display_name,
         entries=entries,

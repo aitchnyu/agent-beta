@@ -1,3 +1,6 @@
+#
+scripts/
+
 .venv
 .env
 *.pyc

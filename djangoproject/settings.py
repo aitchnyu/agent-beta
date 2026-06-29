@@ -62,6 +62,9 @@ MIDDLEWARE = [
     "django.middleware.csp.ContentSecurityPolicyMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Shares the viewer profile + superuser flag on every Inertia page;
+    # reads request.user, so it must run after AuthenticationMiddleware.
+    "djangoapp.middleware.SharedPropsMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # Allauth middleware

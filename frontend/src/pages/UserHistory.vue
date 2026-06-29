@@ -84,7 +84,7 @@ function diffsFor(changes: Changes): FieldDiff[] {
 </script>
 
 <template>
-  <Layout :user="p.user" :is-superuser="true">
+  <Layout>
     <div class="container user-history-page">
       <Link
         :href="`${pathPrefix}/id/${p.target_public_id}`"

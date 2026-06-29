@@ -1,37 +1,40 @@
 <script setup lang="ts">
-import { Link } from "@inertiajs/vue3"
+import { computed } from "vue"
+import { Link, usePage } from "@inertiajs/vue3"
 import Layout from "../components/Layout.vue"
 import RenderRawHtml from "../components/RenderRawHtml.vue"
-import { UserDetailsPropsSchema } from "../schemas.ts"
+import { SharedPropsSchema, UserDetailsPropsSchema } from "../schemas.ts"
 
 const props = defineProps<{
   props: object
 }>()
 
 const p = UserDetailsPropsSchema.parse(props.props)
+// Admin UI gates on the shared viewer_is_superuser flag (was a page prop).
+const isSuperuser = computed(
+  () => SharedPropsSchema.parse(usePage().props).viewer_is_superuser,
+)
 </script>
 
 <template>
-  <Layout :user="p.user" :is-superuser="p.viewer_is_superuser">
+  <Layout>
     <div class="container user-details-page">
       <Link
-        v-if="p.viewer_is_superuser"
+        v-if="isSuperuser"
         href="/users/list"
         class="small text-muted text-decoration-none"
       >
         &larr; Back to Users
       </Link>
-      <h1 :class="{ 'user-inactive': p.viewer_is_superuser && !p.is_active }">
+      <h1 :class="{ 'user-inactive': isSuperuser && !p.is_active }">
         {{ p.first_name }} {{ p.last_name }}
-        <span
-          v-if="p.viewer_is_superuser && !p.is_active"
-          class="badge bg-secondary ms-2"
+        <span v-if="isSuperuser && !p.is_active" class="badge bg-secondary ms-2"
           >Inactive</span
         >
       </h1>
       <div v-if="p.username" class="text-muted mb-3">{{ p.username }}</div>
       <span v-if="p.is_owner" class="badge bg-primary mb-3">This is you</span>
-      <div v-if="p.viewer_is_superuser" class="mb-3 d-flex gap-2">
+      <div v-if="isSuperuser" class="mb-3 d-flex gap-2">
         <Link
           :href="`/users/edit/${p.public_id}`"
           class="btn btn-outline-secondary btn-sm"
@@ -44,10 +47,7 @@ const p = UserDetailsPropsSchema.parse(props.props)
         >
       </div>
 
-      <table
-        v-if="p.viewer_is_superuser"
-        class="table table-sm user-details-attrs mb-4"
-      >
+      <table v-if="isSuperuser" class="table table-sm user-details-attrs mb-4">
         <tbody>
           <tr>
             <th scope="row">Email</th>

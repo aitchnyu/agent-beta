@@ -183,8 +183,8 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
     - test_details_public_shows_description, public profile includes description and username
     - test_details_private_hides_extras, private profile omits description and username
     - test_details_owner_gated_by_own_flag, owner of a private profile sees no description
-    - test_details_viewer_is_superuser_true, superuser viewer sets viewer_is_superuser True
-    - test_details_viewer_is_superuser_false, others get viewer_is_superuser False
+    - test_details_shared_is_superuser_true, superuser viewer sets the shared flag True
+    - test_details_shared_is_superuser_false, others get the shared flag False
     - test_details_admin_attrs_for_superuser, superuser sees target email/flags + history_count
     - test_details_admin_attrs_hidden_for_anonymous, anonymous viewer gets no real email (None)
     - test_details_missing_404, unknown public_id returns 404
@@ -248,17 +248,17 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
         assert props["description"] is None
         assert props["username"] is None
 
-    def test_details_viewer_is_superuser_true(self) -> None:
+    def test_details_shared_is_superuser_true(self) -> None:
         self.allow_more_queries(9)  # frozen baseline incl. auth/session overhead
-        "superuser viewer gets viewer_is_superuser True (gates admin UI)"
+        "superuser viewer sets the shared viewer_is_superuser flag (gates admin UI)"
         self.client.force_login(self.superuser)
         self.client.get(f"/users/id/{self.public_user.public_id}")
-        assert self.props()["props"]["viewer_is_superuser"] is True
+        assert self.props()["viewer_is_superuser"] is True
 
-    def test_details_viewer_is_superuser_false(self) -> None:
-        """non-superuser/anonymous viewer gets viewer_is_superuser False."""
+    def test_details_shared_is_superuser_false(self) -> None:
+        """non-superuser/anonymous viewer gets the shared viewer_is_superuser False."""
         self.client.get(f"/users/id/{self.public_user.public_id}")
-        assert self.props()["props"]["viewer_is_superuser"] is False
+        assert self.props()["viewer_is_superuser"] is False
 
     def test_details_admin_attrs_for_superuser(self) -> None:
         self.allow_more_queries(9)  # frozen baseline incl. auth/session overhead
@@ -287,7 +287,8 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
         self.client.get(f"/users/id/{self.public_user.public_id}")
         props = self.props()["props"]
         assert props["email"] is None
-        assert props["viewer_is_superuser"] is False
+        # Admin gating now comes from the shared flag, not a page prop.
+        assert self.props()["viewer_is_superuser"] is False
         assert props["history_count"] == 0
 
     def test_details_missing_404(self) -> None:

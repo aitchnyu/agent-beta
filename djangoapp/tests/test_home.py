@@ -21,7 +21,14 @@ class HomeViewTests(InertiaTestCase):  # type: ignore[misc, no-any-unimported] #
         self.inertia.get("/")
         self.assertComponentUsed("Home")
         self.assertHasExactProps(
-            {"is_authenticated": False, "display_name": "", "public_id": ""},
+            {
+                "is_authenticated": False,
+                "display_name": "",
+                "public_id": "",
+                # Shared viewer props (SharedPropsMiddleware) are anonymous here.
+                "user": None,
+                "viewer_is_superuser": False,
+            },
         )
 
     def test_authenticated_home(self) -> None:
@@ -38,6 +45,8 @@ class HomeViewTests(InertiaTestCase):  # type: ignore[misc, no-any-unimported] #
                 "is_authenticated": True,
                 "display_name": "Alice Smith",
                 "public_id": user.public_id,
+                "user": {"public_id": user.public_id, "title": "Alice Smith"},
+                "viewer_is_superuser": False,
             },
         )
 

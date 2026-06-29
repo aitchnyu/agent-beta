@@ -1,13 +1,46 @@
+Up arrows
+
+/apps/a/collection/app/manage/table (dynamic modules)
+    list
+    details
+    no create/edit/update
+
+Have scripts/
+Just use the methods? Remove some plumbing commands
+Run script in transaction. Dont let it run plainly.
+Ensure scripts/tests are reversible
+
+Log changes to a table - dont make a page for that yet
+
+-----------------
+
+Dynamic modules that can run functions
+Agent makes these modules
+Vue apps
+Agent can test apps and deploy
+
+create 
+
+FK later
+Renames and null/not null later
+
+type - 
+    char - nope
+    text - 
+    int
+    decimal
+    date
+    fk
+
+SCHEMA_SERIALIZERS
+
 ApplicationHistory
 created ApplicationDirectory
 renamed ApplicationDirectory
 deleted ApplicationDirectory
 
-
 ApplicationDirectory - name
 App - name, desc - rich text
-
-
 
 Have ApplicationDirectory and Application
 Application user - role: admin etc

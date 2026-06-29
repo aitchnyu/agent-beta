@@ -65,7 +65,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <Layout :user="p.user" :is-superuser="true">
+  <Layout>
     <div class="container users-page">
       <h1>Users</h1>
 
