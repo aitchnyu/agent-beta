@@ -209,7 +209,7 @@ def list_page(request: HttpRequest, filters: Query[UserListFilters]) -> HttpResp
         ),
         filters=filters,
     )
-    return InertiaResponse(request, "UserList", {"props": props.model_dump()})  # type: ignore[no-any-return] # InertiaResponse is untyped
+    return InertiaResponse(request, "UserList", {"props": props.model_dump()})
 
 
 @users_router.get("/api/search", response=UserSearchResponse, include_in_schema=False)
@@ -264,7 +264,7 @@ def details_page(request: HttpRequest, public_id: str) -> HttpResponse:
         props.is_staff = target.is_staff
         props.is_superuser = target.is_superuser
         props.history_count = UserHistory.objects.filter(target_user=target).count()
-    return InertiaResponse(request, "UserDetails", {"props": props.model_dump()})  # type: ignore[no-any-return] # InertiaResponse is untyped
+    return InertiaResponse(request, "UserDetails", {"props": props.model_dump()})
 
 
 @users_router.get("/edit/{public_id}", response=None, include_in_schema=False)
@@ -287,7 +287,7 @@ def edit_page(request: HttpRequest, public_id: str) -> HttpResponse:
             is_superuser=target.is_superuser,
         ),
     )
-    return InertiaResponse(request, "UserEdit", {"props": props.model_dump()})  # type: ignore[no-any-return] # InertiaResponse is untyped
+    return InertiaResponse(request, "UserEdit", {"props": props.model_dump()})
 
 
 @users_router.post("/edit/{public_id}")
@@ -329,7 +329,7 @@ def history_page(request: HttpRequest, public_id: str) -> HttpResponse:
         target_title=target.display_name,
         entries=entries,
     )
-    return InertiaResponse(request, "UserHistory", {"props": props.model_dump()})  # type: ignore[no-any-return] # InertiaResponse is untyped
+    return InertiaResponse(request, "UserHistory", {"props": props.model_dump()})
 
 
 users_api = NinjaAPI(urls_namespace="users-http")

@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
+import BackToTopLink from "../components/BackToTopLink.vue"
 import Layout from "../components/Layout.vue"
 import { AppListPropsSchema } from "../schemas"
 
-const props = defineProps<{
-  collection_name: string
-  apps: { name: string }[]
-}>()
+const props = defineProps<{ props: object }>()
 
-const p = AppListPropsSchema.parse(props)
+const p = AppListPropsSchema.parse(props.props)
 </script>
 
 <template>
@@ -36,6 +34,9 @@ const p = AppListPropsSchema.parse(props)
           </tr>
         </tbody>
       </table>
+      <BackToTopLink href="/apps/collections"
+        >Back to collections</BackToTopLink
+      >
     </div>
   </Layout>
 </template>

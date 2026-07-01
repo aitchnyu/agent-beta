@@ -161,3 +161,70 @@ export const ManagePropsSchema = z.object({
   app_name: z.string(),
   tables: z.array(TableItemSchema),
 })
+
+// ---- Row list / detail (superuser read views on a table's dynamic model) ----
+
+export const RowColumnTypeSchema = z.enum([
+  "char",
+  "text",
+  "integer",
+  "boolean",
+  "decimal",
+  "datetime",
+  "user",
+])
+
+// Cell values keyed by column name. Frontend casts each cell by its column
+// type (looked up via columns): user cells are a {public_id, title} profile
+// or null, decimal/datetime cells are strings, others are raw.
+export const RowValuesSchema = z.record(z.string(), z.unknown())
+
+export const RowListColumnDefSchema = z.object({
+  name: z.string(),
+  type: RowColumnTypeSchema,
+  has_choices: z.boolean(),
+})
+
+export type RowListColumnDef = z.infer<typeof RowListColumnDefSchema>
+
+export const RowListItemSchema = z.object({
+  public_id: z.string(),
+  values: RowValuesSchema,
+  created_by: UserSchema.nullable(),
+  created_at: z.string(),
+  edited_at: z.string(),
+})
+
+export const RowListPaginationSchema = z.object({
+  page: z.number(),
+  total_pages: z.number(),
+  total_count: z.number(),
+})
+
+export const RowListFiltersSchema = z.object({
+  per_page: z.number(),
+  page: z.number(),
+  sort: z.string(),
+})
+
+export const RowListPropsSchema = z.object({
+  collection_name: z.string(),
+  app_name: z.string(),
+  table_name: z.string(),
+  columns: z.array(RowListColumnDefSchema),
+  rows: z.array(RowListItemSchema),
+  pagination: RowListPaginationSchema,
+  filters: RowListFiltersSchema,
+})
+
+export const RowDetailPropsSchema = z.object({
+  collection_name: z.string(),
+  app_name: z.string(),
+  table_name: z.string(),
+  public_id: z.string(),
+  columns: z.array(RowListColumnDefSchema),
+  values: RowValuesSchema,
+  created_by: UserSchema.nullable(),
+  created_at: z.string(),
+  edited_at: z.string(),
+})

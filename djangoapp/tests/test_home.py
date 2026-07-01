@@ -5,7 +5,7 @@ from inertia.test import InertiaTestCase
 from djangoapp.models import User
 
 
-class HomeViewTests(InertiaTestCase):  # type: ignore[misc, no-any-unimported] # inertia.test is untyped
+class HomeViewTests(InertiaTestCase):
     """Inertia Home page renders for anonymous and authenticated users.
 
     The Home page is the single public-facing route in the foundation
@@ -60,7 +60,7 @@ class HomeViewTests(InertiaTestCase):  # type: ignore[misc, no-any-unimported] #
         assert "csrftoken" in response.cookies
 
 
-class NoPkLeakTests(InertiaTestCase):  # type: ignore[misc, no-any-unimported] # inertia.test is untyped
+class NoPkLeakTests(InertiaTestCase):
     """The home response must never expose the integer pk.
 
     - test_no_integer_pk_in_props, public_id is present but no integer id/pk leaks through props

@@ -10,7 +10,7 @@ from djangoapp.models.dynamic import dynamic_models
 
 
 class ApplicationsViewsTests(
-    InertiaTestCase,  # type: ignore[misc, no-any-unimported] # InertiaTestCase ships no stubs
+    InertiaTestCase,
 ):
     """Superuser-only read views for collections/apps/tables.
 
@@ -50,7 +50,7 @@ class ApplicationsViewsTests(
         self.client.force_login(self.superuser)
         self.client.get("/apps/collections")
         self.assertComponentUsed("Collections")
-        props = self.props()
+        props = self.props()["props"]
         self.assertEqual([c["name"] for c in props["collections"]], ["inv"])
 
     def test_collections_page_non_superuser_404(self) -> None:
@@ -64,7 +64,7 @@ class ApplicationsViewsTests(
         self.client.force_login(self.superuser)
         self.client.get("/apps/a/inv/list")
         self.assertComponentUsed("AppList")
-        props = self.props()
+        props = self.props()["props"]
         self.assertEqual(props["collection_name"], "inv")
         self.assertEqual([a["name"] for a in props["apps"]], ["orders"])
 
@@ -79,6 +79,6 @@ class ApplicationsViewsTests(
         self.client.force_login(self.superuser)
         self.client.get("/apps/a/inv/orders/manage")
         self.assertComponentUsed("Manage")
-        tables = self.props()["tables"]
+        tables = self.props()["props"]["tables"]
         self.assertEqual([t["name"] for t in tables], ["items"])
         self.assertEqual(tables[0]["row_count"], 1)

@@ -6,7 +6,7 @@ from djangoapp.models import User
 
 
 class SharedPropsMiddlewareTests(
-    InertiaTestCase,  # type: ignore[misc, no-any-unimported] # inertia.test is untyped
+    InertiaTestCase,
 ):
     """SharedPropsMiddleware injects the viewer profile on every Inertia page.
 

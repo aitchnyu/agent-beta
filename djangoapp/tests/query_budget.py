@@ -70,6 +70,6 @@ class QueryBudgetTestCase(QueryBudgetMixin):
 
 class QueryBudgetInertiaTestCase(
     QueryBudgetMixin,
-    InertiaTestCase,  # type: ignore[misc, no-any-unimported] # inertia.test is untyped
+    InertiaTestCase,
 ):
     """Query-budget base for view tests that assert on inertia props."""

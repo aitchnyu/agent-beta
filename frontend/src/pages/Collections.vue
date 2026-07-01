@@ -3,11 +3,9 @@ import { Link } from "@inertiajs/vue3"
 import Layout from "../components/Layout.vue"
 import { CollectionsPropsSchema } from "../schemas"
 
-const props = defineProps<{
-  collections: { name: string }[]
-}>()
+const props = defineProps<{ props: object }>()
 
-const p = CollectionsPropsSchema.parse(props)
+const p = CollectionsPropsSchema.parse(props.props)
 </script>
 
 <template>

@@ -14,15 +14,18 @@ document.addEventListener("DOMContentLoaded", () => {
   axios.defaults.xsrfHeaderName = "X-CSRFTOKEN"
 })
 
-// Global safety net: surface errors that escape component try/catch as toasts.
+// Global safety net: surface errors that escape component try/catch as toasts,
+// and log the full error so the stack/Zod issues are visible in the console.
 // Vue-caught errors go to app.config.errorHandler (below) and do NOT reach here,
 // so there is no double-toast.
 window.addEventListener("error", (event: ErrorEvent) => {
+  console.error("window error:", event.error ?? event.message)
   showErrorToast(event.error ?? event.message, "Something went wrong")
 })
 window.addEventListener(
   "unhandledrejection",
   (event: PromiseRejectionEvent) => {
+    console.error("unhandled rejection:", event.reason)
     showErrorToast(event.reason, "Something went wrong")
   },
 )
@@ -36,6 +39,7 @@ createInertiaApp({
   setup({ el, App, props, plugin }) {
     const app: VueApp = createApp({ render: () => h(App, props) })
     app.config.errorHandler = (err) => {
+      console.error("Vue error:", err)
       showErrorToast(err, "Something went wrong")
     }
     app.use(plugin).mount(el)

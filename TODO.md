@@ -1,9 +1,8 @@
-Up arrows
+Have permanent tables and apps to test crud?
 
-/apps/a/collection/app/manage/table (dynamic modules)
-    list
-    details
-    no create/edit/update
+How to test the list and details with playwright?
+
+--------
 
 Have scripts/
 Just use the methods? Remove some plumbing commands

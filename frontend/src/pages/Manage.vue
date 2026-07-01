@@ -1,14 +1,13 @@
 <script setup lang="ts">
+import { Link } from "@inertiajs/vue3"
+import BackToTopLink from "../components/BackToTopLink.vue"
 import Layout from "../components/Layout.vue"
 import { ManagePropsSchema } from "../schemas"
+import { rowListUrl } from "../utils/urls"
 
-const props = defineProps<{
-  collection_name: string
-  app_name: string
-  tables: { name: string; row_count: number }[]
-}>()
+const props = defineProps<{ props: object }>()
 
-const p = ManagePropsSchema.parse(props)
+const p = ManagePropsSchema.parse(props.props)
 </script>
 
 <template>
@@ -25,7 +24,13 @@ const p = ManagePropsSchema.parse(props)
         </thead>
         <tbody>
           <tr v-for="table in p.tables" :key="table.name">
-            <td class="apps-manage-table-name">{{ table.name }}</td>
+            <td class="apps-manage-table-name">
+              <Link
+                class="apps-manage-table-link"
+                :href="rowListUrl(p.collection_name, p.app_name, table.name)"
+                >{{ table.name }}</Link
+              >
+            </td>
             <td class="text-end apps-manage-row-count">
               {{ table.row_count }}
             </td>
@@ -35,6 +40,9 @@ const p = ManagePropsSchema.parse(props)
           </tr>
         </tbody>
       </table>
+      <BackToTopLink :href="`/apps/a/${p.collection_name}/list`"
+        >Back to {{ p.collection_name }}</BackToTopLink
+      >
     </div>
   </Layout>
 </template>

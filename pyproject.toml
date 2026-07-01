@@ -67,6 +67,11 @@ ignore = [
     "PLR2004",  # magic values (404/200/422, page sizes, totals) are idiomatic in tests
     "SLF001",  # tests assert on private fields/managers that have no public accessor
 ]
+# Third-party-shaped stubs - mirror external library APIs (Any returns, camelCase names).
+"stubs/**/*.pyi" = [
+    "ANN401",  # stubbed return types are Any
+    "N802",  # third-party API names cannot be renamed
+]
 
 [tool.ruff.lint.pycodestyle]
 max-doc-length = 200

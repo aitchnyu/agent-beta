@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from enum import StrEnum
 from typing import ClassVar
 
 from django.core.exceptions import ValidationError
@@ -33,20 +34,21 @@ column_name_validator = RegexValidator(
 )
 
 
-class ColumnType(models.TextChoices):
+class ColumnType(StrEnum):
     """The set of column types a user may declare on an ApplicationTable.
 
-    ``user`` is a ForeignKey to the project ``User`` model; every other
-    type maps to a single Django field kind.
+    Value-only: the stored value is also the value sent to the client, so no
+    separate human "label" is kept. ``user`` is a ForeignKey to the project
+    ``User`` model; every other type maps to a single Django field kind.
     """
 
-    CHAR = "char", "Char"
-    TEXT = "text", "Text"
-    INTEGER = "integer", "Integer"
-    BOOLEAN = "boolean", "Boolean"
-    DECIMAL = "decimal", "Decimal"
-    DATETIME = "datetime", "Datetime"
-    USER = "user", "User"
+    CHAR = "char"
+    TEXT = "text"
+    INTEGER = "integer"
+    BOOLEAN = "boolean"
+    DECIMAL = "decimal"
+    DATETIME = "datetime"
+    USER = "user"
 
 
 class BaseTable(models.Model):
@@ -195,6 +197,16 @@ class ApplicationTable(models.Model):
     def collection(self) -> ApplicationCollection:
         return self.application.application_collection
 
+    def ordered_columns(self) -> list[ApplicationTableColumn]:
+        """Return this table's columns in ``column_order``.
+
+        ``column_order`` is the source of truth for display order and is
+        always in sync with the table's columns, so a plain dict lookup
+        suffices.
+        """
+        by_name = {c.name: c for c in self.columns.all()}
+        return [by_name[name] for name in self.column_order]
+
     def clean(self) -> None:
         super().clean()
         # Collection-scoped uniqueness of the display name (URL identity).
@@ -232,7 +244,7 @@ class ApplicationTableColumn(models.Model):
     when the dynamic model field is built.
     """
 
-    TYPE_CHOICES: ClassVar[list[tuple[str, str]]] = [(t.value, t.label) for t in ColumnType]
+    TYPE_CHOICES: ClassVar[list[tuple[str, str]]] = [(t.value, t.value) for t in ColumnType]
 
     public_id = models.CharField(
         max_length=36,

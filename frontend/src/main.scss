@@ -30,3 +30,21 @@ body {
 .logout-btn {
   background-color: #6b7280;
 }
+
+.apps-back-to-top {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 1rem;
+  padding: 0;
+  background: none;
+  border: none;
+  color: #2563eb;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.apps-back-to-top-arrow {
+  margin-right: 0.35rem;
+  font-weight: 700;
+}
