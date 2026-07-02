@@ -203,7 +203,8 @@ class RowValuesViewTests(InertiaTestCase):
     - test_all_values_in_detail, every column-type value serialised on detail
     - test_default_sort_created_at_desc, newest row first under default sort
     - test_edited_at_sort, re-saved row jumps to front under sort=edited_at
-    - test_pagination, per_page=25 splits 26 rows into two pages
+    - test_pagination_splits_rows_by_per_page, per_page=25 splits 31 rows into 25 + 6
+    - test_invalid_per_page_rejected, per_page outside {25,50,100} rejected with 422
     """
 
     superuser: ClassVar[User]
@@ -279,14 +280,14 @@ class RowValuesViewTests(InertiaTestCase):
         return cast("dict[str, Any]", self.props()["props"])
 
     def test_all_values_in_list(self) -> None:
-        """Every column-type value serialised in list rows."""
+        """List rows serialise every column type (decimal→str, datetime→ISO, user→profile)."""
         rows = self._list_props()["rows"]
         by_id = {r["public_id"]: r["values"] for r in rows}
         # The newest row (last created) is row[30].
         self.assertEqual(by_id[self.rows[30]._public_id], self._expected_values(self.rows[30]))
 
     def test_all_values_in_detail(self) -> None:
-        """Every column-type value serialised on detail."""
+        """Detail serialises every column type (decimal→str, datetime→ISO, user→profile)."""
         self.client.get(f"/apps/a/inv3/orders/manage/items/id/{self.rows[15]._public_id}")
         values = cast("dict[str, Any]", self.props()["props"]["values"])
         self.assertEqual(values, self._expected_values(self.rows[15]))
@@ -304,7 +305,7 @@ class RowValuesViewTests(InertiaTestCase):
         rows = self._list_props("sort=edited_at&per_page=100")["rows"]
         self.assertEqual(rows[0]["public_id"], self.rows[0]._public_id)
 
-    def test_pagination(self) -> None:
+    def test_pagination_splits_rows_by_per_page(self) -> None:
         """per_page=25 splits 31 rows into 25 + 6 (orphans=5 keeps the 6)."""
         page1 = self._list_props("per_page=25&page=1")
         self.assertEqual(len(page1["rows"]), 25)

@@ -91,8 +91,8 @@ class DynamicSchemaTests(DynamicTableTestCase):
     - test_rename_table_keeps_physical_name, table rename leaves physical_name/db_table unchanged
     - test_rename_collection_keeps_physical_name, collection rename leaves physical tables intact
     - test_resolve_missing_table_raises, TableNotFoundError for an unknown physical name
-    - test_add_application_table_columns_all_types, every column type materialises a column
-    - test_delete_application_table_columns, columns gone from definition and physical table
+    - test_add_application_table_columns_all_types, every type materialises a column (user as _id)
+    - test_delete_columns_removes_definition_and_physical, gone from definition + physical table
     """
 
     def _columns_spec(self) -> list[dict[str, object]]:
@@ -229,7 +229,7 @@ class DynamicSchemaTests(DynamicTableTestCase):
             dynamic_models.get_model("nope1231")
 
     def test_add_application_table_columns_all_types(self) -> None:
-        """Every column type materialises a column."""
+        """Every column type materialises a column; user columns land as `<name>_id` FKs."""
         table = dynamic_models.create_application_table(
             "inv", "orders", "items", [{"name": "seed", "type": "char"}]
         )
@@ -244,8 +244,8 @@ class DynamicSchemaTests(DynamicTableTestCase):
             expected = f"{spec['name']}_id" if spec["type"] == "user" else spec["name"]
             self.assertIn(expected, cols)
 
-    def test_delete_application_table_columns(self) -> None:
-        """Columns gone from definition and physical table."""
+    def test_delete_columns_removes_definition_and_physical(self) -> None:
+        """Columns gone from both the ApplicationTableColumn rows and the physical table."""
         table = dynamic_models.create_application_table(
             "inv",
             "orders",
@@ -348,19 +348,19 @@ class GraphLifecycleTests(DynamicTableTestCase):
     cascade-failure safety net (the real reason each method wraps its
     work in ``transaction.atomic()``).
 
-    - test_create_application_collection, collection row created
+    - test_create_application_collection, collection carries the name and is queryable
     - test_rename_application_collection, name updated, no physical change
-    - test_delete_application_collection_empty, empty collection deleted
+    - test_delete_application_collection_empty, no row remains for an app-less collection
     - test_delete_application_collection_non_empty_refused, non-empty raises and untouched
     - test_create_application, app created under the right collection
-    - test_rename_application, app name updated
-    - test_delete_application_no_tables, app row gone
+    - test_rename_application, old name gone / new name set within its collection (no DDL)
+    - test_delete_application_no_tables, no Application row remains after delete
     - test_delete_application_cascades_tables, child physical tables dropped
     - test_delete_application_mid_cascade_failure, failure rolls back the whole graph
     """
 
     def test_create_application_collection(self) -> None:
-        """Collection row created."""
+        """Returned collection carries the name and is queryable by it."""
         collection = dynamic_models.create_application_collection("inventory")
         self.assertEqual(collection.name, "inventory")
         self.assertTrue(ApplicationCollection.objects.filter(name="inventory").exists())
@@ -377,7 +377,7 @@ class GraphLifecycleTests(DynamicTableTestCase):
         self.assertTrue(table.does_physical_table_exist())
 
     def test_delete_application_collection_empty(self) -> None:
-        """Empty collection deleted."""
+        """An app-less collection has no row after delete."""
         empty = dynamic_models.create_application_collection("ephemeral")
         dynamic_models.delete_application_collection(empty)
         self.assertFalse(ApplicationCollection.objects.filter(name="ephemeral").exists())
@@ -397,13 +397,13 @@ class GraphLifecycleTests(DynamicTableTestCase):
         self.assertEqual(Application.objects.get(name="billing").description, "bills")
 
     def test_rename_application(self) -> None:
-        """App name updated."""
+        """Old app name is gone and the new one is set, within its own collection (no DDL)."""
         dynamic_models.rename_application("inv", "orders", "orders2")
         self.assertTrue(Application.objects.filter(name="orders2").exists())
         self.assertFalse(Application.objects.filter(name="orders").exists())
 
     def test_delete_application_no_tables(self) -> None:
-        """App row gone."""
+        """No Application row remains for the app after delete."""
         app = dynamic_models.create_application("inv", "ephemeral")
         dynamic_models.delete_application(app)
         self.assertFalse(Application.objects.filter(name="ephemeral").exists())
@@ -443,9 +443,9 @@ class GraphLifecycleTests(DynamicTableTestCase):
 class RowLifecycleTests(DynamicTableTestCase):
     """CRUD on rows via the fetched dynamic model.
 
-    - test_insert_and_read, created row is readable
-    - test_update, saved changes persist
-    - test_delete, row removed
+    - test_inserted_row_is_readable, created row matches the values via the model manager
+    - test_saved_changes_persist_on_update, re-fetched row reflects the mutated field
+    - test_deleted_row_is_absent_from_queryset, pk-filter returns empty after delete
     """
 
     user: ClassVar[User]
@@ -465,8 +465,8 @@ class RowLifecycleTests(DynamicTableTestCase):
             [{"name": "code", "type": "char"}, {"name": "owner", "type": "user", "nullable": True}],
         )
 
-    def test_insert_and_read(self) -> None:
-        """Created row is readable."""
+    def test_inserted_row_is_readable(self) -> None:
+        """Fetched row matches the created values via the generated model's manager."""
         # The dynamic model is a runtime-built concrete model; cast lets the
         # test exercise its manager/fields without per-access type: ignores.
         model = cast(Any, self.table.as_model())
@@ -475,16 +475,16 @@ class RowLifecycleTests(DynamicTableTestCase):
         self.assertEqual(fetched.code, "A1")
         self.assertEqual(fetched.owner_id, self.user.id)
 
-    def test_update(self) -> None:
-        """Saved changes persist."""
+    def test_saved_changes_persist_on_update(self) -> None:
+        """A re-fetched row reflects the mutated field after save (not a stale read)."""
         model = cast(Any, self.table.as_model())
         row = model.objects.create(code="A1")
         row.code = "B2"
         row.save()
         self.assertEqual(model.objects.get(pk=row.pk).code, "B2")
 
-    def test_delete(self) -> None:
-        """Row removed."""
+    def test_deleted_row_is_absent_from_queryset(self) -> None:
+        """A pk-filter for the deleted row returns empty (delete is a real DB remove)."""
         model = cast(Any, self.table.as_model())
         row = model.objects.create(code="A1")
         row.delete()

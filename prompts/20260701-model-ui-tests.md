@@ -388,3 +388,34 @@ the existing layout (`test_applications_views.py`, `test_row_views.py`,
 - [x] Lint and verify: `./run lintfix`, `./run typecheck`, `./run test`, `./run checkall`
 
 test_home and test_middleware shuould be in tests/views. Move them.
+
+## Test method naming + docstring pass
+
+Rule: the method **name** states what is tested (descriptive, not a one-word
+verb); the **docstring** adds non-obvious detail the name doesn't already
+imply (how it's verified, the side effect, the serialised form). A docstring
+that merely restates the name (e.g. `test_create_application_collection` +
+"Collection row created.") fails the rule.
+
+### Checklist
+
+- [x] `tests/models/test_dynamic.py` — `RowLifecycleTests` (names too terse):
+    - [x] `test_insert_and_read` → `test_inserted_row_is_readable`; docstring add "via the generated model's manager (cast Any)"
+    - [x] `test_update` → `test_saved_changes_persist_on_update`; docstring add the mechanism (refresh + compare the changed field)
+    - [x] `test_delete` → `test_deleted_row_is_absent_from_queryset`; docstring add "filter by pk returns empty"
+- [x] `tests/models/test_dynamic.py` — `GraphLifecycleTests` (docstrings restate the name):
+    - [x] `test_create_application_collection` — docstring "Collection row created" → add "name stored + row queryable" (the verification detail)
+    - [x] `test_delete_application_collection_empty` — docstring "Empty collection deleted" → add "row gone afterward"
+    - [x] `test_rename_application` — docstring "App name updated" → add "within its own collection; no DDL (display-name only)"
+    - [x] `test_delete_application_no_tables` — docstring "App row gone" → add verification ("no Application row for the name")
+- [x] `tests/models/test_dynamic.py` — `DynamicSchemaTests`:
+    - [x] `test_add_application_table_columns_all_types` — docstring "Every column type materialises a column" → add "user columns materialise as `<name>_id` (FK), others by name"
+    - [x] `test_delete_application_table_columns` → `test_delete_application_table_columns_removes_definition_and_physical`; docstring add "gone from both ApplicationTableColumn rows and the physical table"
+- [x] `tests/views/test_row_views.py` — `RowValuesViewTests`:
+    - [x] `test_all_values_in_list` / `test_all_values_in_detail` — docstrings add the per-type serialisation checked (decimal→str, datetime→ISO, user→{public_id,title})
+    - [x] `test_pagination` → `test_pagination_splits_rows_by_per_page` (name too terse); keep the orphans detail in the docstring
+- [x] `tests/management/test_applications_command.py` (docstrings restate the subcommand):
+    - [x] `test_list_application_collections` — docstring add "printed one name per line, sorted"
+    - [x] `test_list_application_collection` — docstring add "apps under the collection, sorted"
+- [x] After renames, update each class docstring's one-line-per-method bullet list to match the new names
+- [x] Lint and verify: `./run lintfix`, `./run typecheck`, `./run test`, `./run checkall`

@@ -36,8 +36,8 @@ class ApplicationsCommandTests(TestCase):
     Mutation lives on ``dynamic_models`` now; these tests only cover the
     three read subcommands, seeded via the registry/ORM directly.
 
-    - test_list_application_collections, lists every collection name
-    - test_list_application_collection, lists an app's contents by collection
+    - test_list_application_collections, every collection name printed one per line, sorted
+    - test_list_application_collection, apps under the collection printed one per line, sorted
     - test_list_application_collection_missing, unknown collection exits non-zero
     - test_describe_application_table, prints table + columns, omits physical_name/db_table
     - test_describe_application_table_missing, unknown table exits non-zero
@@ -74,7 +74,7 @@ class ApplicationsCommandTests(TestCase):
     # -- list_application_collections ---------------------------------
 
     def test_list_application_collections(self) -> None:
-        """Lists every collection name."""
+        """Every collection name printed one per line, sorted."""
         ApplicationCollection.objects.create(name="aaa")
         code, out = run("list_application_collections")
         self.assertEqual(code, 0)
@@ -85,7 +85,7 @@ class ApplicationsCommandTests(TestCase):
     # -- list_application_collection ----------------------------------
 
     def test_list_application_collection(self) -> None:
-        """Lists an app's contents by collection."""
+        """Apps under the collection printed one per line, sorted."""
         self.collection.applications.create(name="billing")
         code, out = run("list_application_collection", "--name", "inv")
         self.assertEqual(code, 0)
