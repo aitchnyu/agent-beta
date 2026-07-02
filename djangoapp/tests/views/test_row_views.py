@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from http import HTTPStatus
 from typing import Any, ClassVar, cast
 
@@ -50,7 +52,7 @@ class RowListPageTests(
                 {"name": "owner", "type": "user", "nullable": True},
             ],
         )
-        self.model = cast("Any", dynamic_models.get_model(self.table.physical_name))
+        self.model = cast("Any", self.table.as_model())
         self.r1 = self.model.objects.create(
             code="A1", owner=self.superuser, _created_by=self.superuser
         )
@@ -150,7 +152,7 @@ class RowDetailPageTests(
                 {"name": "owner", "type": "user", "nullable": True},
             ],
         )
-        self.model = cast("Any", dynamic_models.get_model(self.table.physical_name))
+        self.model = cast("Any", self.table.as_model())
         self.row = self.model.objects.create(code="A1", _created_by=self.superuser)
 
     def tearDown(self) -> None:
@@ -187,3 +189,132 @@ class RowDetailPageTests(
         props = self.props()["props"]
         self.assertEqual(props["created_at"], self.row._created_at.isoformat())
         self.assertEqual(props["edited_at"], self.row._edited_at.isoformat())
+
+
+class RowValuesViewTests(InertiaTestCase):
+    """All column types rendered in the list/detail views + list sort/pagination.
+
+    Seeds a table spanning every column type and a page's worth of rows,
+    then asserts each cell's serialised value is present in both the list
+    and the detail page, and that the list sorts (created_at / edited_at)
+    and paginates (per_page=25).
+
+    - test_all_values_in_list, every column-type value serialised in list rows
+    - test_all_values_in_detail, every column-type value serialised on detail
+    - test_default_sort_created_at_desc, newest row first under default sort
+    - test_edited_at_sort, re-saved row jumps to front under sort=edited_at
+    - test_pagination, per_page=25 splits 26 rows into two pages
+    """
+
+    superuser: ClassVar[User]
+    collection: ClassVar[ApplicationCollection]
+    app: ClassVar[Application]
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.superuser = User.objects.create_user(
+            username="values-admin", is_superuser=True, is_staff=True
+        )
+        cls.collection = ApplicationCollection.objects.create(name="inv3")
+        cls.app = cls.collection.applications.create(name="orders")
+
+    def setUp(self) -> None:
+        super().setUp()
+        dynamic_models.reset()
+        self.table = dynamic_models.create_application_table(
+            "inv3",
+            "orders",
+            "items",
+            [
+                {"name": "code", "type": "char"},
+                {"name": "note", "type": "text"},
+                {"name": "qty", "type": "integer", "nullable": True},
+                {"name": "active", "type": "boolean"},
+                {"name": "price", "type": "decimal", "nullable": True},
+                {"name": "due", "type": "datetime", "nullable": True},
+                {"name": "owner", "type": "user", "nullable": True},
+            ],
+        )
+        self.model = cast("Any", self.table.as_model())
+        self.client.force_login(self.superuser)
+        # 31 rows: with per_page=25 and Paginator orphans=5, the last page
+        # keeps its 6 rows (orphans only merge ≤5), so pagination yields two
+        # real pages. Created in order so created_at ascends with the index.
+        base = datetime(2026, 1, 1, 12, 0, 0, tzinfo=UTC)
+        self.rows = [
+            self.model.objects.create(
+                code=f"R{i}",
+                note=f"n{i}",
+                qty=i,
+                active=(i % 2 == 0),
+                price=Decimal(f"{i}.00"),
+                due=base + timedelta(hours=i),
+                owner=self.superuser,
+                _created_by=self.superuser,
+            )
+            for i in range(31)
+        ]
+
+    def tearDown(self) -> None:
+        dynamic_models.reset()
+        super().tearDown()
+
+    def _expected_values(self, row: Any) -> dict[str, Any]:  # noqa: ANN401 dynamic-model row, attributes are runtime-defined
+        """Return the client-facing serialisation for a row across all column types."""
+        return {
+            "code": row.code,
+            "note": row.note,
+            "qty": row.qty,
+            "active": row.active,
+            "price": str(row.price),
+            "due": row.due.isoformat(),
+            "owner": {"public_id": self.superuser.public_id, "title": self.superuser.display_name},
+        }
+
+    def _list_props(self, query: str = "") -> dict[str, Any]:
+        url = "/apps/a/inv3/orders/manage/items/list"
+        if query:
+            url += f"?{query}"
+        self.client.get(url)
+        return cast("dict[str, Any]", self.props()["props"])
+
+    def test_all_values_in_list(self) -> None:
+        """Every column-type value serialised in list rows."""
+        rows = self._list_props()["rows"]
+        by_id = {r["public_id"]: r["values"] for r in rows}
+        # The newest row (last created) is row[30].
+        self.assertEqual(by_id[self.rows[30]._public_id], self._expected_values(self.rows[30]))
+
+    def test_all_values_in_detail(self) -> None:
+        """Every column-type value serialised on detail."""
+        self.client.get(f"/apps/a/inv3/orders/manage/items/id/{self.rows[15]._public_id}")
+        values = cast("dict[str, Any]", self.props()["props"]["values"])
+        self.assertEqual(values, self._expected_values(self.rows[15]))
+
+    def test_default_sort_created_at_desc(self) -> None:
+        """Newest row first under default sort."""
+        rows = self._list_props("per_page=100")["rows"]
+        self.assertEqual(rows[0]["public_id"], self.rows[30]._public_id)
+        self.assertEqual(rows[-1]["public_id"], self.rows[0]._public_id)
+
+    def test_edited_at_sort(self) -> None:
+        """re-saved row jumps to front under sort=edited_at."""
+        # rows[0] is oldest by created_at; re-saving bumps its _edited_at.
+        self.rows[0].save()
+        rows = self._list_props("sort=edited_at&per_page=100")["rows"]
+        self.assertEqual(rows[0]["public_id"], self.rows[0]._public_id)
+
+    def test_pagination(self) -> None:
+        """per_page=25 splits 31 rows into 25 + 6 (orphans=5 keeps the 6)."""
+        page1 = self._list_props("per_page=25&page=1")
+        self.assertEqual(len(page1["rows"]), 25)
+        self.assertEqual(page1["pagination"]["total_count"], 31)
+        self.assertEqual(page1["pagination"]["total_pages"], 2)
+        page2 = self._list_props("per_page=25&page=2")
+        self.assertEqual(len(page2["rows"]), 6)
+        self.assertEqual(page2["pagination"]["page"], 2)
+
+    def test_invalid_per_page_rejected(self) -> None:
+        """per_page outside {25,50,100} is rejected with 422 (sent as a string)."""
+        resp = self.client.get("/apps/a/inv3/orders/manage/items/list?per_page=10")
+        self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)

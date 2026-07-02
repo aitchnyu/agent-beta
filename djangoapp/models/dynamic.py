@@ -277,6 +277,88 @@ class DynamicModelRegistry:
             raise TableNotFoundError(msg) from exc
 
     # ------------------------------------------------------------------
+    # Collection / application lifecycle
+    # ------------------------------------------------------------------
+    #
+    # Co-located with the table methods below, so DynamicModelRegistry is
+    # the single place for all application-graph mutation. Create/rename
+    # are thin (full_clean + save); ``delete_application`` cascades its
+    # tables (dropping each physical table), while
+    # ``delete_application_collection`` refuses a non-empty collection so a
+    # live app never vanishes under its tables. The ``on_delete=RESTRICT``
+    # FKs are only a DB backstop — the registry always deletes children
+    # first.
+
+    def create_application_collection(self, name: str) -> ApplicationCollection:
+        """Create and return an application collection."""
+        with transaction.atomic():
+            collection = ApplicationCollection(name=name)
+            collection.full_clean()
+            collection.save()
+            return collection
+
+    def delete_application_collection(self, collection: ApplicationCollection) -> None:
+        """Delete a collection, refusing if it still has apps.
+
+        Apps own their tables' physical cleanup (via ``delete_application``),
+        so a collection must be emptied of apps first — deleting it under
+        live apps would leave their physical tables orphaned.
+        """
+        with transaction.atomic():
+            if collection.applications.exists():
+                msg = (
+                    f"Collection '{collection.name}' is not empty "
+                    f"({collection.applications.count()} application(s)); "
+                    "delete its applications first."
+                )
+                raise ValidationError(msg)
+            collection.delete()
+
+    def create_application(self, appcollection: str, name: str, desc: str = "") -> Application:
+        """Create and return an application within a collection."""
+        with transaction.atomic():
+            collection = self._resolve_collection(appcollection)
+            application = Application(
+                application_collection=collection,
+                name=name,
+                description=desc,
+            )
+            application.full_clean()
+            application.save()
+            return application
+
+    def rename_application(self, appcollection: str, old_name: str, new_name: str) -> Application:
+        """Rename an application within its own collection.
+
+        Display-name only: physical tables are keyed by the immutable
+        ``physical_name`` which omits the app, so no DDL and no registry
+        reset. Cross-collection moves are not supported (an app's name is
+        scoped to its collection), enforced by resolving the source app.
+        """
+        with transaction.atomic():
+            application = self._resolve_application(appcollection, old_name)
+            application.name = new_name
+            application.full_clean()
+            application.save()
+            return application
+
+    def delete_application(self, application: Application) -> None:
+        """Delete an application and cascade-drop every table it owns.
+
+        Each child table is removed via ``_drop_application_table`` (which
+        drops its physical table and definition rows), then the app row is
+        deleted. Wrapped in one transaction so a mid-cascade failure leaves
+        the whole graph intact — nothing half-deleted, no orphaned table.
+        Uses the child ``ApplicationTable`` instances directly instead of
+        re-resolving them by name, so the cascade does no per-table DB
+        lookups and ignores any unsaved display-name change on the app.
+        """
+        with transaction.atomic():
+            for table in list(application.tables.all()):
+                self._drop_application_table(table)
+            application.delete()
+
+    # ------------------------------------------------------------------
     # Schema operations
     # ------------------------------------------------------------------
 
@@ -378,11 +460,14 @@ class DynamicModelRegistry:
             self.reset()
             return app_table
 
-    def delete_application_table(self, appcollection: str, app: str, table: str) -> None:
-        """Drop the physical table and delete its definition rows."""
+    def _drop_application_table(self, app_table: ApplicationTable) -> None:
+        """Drop a table's physical table and delete its definition rows.
+
+        Instance-based: takes the ``ApplicationTable`` directly so callers
+        that already hold it (e.g. ``delete_application``'s cascade) pay no
+        name-resolution queries.
+        """
         with transaction.atomic():
-            application = self._resolve_application(appcollection, app)
-            app_table = self._get_application_table_for(application, table)
             cached = self._cache.pop(app_table.physical_name, None)
             model = cached or self._build_model_class(app_table.physical_name)
             # Table already absent (e.g. partial state); tolerate the
@@ -398,6 +483,13 @@ class DynamicModelRegistry:
             # the table definition row can be deleted.
             ApplicationTableColumn.objects.filter(application_table=app_table).delete()
             app_table.delete()
+
+    def delete_application_table(self, appcollection: str, app: str, table: str) -> None:
+        """Resolve (collection, app, table) names to a row, then drop it."""
+        with transaction.atomic():
+            application = self._resolve_application(appcollection, app)
+            app_table = self._get_application_table_for(application, table)
+            self._drop_application_table(app_table)
 
     def rename_application_collection(
         self, collection: ApplicationCollection, new_name: str

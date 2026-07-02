@@ -52,31 +52,68 @@ is keyed by the immutable `physical_name` and not by the display name,
 renaming a collection, application, or table is a plain row update with
 **zero DDL** — no physical table is ever renamed.
 
-Manage everything through the `applications` management command (agent-driven;
-inputs are validated by Pydantic, each subcommand runs in a transaction, exit
-0 on success or non-zero with a printed error):
+Manage everything through the `dynamic_models` registry (`djangoapp/models/dynamic.py`),
+the single home for all collection/app/table mutation. Each method runs in a
+transaction; collection/app renames and table renames are display-name-only
+updates with zero DDL. `delete_application` cascade-drops its tables;
+`delete_application_collection` refuses a non-empty collection.
 
-```bash
-./run djangomanage applications create_application_collection --name Inv
-./run djangomanage applications create_application --appcollection Inv --name Orders
+```python
+from djangoapp.models.dynamic import dynamic_models
 
-# Tables take a JSON payload via --json-payload.
-./run djangomanage applications create_application_table --json-payload '{"appcollection":"Inv","app":"Orders","name":"Items","columns":[{"name":"code","type":"char","max_length":10},{"name":"qty","type":"integer","default":1,"nullable":true}]}'
-./run djangomanage applications add_application_table_columns --json-payload '{"appcollection":"Inv","app":"Orders","table":"Items","columns":[{"name":"region","type":"char","max_length":5}]}'
-./run djangomanage applications delete_application_table_columns --json-payload '{"appcollection":"Inv","app":"Orders","table":"Items","columns":["region"]}'
+dynamic_models.create_application_collection("Inv")
+dynamic_models.create_application("Inv", "Orders", desc="...")
 
-./run djangomanage applications rename_application_table --appcollection Inv --app Orders --name Items --new-name Products
-./run djangomanage applications describe_application_table --appcollection Inv --app Orders --name Products
-./run djangomanage applications delete_application_table --appcollection Inv --app Orders --name Products
+# One column spec per type — every field each type accepts is shown.
+dynamic_models.create_application_table(
+    "Inv", "Orders", "Items",
+    columns=[
+        {"name": "code", "type": "char", "default": "X", "max_length": 10, "choices": ["X", "Y"]},
+        {"name": "note", "type": "text", "default": "", "min_length": 0, "max_length": 1000},
+        {"name": "qty", "type": "integer", "default": 1, "nullable": True},
+        {"name": "active", "type": "boolean", "default": False},
+        {"name": "price", "type": "decimal", "default": "1.50", "nullable": False,
+         "max_digits": 8, "decimal_places": 2},
+        {"name": "due", "type": "datetime", "nullable": True},
+        {"name": "owner", "type": "user", "nullable": True},
+    ],
+)
+
+# add_application_table_columns takes the same spec shape (no duplicates, no
+# existing names):
+dynamic_models.add_application_table_columns(
+    "Inv", "Orders", "Items",
+    columns=[
+        {"name": "region", "type": "char", "max_length": 5},
+        {"name": "discount", "type": "decimal", "max_digits": 5, "decimal_places": 2},
+    ],
+)
+dynamic_models.delete_application_table_columns("Inv", "Orders", "Items", ["region"])
+dynamic_models.rename_application_table(table, "Products")
+dynamic_models.delete_application_table("Inv", "Orders", "Products")
+dynamic_models.delete_application(app)            # cascade-drops its tables
+dynamic_models.delete_application_collection(collection)  # refuses if non-empty
 ```
 
-### Subcommands
+### Registry methods
 
-- `create_application_collection --name` / `rename_application_collection --old-name --new-name` / `delete_application_collection --name` (refuses if non-empty)
-- `list_application_collections` / `list_application_collection --name`
-- `create_application --appcollection --name [--desc]` / `rename_application --old-appcollection --old-name --new-appcollection --new-name` / `delete_application --appcollection --name` (refuses if non-empty)
-- `create_application_table --json-payload '<json>'` / `add_application_table_columns --json-payload '<json>'` / `delete_application_table_columns --json-payload '<json>'`
-- `rename_application_table --appcollection --app --name --new-name` / `describe_application_table --appcollection --app --name` / `delete_application_table --appcollection --app --name`
+- Collections: `create_application_collection(name)` / `rename_application_collection(collection, new_name)` / `delete_application_collection(collection)` (refuses if non-empty)
+- Applications: `create_application(appcollection, name, desc)` / `rename_application(appcollection, old_name, new_name)` / `delete_application(application)` (cascade-drops its tables)
+- Tables: `create_application_table(appcollection, app, name, columns)` / `add_application_table_columns(...)` / `delete_application_table_columns(...)` / `rename_application_table(table, new_name)` / `delete_application_table(appcollection, app, table)`
+
+### Read-only `applications` command
+
+Listing/describe only (mutation is on the registry above):
+
+```bash
+./run djangomanage applications list_application_collections
+./run djangomanage applications list_application_collection --name Inv
+./run djangomanage applications describe_application_table --appcollection Inv --app Orders --name Products
+```
+
+- `list_application_collections` — list every collection name
+- `list_application_collection --name` — list an app's contents
+- `describe_application_table --appcollection --app --name` — print a table's columns (omits physical_name/db_table)
 
 ### Column types
 

@@ -1,7 +1,22 @@
-Have permanent tables and apps to test crud?
+RowLifecycleTests in test_row_views- for models. Do it for playwright too.
+
+```
+    def test_update(self) -> None:
+        """Saved changes persist."""
+        model = cast(Any, dynamic_models.get_model(self.table.physical_name))
+```
+
+Better test names
 
 How to test the list and details with playwright?
 
+app.add_handler(''), or createapp(columns, '/scriptpath') at create time itself
+ensure under savepoint
+
+
+Command to list table ddl and class statement
+
+Separate apps
 --------
 
 Have scripts/

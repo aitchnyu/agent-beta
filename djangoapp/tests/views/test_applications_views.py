@@ -74,7 +74,7 @@ class ApplicationsViewsTests(
             "inv", "orders", "items", [{"name": "code", "type": "char"}]
         )
         # Insert one row via the dynamic model so the count must be 1.
-        model = cast("Any", dynamic_models.get_model(table.physical_name))
+        model = cast("Any", table.as_model())
         model.objects.create(code="A1")
         self.client.force_login(self.superuser)
         self.client.get("/apps/a/inv/orders/manage")

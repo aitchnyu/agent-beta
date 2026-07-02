@@ -21,7 +21,7 @@ from ninja import (
     Router,
 )
 from pydantic import BaseModel as PydanticBaseModel
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from djangoapp.models import (
     Application,
@@ -32,7 +32,6 @@ from djangoapp.models import (
     ColumnType,
     UserProfile,
 )
-from djangoapp.models.dynamic import dynamic_models
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -99,11 +98,25 @@ class RowListPagination(PydanticBaseModel):
 
 
 class RowListFilters(PydanticBaseModel):
-    per_page: int = Field(default=25, ge=1)
+    # Fixed page sizes (matches the frontend's PER_PAGE_OPTIONS); any other
+    # value is rejected by Ninja with 422 rather than silently clamped. Declared
+    # as int + an after-validator (not Literal[25,50,100]) because query params
+    # arrive as strings and pydantic will not coerce "25" against an int Literal,
+    # which would 422 every pagination link.
+    per_page: int = 25
     page: int = Field(default=1, ge=1)
     # str (not Literal) so an unknown sort falls back to the default instead
     # of producing a 422; the view clamps to one of _ALLOWED_SORTS.
     sort: str = "created_at"
+
+    @field_validator("per_page", mode="after")
+    @classmethod
+    def _fixed_per_page(cls, v: int) -> int:
+        allowed = {25, 50, 100}
+        if v not in allowed:
+            msg = f"per_page must be one of {sorted(allowed)}."
+            raise ValueError(msg)
+        return v
 
 
 class RowListProps(PydanticBaseModel):
@@ -133,19 +146,17 @@ def _get_application_table_or_404(
 ) -> ApplicationTable:
     """Resolve (collection, app, table) to an ApplicationTable, 404 on any miss.
 
-    Follows the project access rule: a missing resource raises 404 (never
-    reveals whether the parent exists).
+    A single relation-spanning query (with ``select_related`` so the views can
+    read ``table.collection``/``table.application`` without extra hits). Follows
+    the project access rule: a missing resource raises 404 (never reveals
+    whether the parent exists).
     """
     try:
-        collection = ApplicationCollection.objects.get(name=collection_name)
-    except ApplicationCollection.DoesNotExist as exc:
-        raise Http404 from exc
-    try:
-        app = Application.objects.get(application_collection=collection, name=app_name)
-    except Application.DoesNotExist as exc:
-        raise Http404 from exc
-    try:
-        return ApplicationTable.objects.get(application=app, name=table_name)
+        return ApplicationTable.objects.select_related("application__application_collection").get(
+            application__application_collection__name=collection_name,
+            application__name=app_name,
+            name=table_name,
+        )
     except ApplicationTable.DoesNotExist as exc:
         raise Http404 from exc
 
@@ -238,7 +249,7 @@ def manage_page(request: HttpRequest, collection_name: str, app_name: str) -> Ht
     table_rows: list[TableItem] = []
     for table in app.tables.all().order_by("name"):
         # Row counts come from the generated model bound to the live table.
-        model = cast("Any", dynamic_models.get_model(table.physical_name))
+        model = cast("Any", table.as_model())
         table_rows.append(TableItem(name=table.name, row_count=model.objects.count()))
     props = ManageProps(
         collection_name=app.application_collection.name,
@@ -266,7 +277,7 @@ def row_list_page(
 
     sort = filters.sort if filters.sort in _ALLOWED_SORTS else "created_at"
 
-    model = cast("Any", dynamic_models.get_model(table.physical_name))
+    model = cast("Any", table.as_model())
     order_field = "_created_at" if sort == "created_at" else "_edited_at"
     qs = model.objects.order_by(f"-{order_field}", "-_public_id")
     paginator = Paginator(qs, filters.per_page, orphans=5)
@@ -310,7 +321,7 @@ def row_detail_page(
     _require_superuser(request)
     table = _get_application_table_or_404(collection_name, app_name, table_name)
     columns = table.ordered_columns()
-    model = cast("Any", dynamic_models.get_model(table.physical_name))
+    model = cast("Any", table.as_model())
     try:
         instance = model.objects.get(_public_id=public_id)
     except model.DoesNotExist as exc:

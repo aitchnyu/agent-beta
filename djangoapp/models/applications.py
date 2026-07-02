@@ -6,7 +6,7 @@ from typing import ClassVar
 
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
-from django.db import models
+from django.db import connection, models
 
 from djangoapp.models.base import User, generate_uuid7_id
 from djangoapp.utils import sanitize_html
@@ -206,6 +206,46 @@ class ApplicationTable(models.Model):
         """
         by_name = {c.name: c for c in self.columns.all()}
         return [by_name[name] for name in self.column_order]
+
+    def as_model(self) -> type[BaseTable]:
+        """Return the generated dynamic model for this table (built + cached by the registry).
+
+        Thin delegate: the registry owns the cache and rebuild-on-miss logic
+        (see ``dynamic_models.get_model``); the table contributes its identity
+        (``physical_name``). Deferred import breaks the dynamic.py cycle.
+        """
+        from djangoapp.models.dynamic import (  # noqa: PLC0415 circular import with dynamic.py
+            dynamic_models,
+        )
+
+        return dynamic_models.get_model(self.physical_name)
+
+    def does_physical_table_exist(self) -> bool:
+        """Whether this table's physical Postgres table exists."""
+        # dynamic_db_table lives in dynamic.py, which imports this module, so
+        # the import must be deferred to avoid a circular import at load time.
+        from djangoapp.models.dynamic import (  # noqa: PLC0415 circular import with dynamic.py
+            dynamic_db_table,
+        )
+
+        with connection.cursor() as cur:
+            cur.execute("SELECT to_regclass(%s)", [dynamic_db_table(self.physical_name)])
+            return cur.fetchone()[0] is not None
+
+    def physical_columns(self) -> list[str]:
+        """Ordered column names of this table's physical Postgres table."""
+        # See does_physical_table_exist: deferred to break the dynamic.py cycle.
+        from djangoapp.models.dynamic import (  # noqa: PLC0415 circular import with dynamic.py
+            dynamic_db_table,
+        )
+
+        with connection.cursor() as cur:
+            cur.execute(
+                "SELECT column_name FROM information_schema.columns "
+                "WHERE table_name = %s ORDER BY ordinal_position",
+                [dynamic_db_table(self.physical_name)],
+            )
+            return [r[0] for r in cur.fetchall()]
 
     def clean(self) -> None:
         super().clean()

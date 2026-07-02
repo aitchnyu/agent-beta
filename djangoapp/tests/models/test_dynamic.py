@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 from typing import Any, ClassVar, cast
+from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
-from django.db import connection
+from django.db import transaction
 from django.test import TestCase
 
 from djangoapp.models import (
@@ -12,6 +13,7 @@ from djangoapp.models import (
     ApplicationCollection,
     ApplicationTable,
     ApplicationTableColumn,
+    User,
 )
 from djangoapp.models.dynamic import (
     TableNotFoundError,
@@ -20,24 +22,38 @@ from djangoapp.models.dynamic import (
 )
 
 
-class DynamicSchemaTests(TestCase):
-    """Physical-table lifecycle for application tables via schema_editor.
+class _RollbackError(Exception):
+    """Sentinel raised inside a savepoint to force it to roll back."""
 
-    Verifies create/add/delete of tables and columns really alters the
-    Postgres table, that column_order tracks the changes, that the generated
-    dynamic model can query its rows, and that renames never touch the
-    physical table (names are immutable).
 
-    - test_create_table_creates_physical_table_and_model, CREATE TABLE + model fields present
-    - test_create_table_with_all_column_types, every column type maps to a usable field
-    - test_add_columns_alters_table_and_order, ALTER TABLE ADD COLUMN + column_order append
-    - test_delete_columns_alters_table_and_order, ALTER TABLE DROP COLUMN + column_order trim
-    - test_delete_table_drops_physical_table, DROP TABLE + definition rows removed
-    - test_dynamic_model_supports_row_roundtrip, generated model can insert/read a row
-    - test_duplicate_table_in_collection_rejected, collection-scoped name clash rejected
-    - test_rename_table_keeps_physical_name, table rename leaves physical_name/db_table unchanged
-    - test_rename_collection_keeps_physical_name, collection rename leaves physical tables intact
-    - test_resolve_missing_table_raises, TableNotFoundError for an unknown physical name
+def _all_column_types() -> list[dict[str, Any]]:
+    """One column spec per ColumnType, minimal fields."""
+    return [
+        {"name": "code", "type": "char", "max_length": 10},
+        {"name": "note", "type": "text"},
+        {"name": "qty", "type": "integer", "default": 1, "nullable": True},
+        {"name": "active", "type": "boolean", "default": True},
+        {
+            "name": "price",
+            "type": "decimal",
+            "default": "1.50",
+            "max_digits": 8,
+            "decimal_places": 2,
+        },
+        {"name": "due", "type": "datetime", "nullable": True},
+        {"name": "owner", "type": "user", "nullable": True},
+    ]
+
+
+class DynamicTableTestCase(TestCase):
+    """Shared fixture (inv/orders), registry reset, and physical-DB helpers.
+
+    Subclasses cover a single module's behaviour; this base owns the only
+    copy of the cursor helpers so they cannot drift.
+
+    - setUpTestData, seeds the inv collection + orders app once per class
+    - setUp, resets the in-memory dynamic-model registry before each test
+    - tearDown, resets the registry again (registrations survive the per-test rollback)
     """
 
     collection: ClassVar[ApplicationCollection]
@@ -56,6 +72,29 @@ class DynamicSchemaTests(TestCase):
         dynamic_models.reset()
         super().tearDown()
 
+
+class DynamicSchemaTests(DynamicTableTestCase):
+    """Physical-table lifecycle for application tables via schema_editor (positive).
+
+    Verifies create/add/delete of tables and columns really alters the
+    Postgres table, that column_order tracks the changes, that the generated
+    dynamic model can query its rows, and that renames never touch the
+    physical table (names are immutable).
+
+    - test_create_table_creates_physical_table_and_model, CREATE TABLE + model fields present
+    - test_create_table_with_all_column_types, every column type maps to a usable field
+    - test_add_columns_alters_table_and_order, ALTER TABLE ADD COLUMN + column_order append
+    - test_delete_columns_alters_table_and_order, ALTER TABLE DROP COLUMN + column_order trim
+    - test_delete_table_drops_physical_table, DROP TABLE + definition rows removed
+    - test_dynamic_model_supports_row_roundtrip, generated model can insert/read a row
+    - test_duplicate_table_in_collection_rejected, collection-scoped name clash rejected
+    - test_rename_table_keeps_physical_name, table rename leaves physical_name/db_table unchanged
+    - test_rename_collection_keeps_physical_name, collection rename leaves physical tables intact
+    - test_resolve_missing_table_raises, TableNotFoundError for an unknown physical name
+    - test_add_application_table_columns_all_types, every column type materialises a column
+    - test_delete_application_table_columns, columns gone from definition and physical table
+    """
+
     def _columns_spec(self) -> list[dict[str, object]]:
         return [
             {"name": "code", "type": "char", "default": "X", "max_length": 10},
@@ -72,20 +111,6 @@ class DynamicSchemaTests(TestCase):
             {"name": "due", "type": "datetime", "nullable": True},
         ]
 
-    def _table_exists(self, db_table: str) -> bool:
-        with connection.cursor() as cur:
-            cur.execute("SELECT to_regclass(%s)", [db_table])
-            return cur.fetchone()[0] is not None
-
-    def _table_columns(self, db_table: str) -> list[str]:
-        with connection.cursor() as cur:
-            cur.execute(
-                "SELECT column_name FROM information_schema.columns "
-                "WHERE table_name = %s ORDER BY ordinal_position",
-                [db_table],
-            )
-            return [r[0] for r in cur.fetchall()]
-
     def _make_items(self) -> ApplicationTable:
         return dynamic_models.create_application_table(
             "inv", "orders", "items", self._columns_spec()
@@ -94,8 +119,8 @@ class DynamicSchemaTests(TestCase):
     def test_create_table_creates_physical_table_and_model(self) -> None:
         """CREATE TABLE issued, model registered, column_order set, physical_name set."""
         table = self._make_items()
+        self.assertTrue(table.does_physical_table_exist())
         db_table = dynamic_db_table(table.physical_name)
-        self.assertTrue(self._table_exists(db_table))
         model = dynamic_models.get_model(table.physical_name)
         self.assertEqual(model._meta.db_table, db_table)
         # physical_name is <name><seconds><n>, i.e. starts with the table name.
@@ -105,7 +130,7 @@ class DynamicSchemaTests(TestCase):
     def test_create_table_with_all_column_types(self) -> None:
         """Every column type maps to a real column in the physical table."""
         table = self._make_items()
-        cols = set(self._table_columns(dynamic_db_table(table.physical_name)))
+        cols = set(table.physical_columns())
         # Built-in underscore-prefixed columns plus user columns.
         for user_col in [
             "code",
@@ -128,8 +153,7 @@ class DynamicSchemaTests(TestCase):
         dynamic_models.add_application_table_columns(
             "inv", "orders", "items", [{"name": "region", "type": "char", "max_length": 5}]
         )
-        cols = self._table_columns(dynamic_db_table(table.physical_name))
-        self.assertIn("region", cols)
+        self.assertIn("region", table.physical_columns())
         table.refresh_from_db()
         self.assertEqual(table.column_order[-1], "region")
 
@@ -137,7 +161,7 @@ class DynamicSchemaTests(TestCase):
         """ALTER TABLE DROP COLUMN removes the column and trims column_order."""
         table = self._make_items()
         dynamic_models.delete_application_table_columns("inv", "orders", "items", ["note", "due"])
-        cols = self._table_columns(dynamic_db_table(table.physical_name))
+        cols = table.physical_columns()
         self.assertNotIn("note", cols)
         self.assertNotIn("due", cols)
         table.refresh_from_db()
@@ -147,10 +171,9 @@ class DynamicSchemaTests(TestCase):
     def test_delete_table_drops_physical_table(self) -> None:
         """DROP TABLE removes the physical table and all definition rows."""
         table = self._make_items()
-        db_table = dynamic_db_table(table.physical_name)
-        self.assertTrue(self._table_exists(db_table))
+        self.assertTrue(table.does_physical_table_exist())
         dynamic_models.delete_application_table("inv", "orders", "items")
-        self.assertFalse(self._table_exists(db_table))
+        self.assertFalse(table.does_physical_table_exist())
         self.assertFalse(ApplicationTable.objects.filter(name="items").exists())
         self.assertFalse(
             ApplicationTableColumn.objects.filter(application_table__name="items").exists()
@@ -161,7 +184,7 @@ class DynamicSchemaTests(TestCase):
         table = self._make_items()
         # The dynamic model is a runtime-built concrete model; cast lets the
         # test exercise its manager/fields without per-access type: ignores.
-        model = cast(Any, dynamic_models.get_model(table.physical_name))
+        model = cast(Any, table.as_model())
         obj = model.objects.create(code="A1", qty=3, price=Decimal("2.00"), active=True, note="hi")
         refreshed = model.objects.get(_public_id=obj._public_id)
         self.assertEqual(refreshed.code, "A1")
@@ -187,21 +210,282 @@ class DynamicSchemaTests(TestCase):
         self.assertEqual(table.name, "items2")
         self.assertTrue(table.physical_name.startswith("items"))  # unchanged prefix
         self.assertEqual(dynamic_db_table(table.physical_name), db_table)  # physical table intact
-        self.assertTrue(self._table_exists(db_table))
+        self.assertTrue(table.does_physical_table_exist())
 
     def test_rename_collection_keeps_physical_name(self) -> None:
         """Renaming a collection changes no physical table (keyed by physical_name)."""
         table = self._make_items()
-        db_table = dynamic_db_table(table.physical_name)
         dynamic_models.rename_application_collection(self.collection, "inv2")
         table.refresh_from_db()
         self.assertEqual(self.collection.name, "inv2")
-        self.assertTrue(self._table_exists(db_table))  # physical table intact
+        self.assertTrue(table.does_physical_table_exist())  # physical table intact
         # The dynamic model still resolves and counts rows.
-        model = cast(Any, dynamic_models.get_model(table.physical_name))
+        model = cast(Any, table.as_model())
         self.assertEqual(model.objects.count(), 0)
 
     def test_resolve_missing_table_raises(self) -> None:
         """TableNotFoundError surfaces for an unknown physical name."""
         with self.assertRaises(TableNotFoundError):
             dynamic_models.get_model("nope1231")
+
+    def test_add_application_table_columns_all_types(self) -> None:
+        """Every column type materialises a column."""
+        table = dynamic_models.create_application_table(
+            "inv", "orders", "items", [{"name": "seed", "type": "char"}]
+        )
+        dynamic_models.add_application_table_columns("inv", "orders", "items", _all_column_types())
+        table.refresh_from_db()
+        for name in [c["name"] for c in _all_column_types()]:
+            self.assertIn(name, table.column_order)
+            self.assertTrue(table.columns.filter(name=name).exists())
+        cols = set(table.physical_columns())
+        for spec in _all_column_types():
+            # user columns materialise as a FK column ("<name>_id").
+            expected = f"{spec['name']}_id" if spec["type"] == "user" else spec["name"]
+            self.assertIn(expected, cols)
+
+    def test_delete_application_table_columns(self) -> None:
+        """Columns gone from definition and physical table."""
+        table = dynamic_models.create_application_table(
+            "inv",
+            "orders",
+            "items",
+            [{"name": "code", "type": "char"}, {"name": "qty", "type": "integer"}],
+        )
+        dynamic_models.delete_application_table_columns("inv", "orders", "items", ["qty"])
+        table.refresh_from_db()
+        self.assertEqual(table.column_order, ["code"])
+        self.assertFalse(table.columns.filter(name="qty").exists())
+        self.assertNotIn("qty", table.physical_columns())
+
+
+class TransactionalDDLRollbackTests(DynamicTableTestCase):
+    """schema_editor ops issued inside a savepoint roll back on Postgres.
+
+    Each test runs a DDL mutation inside ``transaction.atomic()`` and raises
+    to roll the savepoint back, then asserts the *physical* DB reverted —
+    not just the ORM rows. This pins transactional DDL, the property every
+    schema mutation in the module relies on.
+
+    - test_create_table_rolled_back, CREATE TABLE + definition rows gone after rollback
+    - test_add_columns_rolled_back, ALTER TABLE ADD COLUMN reverted, columns absent
+    - test_delete_columns_rolled_back, ALTER TABLE DROP COLUMN reverted, columns restored
+    - test_delete_table_rolled_back, DROP TABLE reverted, physical table still exists
+    - test_delete_application_cascade_rolled_back, cascade drop reverted, tables intact
+    """
+
+    def test_create_table_rolled_back(self) -> None:
+        """CREATE TABLE + definition rows gone after rollback."""
+        with self.assertRaises(_RollbackError), transaction.atomic():
+            table = dynamic_models.create_application_table(
+                "inv", "orders", "items", [{"name": "code", "type": "char"}]
+            )
+            self.assertTrue(table.does_physical_table_exist())
+            raise _RollbackError
+        self.assertFalse(ApplicationTable.objects.filter(name="items").exists())
+
+    def test_add_columns_rolled_back(self) -> None:
+        """ALTER TABLE ADD COLUMN reverted, columns absent."""
+        table = dynamic_models.create_application_table(
+            "inv", "orders", "items", [{"name": "code", "type": "char"}]
+        )
+        before = table.physical_columns()
+        with self.assertRaises(_RollbackError), transaction.atomic():
+            dynamic_models.add_application_table_columns(
+                "inv", "orders", "items", [{"name": "qty", "type": "integer"}]
+            )
+            raise _RollbackError
+        table.refresh_from_db()
+        self.assertNotIn("qty", table.column_order)
+        self.assertFalse(table.columns.filter(name="qty").exists())
+        self.assertEqual(table.physical_columns(), before)
+
+    def test_delete_columns_rolled_back(self) -> None:
+        """ALTER TABLE DROP COLUMN reverted, columns restored."""
+        table = dynamic_models.create_application_table(
+            "inv",
+            "orders",
+            "items",
+            [{"name": "code", "type": "char"}, {"name": "qty", "type": "integer"}],
+        )
+        before = table.physical_columns()
+        with self.assertRaises(_RollbackError), transaction.atomic():
+            dynamic_models.delete_application_table_columns("inv", "orders", "items", ["qty"])
+            raise _RollbackError
+        table.refresh_from_db()
+        self.assertIn("qty", table.column_order)
+        self.assertTrue(table.columns.filter(name="qty").exists())
+        self.assertEqual(table.physical_columns(), before)
+
+    def test_delete_table_rolled_back(self) -> None:
+        """DROP TABLE reverted, physical table still exists."""
+        table = dynamic_models.create_application_table(
+            "inv", "orders", "items", [{"name": "code", "type": "char"}]
+        )
+        with self.assertRaises(_RollbackError), transaction.atomic():
+            dynamic_models.delete_application_table("inv", "orders", "items")
+            raise _RollbackError
+        self.assertTrue(ApplicationTable.objects.filter(name="items").exists())
+        self.assertTrue(table.does_physical_table_exist())
+
+    def test_delete_application_cascade_rolled_back(self) -> None:
+        """Cascade drop reverted, tables + physical tables intact."""
+        table = dynamic_models.create_application_table(
+            "inv", "orders", "items", [{"name": "code", "type": "char"}]
+        )
+        with self.assertRaises(_RollbackError), transaction.atomic():
+            dynamic_models.delete_application(self.app)
+            raise _RollbackError
+        self.assertTrue(Application.objects.filter(name="orders").exists())
+        self.assertTrue(ApplicationTable.objects.filter(name="items").exists())
+        self.assertTrue(table.does_physical_table_exist())
+
+
+class GraphLifecycleTests(DynamicTableTestCase):
+    """Collection/application create/rename/delete via the registry.
+
+    Positive behaviour plus the cascade-drop guarantee and the
+    cascade-failure safety net (the real reason each method wraps its
+    work in ``transaction.atomic()``).
+
+    - test_create_application_collection, collection row created
+    - test_rename_application_collection, name updated, no physical change
+    - test_delete_application_collection_empty, empty collection deleted
+    - test_delete_application_collection_non_empty_refused, non-empty raises and untouched
+    - test_create_application, app created under the right collection
+    - test_rename_application, app name updated
+    - test_delete_application_no_tables, app row gone
+    - test_delete_application_cascades_tables, child physical tables dropped
+    - test_delete_application_mid_cascade_failure, failure rolls back the whole graph
+    """
+
+    def test_create_application_collection(self) -> None:
+        """Collection row created."""
+        collection = dynamic_models.create_application_collection("inventory")
+        self.assertEqual(collection.name, "inventory")
+        self.assertTrue(ApplicationCollection.objects.filter(name="inventory").exists())
+
+    def test_rename_application_collection(self) -> None:
+        """Name updated, no physical change."""
+        table = dynamic_models.create_application_table(
+            "inv", "orders", "items", [{"name": "code", "type": "char"}]
+        )
+        dynamic_models.rename_application_collection(self.collection, "inventory")
+        self.collection.refresh_from_db()
+        self.assertEqual(self.collection.name, "inventory")
+        # Display-name rename must not touch the physical table.
+        self.assertTrue(table.does_physical_table_exist())
+
+    def test_delete_application_collection_empty(self) -> None:
+        """Empty collection deleted."""
+        empty = dynamic_models.create_application_collection("ephemeral")
+        dynamic_models.delete_application_collection(empty)
+        self.assertFalse(ApplicationCollection.objects.filter(name="ephemeral").exists())
+
+    def test_delete_application_collection_non_empty_refused(self) -> None:
+        """non-empty raises and untouched."""
+        with self.assertRaises(ValidationError):
+            dynamic_models.delete_application_collection(self.collection)
+        self.assertTrue(ApplicationCollection.objects.filter(name="inv").exists())
+        self.assertTrue(Application.objects.filter(name="orders").exists())
+
+    def test_create_application(self) -> None:
+        """App created under the right collection."""
+        app = dynamic_models.create_application("inv", "billing", desc="bills")
+        self.assertEqual(app.name, "billing")
+        self.assertEqual(app.application_collection, self.collection)
+        self.assertEqual(Application.objects.get(name="billing").description, "bills")
+
+    def test_rename_application(self) -> None:
+        """App name updated."""
+        dynamic_models.rename_application("inv", "orders", "orders2")
+        self.assertTrue(Application.objects.filter(name="orders2").exists())
+        self.assertFalse(Application.objects.filter(name="orders").exists())
+
+    def test_delete_application_no_tables(self) -> None:
+        """App row gone."""
+        app = dynamic_models.create_application("inv", "ephemeral")
+        dynamic_models.delete_application(app)
+        self.assertFalse(Application.objects.filter(name="ephemeral").exists())
+
+    def test_delete_application_cascades_tables(self) -> None:
+        """Child physical tables dropped."""
+        table = dynamic_models.create_application_table(
+            "inv", "orders", "items", [{"name": "code", "type": "char"}]
+        )
+        dynamic_models.delete_application(self.app)
+        self.assertFalse(Application.objects.filter(name="orders").exists())
+        self.assertFalse(ApplicationTable.objects.filter(name="items").exists())
+        self.assertFalse(table.does_physical_table_exist())
+
+    def test_delete_application_mid_cascade_failure(self) -> None:
+        """Failure rolls back the whole graph (no half-deleted state)."""
+        table = dynamic_models.create_application_table(
+            "inv", "orders", "items", [{"name": "code", "type": "char"}]
+        )
+        # The cascade calls the instance-based _drop_application_table, so
+        # patch that to force a mid-cascade failure.
+        with (
+            patch.object(
+                dynamic_models,
+                "_drop_application_table",
+                side_effect=RuntimeError("boom"),
+            ),
+            self.assertRaises(RuntimeError),
+        ):
+            dynamic_models.delete_application(self.app)
+        # The atomic block must roll back: app + table + physical table intact.
+        self.assertTrue(Application.objects.filter(name="orders").exists())
+        self.assertTrue(ApplicationTable.objects.filter(name="items").exists())
+        self.assertTrue(table.does_physical_table_exist())
+
+
+class RowLifecycleTests(DynamicTableTestCase):
+    """CRUD on rows via the fetched dynamic model.
+
+    - test_insert_and_read, created row is readable
+    - test_update, saved changes persist
+    - test_delete, row removed
+    """
+
+    user: ClassVar[User]
+    table: ApplicationTable
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        super().setUpTestData()
+        cls.user = User.objects.create_user(username="owner")
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.table = dynamic_models.create_application_table(
+            "inv",
+            "orders",
+            "items",
+            [{"name": "code", "type": "char"}, {"name": "owner", "type": "user", "nullable": True}],
+        )
+
+    def test_insert_and_read(self) -> None:
+        """Created row is readable."""
+        # The dynamic model is a runtime-built concrete model; cast lets the
+        # test exercise its manager/fields without per-access type: ignores.
+        model = cast(Any, self.table.as_model())
+        row = model.objects.create(code="A1", owner=self.user)
+        fetched = model.objects.get(pk=row.pk)
+        self.assertEqual(fetched.code, "A1")
+        self.assertEqual(fetched.owner_id, self.user.id)
+
+    def test_update(self) -> None:
+        """Saved changes persist."""
+        model = cast(Any, self.table.as_model())
+        row = model.objects.create(code="A1")
+        row.code = "B2"
+        row.save()
+        self.assertEqual(model.objects.get(pk=row.pk).code, "B2")
+
+    def test_delete(self) -> None:
+        """Row removed."""
+        model = cast(Any, self.table.as_model())
+        row = model.objects.create(code="A1")
+        row.delete()
+        self.assertFalse(model.objects.filter(pk=row.pk).exists())
