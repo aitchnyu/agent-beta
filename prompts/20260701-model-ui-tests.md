@@ -419,3 +419,59 @@ that merely restates the name (e.g. `test_create_application_collection` +
     - [x] `test_list_application_collection` — docstring add "apps under the collection, sorted"
 - [x] After renames, update each class docstring's one-line-per-method bullet list to match the new names
 - [x] Lint and verify: `./run lintfix`, `./run typecheck`, `./run test`, `./run checkall`
+
+---
+
+# Playwright counterparts for `test_row_views.py`
+
+E2E mirror of the row list (`TableRows.vue`) and row detail (`RowDetail.vue`)
+view tests. The backend tests assert on props; these drive a real browser and
+assert on rendered output + navigation.
+
+## Plan
+
+One new file `djangoapp/tests/playwright/test_row_views.py`, subclassing
+`BasePlaywrightTestCase`. Three test classes, one per concern (detail,
+list render, list navigation). Row views are superuser-gated, so the
+happy-path tests use the `_login_superuser()` pattern from
+`test_users.py:98` (new page → `/login-for-test/<pk>`); the pre-authed
+`self.logged_in_page` (a non-superuser) is reused only for the 404 case.
+
+Seed in `setUp` (model fixtures belong in `setUp`, per the harness): a
+superuser, an application collection + app, `dynamic_models.reset()`,
+`create_application_table(...)` spanning the column types
+(char/text/integer/boolean/decimal/datetime/user), then insert rows via
+the dynamic model — a handful for the detail tests, ~31 for pagination.
+Stash created rows' `_public_id` on `self`. `tearDown` calls
+`dynamic_models.reset()`.
+
+Only `page.wait_for_selector` / `page.wait_for_url` for waits; no
+`wait_for_timeout` / `wait_for_load_state` / explicit `timeout=` args
+(per Playwright rules). All assertions target existing stable classes in
+`TableRows.vue` / `RowDetail.vue`:
+
+- list: `.apps-tablerows-page`, `.apps-tablerows-table`, `.apps-row-link`
+  (per-row detail link), `.apps-prev-link`, `.apps-next-link`,
+  `.apps-tablerows-pagination`, `.apps-tablerows-controls`
+- detail: `.apps-rowdetail-page`, `.apps-rowdetail-table`
+
+URLs:
+- list `/apps/a/<collection>/<app>/manage/<table>/list`
+- detail `/apps/a/<collection>/<app>/manage/<table>/id/<public_id>`
+
+## Checklist
+
+- [x] `setUp` — superuser + collection/app/table (all column types) + rows; stash `_public_id`s; `_post_teardown` drops dynamic physical tables + resets registry
+- [x] `RowDetailE2eTests`
+    - [x] visit detail of a known row → `.apps-rowdetail-page` renders, each column value present in `.apps-rowdetail-table` (incl. user link, created-by)
+    - [x] visit detail of unknown public id → response status 404
+    - [x] non-superuser (use `self.logged_in_page`) → response status 404
+- [x] `RowListRenderE2eTests`
+    - [x] visit list → `.apps-tablerows-table` renders, first row's code cell + "X total" count correct
+    - [x] per-page select → change to 100 in `.apps-tablerows-controls`, `wait_for_url` reflects `per_page=100`, all rows render, no `.apps-next-link`
+- [x] `RowListNavigationE2eTests`
+    - [x] click first `.apps-row-link` → `wait_for_url("**/id/<public_id>")`, detail page renders
+    - [x] with 31 rows + per_page=25: `.apps-next-link` → `wait_for_url` has `page=2`, page-2 row visible; `.apps-prev-link` → back to `page=1`
+    - [x] on page 1, `.apps-prev-link` count is 0
+- [x] Class + method docstrings up to date (one-line-per-method bullet list)
+- [x] Run individual failing tests via the playwright helper, then `./run checkall`
