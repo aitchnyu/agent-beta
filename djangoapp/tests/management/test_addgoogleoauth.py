@@ -30,15 +30,14 @@ class AddGoogleOAuthCommandTests(TestCase):
             stdout=StringIO(),
         )
         app = SocialApp.objects.get(provider="google")
-        assert app.client_id == "client-abc.apps.googleusercontent.com"
-        assert app.secret == "GOCSPX-secret"  # noqa: S105 # fixture credential, not a real secret
-        assert app.key == ""
-        assert app.name == "Google"
-        assert app.settings == {
-            "scope": ["profile", "email"],
-            "auth_params": {"access_type": "online"},
-        }
-        assert list(app.sites.values_list("id", flat=True)) == [settings.SITE_ID]
+        self.assertEqual(app.client_id, "client-abc.apps.googleusercontent.com")
+        self.assertEqual(app.secret, "GOCSPX-secret")
+        self.assertEqual(app.key, "")
+        self.assertEqual(app.name, "Google")
+        self.assertEqual(
+            app.settings, {"scope": ["profile", "email"], "auth_params": {"access_type": "online"}}
+        )
+        self.assertEqual(list(app.sites.values_list("id", flat=True)), [settings.SITE_ID])
 
     def test_settings_use_lowercase_keys(self) -> None:
         """Settings keys are scope/auth_params (the keys allauth reads)."""
@@ -46,10 +45,10 @@ class AddGoogleOAuthCommandTests(TestCase):
         app = SocialApp.objects.get(provider="google")
         # OAuth2Provider.get_scope/get_auth_params read lowercase keys; the
         # uppercase SOCIALACCOUNT_PROVIDERS keys must not leak through.
-        assert "scope" in app.settings
-        assert "auth_params" in app.settings
-        assert "SCOPE" not in app.settings
-        assert "AUTH_PARAMS" not in app.settings
+        self.assertIn("scope", app.settings)
+        self.assertIn("auth_params", app.settings)
+        self.assertNotIn("SCOPE", app.settings)
+        self.assertNotIn("AUTH_PARAMS", app.settings)
 
     def test_rerun_updates_in_place(self) -> None:
         """Second run with new creds updates the single row, no duplicate."""
@@ -62,14 +61,14 @@ class AddGoogleOAuthCommandTests(TestCase):
             "k1",
             stdout=StringIO(),
         )
-        assert SocialApp.objects.filter(provider="google").count() == 1
+        self.assertEqual(SocialApp.objects.filter(provider="google").count(), 1)
         app = SocialApp.objects.get(provider="google")
-        assert app.client_id == "new-client"
-        assert app.secret == "new-secret"  # noqa: S105 # fixture credential, not a real secret
-        assert app.key == "k1"
+        self.assertEqual(app.client_id, "new-client")
+        self.assertEqual(app.secret, "new-secret")
+        self.assertEqual(app.key, "k1")
 
     def test_creates_site_if_missing(self) -> None:
         """Missing SITE_ID site row is created so a fresh DB works."""
         Site.objects.filter(pk=settings.SITE_ID).delete()
         call_command("addgoogleoauth", "c", "s", stdout=StringIO())
-        assert Site.objects.filter(pk=settings.SITE_ID).exists()
+        self.assertTrue(Site.objects.filter(pk=settings.SITE_ID).exists())

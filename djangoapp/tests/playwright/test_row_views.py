@@ -126,25 +126,25 @@ class RowDetailE2eTests(_RowViewsE2eBase):
         body = page.inner_text(".apps-rowdetail-table")
         # Every user column type is present, serialised client-side:
         # code/note raw, active Yes/No, decimal str, datetime local-formatted, owner title.
-        assert "R5" in body
-        assert "n5" in body
-        assert ("Yes" if row.active else "No") in body
-        assert "5.00" in body
-        assert self.superuser.display_name in body
+        self.assertIn("R5", body)
+        self.assertIn("n5", body)
+        self.assertIn("Yes" if row.active else "No", body)
+        self.assertIn("5.00", body)
+        self.assertIn(self.superuser.display_name, body)
 
     def test_unknown_row_404(self) -> None:
         """An unknown public_id resolves to 404."""
         page = self._super_page()
         response = page.goto(self._detail_url("does-not-exist"))
-        assert response is not None
-        assert response.status == HTTPStatus.NOT_FOUND
+        assert response is not None  # narrows Response | None for mypy below
+        self.assertEqual(response.status, HTTPStatus.NOT_FOUND)
 
     def test_non_superuser_404(self) -> None:
         """A non-superuser gets 404 on the detail page."""
         page = self._nonsuper_page()
         response = page.goto(self._detail_url(self.rows[0]._public_id))
-        assert response is not None
-        assert response.status == HTTPStatus.NOT_FOUND
+        assert response is not None  # narrows Response | None for mypy below
+        self.assertEqual(response.status, HTTPStatus.NOT_FOUND)
 
 
 class RowListNavigationE2eTests(_RowViewsE2eBase):
@@ -168,8 +168,8 @@ class RowListNavigationE2eTests(_RowViewsE2eBase):
         page.wait_for_selector(".apps-tablerows-table")
         body = page.inner_text(".apps-tablerows-page")
         # Default sort is created_at desc: R<last> (newest) is the first row.
-        assert f"R{ROW_COUNT - 1}" in body
-        assert f"{ROW_COUNT} total" in body
+        self.assertIn(f"R{ROW_COUNT - 1}", body)
+        self.assertIn(f"{ROW_COUNT} total", body)
 
     def test_row_link_opens_detail(self) -> None:
         """Clicking the first row's arrow link opens its detail page."""
@@ -190,9 +190,9 @@ class RowListNavigationE2eTests(_RowViewsE2eBase):
         page.locator(".apps-tablerows-controls select").nth(0).select_option("100")
         page.wait_for_url("**per_page=100**")
         body = page.inner_text(".apps-tablerows-page")
-        assert f"R{ROW_COUNT - 1}" in body
+        self.assertIn(f"R{ROW_COUNT - 1}", body)
         # 31 rows fit in one page of 100, so the Next link is absent.
-        assert page.locator(".apps-next-link").count() == 0
+        self.assertEqual(page.locator(".apps-next-link").count(), 0)
 
     def test_pagination_next_then_prev(self) -> None:
         """Next moves to page 2 (oldest rows) and Prev returns to page 1 (newest)."""
@@ -204,15 +204,15 @@ class RowListNavigationE2eTests(_RowViewsE2eBase):
         # Page 2 holds the oldest 6 rows (created_at desc), so R5..R0 are here
         # and the newest R<last> is not.
         body = page.inner_text(".apps-tablerows-page")
-        assert "R5" in body
-        assert f"R{ROW_COUNT - 1}" not in body
+        self.assertIn("R5", body)
+        self.assertNotIn(f"R{ROW_COUNT - 1}", body)
         page.locator(".apps-prev-link").click()
         page.wait_for_url("**page=1**")
-        assert f"R{ROW_COUNT - 1}" in page.inner_text(".apps-tablerows-page")
+        self.assertIn(f"R{ROW_COUNT - 1}", page.inner_text(".apps-tablerows-page"))
 
     def test_prev_disabled_on_first_page(self) -> None:
         """The Prev link is absent on page 1 (only a disabled span renders)."""
         page = self._super_page()
         page.goto(self._list_url())
         page.wait_for_selector(".apps-tablerows-table")
-        assert page.locator(".apps-prev-link").count() == 0
+        self.assertEqual(page.locator(".apps-prev-link").count(), 0)

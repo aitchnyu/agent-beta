@@ -56,8 +56,8 @@ class HomeViewTests(InertiaTestCase):
         # csrftoken cookie is issued on every GET - without it the logout
         # form would post an empty token -> 403.
         response = self.client.get("/")
-        assert response.status_code == HTTPStatus.OK
-        assert "csrftoken" in response.cookies
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertIn("csrftoken", response.cookies)
 
 
 class NoPkLeakTests(InertiaTestCase):
@@ -72,6 +72,6 @@ class NoPkLeakTests(InertiaTestCase):
         self.inertia.force_login(user)
         self.inertia.get("/")
         props = self.props()
-        assert props["public_id"] == user.public_id
-        assert "id" not in props
-        assert "pk" not in props
+        self.assertEqual(props["public_id"], user.public_id)
+        self.assertNotIn("id", props)
+        self.assertNotIn("pk", props)

@@ -26,8 +26,8 @@ class MakeSuperuserCommandTests(TestCase):
         User.objects.create_user(username="alice", password="x", email="alice@example.com")
         call_command("makesuperuser", "alice@example.com", stdout=StringIO())
         user = User.objects.get(username="alice")
-        assert user.is_superuser is True
-        assert user.is_staff is True
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.is_staff)
 
     def test_promotion_records_history(self) -> None:
         """Promotion writes an edited UserHistory row with the flag diff."""
@@ -35,18 +35,18 @@ class MakeSuperuserCommandTests(TestCase):
         call_command("makesuperuser", "alice@example.com", stdout=StringIO())
         user = User.objects.get(username="alice")
         entry = UserHistory.objects.get(target_user=user)
-        assert entry.action == "edited"
-        assert entry._changes["is_staff"] == {"old": False, "new": True}
-        assert entry._changes["is_superuser"] == {"old": False, "new": True}
+        self.assertEqual(entry.action, "edited")
+        self.assertEqual(entry._changes["is_staff"], {"old": False, "new": True})
+        self.assertEqual(entry._changes["is_superuser"], {"old": False, "new": True})
         # No other fields were touched.
-        assert entry._changes["first_name"] is None
+        self.assertIsNone(entry._changes["first_name"])
 
     def test_email_match_is_case_insensitive(self) -> None:
         """Different-case email still matches."""
         User.objects.create_user(username="bob", password="x", email="bob@example.com")
         call_command("makesuperuser", "BOB@example.com", stdout=StringIO())
         user = User.objects.get(username="bob")
-        assert user.is_superuser is True
+        self.assertTrue(user.is_superuser)
 
     def test_unknown_email_raises(self) -> None:
         """No match -> CommandError."""
@@ -64,6 +64,6 @@ class MakeSuperuserCommandTests(TestCase):
         )
         call_command("makesuperuser", "root@example.com", stdout=StringIO())
         user = User.objects.get(username="root")
-        assert user.is_superuser is True
-        assert user.is_staff is True
-        assert UserHistory.objects.filter(target_user=user).count() == 0
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.is_staff)
+        self.assertEqual(UserHistory.objects.filter(target_user=user).count(), 0)

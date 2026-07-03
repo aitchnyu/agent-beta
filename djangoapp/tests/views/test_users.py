@@ -44,13 +44,13 @@ class UserListViewTests(QueryBudgetInertiaTestCase):
     def test_list_anonymous_404(self) -> None:
         """Anonymous request returns 404."""
         response = self.client.get("/users/list")
-        assert response.status_code == 404
+        self.assertEqual(response.status_code, 404)
 
     def test_list_non_superuser_404(self) -> None:
         """Authenticated non-superuser returns 404."""
         self.client.force_login(self.regular)
         response = self.client.get("/users/list")
-        assert response.status_code == 404
+        self.assertEqual(response.status_code, 404)
 
     def test_list_superuser_ok(self) -> None:
         self.allow_more_queries(9)  # frozen baseline incl. auth/session overhead
@@ -66,12 +66,12 @@ class UserListViewTests(QueryBudgetInertiaTestCase):
         self.client.get("/users/list")
         users = {u["public_id"]: u for u in self.props()["props"]["users"]}
         pub = users[self.public_user.public_id]
-        assert pub["email"] == "pub@example.com"
-        assert pub["has_public_profile"] is True
-        assert pub["is_staff"] is True
-        assert pub["is_superuser"] is False
-        assert pub["is_active"] is True
-        assert "description" not in pub
+        self.assertEqual(pub["email"], "pub@example.com")
+        self.assertTrue(pub["has_public_profile"])
+        self.assertTrue(pub["is_staff"])
+        self.assertFalse(pub["is_superuser"])
+        self.assertTrue(pub["is_active"])
+        self.assertNotIn("description", pub)
 
     def test_list_pagination(self) -> None:
         self.allow_more_queries(14)  # frozen baseline incl. auth/session overhead
@@ -81,14 +81,14 @@ class UserListViewTests(QueryBudgetInertiaTestCase):
         self.client.force_login(self.superuser)
         self.client.get("/users/list")
         p1 = self.props()["props"]
-        assert p1["pagination"]["total_count"] == 34
-        assert p1["pagination"]["total_pages"] == 2
-        assert p1["pagination"]["page"] == 1
-        assert len(p1["users"]) == 25
+        self.assertEqual(p1["pagination"]["total_count"], 34)
+        self.assertEqual(p1["pagination"]["total_pages"], 2)
+        self.assertEqual(p1["pagination"]["page"], 1)
+        self.assertEqual(len(p1["users"]), 25)
         self.client.get("/users/list?page=2")
         p2 = self.props()["props"]
-        assert p2["pagination"]["page"] == 2
-        assert len(p2["users"]) == 9
+        self.assertEqual(p2["pagination"]["page"], 2)
+        self.assertEqual(len(p2["users"]), 9)
 
     def test_list_select_count_does_not_scale_with_row_count(self) -> None:
         """List SELECT count must not scale with row count (catches per-row N+1)."""
@@ -98,9 +98,9 @@ class UserListViewTests(QueryBudgetInertiaTestCase):
         for i in range(50):
             User.objects.create_user(username=f"bulk-user-{i:02d}", password="pass")
         # Confirm the many-rows list actually renders (guards against a vacuous pass).
-        assert self.client.get("/users/list").status_code == 200
+        self.assertEqual(self.client.get("/users/list").status_code, 200)
         many = self.select_count(lambda: self.client.get("/users/list"))
-        assert few == many
+        self.assertEqual(few, many)
 
 
 class UserSearchViewTests(QueryBudgetTestCase):
@@ -135,42 +135,42 @@ class UserSearchViewTests(QueryBudgetTestCase):
     def test_search_anonymous_404(self) -> None:
         """Anonymous request returns 404."""
         response = self.client.get("/users/api/search?q=alice")
-        assert response.status_code == 404
+        self.assertEqual(response.status_code, 404)
 
     def test_search_non_superuser_404(self) -> None:
         """Authenticated non-superuser returns 404."""
         self.client.force_login(self.regular)
         response = self.client.get("/users/api/search?q=alice")
-        assert response.status_code == 404
+        self.assertEqual(response.status_code, 404)
 
     def test_search_empty_returns_all(self) -> None:
         """Empty query returns all users ordered by username, capped at 20."""
         self.client.force_login(self.superuser)
         response = self.client.get("/users/api/search")
-        assert response.status_code == 200
+        self.assertEqual(response.status_code, 200)
         usernames = [u["username"] for u in json.loads(response.content)["users"]]
-        assert "alice" in usernames
-        assert "peon" in usernames
-        assert usernames == sorted(usernames)
+        self.assertIn("alice", usernames)
+        self.assertIn("peon", usernames)
+        self.assertEqual(usernames, sorted(usernames))
 
     def test_search_by_username(self) -> None:
         """Query filters to the matching username, excluding non-matches."""
         self.client.force_login(self.superuser)
         response = self.client.get("/users/api/search?q=alice")
-        assert response.status_code == 200
+        self.assertEqual(response.status_code, 200)
         usernames = [u["username"] for u in json.loads(response.content)["users"]]
-        assert "alice" in usernames
-        assert "peon" not in usernames
+        self.assertIn("alice", usernames)
+        self.assertNotIn("peon", usernames)
 
     def test_search_item_shape(self) -> None:
         """Each item exposes public_id/username/title and no pk id key."""
         self.client.force_login(self.superuser)
         response = self.client.get("/users/api/search?q=alice")
-        assert response.status_code == 200
+        self.assertEqual(response.status_code, 200)
         item = json.loads(response.content)["users"][0]
-        assert set(item.keys()) == {"public_id", "username", "title"}
-        assert item["public_id"] == self.alice.public_id
-        assert item["title"] == "Alice Smith"
+        self.assertEqual(set(item.keys()), {"public_id", "username", "title"})
+        self.assertEqual(item["public_id"], self.alice.public_id)
+        self.assertEqual(item["title"], "Alice Smith")
 
 
 class UserDetailsViewTests(QueryBudgetInertiaTestCase):
@@ -219,46 +219,46 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
     def test_details_anonymous_ok(self) -> None:
         """Anonymous can view a profile (200)."""
         response = self.client.get(f"/users/id/{self.public_user.public_id}")
-        assert response.status_code == 200
+        self.assertEqual(response.status_code, 200)
 
     def test_details_public_shows_description(self) -> None:
         """Public profile includes description and username."""
         self.client.get(f"/users/id/{self.public_user.public_id}")
         props = self.props()["props"]
-        assert props["description"] == "<p>about me</p>"
-        assert props["username"] == "pub"
-        assert props["first_name"] == "Pub"
-        assert props["last_name"] == "Lic"
+        self.assertEqual(props["description"], "<p>about me</p>")
+        self.assertEqual(props["username"], "pub")
+        self.assertEqual(props["first_name"], "Pub")
+        self.assertEqual(props["last_name"], "Lic")
 
     def test_details_private_hides_extras(self) -> None:
         """Private profile omits description and username, keeps first/last name."""
         self.client.get(f"/users/id/{self.private_user.public_id}")
         props = self.props()["props"]
-        assert props["description"] is None
-        assert props["username"] is None
-        assert props["first_name"] == "Pri"
-        assert props["last_name"] == "Vate"
+        self.assertIsNone(props["description"])
+        self.assertIsNone(props["username"])
+        self.assertEqual(props["first_name"], "Pri")
+        self.assertEqual(props["last_name"], "Vate")
 
     def test_details_owner_gated_by_own_flag(self) -> None:
         """Owner of a private profile sees no description (gated by own flag)."""
         self.client.force_login(self.private_user)
         self.client.get(f"/users/id/{self.private_user.public_id}")
         props = self.props()["props"]
-        assert props["is_owner"] is True
-        assert props["description"] is None
-        assert props["username"] is None
+        self.assertTrue(props["is_owner"])
+        self.assertIsNone(props["description"])
+        self.assertIsNone(props["username"])
 
     def test_details_shared_is_superuser_true(self) -> None:
         self.allow_more_queries(9)  # frozen baseline incl. auth/session overhead
         "superuser viewer sets the shared viewer_is_superuser flag (gates admin UI)"
         self.client.force_login(self.superuser)
         self.client.get(f"/users/id/{self.public_user.public_id}")
-        assert self.props()["viewer_is_superuser"] is True
+        self.assertTrue(self.props()["viewer_is_superuser"])
 
     def test_details_shared_is_superuser_false(self) -> None:
         """non-superuser/anonymous viewer gets the shared viewer_is_superuser False."""
         self.client.get(f"/users/id/{self.public_user.public_id}")
-        assert self.props()["viewer_is_superuser"] is False
+        self.assertFalse(self.props()["viewer_is_superuser"])
 
     def test_details_admin_attrs_for_superuser(self) -> None:
         self.allow_more_queries(9)  # frozen baseline incl. auth/session overhead
@@ -277,24 +277,24 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
         self.client.force_login(self.superuser)
         self.client.get(f"/users/id/{self.public_user.public_id}")
         props = self.props()["props"]
-        assert props["email"] == "pub@example.com"
-        assert props["has_public_profile"] is True
-        assert props["is_active"] is True
-        assert props["history_count"] == 1
+        self.assertEqual(props["email"], "pub@example.com")
+        self.assertTrue(props["has_public_profile"])
+        self.assertTrue(props["is_active"])
+        self.assertEqual(props["history_count"], 1)
 
     def test_details_admin_attrs_hidden_for_anonymous(self) -> None:
         """Anonymous viewer gets no real email (None) and history_count 0."""
         self.client.get(f"/users/id/{self.public_user.public_id}")
         props = self.props()["props"]
-        assert props["email"] is None
+        self.assertIsNone(props["email"])
         # Admin gating now comes from the shared flag, not a page prop.
-        assert self.props()["viewer_is_superuser"] is False
-        assert props["history_count"] == 0
+        self.assertFalse(self.props()["viewer_is_superuser"])
+        self.assertEqual(props["history_count"], 0)
 
     def test_details_missing_404(self) -> None:
         """Unknown public_id returns 404."""
         response = self.client.get("/users/id/does-not-exist")
-        assert response.status_code == 404
+        self.assertEqual(response.status_code, 404)
 
 
 class UserEditViewTests(QueryBudgetInertiaTestCase):
@@ -358,13 +358,13 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
     def test_edit_anonymous_404(self) -> None:
         """Anonymous GET on the edit form returns 404."""
         response = self.client.get(f"/users/edit/{self.target.public_id}")
-        assert response.status_code == 404
+        self.assertEqual(response.status_code, 404)
 
     def test_edit_non_superuser_404(self) -> None:
         """non-superuser GET on the edit form returns 404."""
         self.client.force_login(self.regular)
         response = self.client.get(f"/users/edit/{self.target.public_id}")
-        assert response.status_code == 404
+        self.assertEqual(response.status_code, 404)
 
     def test_edit_superuser_ok(self) -> None:
         """Superuser GET renders the UserEdit form with the target's editable fields."""
@@ -372,15 +372,15 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
         self.client.get(f"/users/edit/{self.target.public_id}")
         self.assertComponentUsed("UserEdit")
         target = self.props()["props"]["target"]
-        assert target["username"] == "target"
-        assert target["first_name"] == "Old"
-        assert target["has_public_profile"] is False
+        self.assertEqual(target["username"], "target")
+        self.assertEqual(target["first_name"], "Old")
+        self.assertFalse(target["has_public_profile"])
 
     def test_edit_missing_404(self) -> None:
         """Unknown public_id returns 404."""
         self.client.force_login(self.superuser)
         response = self.client.get("/users/edit/does-not-exist")
-        assert response.status_code == 404
+        self.assertEqual(response.status_code, 404)
 
     def test_edit_submit_updates_fields(self) -> None:
         self.allow_more_queries(9)  # frozen baseline incl. auth/session overhead
@@ -391,13 +391,13 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
             data=self._payload(),
             content_type="application/json",
         )
-        assert response.status_code == 200
-        assert response.json()["id"] == self.target.public_id
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["id"], self.target.public_id)
         self.target.refresh_from_db()
-        assert self.target.first_name == "New"
-        assert self.target.email == "new@example.com"
-        assert self.target.has_public_profile is True
-        assert self.target.is_staff is True
+        self.assertEqual(self.target.first_name, "New")
+        self.assertEqual(self.target.email, "new@example.com")
+        self.assertTrue(self.target.has_public_profile)
+        self.assertTrue(self.target.is_staff)
 
     def test_edit_submit_cannot_change_username(self) -> None:
         self.allow_more_queries(9)  # frozen baseline incl. auth/session overhead
@@ -407,7 +407,7 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
         payload["username"] = "hijacked"
         self._submit(payload)
         self.target.refresh_from_db()
-        assert self.target.username == "target"
+        self.assertEqual(self.target.username, "target")
 
     def test_edit_submit_sanitizes_description(self) -> None:
         self.allow_more_queries(9)  # frozen baseline incl. auth/session overhead
@@ -417,7 +417,7 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
         payload["description"] = "<p>ok</p><script>alert(1)</script>"
         self._submit(payload)
         self.target.refresh_from_db()
-        assert self.target.description == "<p>ok</p>"
+        self.assertEqual(self.target.description, "<p>ok</p>")
 
     def test_edit_submit_records_history(self) -> None:
         self.allow_more_queries(10)  # frozen baseline incl. auth/session overhead
@@ -425,13 +425,13 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
         self.client.force_login(self.superuser)
         self._submit(self._payload())
         entries = UserHistory.objects.filter(target_user=self.target)
-        assert entries.count() == 1
+        self.assertEqual(entries.count(), 1)
         entry = entries.get()
-        assert entry.action == "edited"
-        assert entry.user_id == self.superuser.pk
+        self.assertEqual(entry.action, "edited")
+        self.assertEqual(entry.user_id, self.superuser.pk)
         changes = entry._changes
-        assert changes["first_name"] == {"old": "Old", "new": "New"}
-        assert "username" not in changes
+        self.assertEqual(changes["first_name"], {"old": "Old", "new": "New"})
+        self.assertNotIn("username", changes)
 
     def test_edit_submit_blocks_self_demotion(self) -> None:
         self.allow_more_queries(9)  # frozen baseline incl. auth/session overhead
@@ -445,10 +445,10 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
             data=payload,
             content_type="application/json",
         )
-        assert response.status_code == 400
+        self.assertEqual(response.status_code, 400)
         self.superuser.refresh_from_db()
-        assert self.superuser.is_superuser is True
-        assert self.superuser.is_active is True
+        self.assertTrue(self.superuser.is_superuser)
+        self.assertTrue(self.superuser.is_active)
 
     def test_edit_submit_rejects_invalid_email(self) -> None:
         """POST with a malformed email returns 422 and leaves the target unchanged."""
@@ -460,9 +460,9 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
             data=payload,
             content_type="application/json",
         )
-        assert response.status_code == 422
+        self.assertEqual(response.status_code, 422)
         self.target.refresh_from_db()
-        assert self.target.email == "old@example.com"
+        self.assertEqual(self.target.email, "old@example.com")
 
 
 class UserHistoryViewTests(QueryBudgetInertiaTestCase):
@@ -491,19 +491,19 @@ class UserHistoryViewTests(QueryBudgetInertiaTestCase):
     def test_history_anonymous_404(self) -> None:
         """Anonymous GET returns 404."""
         response = self.client.get(f"/users/history/{self.target.public_id}")
-        assert response.status_code == 404
+        self.assertEqual(response.status_code, 404)
 
     def test_history_non_superuser_404(self) -> None:
         """non-superuser GET returns 404."""
         self.client.force_login(self.regular)
         response = self.client.get(f"/users/history/{self.target.public_id}")
-        assert response.status_code == 404
+        self.assertEqual(response.status_code, 404)
 
     def test_history_missing_404(self) -> None:
         """Unknown public_id returns 404."""
         self.client.force_login(self.superuser)
         response = self.client.get("/users/history/does-not-exist")
-        assert response.status_code == 404
+        self.assertEqual(response.status_code, 404)
 
     def test_history_superuser_shows_entries(self) -> None:
         self.allow_more_queries(9)  # frozen baseline incl. auth/session overhead
@@ -523,8 +523,8 @@ class UserHistoryViewTests(QueryBudgetInertiaTestCase):
         self.client.get(f"/users/history/{self.target.public_id}")
         self.assertComponentUsed("UserHistory")
         props = self.props()["props"]
-        assert props["target_public_id"] == self.target.public_id
+        self.assertEqual(props["target_public_id"], self.target.public_id)
         entries = props["entries"]
-        assert len(entries) == 1
-        assert entries[0]["action"] == "edited"
-        assert entries[0]["changes"]["is_staff"] == {"old": False, "new": True}
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["action"], "edited")
+        self.assertEqual(entries[0]["changes"]["is_staff"], {"old": False, "new": True})

@@ -1,14 +1,4 @@
-Refer test_row_views.py and the prompts for it.
-We need counterparts tests in playwright.
-Setup by creating a test collection and app and table. Insert values. 
-For tests, visit details, verify stuff; then visit list and try to navigate
-
-RowLifecycleTests in test_row_views- for models. Do it for playwright too.
-
-How to test the list and details with playwright?
-
-----------
-assert "R5" in body - use assertMethod
+def create_application
 
 No json when creating app
 script/something.py

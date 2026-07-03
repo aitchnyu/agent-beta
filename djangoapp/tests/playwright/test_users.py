@@ -28,17 +28,17 @@ class HomeAuthE2eTestCase(BasePlaywrightTestCase):
         with self.anon_page() as page:
             page.goto(f"{self.live_server_url}/")
             page.wait_for_selector(".home-status-signed-out")
-            assert page.locator(".home-login-link").count() == 1
-            assert page.locator(".home-logout-btn").count() == 0
+            self.assertEqual(page.locator(".home-login-link").count(), 1)
+            self.assertEqual(page.locator(".home-logout-btn").count(), 0)
 
     def test_authenticated_home_shows_user(self) -> None:
         """Authed / shows the user's display name and a logout button, no login link."""
         page = self.logged_in_page
         page.goto(f"{self.live_server_url}/")
         page.wait_for_selector(".home-status-signed-in")
-        assert page.text_content(".home-display-name") == self.user.display_name
-        assert page.locator(".home-logout-btn").count() == 1
-        assert page.locator(".home-login-link").count() == 0
+        self.assertEqual(page.text_content(".home-display-name"), self.user.display_name)
+        self.assertEqual(page.locator(".home-logout-btn").count(), 1)
+        self.assertEqual(page.locator(".home-login-link").count(), 0)
 
     def test_logout_flow_returns_to_signed_out(self) -> None:
         """Clicking Sign out logs out and lands back on the signed-out home."""
@@ -64,7 +64,7 @@ class LoginForTestGateE2eTestCase(BasePlaywrightTestCase):
             response = page.request.get(
                 f"{self.live_server_url}/login-for-test/{self.user.pk}",
             )
-            assert response.status == HTTPStatus.NOT_FOUND
+            self.assertEqual(response.status, HTTPStatus.NOT_FOUND)
 
 
 class UserEditE2eTestCase(BasePlaywrightTestCase):
@@ -113,7 +113,7 @@ class UserEditE2eTestCase(BasePlaywrightTestCase):
         page.wait_for_url(f"**/users/id/{self.target.public_id}")
 
         self.target.refresh_from_db()
-        assert self.target.first_name == "NewFirst"
+        self.assertEqual(self.target.first_name, "NewFirst")
 
     def test_edit_page_updates_description(self) -> None:
         """Type into the rich-text editor; submit persists the description."""
@@ -129,14 +129,14 @@ class UserEditE2eTestCase(BasePlaywrightTestCase):
         page.wait_for_url(f"**/users/id/{self.target.public_id}")
 
         self.target.refresh_from_db()
-        assert "Updated about text" in self.target.description
+        self.assertIn("Updated about text", self.target.description)
 
     def test_edit_page_requires_superuser(self) -> None:
         """Anonymous viewer of the edit form gets a 404."""
         page = self.context.new_page()
         response = page.goto(f"{self.live_server_url}/users/edit/{self.target.public_id}")
         assert response is not None
-        assert response.status == HTTPStatus.NOT_FOUND
+        self.assertEqual(response.status, HTTPStatus.NOT_FOUND)
         page.close()
 
 
@@ -192,14 +192,14 @@ class UserHistoryE2eTestCase(BasePlaywrightTestCase):
         page.goto(f"{self.live_server_url}/users/history/{self.target.public_id}")
         page.wait_for_selector(".user-history-entry")
 
-        assert page.locator("text=Edited").count() >= 1
-        assert page.locator(".user-history-old", has_text="Before").count() >= 1
-        assert page.locator(".user-history-new", has_text="After").count() >= 1
+        self.assertGreaterEqual(page.locator("text=Edited").count(), 1)
+        self.assertGreaterEqual(page.locator(".user-history-old", has_text="Before").count(), 1)
+        self.assertGreaterEqual(page.locator(".user-history-new", has_text="After").count(), 1)
 
     def test_history_page_requires_superuser(self) -> None:
         """Anonymous viewer of the history page gets a 404."""
         page = self.context.new_page()
         response = page.goto(f"{self.live_server_url}/users/history/{self.target.public_id}")
         assert response is not None
-        assert response.status == HTTPStatus.NOT_FOUND
+        self.assertEqual(response.status, HTTPStatus.NOT_FOUND)
         page.close()

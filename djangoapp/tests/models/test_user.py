@@ -25,65 +25,65 @@ class UserModelTests(TestCase):
     def test_public_id_auto_generated_on_create_user(self) -> None:
         """create_user sets a uuid7 public_id."""
         user = User.objects.create_user(username="alpha", password="pass")
-        assert user.public_id
+        self.assertTrue(user.public_id)
 
     def test_public_id_unique_across_users(self) -> None:
         """Two users get distinct public_ids."""
         u1 = User.objects.create_user(username="alpha", password="pass")
         u2 = User.objects.create_user(username="beta", password="pass")
-        assert u1.public_id != u2.public_id
+        self.assertNotEqual(u1.public_id, u2.public_id)
 
     def test_public_id_format_is_uuid(self) -> None:
         """public_id is a 36-char hyphenated uuid string."""
         user = User.objects.create_user(username="alpha", password="pass")
-        assert len(user.public_id) == 36
-        assert user.public_id.count("-") == 4
+        self.assertEqual(len(user.public_id), 36)
+        self.assertEqual(user.public_id.count("-"), 4)
 
     def test_has_public_profile_defaults_false(self) -> None:
         """A freshly created user has has_public_profile False."""
         user = User.objects.create_user(username="alpha", password="pass")
-        assert user.has_public_profile is False
+        self.assertFalse(user.has_public_profile)
 
     def test_display_name_combines_first_and_last_name(self) -> None:
         """Both names present returns First Last, ignoring the username."""
         user = User.objects.create_user(
             username="alpha", password="pass", first_name="Alpha", last_name="Beta"
         )
-        assert user.display_name == "Alpha Beta"
+        self.assertEqual(user.display_name, "Alpha Beta")
 
     def test_display_name_strips_whitespace_when_partial(self) -> None:
         """Only first_name set returns it with no trailing space."""
         user = User.objects.create_user(
             username="alpha", password="pass", first_name="Alpha", last_name=""
         )
-        assert user.display_name == "Alpha"
+        self.assertEqual(user.display_name, "Alpha")
 
     def test_display_name_falls_back_to_username(self) -> None:
         """Empty first/last names fall back to the username."""
         user = User.objects.create_user(username="alpha", password="pass")
-        assert user.display_name == "alpha"
+        self.assertEqual(user.display_name, "alpha")
 
     def test_search_users_ranks_by_best_match(self) -> None:
         """Best trigram match ranks first across username/name fields."""
         User.objects.create_user(username="alice", password="pass")
         User.objects.create_user(username="alicia", password="pass")
         result = list(User.search_users("alice").values_list("username", flat=True))
-        assert result[0] == "alice"
-        assert "alicia" in result
-        assert result.index("alice") < result.index("alicia")
+        self.assertEqual(result[0], "alice")
+        self.assertIn("alicia", result)
+        self.assertLess(result.index("alice"), result.index("alicia"))
 
     def test_search_users_empty_returns_all(self) -> None:
         """Empty query returns all users ordered by username."""
         User.objects.create_user(username="zoe", password="pass")
         User.objects.create_user(username="amy", password="pass")
         result = list(User.search_users("").values_list("username", flat=True))
-        assert result == ["amy", "zoe"]
+        self.assertEqual(result, ["amy", "zoe"])
 
     def test_search_users_no_match_returns_empty(self) -> None:
         """Unrelated query returns an empty queryset."""
         User.objects.create_user(username="alice", password="pass")
         result = list(User.search_users("zzznomatch").values_list("username", flat=True))
-        assert result == []
+        self.assertEqual(result, [])
 
 
 class UserHistoryModelTests(TestCase):
@@ -125,11 +125,11 @@ class UserHistoryModelTests(TestCase):
             user=self.actor,
         )
         entries = UserHistory.objects.filter(target_user=self.user)
-        assert entries.count() == 1
+        self.assertEqual(entries.count(), 1)
         entry = entries.get()
-        assert entry.action == "edited"
-        assert entry.user_id == self.actor.pk
-        assert entry._changes["first_name"] == {"old": "Old", "new": "New"}
+        self.assertEqual(entry.action, "edited")
+        self.assertEqual(entry.user_id, self.actor.pk)
+        self.assertEqual(entry._changes["first_name"], {"old": "Old", "new": "New"})
 
     def test_update_leaves_username_and_public_id_unchanged(self) -> None:
         """Username and public_id are immutable through update."""
@@ -145,8 +145,8 @@ class UserHistoryModelTests(TestCase):
             is_superuser=self.user.is_superuser,
             user=self.actor,
         )
-        assert self.user.username == "target"
-        assert self.user.public_id == original_public_id
+        self.assertEqual(self.user.username, "target")
+        self.assertEqual(self.user.public_id, original_public_id)
 
     def test_difference_only_includes_changed_fields(self) -> None:
         """The edited diff marks unchanged fields as null."""
@@ -162,10 +162,10 @@ class UserHistoryModelTests(TestCase):
             user=self.actor,
         )
         changes = UserHistory.objects.get(target_user=self.user)._changes
-        assert changes["email"] == {"old": "old@example.com", "new": "changed@example.com"}
-        assert changes["first_name"] is None
-        assert changes["last_name"] is None
-        assert "username" not in changes
+        self.assertEqual(changes["email"], {"old": "old@example.com", "new": "changed@example.com"})
+        self.assertIsNone(changes["first_name"])
+        self.assertIsNone(changes["last_name"])
+        self.assertNotIn("username", changes)
 
     def test_update_noop_skips_history(self) -> None:
         """A no-op update (all values unchanged) records no history row."""
@@ -180,7 +180,7 @@ class UserHistoryModelTests(TestCase):
             is_superuser=self.user.is_superuser,
             user=self.actor,
         )
-        assert UserHistory.objects.filter(target_user=self.user).count() == 0
+        self.assertEqual(UserHistory.objects.filter(target_user=self.user).count(), 0)
 
     def test_record_created_snapshots_all_fields(self) -> None:
         """record_created captures every editable field as new (old==new)."""
@@ -196,5 +196,7 @@ class UserHistoryModelTests(TestCase):
         )
         UserHistory.record_created(self.user, self.actor, snapshot)
         entry = UserHistory.objects.get(target_user=self.user, action="created")
-        assert entry._changes["has_public_profile"] == {"old": False, "new": False}
-        assert entry._changes["email"] == {"old": "old@example.com", "new": "old@example.com"}
+        self.assertEqual(entry._changes["has_public_profile"], {"old": False, "new": False})
+        self.assertEqual(
+            entry._changes["email"], {"old": "old@example.com", "new": "old@example.com"}
+        )

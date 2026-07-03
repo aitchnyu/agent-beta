@@ -24,8 +24,8 @@ class SharedPropsMiddlewareTests(
         """Anonymous request shares user None and viewer_is_superuser False."""
         self.inertia.get("/")
         props = self.props()
-        assert props["user"] is None
-        assert props["viewer_is_superuser"] is False
+        self.assertIsNone(props["user"])
+        self.assertFalse(props["viewer_is_superuser"])
 
     def test_plain_user_gets_profile_not_superuser(self) -> None:
         """Authenticated non-superuser gets a profile but viewer_is_superuser False."""
@@ -37,8 +37,8 @@ class SharedPropsMiddlewareTests(
         self.inertia.force_login(user)
         self.inertia.get("/")
         props = self.props()
-        assert props["user"] == {"public_id": user.public_id, "title": "Alice Smith"}
-        assert props["viewer_is_superuser"] is False
+        self.assertEqual(props["user"], {"public_id": user.public_id, "title": "Alice Smith"})
+        self.assertFalse(props["viewer_is_superuser"])
 
     def test_superuser_gets_profile_and_flag(self) -> None:
         """Superuser gets a profile and viewer_is_superuser True."""
@@ -52,8 +52,8 @@ class SharedPropsMiddlewareTests(
         self.inertia.force_login(user)
         self.inertia.get("/")
         props = self.props()
-        assert props["user"] == {"public_id": user.public_id, "title": "Root User"}
-        assert props["viewer_is_superuser"] is True
+        self.assertEqual(props["user"], {"public_id": user.public_id, "title": "Root User"})
+        self.assertTrue(props["viewer_is_superuser"])
 
     def test_shared_user_is_pk_free(self) -> None:
         """Shared user carries public_id and never an integer id/pk."""
@@ -62,6 +62,6 @@ class SharedPropsMiddlewareTests(
         self.inertia.get("/")
         shared_user = self.props()["user"]
         assert shared_user is not None
-        assert shared_user["public_id"] == user.public_id
-        assert "id" not in shared_user
-        assert "pk" not in shared_user
+        self.assertEqual(shared_user["public_id"], user.public_id)
+        self.assertNotIn("id", shared_user)
+        self.assertNotIn("pk", shared_user)
