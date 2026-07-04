@@ -56,41 +56,68 @@ Manage everything through the `dynamic_models` registry (`djangoapp/models/dynam
 the single home for all collection/app/table mutation. Each method runs in a
 transaction; collection/app renames and table renames are display-name-only
 updates with zero DDL. `delete_application` cascade-drops its tables;
-`delete_application_collection` refuses a non-empty collection.
+`delete_application_collection` refuses a non-empty collection. All arguments
+are keyword-only. There is no CLI for creating apps or tables — creation
+happens only through the registry, inside a setup script (see
+[App framework](#app-framework) below).
+
+Columns are declared with typed column classes (positional `name`, everything
+else keyword-only) from `djangoapp.models.columns`. The old `{"name", "type",
+...}` dict spec is gone — column objects are the only spec.
 
 ```python
+from djangoapp.models.columns import (
+    BooleanColumn,
+    CharColumn,
+    DateTimeColumn,
+    DecimalColumn,
+    IntegerColumn,
+    TextColumn,
+    UserColumn,
+)
 from djangoapp.models.dynamic import dynamic_models
 
 dynamic_models.create_application_collection("Inv")
-dynamic_models.create_application("Inv", "Orders", desc="...")
 
-# One column spec per type — every field each type accepts is shown.
-dynamic_models.create_application_table(
-    "Inv", "Orders", "Items",
-    columns=[
-        {"name": "code", "type": "char", "default": "X", "max_length": 10, "choices": ["X", "Y"]},
-        {"name": "note", "type": "text", "default": "", "min_length": 0, "max_length": 1000},
-        {"name": "qty", "type": "integer", "default": 1, "nullable": True},
-        {"name": "active", "type": "boolean", "default": False},
-        {"name": "price", "type": "decimal", "default": "1.50", "nullable": False,
-         "max_digits": 8, "decimal_places": 2},
-        {"name": "due", "type": "datetime", "nullable": True},
-        {"name": "owner", "type": "user", "nullable": True},
-    ],
+# description is kept (rich text, sanitized on save); tables are created
+# inline when given; script is a file path to the app's entry module.
+dynamic_models.create_application(
+    collection="Inv",
+    name="Orders",
+    description="...",
+    tables={
+        "Items": [
+            CharColumn("code", max_length=10, default="X", choices=["X", "Y"]),
+            TextColumn("note", default=""),
+            IntegerColumn("qty", default=1, nullable=True),
+            BooleanColumn("active", default=False),
+            DecimalColumn("price", max_digits=8, decimal_places=2, default="1.50"),
+            DateTimeColumn("due", nullable=True),
+            UserColumn("owner", nullable=True),
+        ],
+    },
+    script="Inv/Orders/app.py",
 )
 
-# add_application_table_columns takes the same spec shape (no duplicates, no
+# create_application_table takes the same column objects (no duplicate or
 # existing names):
-dynamic_models.add_application_table_columns(
-    "Inv", "Orders", "Items",
-    columns=[
-        {"name": "region", "type": "char", "max_length": 5},
-        {"name": "discount", "type": "decimal", "max_digits": 5, "decimal_places": 2},
-    ],
+dynamic_models.create_application_table(
+    collection="Inv",
+    application="Orders",
+    table="Items",
+    columns=[CharColumn("code", max_length=10), IntegerColumn("qty", nullable=True)],
 )
-dynamic_models.delete_application_table_columns("Inv", "Orders", "Items", ["region"])
+
+# add_application_table_columns takes the same column objects too:
+dynamic_models.add_application_table_columns(
+    collection="Inv",
+    application="Orders",
+    table="Items",
+    columns=[CharColumn("region", max_length=5), DecimalColumn("discount", max_digits=5, decimal_places=2)],
+)
+dynamic_models.delete_application_table_columns(collection="Inv", application="Orders", table="Items", names=["region"])
 dynamic_models.rename_application_table(table, "Products")
-dynamic_models.delete_application_table("Inv", "Orders", "Products")
+dynamic_models.delete_application_table(collection="Inv", application="Orders", table="Products")
 dynamic_models.delete_application(app)            # cascade-drops its tables
 dynamic_models.delete_application_collection(collection)  # refuses if non-empty
 ```
@@ -98,12 +125,13 @@ dynamic_models.delete_application_collection(collection)  # refuses if non-empty
 ### Registry methods
 
 - Collections: `create_application_collection(name)` / `rename_application_collection(collection, new_name)` / `delete_application_collection(collection)` (refuses if non-empty)
-- Applications: `create_application(appcollection, name, desc)` / `rename_application(appcollection, old_name, new_name)` / `delete_application(application)` (cascade-drops its tables)
-- Tables: `create_application_table(appcollection, app, name, columns)` / `add_application_table_columns(...)` / `delete_application_table_columns(...)` / `rename_application_table(table, new_name)` / `delete_application_table(appcollection, app, table)`
+- Applications: `create_application(*, collection, name, description="", tables=None, script)` / `rename_application(collection, old_name, new_name)` / `delete_application(application)` (cascade-drops its tables)
+- Tables: `create_application_table(*, collection, application, table, columns)` / `add_application_table_columns(*, collection, application, table, columns)` / `delete_application_table_columns(*, collection, application, table, names)` / `rename_application_table(table, new_name)` / `delete_application_table(*, collection, application, table)`
 
 ### Read-only `applications` command
 
-Listing/describe only (mutation is on the registry above):
+Listing/describe only (mutation is on the registry above; there is no CLI for
+creating apps or tables):
 
 ```bash
 ./run djangomanage applications list_application_collections
@@ -115,12 +143,64 @@ Listing/describe only (mutation is on the registry above):
 - `list_application_collection --name` — list an app's contents
 - `describe_application_table --appcollection --app --name` — print a table's columns (omits physical_name/db_table)
 
-### Column types
+### Column classes
 
-`char` (default/choices/min_length/max_length), `text` (default/min_length/max_length),
-`integer` (default/nullable), `boolean` (default), `decimal` (default/nullable/max_digits/decimal_places),
-`datetime` (nullable), `user` (nullable FK to the project User). Column names must
-start with a letter and contain only letters/digits.
+All live in `djangoapp.models.columns`; `name` is positional, every other
+field is keyword-only. Column names must start with a letter and contain only
+letters/digits.
+
+- `CharColumn(name, *, default, max_length, min_length, choices, nullable)`
+- `TextColumn(name, *, default, min_length, max_length, nullable)`
+- `IntegerColumn(name, *, default, nullable)`
+- `BooleanColumn(name, *, default, nullable)`
+- `DecimalColumn(name, *, default, max_digits, decimal_places, nullable)`
+- `DateTimeColumn(name, *, nullable)`
+- `UserColumn(name, *, nullable)` — ForeignKey to the project `User`
+
+### App framework
+
+Apps are Python modules installed via a setup script. An app lives at
+`apps/<collection>/<app>/app.py` (the install dir is gitignored; committed
+example apps live under `djangoapp/tests/`). The entry module tags functions
+with decorators from `djangoapp.apps`:
+
+```python
+from djangoapp.apps import setup, get_endpoint, backend_test, RequestContext
+
+@setup
+def setup_app():
+    ...  # create_application(collection=..., name=..., tables=..., script="collection/app/app.py")
+
+@get_endpoint
+def facts(request_context: RequestContext) -> SomePydanticSchema:
+    model = ...  # get_model()
+    return SomePydanticSchema(facts=[...])
+
+@backend_test
+def test_facts():
+    a = facts(fake_context())
+    assert len(a.facts) > 0, "We need facts"
+```
+
+Install (and self-test) an app with:
+
+```bash
+./run setup collectionname/appname/app.py
+```
+
+This imports the module, runs `@setup`, then runs every `@backend_test`. If
+they all pass the app is installed; if `@setup` raises or any `@backend_test`
+fails, the whole script is rolled back (DB changes + DDL reverted, dynamic-model
+registry cache reset) so a failed install leaves nothing behind.
+
+### Endpoints
+
+A `@get_endpoint` function `def name(request_context: RequestContext) -> SomePydanticSchema:`
+is served as JSON at:
+
+```
+/apps/a/<collection>/<app>/endpoint/get/<function_name>
+```
 
 ### Superuser views
 

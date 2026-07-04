@@ -1,14 +1,16 @@
-def create_application
+User management in readme
+test_endpoints.py should be a view test?
+
+------
+Pending:
+playwright tests
+post/inertia endpoints
+Track setup runs - skip the completed ones
 
 No json when creating app
 script/something.py
 
-def setup()
-    createapp('coll', 'appname', path=, tables={'foo': {col1:, col2:}})
-
-createapp(columns, '/scriptpath') or createapp(tables={}, '/scriptpath') at create time itself
-No need of json
-ensure under savepoint
+ensure dynamic functions are under savepoint
 Test all api endpoints
 get, post endpoint
 /app/appname/get_endpoint/search_users/-query:anilk-

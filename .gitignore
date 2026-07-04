@@ -1,5 +1,6 @@
 #
-scripts/
+# scripts/
+apps/
 
 .venv
 .env
