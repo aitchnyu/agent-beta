@@ -1,13 +1,4 @@
-"""Inertia shared props injected on every request.
-
-``share`` makes values available to every Inertia page via
-``usePage().props`` instead of threading them through each view's page
-props. The viewer profile (``user``) and superuser flag
-(``viewer_is_superuser``) live here as shared props — they back the
-navbar, so views no longer pass a per-page ``user``/``is-superuser`` to
-``Layout.vue`` (which was hardcoded ``true`` on several pages).
-pk-free: only the URL-safe ``public_id`` is sent.
-"""
+"""Inertia request middleware."""
 
 from __future__ import annotations
 
@@ -32,7 +23,13 @@ def _viewer_profile(user: object) -> UserProfile | None:
 
 
 class SharedPropsMiddleware:
-    """Share the viewer profile + superuser flag on every Inertia page."""
+    """Share the viewer profile + superuser flag on every Inertia page.
+
+    ``share`` makes the viewer profile (``user``) and superuser flag
+    (``viewer_is_superuser``) available to every page via ``usePage().props``,
+    so views need not thread them per-page. pk-free: only the URL-safe
+    ``public_id`` is sent.
+    """
 
     def __init__(self, get_response: Callable[..., HttpResponse]) -> None:
         self.get_response = get_response

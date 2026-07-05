@@ -32,6 +32,8 @@ from djangoapp.models import (
     ColumnType,
     UserProfile,
 )
+from djangoapp.views import host_template_data
+from djangoapp.views.app_endpoints import apps_endpoint_router
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -216,7 +218,9 @@ def collections_page(request: HttpRequest) -> HttpResponse:
         CollectionItem(name=c.name) for c in ApplicationCollection.objects.all().order_by("name")
     ]
     props = CollectionsProps(collections=items)
-    return InertiaResponse(request, "Collections", {"props": props.model_dump()})
+    return InertiaResponse(
+        request, "Collections", {"props": props.model_dump()}, template_data=host_template_data()
+    )
 
 
 @apps_router.get("/a/{collection_name}/list", response=None)
@@ -232,20 +236,16 @@ def app_list_page(request: HttpRequest, collection_name: str) -> HttpResponse:
         collection_name=collection.name,
         apps=items,
     )
-    return InertiaResponse(request, "AppList", {"props": props.model_dump()})
+    return InertiaResponse(
+        request, "AppList", {"props": props.model_dump()}, template_data=host_template_data()
+    )
 
 
 @apps_router.get("/a/{collection_name}/{app_name}/manage", response=None)
 def manage_page(request: HttpRequest, collection_name: str, app_name: str) -> HttpResponse:
     """List an app's tables with live row counts (read from dynamic models)."""
     _require_superuser(request)
-    try:
-        app = Application.objects.get(
-            name=app_name,
-            application_collection__name=collection_name,
-        )
-    except Application.DoesNotExist as exc:
-        raise Http404 from exc
+    app = Application.app_or_404(collection_name, app_name)
     table_rows: list[TableItem] = []
     for table in app.tables.all().order_by("name"):
         # Row counts come from the generated model bound to the live table.
@@ -256,7 +256,9 @@ def manage_page(request: HttpRequest, collection_name: str, app_name: str) -> Ht
         app_name=app.name,
         tables=table_rows,
     )
-    return InertiaResponse(request, "Manage", {"props": props.model_dump()})
+    return InertiaResponse(
+        request, "Manage", {"props": props.model_dump()}, template_data=host_template_data()
+    )
 
 
 @apps_router.get(
@@ -303,7 +305,9 @@ def row_list_page(
         ),
         filters=RowListFilters(per_page=filters.per_page, page=page_obj.number, sort=sort),
     )
-    return InertiaResponse(request, "TableRows", {"props": props.model_dump()})
+    return InertiaResponse(
+        request, "TableRows", {"props": props.model_dump()}, template_data=host_template_data()
+    )
 
 
 @apps_router.get(
@@ -343,11 +347,15 @@ def row_detail_page(
         created_at=row.created_at,
         edited_at=row.edited_at,
     )
-    return InertiaResponse(request, "RowDetail", {"props": props.model_dump()})
+    return InertiaResponse(
+        request, "RowDetail", {"props": props.model_dump()}, template_data=host_template_data()
+    )
 
 
 apps_api = NinjaAPI(urls_namespace="apps-http")
 apps_api.add_router("apps", apps_router)
+# App-framework endpoints live on a sibling router but share the apps/ prefix.
+apps_api.add_router("apps", apps_endpoint_router)
 
 
 # Re-export for type-checkers that scan module members.

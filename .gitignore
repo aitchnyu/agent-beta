@@ -1,6 +1,6 @@
-#
-# scripts/
-apps/
+# Installed apps live at the project root in apps/ at runtime (gitignored);
+# anchored so it does NOT match djangoapp/apps/ or djangoapp/tests/apps/.
+/apps/
 
 .venv
 .env
@@ -10,9 +10,12 @@ db.sqlite3
 */__pycache__
 uploads/
 .idea/
-frontend/node_modules
+# Any node_modules (host frontend + per-app/test-app frontends).
+node_modules/
 # js, css, map etc
 djangoapp/static/djangoapp/main*
+# Per-app build artifacts (buildapp output); built, not committed.
+djangoapp/static/djangoapp/apps/
 
 # coverage tool generates this
 .coverage

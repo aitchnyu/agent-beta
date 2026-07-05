@@ -36,7 +36,9 @@ class ApplicationsViewsTests(
         cls.superuser = User.objects.create_user(username="admin", is_superuser=True, is_staff=True)
         cls.plain = User.objects.create_user(username="plain")
         cls.collection = ApplicationCollection.objects.create(name="inv")
-        cls.app = cls.collection.applications.create(name="orders", script="fixtures/orders.py")
+        cls.app = cls.collection.applications.create(
+            name="orders",
+        )
 
     def setUp(self) -> None:
         super().setUp()

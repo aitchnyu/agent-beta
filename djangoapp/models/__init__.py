@@ -5,6 +5,7 @@ from djangoapp.models.applications import (
     ApplicationCollection,
     ApplicationTable,
     ApplicationTableColumn,
+    AppsGeneration,
     BaseTable,
     ColumnType,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "ApplicationCollection",
     "ApplicationTable",
     "ApplicationTableColumn",
+    "AppsGeneration",
     "BaseTable",
     "BoolChange",
     "ColumnType",

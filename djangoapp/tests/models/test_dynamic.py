@@ -66,7 +66,9 @@ class DynamicTableTestCase(TestCase):
     @classmethod
     def setUpTestData(cls) -> None:
         cls.collection = ApplicationCollection.objects.create(name="inv")
-        cls.app = cls.collection.applications.create(name="orders", script="fixtures/orders.py")
+        cls.app = cls.collection.applications.create(
+            name="orders",
+        )
 
     def setUp(self) -> None:
         super().setUp()
@@ -199,7 +201,9 @@ class DynamicSchemaTests(DynamicTableTestCase):
         """Collection-scoped name clash is rejected before DDL runs."""
         self._make_items()
         # A second app in the same collection must not be able to reuse the name.
-        other = self.collection.applications.create(name="other", script="fixtures/other.py")
+        other = self.collection.applications.create(
+            name="other",
+        )
         with self.assertRaises(ValidationError):
             dynamic_models.create_application_table(
                 collection="inv",
@@ -429,11 +433,11 @@ class GraphLifecycleTests(DynamicTableTestCase):
     def test_create_application(self) -> None:
         """App created under the right collection."""
         app = dynamic_models.create_application(
-            collection="inv", name="billing", script="fixtures/billing.py", description="bills"
+            collection="inv", name="billing", description="bills"
         )
         self.assertEqual(app.name, "billing")
         self.assertEqual(app.application_collection, self.collection)
-        self.assertEqual(Application.objects.get(name="billing").description, "bills")
+        self.assertEqual(Application.get_by_names("inv", "billing").description, "bills")
 
     def test_rename_application(self) -> None:
         """Old app name is gone and the new one is set, within its own collection (no DDL)."""
@@ -443,9 +447,7 @@ class GraphLifecycleTests(DynamicTableTestCase):
 
     def test_delete_application_no_tables(self) -> None:
         """No Application row remains for the app after delete."""
-        app = dynamic_models.create_application(
-            collection="inv", name="ephemeral", script="fixtures/ephemeral.py"
-        )
+        app = dynamic_models.create_application(collection="inv", name="ephemeral")
         dynamic_models.delete_application(app)
         self.assertFalse(Application.objects.filter(name="ephemeral").exists())
 

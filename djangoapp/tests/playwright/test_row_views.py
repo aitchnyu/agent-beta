@@ -51,7 +51,9 @@ class _RowViewsE2eBase(BasePlaywrightTestCase):
             is_superuser=True,
         )
         self.collection = ApplicationCollection.objects.create(name=self.COLLECTION)
-        self.app = self.collection.applications.create(name=self.APP, script="fixtures/orders.py")
+        self.app = self.collection.applications.create(
+            name=self.APP,
+        )
         dynamic_models.reset()
         self.table = dynamic_models.create_application_table(
             collection=self.COLLECTION,

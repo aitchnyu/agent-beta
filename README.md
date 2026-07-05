@@ -85,18 +85,6 @@ dynamic_models.create_application(
     collection="Inv",
     name="Orders",
     description="...",
-    tables={
-        "Items": [
-            CharColumn("code", max_length=10, default="X", choices=["X", "Y"]),
-            TextColumn("note", default=""),
-            IntegerColumn("qty", default=1, nullable=True),
-            BooleanColumn("active", default=False),
-            DecimalColumn("price", max_digits=8, decimal_places=2, default="1.50"),
-            DateTimeColumn("due", nullable=True),
-            UserColumn("owner", nullable=True),
-        ],
-    },
-    script="Inv/Orders/app.py",
 )
 
 # create_application_table takes the same column objects (no duplicate or
@@ -125,7 +113,7 @@ dynamic_models.delete_application_collection(collection)  # refuses if non-empty
 ### Registry methods
 
 - Collections: `create_application_collection(name)` / `rename_application_collection(collection, new_name)` / `delete_application_collection(collection)` (refuses if non-empty)
-- Applications: `create_application(*, collection, name, description="", tables=None, script)` / `rename_application(collection, old_name, new_name)` / `delete_application(application)` (cascade-drops its tables)
+- Applications: `create_application(*, collection, name, description="", tables=None)` / `rename_application(collection, old_name, new_name)` / `delete_application(application)` (cascade-drops its tables). The `app.py` path is derived from the apps root + collection/app names (not stored).
 - Tables: `create_application_table(*, collection, application, table, columns)` / `add_application_table_columns(*, collection, application, table, columns)` / `delete_application_table_columns(*, collection, application, table, names)` / `rename_application_table(table, new_name)` / `delete_application_table(*, collection, application, table)`
 
 ### Read-only `applications` command
@@ -169,7 +157,7 @@ from djangoapp.apps import setup, get_endpoint, backend_test, RequestContext
 
 @setup
 def setup_app():
-    ...  # create_application(collection=..., name=..., tables=..., script="collection/app/app.py")
+    ...  # create_application(collection=..., name=..., tables=...)
 
 @get_endpoint
 def facts(request_context: RequestContext) -> SomePydanticSchema:
@@ -185,13 +173,27 @@ def test_facts():
 Install (and self-test) an app with:
 
 ```bash
-./run setup collectionname/appname/app.py
+./run djangomanage installorupdate collectionname/appname
 ```
 
 This imports the module, runs `@setup`, then runs every `@backend_test`. If
 they all pass the app is installed; if `@setup` raises or any `@backend_test`
 fails, the whole script is rolled back (DB changes + DDL reverted, dynamic-model
 registry cache reset) so a failed install leaves nothing behind.
+
+Build an app's frontend into its derived static folder with:
+
+```bash
+./run djangomanage buildapp collectionname/appname
+```
+
+This resolves the app, locates its `frontend/` dir (`<apps_root>/<collection>/<app>/frontend/`),
+and runs `npm run build -- --emptyOutDir --outDir <static_folder>` so vite writes
+`main.js`/`main.css` to `djangoapp/static/djangoapp/apps/<collection>/<app>/`
+(gitignored build artifacts). Constant asset path; cache-busting is via the
+`?cache_buster=<apps-generation>` the inertia view appends (no hashed filenames).
+On success it bumps the apps generation, so a running server picks up the rebuilt
+bundle without a restart.
 
 ### Endpoints
 

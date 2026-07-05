@@ -89,17 +89,9 @@ class DescribeApplicationTableSchema(BaseModel):
 
     @model_validator(mode="after")
     def _resolve_table(self) -> DescribeApplicationTableSchema:
-        """Resolve the collection, app and table rows named by the request."""
+        """Resolve the app and table rows named by the request."""
         try:
-            collection = ApplicationCollection.objects.get(name=self.appcollection)
-        except ApplicationCollection.DoesNotExist as exc:
-            msg = f"No collection '{self.appcollection}'."
-            raise ValueError(msg) from exc
-        try:
-            application = Application.objects.get(
-                application_collection=collection,
-                name=self.app,
-            )
+            application = Application.get_by_names(self.appcollection, self.app)
         except Application.DoesNotExist as exc:
             msg = f"No application '{self.app}' in collection '{self.appcollection}'."
             raise ValueError(msg) from exc

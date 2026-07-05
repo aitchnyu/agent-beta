@@ -21,6 +21,8 @@ reset (the cache key, ``physical_name``, is immutable).
 from __future__ import annotations
 
 import contextlib
+from collections.abc import Callable
+from functools import wraps
 from typing import TYPE_CHECKING, Any, cast
 
 from django.apps import apps
@@ -30,6 +32,7 @@ from django.db import connection, models, transaction
 from django.db.models.base import ModelBase
 from django.db.utils import ProgrammingError
 
+from djangoapp.apps.dynamic_module import sync_app_caches
 from djangoapp.models.applications import (
     Application,
     ApplicationCollection,
@@ -48,6 +51,24 @@ if TYPE_CHECKING:
 
 class TableNotFoundError(Exception):
     """Raised when no Application/ApplicationTable matches the given names."""
+
+
+def _synced[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
+    """Decorate a public registry method to sync caches to the apps generation per call.
+
+    ``setup`` (any process) bumps ``AppsGeneration`` on install; each call here
+    checks the live value and, on a change, resets this registry's model cache
+    and the app-module loader's cache — so a running worker serves the latest
+    installed app without a restart. ``reset`` is intentionally NOT decorated
+    (it is called by the sync itself). Signature-preserving via PEP 695 generics.
+    """
+
+    @wraps(fn)
+    def _wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        sync_app_caches()
+        return fn(*args, **kwargs)
+
+    return _wrapper
 
 
 def dynamic_db_table(physical_name: str) -> str:
@@ -161,6 +182,7 @@ class DynamicModelRegistry:
     # Retrieval
     # ------------------------------------------------------------------
 
+    @_synced
     def get_model(self, physical_name: str) -> type[BaseTable]:
         """Return the dynamic model for a table, building+caching it once.
 
@@ -259,9 +281,8 @@ class DynamicModelRegistry:
             raise TableNotFoundError(msg) from exc
 
     def _resolve_application(self, appcollection: str, app: str) -> Application:
-        collection = self._resolve_collection(appcollection)
         try:
-            return Application.objects.get(application_collection=collection, name=app)
+            return Application.get_by_names(appcollection, app)
         except Application.DoesNotExist as exc:
             msg = f"No application '{app}' in collection '{appcollection}'."
             raise TableNotFoundError(msg) from exc
@@ -290,6 +311,7 @@ class DynamicModelRegistry:
     # FKs are only a DB backstop — the registry always deletes children
     # first.
 
+    @_synced
     def create_application_collection(self, name: str) -> ApplicationCollection:
         """Create and return an application collection."""
         with transaction.atomic():
@@ -298,6 +320,7 @@ class DynamicModelRegistry:
             collection.save()
             return collection
 
+    @_synced
     def delete_application_collection(self, collection: ApplicationCollection) -> None:
         """Delete a collection, refusing if it still has apps.
 
@@ -315,21 +338,20 @@ class DynamicModelRegistry:
                 raise ValidationError(msg)
             collection.delete()
 
-    def create_application(
+    @_synced
+    def create_application(  # keyword-only install API
         self,
         *,
         collection: str,
         name: str,
-        script: str,
         description: str = "",
         tables: dict[str, list[Column]] | None = None,
     ) -> Application:
         """Create an application, optionally with inline tables, in one transaction.
 
-        ``script`` is required (the file path of the app's entry module, stored
-        on the ``Application`` so endpoints can re-import it). ``tables`` maps
-        each table's display name to its Column list; each is created via
-        :meth:`_create_application_table` (which also builds the physical table).
+        ``tables`` maps each table's display name to
+        its Column list; each is created via :meth:`_create_application_table`
+        (which also builds the physical table).
         """
         with transaction.atomic():
             collection_row = self._resolve_collection(collection)
@@ -337,7 +359,6 @@ class DynamicModelRegistry:
                 application_collection=collection_row,
                 name=name,
                 description=description,
-                script=script,
             )
             application.full_clean()
             application.save()
@@ -345,6 +366,7 @@ class DynamicModelRegistry:
                 self._create_application_table(application, table_name, cols)
             return application
 
+    @_synced
     def rename_application(self, *, collection: str, old_name: str, new_name: str) -> Application:
         """Rename an application within its own collection.
 
@@ -360,6 +382,7 @@ class DynamicModelRegistry:
             application.save()
             return application
 
+    @_synced
     def delete_application(self, application: Application) -> None:
         """Delete an application and cascade-drop every table it owns.
 
@@ -420,6 +443,7 @@ class DynamicModelRegistry:
         self._cache[table.physical_name] = model
         return table
 
+    @_synced
     def create_application_table(
         self,
         *,
@@ -433,6 +457,7 @@ class DynamicModelRegistry:
             application_row = self._resolve_application(collection, application)
             return self._create_application_table(application_row, table, columns)
 
+    @_synced
     def add_application_table_columns(
         self,
         *,
@@ -462,6 +487,7 @@ class DynamicModelRegistry:
             self.reset()
             return created
 
+    @_synced
     def delete_application_table_columns(
         self,
         *,
@@ -519,6 +545,7 @@ class DynamicModelRegistry:
             ApplicationTableColumn.objects.filter(application_table=app_table).delete()
             app_table.delete()
 
+    @_synced
     def delete_application_table(self, *, collection: str, application: str, table: str) -> None:
         """Resolve (collection, app, table) names to a row, then drop it."""
         with transaction.atomic():
@@ -526,6 +553,7 @@ class DynamicModelRegistry:
             app_table = self._get_application_table_for(application_row, table)
             self._drop_application_table(app_table)
 
+    @_synced
     def rename_application_collection(
         self, collection: ApplicationCollection, new_name: str
     ) -> None:
@@ -541,6 +569,7 @@ class DynamicModelRegistry:
             collection.full_clean()
             collection.save()
 
+    @_synced
     def rename_application_table(
         self, app_table: ApplicationTable, new_name: str
     ) -> ApplicationTable:

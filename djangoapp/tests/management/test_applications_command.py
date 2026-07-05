@@ -51,7 +51,9 @@ class ApplicationsCommandTests(TestCase):
     @classmethod
     def setUpTestData(cls) -> None:
         cls.collection = ApplicationCollection.objects.create(name="inv")
-        cls.app = cls.collection.applications.create(name="orders", script="fixtures/orders.py")
+        cls.app = cls.collection.applications.create(
+            name="orders",
+        )
 
     def setUp(self) -> None:
         super().setUp()
@@ -87,7 +89,9 @@ class ApplicationsCommandTests(TestCase):
 
     def test_list_application_collection(self) -> None:
         """Apps under the collection printed one per line, sorted."""
-        self.collection.applications.create(name="billing", script="fixtures/billing.py")
+        self.collection.applications.create(
+            name="billing",
+        )
         code, out = run("list_application_collection", "--name", "inv")
         self.assertEqual(code, 0)
         lines = [ln for ln in out.splitlines() if ln]
