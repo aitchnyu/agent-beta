@@ -6,6 +6,15 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
 
 from djangoapp.models import ApplicationCollection, User
+from djangoapp.models.columns import (
+    BooleanColumn,
+    CharColumn,
+    DateTimeColumn,
+    DecimalColumn,
+    IntegerColumn,
+    TextColumn,
+    UserColumn,
+)
 from djangoapp.models.dynamic import dynamic_models
 from djangoapp.tests.playwright.test_playwright import BasePlaywrightTestCase
 
@@ -42,20 +51,20 @@ class _RowViewsE2eBase(BasePlaywrightTestCase):
             is_superuser=True,
         )
         self.collection = ApplicationCollection.objects.create(name=self.COLLECTION)
-        self.app = self.collection.applications.create(name=self.APP)
+        self.app = self.collection.applications.create(name=self.APP, script="fixtures/orders.py")
         dynamic_models.reset()
         self.table = dynamic_models.create_application_table(
-            self.COLLECTION,
-            self.APP,
-            self.TABLE,
-            [
-                {"name": "code", "type": "char"},
-                {"name": "note", "type": "text"},
-                {"name": "qty", "type": "integer", "nullable": True},
-                {"name": "active", "type": "boolean"},
-                {"name": "price", "type": "decimal", "nullable": True},
-                {"name": "due", "type": "datetime", "nullable": True},
-                {"name": "owner", "type": "user", "nullable": True},
+            collection=self.COLLECTION,
+            application=self.APP,
+            table=self.TABLE,
+            columns=[
+                CharColumn("code", max_length=100),
+                TextColumn("note"),
+                IntegerColumn("qty", nullable=True),
+                BooleanColumn("active"),
+                DecimalColumn("price", max_digits=10, decimal_places=2, nullable=True),
+                DateTimeColumn("due", nullable=True),
+                UserColumn("owner", nullable=True),
             ],
         )
         self.model = cast("Any", self.table.as_model())
@@ -85,7 +94,9 @@ class _RowViewsE2eBase(BasePlaywrightTestCase):
         # setUp that failed before creating the table doesn't mask the real
         # error with an AttributeError.
         if getattr(self, "table", None) is not None:
-            dynamic_models.delete_application_table(self.COLLECTION, self.APP, self.TABLE)
+            dynamic_models.delete_application_table(
+                collection=self.COLLECTION, application=self.APP, table=self.TABLE
+            )
         dynamic_models.reset()
         super().tearDown()
 

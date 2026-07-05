@@ -122,6 +122,9 @@ class Application(models.Model):
     )
     name = models.CharField(max_length=100, validators=[alphanumeric_validator])
     description = models.TextField(blank=True, default="")
+    # File path to the app's entry module, stored so the endpoint view can
+    # dynamically import it.
+    script = models.CharField(max_length=300)
 
     class Meta:
         db_table = "application"

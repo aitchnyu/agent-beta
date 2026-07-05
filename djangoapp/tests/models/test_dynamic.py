@@ -15,6 +15,16 @@ from djangoapp.models import (
     ApplicationTableColumn,
     User,
 )
+from djangoapp.models.columns import (
+    BooleanColumn,
+    CharColumn,
+    Column,
+    DateTimeColumn,
+    DecimalColumn,
+    IntegerColumn,
+    TextColumn,
+    UserColumn,
+)
 from djangoapp.models.dynamic import (
     TableNotFoundError,
     dynamic_db_table,
@@ -26,22 +36,16 @@ class _RollbackError(Exception):
     """Sentinel raised inside a savepoint to force it to roll back."""
 
 
-def _all_column_types() -> list[dict[str, Any]]:
-    """One column spec per ColumnType, minimal fields."""
+def _all_column_types() -> list[Column]:
+    """One Column per ColumnType, minimal fields."""
     return [
-        {"name": "code", "type": "char", "max_length": 10},
-        {"name": "note", "type": "text"},
-        {"name": "qty", "type": "integer", "default": 1, "nullable": True},
-        {"name": "active", "type": "boolean", "default": True},
-        {
-            "name": "price",
-            "type": "decimal",
-            "default": "1.50",
-            "max_digits": 8,
-            "decimal_places": 2,
-        },
-        {"name": "due", "type": "datetime", "nullable": True},
-        {"name": "owner", "type": "user", "nullable": True},
+        CharColumn("code", max_length=10),
+        TextColumn("note"),
+        IntegerColumn("qty", default=1, nullable=True),
+        BooleanColumn("active", default=True),
+        DecimalColumn("price", max_digits=8, decimal_places=2, default="1.50"),
+        DateTimeColumn("due", nullable=True),
+        UserColumn("owner", nullable=True),
     ]
 
 
@@ -62,7 +66,7 @@ class DynamicTableTestCase(TestCase):
     @classmethod
     def setUpTestData(cls) -> None:
         cls.collection = ApplicationCollection.objects.create(name="inv")
-        cls.app = cls.collection.applications.create(name="orders")
+        cls.app = cls.collection.applications.create(name="orders", script="fixtures/orders.py")
 
     def setUp(self) -> None:
         super().setUp()
@@ -95,25 +99,19 @@ class DynamicSchemaTests(DynamicTableTestCase):
     - test_delete_columns_removes_definition_and_physical, gone from definition + physical table
     """
 
-    def _columns_spec(self) -> list[dict[str, object]]:
+    def _columns_spec(self) -> list[Column]:
         return [
-            {"name": "code", "type": "char", "default": "X", "max_length": 10},
-            {"name": "qty", "type": "integer", "default": 1, "nullable": True},
-            {
-                "name": "price",
-                "type": "decimal",
-                "default": "1.50",
-                "max_digits": 8,
-                "decimal_places": 2,
-            },
-            {"name": "active", "type": "boolean", "default": True},
-            {"name": "note", "type": "text"},
-            {"name": "due", "type": "datetime", "nullable": True},
+            CharColumn("code", default="X", max_length=10),
+            IntegerColumn("qty", default=1, nullable=True),
+            DecimalColumn("price", max_digits=8, decimal_places=2, default="1.50"),
+            BooleanColumn("active", default=True),
+            TextColumn("note"),
+            DateTimeColumn("due", nullable=True),
         ]
 
     def _make_items(self) -> ApplicationTable:
         return dynamic_models.create_application_table(
-            "inv", "orders", "items", self._columns_spec()
+            collection="inv", application="orders", table="items", columns=self._columns_spec()
         )
 
     def test_create_table_creates_physical_table_and_model(self) -> None:
@@ -151,7 +149,10 @@ class DynamicSchemaTests(DynamicTableTestCase):
         """ALTER TABLE ADD COLUMN adds the column and appends to column_order."""
         table = self._make_items()
         dynamic_models.add_application_table_columns(
-            "inv", "orders", "items", [{"name": "region", "type": "char", "max_length": 5}]
+            collection="inv",
+            application="orders",
+            table="items",
+            columns=[CharColumn("region", max_length=5)],
         )
         self.assertIn("region", table.physical_columns())
         table.refresh_from_db()
@@ -160,7 +161,9 @@ class DynamicSchemaTests(DynamicTableTestCase):
     def test_delete_columns_alters_table_and_order(self) -> None:
         """ALTER TABLE DROP COLUMN removes the column and trims column_order."""
         table = self._make_items()
-        dynamic_models.delete_application_table_columns("inv", "orders", "items", ["note", "due"])
+        dynamic_models.delete_application_table_columns(
+            collection="inv", application="orders", table="items", names=["note", "due"]
+        )
         cols = table.physical_columns()
         self.assertNotIn("note", cols)
         self.assertNotIn("due", cols)
@@ -172,7 +175,9 @@ class DynamicSchemaTests(DynamicTableTestCase):
         """DROP TABLE removes the physical table and all definition rows."""
         table = self._make_items()
         self.assertTrue(table.does_physical_table_exist())
-        dynamic_models.delete_application_table("inv", "orders", "items")
+        dynamic_models.delete_application_table(
+            collection="inv", application="orders", table="items"
+        )
         self.assertFalse(table.does_physical_table_exist())
         self.assertFalse(ApplicationTable.objects.filter(name="items").exists())
         self.assertFalse(
@@ -194,10 +199,13 @@ class DynamicSchemaTests(DynamicTableTestCase):
         """Collection-scoped name clash is rejected before DDL runs."""
         self._make_items()
         # A second app in the same collection must not be able to reuse the name.
-        other = self.collection.applications.create(name="other")
+        other = self.collection.applications.create(name="other", script="fixtures/other.py")
         with self.assertRaises(ValidationError):
             dynamic_models.create_application_table(
-                "inv", "other", "items", [{"name": "a", "type": "char"}]
+                collection="inv",
+                application="other",
+                table="items",
+                columns=[CharColumn("a", max_length=10)],
             )
         self.assertFalse(other.tables.filter(name="items").exists())
 
@@ -231,28 +239,35 @@ class DynamicSchemaTests(DynamicTableTestCase):
     def test_add_application_table_columns_all_types(self) -> None:
         """Every column type materialises a column; user columns land as `<name>_id` FKs."""
         table = dynamic_models.create_application_table(
-            "inv", "orders", "items", [{"name": "seed", "type": "char"}]
+            collection="inv",
+            application="orders",
+            table="items",
+            columns=[CharColumn("seed", max_length=10)],
         )
-        dynamic_models.add_application_table_columns("inv", "orders", "items", _all_column_types())
+        dynamic_models.add_application_table_columns(
+            collection="inv", application="orders", table="items", columns=_all_column_types()
+        )
         table.refresh_from_db()
-        for name in [c["name"] for c in _all_column_types()]:
+        for name in [c.name for c in _all_column_types()]:
             self.assertIn(name, table.column_order)
             self.assertTrue(table.columns.filter(name=name).exists())
         cols = set(table.physical_columns())
         for spec in _all_column_types():
             # user columns materialise as a FK column ("<name>_id").
-            expected = f"{spec['name']}_id" if spec["type"] == "user" else spec["name"]
+            expected = f"{spec.name}_id" if spec.column_type.value == "user" else spec.name
             self.assertIn(expected, cols)
 
     def test_delete_columns_removes_definition_and_physical(self) -> None:
         """Columns gone from both the ApplicationTableColumn rows and the physical table."""
         table = dynamic_models.create_application_table(
-            "inv",
-            "orders",
-            "items",
-            [{"name": "code", "type": "char"}, {"name": "qty", "type": "integer"}],
+            collection="inv",
+            application="orders",
+            table="items",
+            columns=[CharColumn("code", max_length=10), IntegerColumn("qty")],
         )
-        dynamic_models.delete_application_table_columns("inv", "orders", "items", ["qty"])
+        dynamic_models.delete_application_table_columns(
+            collection="inv", application="orders", table="items", names=["qty"]
+        )
         table.refresh_from_db()
         self.assertEqual(table.column_order, ["code"])
         self.assertFalse(table.columns.filter(name="qty").exists())
@@ -278,7 +293,10 @@ class TransactionalDDLRollbackTests(DynamicTableTestCase):
         """CREATE TABLE + definition rows gone after rollback."""
         with self.assertRaises(_RollbackError), transaction.atomic():
             table = dynamic_models.create_application_table(
-                "inv", "orders", "items", [{"name": "code", "type": "char"}]
+                collection="inv",
+                application="orders",
+                table="items",
+                columns=[CharColumn("code", max_length=10)],
             )
             self.assertTrue(table.does_physical_table_exist())
             raise _RollbackError
@@ -287,12 +305,18 @@ class TransactionalDDLRollbackTests(DynamicTableTestCase):
     def test_add_columns_rolled_back(self) -> None:
         """ALTER TABLE ADD COLUMN reverted, columns absent."""
         table = dynamic_models.create_application_table(
-            "inv", "orders", "items", [{"name": "code", "type": "char"}]
+            collection="inv",
+            application="orders",
+            table="items",
+            columns=[CharColumn("code", max_length=10)],
         )
         before = table.physical_columns()
         with self.assertRaises(_RollbackError), transaction.atomic():
             dynamic_models.add_application_table_columns(
-                "inv", "orders", "items", [{"name": "qty", "type": "integer"}]
+                collection="inv",
+                application="orders",
+                table="items",
+                columns=[IntegerColumn("qty")],
             )
             raise _RollbackError
         table.refresh_from_db()
@@ -303,14 +327,16 @@ class TransactionalDDLRollbackTests(DynamicTableTestCase):
     def test_delete_columns_rolled_back(self) -> None:
         """ALTER TABLE DROP COLUMN reverted, columns restored."""
         table = dynamic_models.create_application_table(
-            "inv",
-            "orders",
-            "items",
-            [{"name": "code", "type": "char"}, {"name": "qty", "type": "integer"}],
+            collection="inv",
+            application="orders",
+            table="items",
+            columns=[CharColumn("code", max_length=10), IntegerColumn("qty")],
         )
         before = table.physical_columns()
         with self.assertRaises(_RollbackError), transaction.atomic():
-            dynamic_models.delete_application_table_columns("inv", "orders", "items", ["qty"])
+            dynamic_models.delete_application_table_columns(
+                collection="inv", application="orders", table="items", names=["qty"]
+            )
             raise _RollbackError
         table.refresh_from_db()
         self.assertIn("qty", table.column_order)
@@ -320,10 +346,15 @@ class TransactionalDDLRollbackTests(DynamicTableTestCase):
     def test_delete_table_rolled_back(self) -> None:
         """DROP TABLE reverted, physical table still exists."""
         table = dynamic_models.create_application_table(
-            "inv", "orders", "items", [{"name": "code", "type": "char"}]
+            collection="inv",
+            application="orders",
+            table="items",
+            columns=[CharColumn("code", max_length=10)],
         )
         with self.assertRaises(_RollbackError), transaction.atomic():
-            dynamic_models.delete_application_table("inv", "orders", "items")
+            dynamic_models.delete_application_table(
+                collection="inv", application="orders", table="items"
+            )
             raise _RollbackError
         self.assertTrue(ApplicationTable.objects.filter(name="items").exists())
         self.assertTrue(table.does_physical_table_exist())
@@ -331,7 +362,10 @@ class TransactionalDDLRollbackTests(DynamicTableTestCase):
     def test_delete_application_cascade_rolled_back(self) -> None:
         """Cascade drop reverted, tables + physical tables intact."""
         table = dynamic_models.create_application_table(
-            "inv", "orders", "items", [{"name": "code", "type": "char"}]
+            collection="inv",
+            application="orders",
+            table="items",
+            columns=[CharColumn("code", max_length=10)],
         )
         with self.assertRaises(_RollbackError), transaction.atomic():
             dynamic_models.delete_application(self.app)
@@ -368,7 +402,10 @@ class GraphLifecycleTests(DynamicTableTestCase):
     def test_rename_application_collection(self) -> None:
         """Name updated, no physical change."""
         table = dynamic_models.create_application_table(
-            "inv", "orders", "items", [{"name": "code", "type": "char"}]
+            collection="inv",
+            application="orders",
+            table="items",
+            columns=[CharColumn("code", max_length=10)],
         )
         dynamic_models.rename_application_collection(self.collection, "inventory")
         self.collection.refresh_from_db()
@@ -391,27 +428,34 @@ class GraphLifecycleTests(DynamicTableTestCase):
 
     def test_create_application(self) -> None:
         """App created under the right collection."""
-        app = dynamic_models.create_application("inv", "billing", desc="bills")
+        app = dynamic_models.create_application(
+            collection="inv", name="billing", script="fixtures/billing.py", description="bills"
+        )
         self.assertEqual(app.name, "billing")
         self.assertEqual(app.application_collection, self.collection)
         self.assertEqual(Application.objects.get(name="billing").description, "bills")
 
     def test_rename_application(self) -> None:
         """Old app name is gone and the new one is set, within its own collection (no DDL)."""
-        dynamic_models.rename_application("inv", "orders", "orders2")
+        dynamic_models.rename_application(collection="inv", old_name="orders", new_name="orders2")
         self.assertTrue(Application.objects.filter(name="orders2").exists())
         self.assertFalse(Application.objects.filter(name="orders").exists())
 
     def test_delete_application_no_tables(self) -> None:
         """No Application row remains for the app after delete."""
-        app = dynamic_models.create_application("inv", "ephemeral")
+        app = dynamic_models.create_application(
+            collection="inv", name="ephemeral", script="fixtures/ephemeral.py"
+        )
         dynamic_models.delete_application(app)
         self.assertFalse(Application.objects.filter(name="ephemeral").exists())
 
     def test_delete_application_cascades_tables(self) -> None:
         """Child physical tables dropped."""
         table = dynamic_models.create_application_table(
-            "inv", "orders", "items", [{"name": "code", "type": "char"}]
+            collection="inv",
+            application="orders",
+            table="items",
+            columns=[CharColumn("code", max_length=10)],
         )
         dynamic_models.delete_application(self.app)
         self.assertFalse(Application.objects.filter(name="orders").exists())
@@ -421,7 +465,10 @@ class GraphLifecycleTests(DynamicTableTestCase):
     def test_delete_application_mid_cascade_failure(self) -> None:
         """Failure rolls back the whole graph (no half-deleted state)."""
         table = dynamic_models.create_application_table(
-            "inv", "orders", "items", [{"name": "code", "type": "char"}]
+            collection="inv",
+            application="orders",
+            table="items",
+            columns=[CharColumn("code", max_length=10)],
         )
         # The cascade calls the instance-based _drop_application_table, so
         # patch that to force a mid-cascade failure.
@@ -459,10 +506,10 @@ class RowLifecycleTests(DynamicTableTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.table = dynamic_models.create_application_table(
-            "inv",
-            "orders",
-            "items",
-            [{"name": "code", "type": "char"}, {"name": "owner", "type": "user", "nullable": True}],
+            collection="inv",
+            application="orders",
+            table="items",
+            columns=[CharColumn("code", max_length=10), UserColumn("owner", nullable=True)],
         )
 
     def test_inserted_row_is_readable(self) -> None:

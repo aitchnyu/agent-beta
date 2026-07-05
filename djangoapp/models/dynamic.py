@@ -21,7 +21,6 @@ reset (the cache key, ``physical_name``, is immutable).
 from __future__ import annotations
 
 import contextlib
-from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 
 from django.apps import apps
@@ -43,6 +42,8 @@ from djangoapp.models.base import User
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from djangoapp.models.columns import Column
 
 
 class TableNotFoundError(Exception):
@@ -314,20 +315,37 @@ class DynamicModelRegistry:
                 raise ValidationError(msg)
             collection.delete()
 
-    def create_application(self, appcollection: str, name: str, desc: str = "") -> Application:
-        """Create and return an application within a collection."""
+    def create_application(
+        self,
+        *,
+        collection: str,
+        name: str,
+        script: str,
+        description: str = "",
+        tables: dict[str, list[Column]] | None = None,
+    ) -> Application:
+        """Create an application, optionally with inline tables, in one transaction.
+
+        ``script`` is required (the file path of the app's entry module, stored
+        on the ``Application`` so endpoints can re-import it). ``tables`` maps
+        each table's display name to its Column list; each is created via
+        :meth:`_create_application_table` (which also builds the physical table).
+        """
         with transaction.atomic():
-            collection = self._resolve_collection(appcollection)
+            collection_row = self._resolve_collection(collection)
             application = Application(
-                application_collection=collection,
+                application_collection=collection_row,
                 name=name,
-                description=desc,
+                description=description,
+                script=script,
             )
             application.full_clean()
             application.save()
+            for table_name, cols in (tables or {}).items():
+                self._create_application_table(application, table_name, cols)
             return application
 
-    def rename_application(self, appcollection: str, old_name: str, new_name: str) -> Application:
+    def rename_application(self, *, collection: str, old_name: str, new_name: str) -> Application:
         """Rename an application within its own collection.
 
         Display-name only: physical tables are keyed by the immutable
@@ -336,7 +354,7 @@ class DynamicModelRegistry:
         scoped to its collection), enforced by resolving the source app.
         """
         with transaction.atomic():
-            application = self._resolve_application(appcollection, old_name)
+            application = self._resolve_application(collection, old_name)
             application.name = new_name
             application.full_clean()
             application.save()
@@ -362,67 +380,83 @@ class DynamicModelRegistry:
     # Schema operations
     # ------------------------------------------------------------------
 
+    def _create_application_table(
+        self,
+        application: Application,
+        name: str,
+        columns: list[Column],
+    ) -> ApplicationTable:
+        """Build a table + its physical table for an already-resolved application.
+
+        Shared by :meth:`create_application` (inline tables) and
+        :meth:`create_application_table` (standalone). Assumes the caller
+        wraps the work in a transaction.
+        """
+        table = ApplicationTable(
+            application=application,
+            name=name,
+            physical_name=ApplicationTable.make_physical_name(name),
+            column_order=[c.name for c in columns],
+        )
+        # full_clean runs ApplicationTable.clean(), which enforces the
+        # collection-scoped display-name uniqueness before any column rows
+        # or DDL are created.
+        table.full_clean()
+        table.save()
+        for col in columns:
+            _create_column_row(table, col)
+
+        # Build the model and create the physical table before caching:
+        # the DB rows and DDL are rolled back by the caller's atomic block
+        # on failure, but the in-memory registration is not, so a
+        # create_model failure must reset the registry.
+        model = self._build_model_class(table.physical_name)
+        try:
+            with connection.schema_editor() as schema_editor:
+                schema_editor.create_model(model)
+        except Exception:
+            self.reset()
+            raise
+        self._cache[table.physical_name] = model
+        return table
+
     def create_application_table(
         self,
-        appcollection: str,
-        app: str,
-        name: str,
-        columns: list[dict[str, Any]],
+        *,
+        collection: str,
+        application: str,
+        table: str,
+        columns: list[Column],
     ) -> ApplicationTable:
-        """Create an ApplicationTable plus its physical table in one transaction."""
+        """Resolve (collection, app, table) names, then create the table + physical table."""
         with transaction.atomic():
-            application = self._resolve_application(appcollection, app)
-            table = ApplicationTable(
-                application=application,
-                name=name,
-                physical_name=ApplicationTable.make_physical_name(name),
-                column_order=[c["name"] for c in columns],
-            )
-            # full_clean runs ApplicationTable.clean(), which enforces the
-            # collection-scoped display-name uniqueness before any column rows
-            # or DDL are created.
-            table.full_clean()
-            table.save()
-            for spec in columns:
-                _create_column_row(table, spec)
-
-            # Build the model and create the physical table before caching:
-            # the DB rows and DDL are rolled back by the atomic block on
-            # failure, but the in-memory registration is not, so a
-            # create_model failure must reset the registry.
-            model = self._build_model_class(table.physical_name)
-            try:
-                with connection.schema_editor() as schema_editor:
-                    schema_editor.create_model(model)
-            except Exception:
-                self.reset()
-                raise
-            self._cache[table.physical_name] = model
-            return table
+            application_row = self._resolve_application(collection, application)
+            return self._create_application_table(application_row, table, columns)
 
     def add_application_table_columns(
         self,
-        appcollection: str,
-        app: str,
+        *,
+        collection: str,
+        application: str,
         table: str,
-        columns: list[dict[str, Any]],
+        columns: list[Column],
     ) -> list[ApplicationTableColumn]:
         """Add columns to an existing table (DDL ALTER TABLE ADD COLUMN)."""
         with transaction.atomic():
-            application = self._resolve_application(appcollection, app)
-            app_table = self._get_application_table_for(application, table)
+            application_row = self._resolve_application(collection, application)
+            app_table = self._get_application_table_for(application_row, table)
             model = self.get_model(app_table.physical_name)
             created: list[ApplicationTableColumn] = []
             with connection.schema_editor() as schema_editor:
-                for spec in columns:
-                    col = _create_column_row(app_table, spec)
-                    field = _column_field(col)
+                for col in columns:
+                    col_row = _create_column_row(app_table, col)
+                    field = _column_field(col_row)
                     # The field is not yet attached to a model, so set its DB
                     # column/attribute name before the schema editor reads it.
-                    field.set_attributes_from_name(col.name)
+                    field.set_attributes_from_name(col_row.name)
                     schema_editor.add_field(model, field)
-                    created.append(col)
-            app_table.column_order = list(app_table.column_order) + [c["name"] for c in columns]
+                    created.append(col_row)
+            app_table.column_order = list(app_table.column_order) + [c.name for c in columns]
             # Only column_order changed; restrict the UPDATE to that column.
             app_table.save(update_fields=["column_order"])
             self.reset()
@@ -430,18 +464,19 @@ class DynamicModelRegistry:
 
     def delete_application_table_columns(
         self,
-        appcollection: str,
-        app: str,
+        *,
+        collection: str,
+        application: str,
         table: str,
-        columns: list[str],
+        names: list[str],
     ) -> ApplicationTable:
         """Remove columns from a table (DDL ALTER TABLE DROP COLUMN)."""
         with transaction.atomic():
-            application = self._resolve_application(appcollection, app)
-            app_table = self._get_application_table_for(application, table)
+            application_row = self._resolve_application(collection, application)
+            app_table = self._get_application_table_for(application_row, table)
             model = self.get_model(app_table.physical_name)
             with connection.schema_editor() as schema_editor:
-                for col_name in columns:
+                for col_name in names:
                     try:
                         col = app_table.columns.get(name=col_name)
                     except ApplicationTableColumn.DoesNotExist as exc:
@@ -454,7 +489,7 @@ class DynamicModelRegistry:
                     )
                     schema_editor.remove_field(model, field)
                     col.delete()
-            app_table.column_order = [c for c in app_table.column_order if c not in columns]
+            app_table.column_order = [c for c in app_table.column_order if c not in names]
             # Only column_order changed; restrict the UPDATE to that column.
             app_table.save(update_fields=["column_order"])
             self.reset()
@@ -484,11 +519,11 @@ class DynamicModelRegistry:
             ApplicationTableColumn.objects.filter(application_table=app_table).delete()
             app_table.delete()
 
-    def delete_application_table(self, appcollection: str, app: str, table: str) -> None:
+    def delete_application_table(self, *, collection: str, application: str, table: str) -> None:
         """Resolve (collection, app, table) names to a row, then drop it."""
         with transaction.atomic():
-            application = self._resolve_application(appcollection, app)
-            app_table = self._get_application_table_for(application, table)
+            application_row = self._resolve_application(collection, application)
+            app_table = self._get_application_table_for(application_row, table)
             self._drop_application_table(app_table)
 
     def rename_application_collection(
@@ -526,39 +561,18 @@ class DynamicModelRegistry:
 # ---------------------------------------------------------------------------
 
 
-def _create_column_row(table: ApplicationTable, spec: dict[str, Any]) -> ApplicationTableColumn:
-    """Validate a column spec and persist an ApplicationTableColumn row."""
-    name = spec.get("name", "")
-    col_type = spec.get("type", "")
-    if col_type not in {t.value for t in ColumnType}:
-        msg = f"Unknown column type '{col_type}'."
-        raise ValidationError({"type": msg})
-    is_textish = col_type in {ColumnType.CHAR, ColumnType.TEXT}
-    decimal_default: Decimal | None = None
-    if col_type == ColumnType.DECIMAL and spec.get("default") is not None:
-        decimal_default = Decimal(str(spec["default"]))
-    col = ApplicationTableColumn(
-        application_table=table,
-        name=name,
-        type=col_type,
-        char_choices=spec.get("choices", []) or [],
-        text_default=spec.get("default", "") if is_textish else "",
-        text_min_length=int(spec.get("min_length", 0)) if is_textish else 0,
-        text_max_length=int(spec.get("max_length", 1000)) if is_textish else 1000,
-        nullable=bool(spec.get("nullable", False)),
-        int_default=spec.get("default") if col_type == ColumnType.INTEGER else None,
-        boolean_default=bool(spec.get("default", False))
-        if col_type == ColumnType.BOOLEAN
-        else False,
-        decimal_default=decimal_default,
-        decimal_max_digits=int(spec.get("max_digits", 10))
-        if col_type == ColumnType.DECIMAL
-        else 10,
-        decimal_places=int(spec.get("decimal_places", 2)) if col_type == ColumnType.DECIMAL else 2,
-    )
-    col.full_clean()
-    col.save()
-    return col
+def _create_column_row(table: ApplicationTable, col: Column) -> ApplicationTableColumn:
+    """Validate a column declaration and persist an ApplicationTableColumn row.
+
+    The :class:`Column` already validated itself in ``__post_init__``; this
+    builds the row from :meth:`Column.row` and runs ``full_clean`` so the
+    model-level cross-field invariants (e.g. choices only on char) hold too.
+    """
+    row = col.row()
+    obj = ApplicationTableColumn(application_table=table, **row)
+    obj.full_clean()
+    obj.save()
+    return obj
 
 
 # The single registry instance; the only way to retrieve dynamic models.

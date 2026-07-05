@@ -12,6 +12,7 @@ from djangoapp.models import (
     ApplicationCollection,
     ApplicationTable,
 )
+from djangoapp.models.columns import CharColumn, IntegerColumn
 from djangoapp.models.dynamic import dynamic_models
 
 
@@ -50,7 +51,7 @@ class ApplicationsCommandTests(TestCase):
     @classmethod
     def setUpTestData(cls) -> None:
         cls.collection = ApplicationCollection.objects.create(name="inv")
-        cls.app = cls.collection.applications.create(name="orders")
+        cls.app = cls.collection.applications.create(name="orders", script="fixtures/orders.py")
 
     def setUp(self) -> None:
         super().setUp()
@@ -65,10 +66,10 @@ class ApplicationsCommandTests(TestCase):
 
     def _create_table(self, name: str = "items") -> ApplicationTable:
         return dynamic_models.create_application_table(
-            "inv",
-            "orders",
-            name,
-            [{"name": "code", "type": "char"}],
+            collection="inv",
+            application="orders",
+            table=name,
+            columns=[CharColumn("code", max_length=10), IntegerColumn("qty")],
         )
 
     # -- list_application_collections ---------------------------------
@@ -86,7 +87,7 @@ class ApplicationsCommandTests(TestCase):
 
     def test_list_application_collection(self) -> None:
         """Apps under the collection printed one per line, sorted."""
-        self.collection.applications.create(name="billing")
+        self.collection.applications.create(name="billing", script="fixtures/billing.py")
         code, out = run("list_application_collection", "--name", "inv")
         self.assertEqual(code, 0)
         lines = [ln for ln in out.splitlines() if ln]
@@ -121,7 +122,7 @@ class ApplicationsCommandTests(TestCase):
         self.assertEqual(code, 0)
         self.assertIn("table: items", out)
         self.assertIn("code: char", out)
-        self.assertIn(f"column_order: {json.dumps(['code'])}", out)
+        self.assertIn(f"column_order: {json.dumps(['code', 'qty'])}", out)
         # Internal physical naming must not leak to the agent-facing output.
         self.assertNotIn(table.physical_name, out)
         self.assertNotIn("db_table:", out)

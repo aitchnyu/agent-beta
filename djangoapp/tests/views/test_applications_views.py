@@ -6,6 +6,7 @@ from typing import Any, ClassVar, cast
 from inertia.test import InertiaTestCase
 
 from djangoapp.models import Application, ApplicationCollection, User
+from djangoapp.models.columns import CharColumn
 from djangoapp.models.dynamic import dynamic_models
 
 
@@ -35,7 +36,7 @@ class ApplicationsViewsTests(
         cls.superuser = User.objects.create_user(username="admin", is_superuser=True, is_staff=True)
         cls.plain = User.objects.create_user(username="plain")
         cls.collection = ApplicationCollection.objects.create(name="inv")
-        cls.app = cls.collection.applications.create(name="orders")
+        cls.app = cls.collection.applications.create(name="orders", script="fixtures/orders.py")
 
     def setUp(self) -> None:
         super().setUp()
@@ -71,7 +72,10 @@ class ApplicationsViewsTests(
     def test_manage_page_shows_row_counts(self) -> None:
         """/manage row counts match the live row count from the dynamic model."""
         table = dynamic_models.create_application_table(
-            "inv", "orders", "items", [{"name": "code", "type": "char"}]
+            collection="inv",
+            application="orders",
+            table="items",
+            columns=[CharColumn("code", max_length=10)],
         )
         # Insert one row via the dynamic model so the count must be 1.
         model = cast("Any", table.as_model())

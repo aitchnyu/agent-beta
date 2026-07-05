@@ -8,6 +8,15 @@ from typing import Any, ClassVar, cast
 from inertia.test import InertiaTestCase
 
 from djangoapp.models import Application, ApplicationCollection, User
+from djangoapp.models.columns import (
+    BooleanColumn,
+    CharColumn,
+    DateTimeColumn,
+    DecimalColumn,
+    IntegerColumn,
+    TextColumn,
+    UserColumn,
+)
 from djangoapp.models.dynamic import dynamic_models
 
 
@@ -35,21 +44,21 @@ class RowListPageTests(
         cls.superuser = User.objects.create_user(username="admin", is_superuser=True, is_staff=True)
         cls.plain = User.objects.create_user(username="plain")
         cls.collection = ApplicationCollection.objects.create(name="inv")
-        cls.app = cls.collection.applications.create(name="orders")
+        cls.app = cls.collection.applications.create(name="orders", script="fixtures/orders.py")
 
     def setUp(self) -> None:
         super().setUp()
         dynamic_models.reset()
         self.table = dynamic_models.create_application_table(
-            "inv",
-            "orders",
-            "items",
-            [
-                {"name": "code", "type": "char"},
-                {"name": "qty", "type": "integer", "nullable": True},
-                {"name": "active", "type": "boolean"},
-                {"name": "price", "type": "decimal", "nullable": True},
-                {"name": "owner", "type": "user", "nullable": True},
+            collection="inv",
+            application="orders",
+            table="items",
+            columns=[
+                CharColumn("code", max_length=100),
+                IntegerColumn("qty", nullable=True),
+                BooleanColumn("active"),
+                DecimalColumn("price", max_digits=10, decimal_places=2, nullable=True),
+                UserColumn("owner", nullable=True),
             ],
         )
         self.model = cast("Any", self.table.as_model())
@@ -138,19 +147,16 @@ class RowDetailPageTests(
         cls.superuser = User.objects.create_user(username="admin", is_superuser=True, is_staff=True)
         cls.plain = User.objects.create_user(username="plain")
         cls.collection = ApplicationCollection.objects.create(name="inv2")
-        cls.app = cls.collection.applications.create(name="orders")
+        cls.app = cls.collection.applications.create(name="orders", script="fixtures/orders.py")
 
     def setUp(self) -> None:
         super().setUp()
         dynamic_models.reset()
         self.table = dynamic_models.create_application_table(
-            "inv2",
-            "orders",
-            "items",
-            [
-                {"name": "code", "type": "char"},
-                {"name": "owner", "type": "user", "nullable": True},
-            ],
+            collection="inv2",
+            application="orders",
+            table="items",
+            columns=[CharColumn("code", max_length=100), UserColumn("owner", nullable=True)],
         )
         self.model = cast("Any", self.table.as_model())
         self.row = self.model.objects.create(code="A1", _created_by=self.superuser)
@@ -217,23 +223,23 @@ class RowValuesViewTests(InertiaTestCase):
             username="values-admin", is_superuser=True, is_staff=True
         )
         cls.collection = ApplicationCollection.objects.create(name="inv3")
-        cls.app = cls.collection.applications.create(name="orders")
+        cls.app = cls.collection.applications.create(name="orders", script="fixtures/orders.py")
 
     def setUp(self) -> None:
         super().setUp()
         dynamic_models.reset()
         self.table = dynamic_models.create_application_table(
-            "inv3",
-            "orders",
-            "items",
-            [
-                {"name": "code", "type": "char"},
-                {"name": "note", "type": "text"},
-                {"name": "qty", "type": "integer", "nullable": True},
-                {"name": "active", "type": "boolean"},
-                {"name": "price", "type": "decimal", "nullable": True},
-                {"name": "due", "type": "datetime", "nullable": True},
-                {"name": "owner", "type": "user", "nullable": True},
+            collection="inv3",
+            application="orders",
+            table="items",
+            columns=[
+                CharColumn("code", max_length=100),
+                TextColumn("note"),
+                IntegerColumn("qty", nullable=True),
+                BooleanColumn("active"),
+                DecimalColumn("price", max_digits=10, decimal_places=2, nullable=True),
+                DateTimeColumn("due", nullable=True),
+                UserColumn("owner", nullable=True),
             ],
         )
         self.model = cast("Any", self.table.as_model())
