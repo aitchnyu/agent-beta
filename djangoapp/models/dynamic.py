@@ -339,7 +339,7 @@ class DynamicModelRegistry:
             collection.delete()
 
     @_synced
-    def create_application(  # keyword-only install API
+    def create_application(
         self,
         *,
         collection: str,

@@ -1,33 +1,86 @@
+Build - can run on real db 
+We cant create a context
+
+Rollback - writes are rolled back
+    todos - writes confirmed, not present
+    create issue and redirect - created 100, redirect fails
+    create family tree - 
+
+----------
+
+No. A browser-caused DB change is not rolled back by the savepoint.
+
+The savepoint (transaction.savepoint()) lives on the command's DB connection (the main thread's, the one transaction.atomic() wraps). The browser doesn't write on that connection — it drives the server, which runs on its own separate connection with autocommit ON. So a click that triggers a write commits immediately on the server's connection, and that's a different connection than the one the savepoint controls. Transactions/savepoints are per-connection; the command's savepoint can't touch a commit on the server's connection.
+
+So after the drive:
+
+In-process writes (ORM on the command's connection, inside the savepoint) → rolled back. ✓ (that's the smoke probe)
+Browser→server writes (the click's POST) → persist. ✗
+This is exactly why write-then-verify-via-browser is impossible here, and why the buildapp guarantee is scoped to "in-process writes never commit" (buildapp.py docstring) — a @playwright_test that triggers a server write will leak it past the drive. App tests must stay read-only with respect to the server (or the test author owns cleaning up any server-side write).
+
+-------------
+aihere stuff
+
+Setup must be idempotent using setup function names
+Tests with failed browser
+
+rename
+    installorupdate - buildbackend
+    buildapp - buildfrontend
+
+--------
+Have a table foreignkey type - target specific table
+Does fk get automatic indexes?
+Prevent deletes - find downstream
+
+Relationships - detect and report cycles
+
+Merge both inertia and json endpoints?
+
+`/facts_page?k=v&k2=v2`
+`/facts_page/-<rison>-`
+- facts app - permalink
+
+shared props - send collection and application name
+
 Why abstract connection.schema_editor()?
 out = row(fake_context()) - make something better
+
+`./run djangomanage applications` - break into own commands 
 
 How to review? File browser for python, vue, json etc
 setup - what all code?
 app - what all code?
 
 Are readme instructions complete?
-Tests
+User management in readme
 -----------
 
 Playwright tests check errors are gone
 
-`/facts_page?k=v&k2=v2`
-`/facts_page/-<rison>-`
-- facts app - permalink
-
-Relationships with cycle busting
-
-shared props - send collection and application name
-
-Test apps should contain one which mocks a http call
-
-User management in readme
-test_endpoints.py should be a view test?
-
 Indexing for columns
+
+## Chatting
+Web terminals
+https://github.com/butlerx/wetty
+
+https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md
+Command whitelist
+Make a file browser?
+
+Opencode with prompt
+    whats an app
+    Markup with links that open in file browser
+    Two phases
+
+Responses
+    rich md with links
+    request command
+        git commit - confirm
+    thinking traces
+
 ------
 Pending:
-playwright tests
 post/inertia endpoints
 Track setup runs - skip the completed ones
 

@@ -1,5 +1,5 @@
 {
-  "name": "inertia-demo-frontend",
+  "name": "browser-fixture-frontend",
   "private": true,
   "type": "module",
   "scripts": {

@@ -51,18 +51,19 @@ class EndpointViewTests(TestCase):
 
     def test_demo_random_code(self) -> None:
         """GET returns 200 JSON with a code drawn from the seeded set."""
-        self._install("Tests/Page")
-        resp = self.client.get("/apps/a/Tests/Page/endpoint/get/random_code")
+        self._install("Tests/Endpoints")
+        resp = self.client.get("/apps/a/Tests/Endpoints/endpoint/get/random_code")
         self.assertEqual(resp.status_code, HTTPStatus.OK)
         body = resp.json()
         self.assertIn("code", body)
         self.assertIn(body["code"], {"A1", "A2", "A3"})
 
+    # aihere merge above test to this
     def test_demo_random_code_varies(self) -> None:
         """Repeated calls return more than one distinct code (randomness works)."""
-        self._install("Tests/Page")
+        self._install("Tests/Endpoints")
         seen = {
-            self.client.get("/apps/a/Tests/Page/endpoint/get/random_code").json()["code"]
+            self.client.get("/apps/a/Tests/Endpoints/endpoint/get/random_code").json()["code"]
             for _ in range(20)
         }
         self.assertGreater(len(seen), 1)
@@ -91,29 +92,29 @@ class EndpointViewTests(TestCase):
 
     def test_unknown_function_404(self) -> None:
         """An unknown function on an installed app resolves to 404."""
-        self._install("Tests/Page")
-        resp = self.client.get("/apps/a/Tests/Page/endpoint/get/nope")
+        self._install("Tests/Endpoints")
+        resp = self.client.get("/apps/a/Tests/Endpoints/endpoint/get/nope")
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
     def test_inertia_endpoint_page_object(self) -> None:
         """An X-Inertia GET returns the page object with the app's component + props."""
-        self._install("Tests/Page")
+        self._install("Tests/Endpoints")
         resp = self.client.get(
-            "/apps/a/Tests/Page/endpoint/inertia/demo_page",
+            "/apps/a/Tests/Endpoints/endpoint/inertia/endpoint_page",
             HTTP_X_INERTIA="true",
         )
         self.assertEqual(resp.status_code, HTTPStatus.OK)
         page = resp.json()
-        self.assertEqual(page["component"], "DemoPage")
+        self.assertEqual(page["component"], "EndpointPage")
         # Props are nested under "props" (host InertiaResponse convention).
-        self.assertEqual(page["props"]["props"]["label"], "A1")
+        self.assertEqual(page["props"]["props"]["code"], "A1")
 
     def test_inertia_endpoint_loads_app_bundle(self) -> None:
         """A first-load GET renders base.html with the app's bundle URL."""
-        self._install("Tests/Page")
-        resp = self.client.get("/apps/a/Tests/Page/endpoint/inertia/demo_page")
+        self._install("Tests/Endpoints")
+        resp = self.client.get("/apps/a/Tests/Endpoints/endpoint/inertia/endpoint_page")
         self.assertEqual(resp.status_code, HTTPStatus.OK)
         body = resp.content.decode("utf-8")
         # base.html must load the app's own bundle, not the host's.
-        self.assertIn("/static/djangoapp/apps/Tests/Page/main.js", body)
+        self.assertIn("/static/djangoapp/apps/Tests/Endpoints/main.js", body)
         self.assertNotIn('src="/static/djangoapp/main.js', body)

@@ -1,6 +1,6 @@
-// Inertia-demo entry. Minimal createInertiaApp resolving ./pages; axios CSRF
+// Browser fixture entry. Minimal createInertiaApp resolving ./pages; axios CSRF
 // configured for the GET the page fires. Pages map by component name
-// ("DemoPage" -> ./pages/DemoPage.vue).
+// ("BrowserPage" -> ./pages/BrowserPage.vue).
 import { createApp, h } from "vue"
 import type { App as VueApp, DefineComponent } from "vue"
 import { createInertiaApp } from "@inertiajs/vue3"
@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
 })
 
 createInertiaApp({
-  title: (title) => `Demo - ${title}`,
+  title: (title) => `Browser - ${title}`,
   resolve: (name) => {
     const pages = import.meta.glob(["./pages/**/*.vue"], { eager: true })
     return pages[`./pages/${name}.vue`] as DefineComponent

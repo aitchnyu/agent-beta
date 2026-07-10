@@ -153,7 +153,7 @@ example apps live under `djangoapp/tests/`). The entry module tags functions
 with decorators from `djangoapp.apps`:
 
 ```python
-from djangoapp.apps import setup, get_endpoint, backend_test, RequestContext
+from djangoapp.apps import setup, get_endpoint, backend_test, playwright_test, RequestContext
 
 @setup
 def setup_app():
@@ -194,6 +194,15 @@ and runs `npm run build -- --emptyOutDir --outDir <static_folder>` so vite write
 `?cache_buster=<apps-generation>` the inertia view appends (no hashed filenames).
 On success it bumps the apps generation, so a running server picks up the rebuilt
 bundle without a restart.
+
+After building, `buildapp` runs the app's `@playwright_test(context, base_url)`
+funcs in a headless browser against a short-lived live server. Every DB change
+they cause — written in-process by the test body or triggered over HTTP by the
+browser — is rolled back (a rolled-back `transaction.atomic()` for in-process
+writes, plus a per-request rolled-back `atomic()` middleware for browser writes),
+whether `buildapp` ultimately passes or fails. Only the `@playwright_test` phase
+is covered: the build itself still writes the bundle and bumps the apps
+generation. Pass `--skip-playwright` to build only.
 
 ### Endpoints
 

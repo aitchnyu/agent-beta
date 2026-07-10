@@ -4,7 +4,7 @@
 ``@setup`` calls ``create_application`` with a bad column (``CharColumn`` with
 ``max_length=0``), which raises during validation. The setup runner rolls back
 the whole script and exits non-zero. Used by
-``SetupRunnerTests.test_fails_setup_rolls_back``.
+``InstallOrUpdateTests.test_fails_setup_rolls_back``.
 """
 
 from __future__ import annotations

@@ -4,7 +4,7 @@ Each fixture lives at `Tests/<app>/app.py` under this tree (matching the app
 framework's `<apps_root>/<collection>/<app>/app.py` convention — all fixtures
 share one collection, `Tests`); `apps_root` is patched to this tree in the app
 tests. They double as runnable examples of the framework and as the data the
-tests in `test_setup_runner.py` / `test_endpoints.py` / `test_app_playwright.py`
+tests in `test_installorupdate.py` / `test_buildapp.py` / `test_endpoints.py`
 install.
 
 Loaded by file path (not imported as a package), so the fixture dirs have no
@@ -16,7 +16,9 @@ tables are rolled back automatically; `dynamic_models.reset()` +
 
 | Collection/App | What it exercises |
 | --- | --- |
-| `Tests/Page` | The comprehensive app: `@setup` + seeded `items` table, `current_code` + `random_code` `@get_endpoint`s, an `@inertia_endpoint` page with a built Vue frontend, backend tests (incl. one proving writes roll back), and a `@playwright_test` driving the browser. |
+| `Tests/Page` | Install/seed fixture: `@setup` seeds an `items` table; a `@backend_test` writes a row during install (proving savepoint rollback). Feeds `test_installorupdate.py`. |
+| `Tests/Endpoints` | Endpoint-serving fixture: a random `@get_endpoint` + an `@inertia_endpoint` (no built bundle — `app_bundle` is a pure path derivation). Feeds `test_endpoints.py`. |
+| `Tests/Browser` | Minimal app dedicated to buildapp's browser phase: one seeded row, an `@inertia_endpoint` rendered with its own bundle, and `@playwright_test`s that assert the built UI via the browser (incl. an in-process write that buildapp's rolled-back drive reverts). |
 | `Tests/AllTypes` | Every `Column` class (char/text/integer/boolean/decimal/datetime/user) materialised through the framework, served as one typed row. |
 | `Tests/Mock` | An endpoint that calls an external HTTP API via `_fetch_json`; its `@backend_test` patches that helper (`unittest.mock.patch`) so no real network call runs. |
 | `Tests/FailsTest` | A valid install whose `@backend_test` raises — used to prove the whole install rolls back (no app/table/physical table left). |

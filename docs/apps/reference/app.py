@@ -33,7 +33,7 @@ from djangoapp.apps.shortcuts import (
 )
 
 if TYPE_CHECKING:
-    from playwright.sync_api import Page
+    from playwright.sync_api import BrowserContext
 
 COLLECTION = "Reference"
 APP = "Demo"
@@ -89,11 +89,15 @@ def test_reference_page_count() -> None:
 
 
 @playwright_test
-def test_reference_page_renders_and_interacts(page: Page, base_url: str) -> None:
+def test_reference_page_renders_and_interacts(context: BrowserContext, base_url: str) -> None:
     """The built app mounts, renders the count, and Refresh round-trips the GET endpoint."""
-    page.goto(f"{base_url}/apps/a/Reference/Demo/endpoint/inertia/reference_page")
-    page.wait_for_selector(".ref-count")
-    assert page.locator(".ref-count").text_content() == "1"
-    page.locator(".ref-refresh").click()
-    page.wait_for_selector(".ref-fetched")
-    assert page.locator(".ref-fetched").text_content() == "1"
+    page = context.new_page()
+    try:
+        page.goto(f"{base_url}/apps/a/Reference/Demo/endpoint/inertia/reference_page")
+        page.wait_for_selector(".ref-count")
+        assert page.locator(".ref-count").text_content() == "1"
+        page.locator(".ref-refresh").click()
+        page.wait_for_selector(".ref-fetched")
+        assert page.locator(".ref-fetched").text_content() == "1"
+    finally:
+        page.close()

@@ -1,7 +1,7 @@
-// Inertia-demo fixture frontend. `buildapp` (and buildapp_fixtures) pass
-// --outDir (the app's derived static dir) + --emptyOutDir, so this only needs the
-// vue plugin + the entry. Output names are constant (main.js/main.css) so
-// base.html can reference them with a ?cache_buster=<mtime> cache-buster.
+// Browser fixture frontend. `buildapp` passes --outDir (the app's derived static
+// dir) + --emptyOutDir, so this only needs the vue plugin + the entry. Output
+// names are constant (main.js/main.css) so base.html can reference them with a
+// ?cache_buster=<mtime> cache-buster.
 import { defineConfig } from "vite"
 import vue from "@vitejs/plugin-vue"
 

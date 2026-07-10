@@ -23,7 +23,6 @@ fails, or any ``@playwright_test`` fails.
 
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 import traceback
@@ -31,15 +30,16 @@ from typing import TYPE_CHECKING, Any
 
 from django.contrib.staticfiles.handlers import StaticFilesHandler
 from django.core.management.base import BaseCommand, CommandError
+from django.db import transaction
 from django.test import override_settings
 from django.test.testcases import LiveServerThread
 from django.test.utils import modify_settings
 
-from djangoapp.models import User
 from djangoapp.models.applications import Application, AppsGeneration
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
+    from pathlib import Path
 
 
 class Command(BaseCommand):
@@ -85,28 +85,25 @@ class Command(BaseCommand):
         # and app_bundle); .module() is a method because it does import work.
         # aihere dont keep as property, it should be .static_folder() for clarity
         static_folder = application.static_folder
+        # aihere why not put this in _run_npm
         npm = shutil.which("npm")
         if npm is None:
             msg_1 = "npm not found on PATH."
             raise CommandError(msg_1)
+        # Ensure the app's deps are installed (idempotent — a no-op once
+        # node_modules exists) so ``buildapp <app>`` is self-sufficient and the
+        # test harnesses don't each replicate an npm-install step.
+        if not (frontend_dir / "node_modules").exists():
+            self.stdout.write(f"Installing deps for {identity}…")
+            _run_npm(npm, ["install"], cwd=frontend_dir, identity=identity, step="npm install")
         self.stdout.write(f"Building {identity} → {static_folder}")
-        try:
-            subprocess.run(  # noqa: S603 # argv fixed; cwd is the app frontend
-                [
-                    npm,
-                    "run",
-                    "build",
-                    "--",
-                    "--emptyOutDir",
-                    "--outDir",
-                    str(static_folder),
-                ],
-                cwd=frontend_dir,
-                check=True,
-            )
-        except subprocess.CalledProcessError as exc:
-            msg_0 = f"vite build for {identity} failed (exit {exc.returncode})."
-            raise CommandError(msg_0) from exc
+        _run_npm(
+            npm,
+            ["run", "build", "--", "--emptyOutDir", "--outDir", str(static_folder)],
+            cwd=frontend_dir,
+            identity=identity,
+            step="vite build",
+        )
 
         if not (static_folder / "main.js").exists():
             msg = f"Build finished but {static_folder / 'main.js'} is missing."
@@ -142,34 +139,103 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(f"@playwright_test suite for {identity} passed."))
 
 
+def _run_npm(
+    npm: str,
+    args: Sequence[str],
+    *,
+    cwd: Path,
+    identity: str,
+    step: str,  # aihere dont take this param, and error message should just have args
+) -> None:
+    """Run ``npm <args>`` in ``cwd``; raise ``CommandError`` on failure.
+
+    Shared by the app frontend's ``npm install`` (deps) and ``npm run build``
+    (bundle) so both share one failure -> ``CommandError`` path. ``step`` labels
+    the failure message ("npm install" / "vite build").
+    """
+    try:
+        subprocess.run(  # noqa: S603 # argv fixed; cwd is an app frontend dir
+            [npm, *args],
+            cwd=cwd,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        msg = f"{step} for {identity} failed (exit {exc.returncode})."
+        raise CommandError(msg) from exc
+
+
+class RollbackEveryRequestMiddleware:
+    """Per-request rolled-back atomic; reverts every live-server DB write.
+
+    Installed only during ``_drive_playwright_tests`` (prepended onto
+    ``MIDDLEWARE`` via ``modify_settings``), so it never runs in normal server
+    operation. The live server runs on its own connection, so this is independent
+    of the drive's in-process rolled-back atomic — together they revert both
+    HTTP-triggered (browser) and in-process writes.
+
+    Sharing the server's connection + one rolled-back atomic is blocked:
+    ``close_old_connections`` (fired per request) force-closes any connection
+    whose autocommit differs from the setting, and inside ``atomic`` autocommit
+    is off. Containing the atomic to a single request dodges that — autocommit is
+    back on before ``request_finished`` fires. A write is therefore visible only
+    for the lifetime of the request that makes it.
+    """
+
+    def __init__(self, get_response: Callable[..., object]) -> None:
+        self.get_response = get_response
+
+    def __call__(self, request: Any) -> Any:  # noqa: ANN401 # Django request/response are untyped
+        with transaction.atomic():
+            response = self.get_response(request)
+            transaction.set_rollback(True)
+        return response
+
+
 def _drive_playwright_tests(
     tests: Sequence[Callable[..., object]],
     *,
     err_write: Callable[[str], object],
     host: str = "localhost",
 ) -> None:
-    """Run each ``@playwright_test(page, base_url)`` in a headless browser.
+    """Run each ``@playwright_test(context, base_url)`` in a headless browser.
 
-    Starts a short-lived, static-aware live server on a free port, authenticates
-    a throwaway user via the DEBUG-only ``/login-for-test`` view, then runs each
-    func against that server. **Stops on the first failure**: its name + traceback
-    are written via ``err_write`` and the exception re-raises so the caller can
-    fail the build. Mirrors the playwright harness in ``tests/playwright`` but is
-    command-callable: no ``TestCase`` base, and it serves the *current* default
-    database, so callers must ensure the app is installed and its data committed
-    (run under a ``TransactionTestCase``/real DB — a plain ``TestCase``'s
-    savepoint isn't visible to the server thread).
+    Starts a short-lived, static-aware live server on a free port (its *own* DB
+    connection — not shared with this command), then hands each func a fresh
+    ``BrowserContext`` + ``base_url`` and lets it build its own pages, users, and
+    login. **Stops on the first failure**: its name + traceback are written via
+    ``err_write`` and the exception re-raised so the caller can fail the build.
+
+    Two rollback layers keep the drive from touching the DB (no per-test cleanup):
+
+    - **In-process** — the whole test loop runs in one ``transaction.atomic`` on
+      this command's connection, each ``@playwright_test`` in its own
+      ``savepoint`` (rolled back in ``finally``), the atomic marked
+      ``set_rollback(True)`` so writes a test body makes never commit.
+    - **Browser** — :class:`RollbackEveryRequestMiddleware` (prepended onto ``MIDDLEWARE``
+      for the drive only) wraps each live-server request in its own rolled-back
+      ``atomic`` on the server's connection, so writes a ``@playwright_test``
+      triggers over HTTP revert per request.
+
+    The server keeps its own connection (sharing it + one rolled-back atomic is
+    blocked — see :class:`RollbackEveryRequestMiddleware`). So a write is visible only for
+    the **request** that makes it: per-request, not per-test — a write in one
+    request is gone by the next.
     """
     # port=0 lets the OS pick; LiveServerThread publishes the chosen port after
     # is_ready. daemon=True so a crashed command can't strand the server thread.
     server = LiveServerThread(host, StaticFilesHandler, port=0)
     server.daemon = True
-    # Per-run username (pid-suffixed) so a leaked row from a hard-killed prior
-    # run can't block the next create_user on the unique constraint.
-    user = User.objects.create_user(username=f"buildapp-smoke-{os.getpid()}", password="pw")
     try:
         with (
-            modify_settings(ALLOWED_HOSTS={"append": host}),
+            modify_settings(
+                ALLOWED_HOSTS={"append": host},
+                # Prepend (index 0 = outermost) so the atomic wraps every other
+                # middleware's writes too — notably SessionMiddleware's
+                # response-phase save. Scoped to this drive by the context
+                # manager; the chain is cached into the LiveServerThread's own
+                # WSGIHandler, which dies with the server at drive end.
+                MIDDLEWARE={"prepend": f"{__name__}.RollbackEveryRequestMiddleware"},
+            ),
             override_settings(DEBUG=True, SECURE_CSP_REPORT_ONLY=None),
         ):
             server.start()
@@ -183,26 +249,42 @@ def _drive_playwright_tests(
 
             with sync_playwright() as pw:
                 browser = pw.firefox.launch(headless=True)
-                context = browser.new_context()
-                page = context.new_page()
-                page.set_default_timeout(5000)
-                page.goto(f"{base_url}/login-for-test/{user.pk}")
-                # aihere each test will run in savepoint
-                for fn in tests:
-                    try:
-                        # aihere pass context to browser instead of page, let user
-                        # create page and users and login explicitly
-                        fn(page=page, base_url=base_url)
-                    except Exception:
-                        # Stop on the first failure; show which test + its
-                        # traceback before the server/browser tear down.
-                        err_write(f"@playwright_test {fn.__name__} failed:")
-                        err_write(traceback.format_exc())
-                        raise
-                page.close()
-                context.close()
+                # Two rollback layers keep the drive from touching the DB:
+                # 1. in-process — one atomic on this command's connection, each
+                #    @playwright_test in its own savepoint (rolled back in
+                #    finally), the atomic marked set_rollback(True) so a test
+                #    body's writes never commit.
+                # 2. browser — RollbackEveryRequestMiddleware (prepended onto MIDDLEWARE
+                #    above) wraps each live-server request in a rolled-back
+                #    atomic on the server's own connection, so HTTP-triggered
+                #    writes revert per request (a write is visible only within
+                #    the request that makes it — per-request, not per-test).
+                # Each test also gets a fresh BrowserContext (closed in finally),
+                # so no session/storage leaks between tests — matching the
+                # per-test savepoint isolation.
+                # set_rollback(True) is the LAST statement in the block: it
+                # poisons further queries (validate_no_broken_transaction),
+                # mirroring TestCase._rollback_atomics.
+                with transaction.atomic():
+                    for test_function in tests:
+                        sid = transaction.savepoint()
+                        context = browser.new_context()
+                        try:
+                            try:
+                                test_function(context=context, base_url=base_url)
+                            except Exception:
+                                # Stop on the first failure; show which test +
+                                # its traceback before the server/browser tear
+                                # down.
+                                err_write(f"@playwright_test {test_function.__name__} failed:")
+                                err_write(traceback.format_exc())
+                                raise
+                        finally:
+                            context.close()
+                            transaction.savepoint_rollback(sid)
+                            transaction.savepoint_commit(sid)
+                    transaction.set_rollback(True)
                 browser.close()
     finally:
         if server.is_alive():
             server.terminate()
-        user.delete()

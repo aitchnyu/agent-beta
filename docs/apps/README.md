@@ -36,16 +36,9 @@ artifacts).
 #    then drive its @playwright_test funcs in a browser against the live install
 #    (a green buildapp means the bundle mounts + interacts). Constant main.js path;
 #    cache-bust via ?cache_buster=<generation>. --skip-playwright builds only
-#    (fast dev-loop; the browser suite is skipped).
+#    (fast dev-loop; the browser suite is skipped). buildapp also installs deps
+#    (npm install) when node_modules is missing.
 ./run djangomanage buildapp <collection>/<app>
-
-# 3. Browser tests (second phase): run @playwright_test s against the installed
-#    app. Assumes installorupdate + buildapp already ran. By default the
-#    Tests/Page fixture is exercised; point APP_IDENTITY at any
-#    '<collection>/<app>' to verify a different app's @playwright_test s in the
-#    browser (an app with none is skipped). Green = the app is verified installed
-#    end to end.
-APP_IDENTITY=Tests/Page ./run playwrighttest
 
 # Read-only inspection of what's installed:
 ./run djangomanage applications list_application_collections
