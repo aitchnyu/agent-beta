@@ -32,7 +32,7 @@ from django.db import connection, models, transaction
 from django.db.models.base import ModelBase
 from django.db.utils import ProgrammingError
 
-from djangoapp.apps.dynamic_module import sync_app_caches
+from djangoapp.apps.dynamic_module import clear_app_caches
 from djangoapp.models.applications import (
     Application,
     ApplicationCollection,
@@ -65,7 +65,7 @@ def _synced[**P, R](fn: Callable[P, R]) -> Callable[P, R]:
 
     @wraps(fn)
     def _wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-        sync_app_caches()
+        clear_app_caches()
         return fn(*args, **kwargs)
 
     return _wrapper

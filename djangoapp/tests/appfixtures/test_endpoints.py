@@ -8,7 +8,7 @@ from django.conf import settings
 from django.test import TestCase
 
 from djangoapp.apps import dynamic_module
-from djangoapp.management.commands.installorupdate import install_or_update
+from djangoapp.management.commands.buildbackend import build_backend
 from djangoapp.models.dynamic import dynamic_models
 
 _APPS_ROOT_PATCH = patch.object(
@@ -26,8 +26,7 @@ class EndpointViewTests(TestCase):
     Inertia page object. ``apps_root`` is patched to the fixture tree so
     ``<collection>/<app>`` resolves.
 
-    - test_demo_random_code, GET returns 200 JSON with a seeded code
-    - test_demo_random_code_varies, repeated calls return more than one code
+    - test_demo_random_code_varies, GET returns 200 with a seeded code, and repeats vary
     - test_alltypes_row, GET returns the seed row with every type serialised
     - test_unknown_collection_404, an unknown collection resolves to 404
     - test_unknown_app_404, an unknown app resolves to 404
@@ -47,25 +46,19 @@ class EndpointViewTests(TestCase):
         super().tearDown()
 
     def _install(self, identity: str) -> None:
-        install_or_update(identity)
+        build_backend(identity)
 
-    def test_demo_random_code(self) -> None:
-        """GET returns 200 JSON with a code drawn from the seeded set."""
-        self._install("Tests/Endpoints")
-        resp = self.client.get("/apps/a/Tests/Endpoints/endpoint/get/random_code")
-        self.assertEqual(resp.status_code, HTTPStatus.OK)
-        body = resp.json()
-        self.assertIn("code", body)
-        self.assertIn(body["code"], {"A1", "A2", "A3"})
-
-    # aihere merge above test to this
     def test_demo_random_code_varies(self) -> None:
-        """Repeated calls return more than one distinct code (randomness works)."""
+        """GET returns 200 with a seeded code, and repeats vary across calls."""
         self._install("Tests/Endpoints")
-        seen = {
-            self.client.get("/apps/a/Tests/Endpoints/endpoint/get/random_code").json()["code"]
-            for _ in range(20)
-        }
+        url = "/apps/a/Tests/Endpoints/endpoint/get/random_code"
+        seen: set[str] = set()
+        for _ in range(20):
+            resp = self.client.get(url)
+            self.assertEqual(resp.status_code, HTTPStatus.OK)
+            code = resp.json()["code"]
+            self.assertIn(code, {"A1", "A2", "A3"})
+            seen.add(code)
         self.assertGreater(len(seen), 1)
 
     def test_alltypes_row(self) -> None:

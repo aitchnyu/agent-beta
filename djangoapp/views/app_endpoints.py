@@ -69,7 +69,7 @@ def app_inertia_endpoint(
 ) -> HttpResponse:
     """Serve one ``@inertia_endpoint`` function as an Inertia page.
 
-    Uses the app's own bundle (``application.app_bundle``) for both the
+    Uses the app's own bundle (``application.app_bundle()``) for both the
     script/css base and the ``?cache_buster=`` value (the apps generation),
     passed via ``template_data`` so ``base.html`` overrides the host default.
     """
@@ -80,7 +80,7 @@ def app_inertia_endpoint(
     stuff = module.call_inertia_endpoint(
         name=function_name, request=request, user=_viewer_user(request)
     )
-    static_url, asset_version = app.app_bundle
+    static_url, asset_version = app.app_bundle()
     return InertiaResponse(
         request,
         stuff.component,

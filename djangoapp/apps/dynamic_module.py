@@ -118,23 +118,23 @@ class DynamicModule:
     app.py. Iterates ``vars(module)`` in definition order (CPython preserves it)
     and groups callables by their ``_app_marker``:
 
-    - setup_function, the single ``@setup`` callable (None if absent)
+    - setup_function, the single ``@setup`` callable (required)
     - json_endpoints, dict ``name -> @get_endpoint``
     - inertia_endpoints, dict ``name -> @inertia_endpoint``
     - backend_tests, list of ``@backend_test`` (definition order)
     - playwright_tests, list of ``@playwright_test`` (definition order)
 
-    Raises :class:`DynamicModuleError` if the module has no tagged functions.
+    Raises ``ValueError`` if the module has no @setup function.
     """
 
-    setup_function: Callable[..., object] | None
+    setup_function: Callable[..., object]
     json_endpoints: dict[str, Callable[..., object]]
     inertia_endpoints: dict[str, Callable[..., object]]
     backend_tests: list[Callable[..., object]]
     playwright_tests: list[Callable[..., object]]
 
     def __init__(self, module: ModuleType) -> None:
-        self.setup_function = None
+        setup_function: Callable[..., object] | None = None
         self.json_endpoints = {}
         self.inertia_endpoints = {}
         self.backend_tests = []
@@ -144,7 +144,7 @@ class DynamicModule:
                 continue
             kind = getattr(obj, _MARKER_ATTR, None)
             if kind == SETUP:
-                self.setup_function = obj
+                setup_function = obj
             elif kind == GET_ENDPOINT:
                 self.json_endpoints[obj.__name__] = obj
             elif kind == INERTIA_ENDPOINT:
@@ -153,18 +153,10 @@ class DynamicModule:
                 self.backend_tests.append(obj)
             elif kind == PLAYWRIGHT_TEST:
                 self.playwright_tests.append(obj)
-        if (
-            self.setup_function is None
-            and not self.json_endpoints
-            and not self.inertia_endpoints
-            and not self.backend_tests
-            and not self.playwright_tests
-        ):
-            msg = (
-                f"{module.__name__} has no @setup/@get_endpoint/@inertia_endpoint/"
-                "@backend_test/@playwright_test functions."
-            )
-            raise DynamicModuleError(msg)
+        if setup_function is None:
+            msg = f"{module.__name__} has no @setup function."
+            raise ValueError(msg)
+        self.setup_function = setup_function
 
     def has_json_endpoint(self, name: str) -> bool:
         """Whether a ``@get_endpoint`` (JSON) with ``name`` is registered."""
@@ -199,11 +191,6 @@ class DynamicModule:
         return result
 
 
-# aihere no need of this type
-class DynamicModuleError(Exception):
-    """Raised when an app module has no tagged functions at all."""
-
-
 # Apps root: the directory the import + frontend machinery resolves apps from.
 # An app lives at ``<apps_root()>/<collection>/<app>/app.py`` (+ a ``frontend/``
 # sibling). Default ``<BASE_DIR>/apps``; tests patch this (via the module global
@@ -227,7 +214,7 @@ class AppModuleLoader:
     ``load`` returns a :class:`DynamicModule` built from the module — the handler
     exposing ``setup_function`` / ``endpoints`` / ``inertia_endpoints`` /
     ``backend_tests`` / ``playwright_tests``. Each load first syncs the in-memory
-    caches to the live apps generation (see :func:`sync_app_caches`), so a
+    caches to the live apps generation (see :func:`clear_app_caches`), so a
     ``setup`` install in another process is picked up without a server restart.
     """
 
@@ -240,7 +227,7 @@ class AppModuleLoader:
         ``force_reload`` re-imports fresh (used by ``setup`` so a re-run after
         edits picks up changes).
         """
-        sync_app_caches()
+        clear_app_caches()
         key = str(path)
         module = self._modules.get(key)
         if module is None or force_reload:
@@ -281,9 +268,13 @@ class AppModuleLoader:
 _seen_generation: int | None = None
 
 
-# aihere rename to be more descriptive that temp caches are actually cleared
-def sync_app_caches() -> None:
-    """Reset both in-memory caches when the apps generation changes."""
+def clear_app_caches() -> None:
+    """Clear the app-module + dynamic-model caches when the apps generation changes.
+
+    This *drops* the caches (they rebuild on next use) rather than updating them
+    in place, so a ``setup``/``buildfrontend`` in any process is visible without a
+    server restart.
+    """
     global _seen_generation  # noqa: PLW0603 # module-local cache; reset on generation change
     # Section 1 — compare: read the live generation and bail early if unchanged.
     from djangoapp.models.applications import (  # noqa: PLC0415 # deferred: dynamic_module is imported during model loading
@@ -294,7 +285,7 @@ def sync_app_caches() -> None:
     if live == _seen_generation:
         return
 
-    # Section 2 — reset: generation bumped (by setup/buildapp in any process),
+    # Section 2 — reset: generation bumped (by setup/buildfrontend in any process),
     # so drop this loader's modules and the dynamic-model registry's model
     # cache; both rebuild from the latest installed app on next use.
     from djangoapp.models.dynamic import (  # noqa: PLC0415 # deferred to avoid dynamic_module <-> dynamic cycle
@@ -312,16 +303,15 @@ app_modules = AppModuleLoader()
 __all__ = [
     "AppModuleLoader",
     "DynamicModule",
-    "DynamicModuleError",
     "InertiaPage",
     "RequestContext",
     "app_modules",
     "apps_root",
     "backend_test",
+    "clear_app_caches",
     "fake_context",
     "get_endpoint",
     "inertia_endpoint",
     "playwright_test",
     "setup",
-    "sync_app_caches",
 ]

@@ -64,7 +64,7 @@ def setup_app() -> None:
             ]
         },
     )
-    model = Application.get_by_names(COLLECTION, APP).get_table(TABLE)
+    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
     model.objects.create(
         code="A1", note="hi", qty=7, active=True, price=Decimal("9.99"), due=None, owner=None
     )
@@ -73,7 +73,7 @@ def setup_app() -> None:
 @get_endpoint
 def row(request_context: RequestContext) -> RowOut:
     """Return the single seed row's typed values."""
-    model = Application.get_by_names(COLLECTION, APP).get_table(TABLE)
+    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
     instance = model.objects.first()
     assert instance is not None
     return RowOut(

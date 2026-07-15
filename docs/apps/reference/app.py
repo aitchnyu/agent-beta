@@ -53,7 +53,7 @@ class CountOut(BaseModel):
 
 
 def _model() -> Any:
-    return Application.get_by_names(COLLECTION, APP).get_table(TABLE)
+    return Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
 
 
 @setup

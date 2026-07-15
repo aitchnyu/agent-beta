@@ -53,7 +53,7 @@ def setup_app() -> None:
         name=APP,
         tables={TABLE: [TextColumn("content")]},
     )
-    model = Application.get_by_names(COLLECTION, APP).get_table(TABLE)
+    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
     model.objects.create(content="local fallback fact")
 
 
@@ -64,7 +64,7 @@ def random_fact(request_context: RequestContext) -> FactOut:
         data = _fetch_json(FACT_URL)
         return FactOut(fact=str(data["fact"]))
     except OSError, KeyError, ValueError:
-        model = Application.get_by_names(COLLECTION, APP).get_table(TABLE)
+        model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
         row = model.objects.order_by("?").first()
         return FactOut(fact=row.content if row else "")
 

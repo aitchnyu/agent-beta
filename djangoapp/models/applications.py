@@ -165,8 +165,6 @@ class Application(models.Model):
             msg = f"No app '{collection_name}/{app_name}'."
             raise Http404(msg) from exc
 
-    # aihere no properties for this class
-    @property
     def script_path(self) -> Path:
         """Absolute path to the app's ``app.py`` (``<apps_root>/<collection>/<app>``)."""
         from djangoapp.apps.dynamic_module import (  # noqa: PLC0415 # deferred: avoid applications <-> dynamic_module cycle
@@ -175,7 +173,6 @@ class Application(models.Model):
 
         return (apps_root() / self.application_collection.name / self.name / "app.py").resolve()
 
-    @property
     def static_folder(self) -> Path:
         """Absolute dir the app's vite build writes to (derived from names)."""
         return (
@@ -188,21 +185,19 @@ class Application(models.Model):
             / self.name
         )
 
-    @property
     def frontend_dir(self) -> Path:
-        """The ``frontend/`` sibling of the app's ``app.py``."""
-        return self.script_path.parent / "frontend"
+        """Return the ``frontend/`` sibling of the app's ``app.py``."""
+        return self.script_path().parent / "frontend"
 
-    @property
     def app_bundle(self) -> tuple[str, str]:
         """``(static_url_base, cache_bust)`` for base.html to load the app's bundle.
 
         ``static_url_base`` is ``STATIC_URL`` + the static folder relative to the
         djangoapp app's static dir; ``cache_bust`` is the apps generation (bumped
-        by ``setup``/``buildapp``), so a rebuild forces browsers to refetch.
+        by ``setup``/``buildfrontend``), so a rebuild forces browsers to refetch.
         """
         static_root = Path(str(settings.BASE_DIR)) / "djangoapp" / "static"
-        rel = self.static_folder.relative_to(static_root).as_posix()
+        rel = self.static_folder().relative_to(static_root).as_posix()
         url_base = f"{settings.STATIC_URL}{rel}".rstrip("/")
         return url_base, str(AppsGeneration.current())
 
@@ -212,10 +207,9 @@ class Application(models.Model):
             app_modules,
         )
 
-        return app_modules.load(self.script_path)
+        return app_modules.load(self.script_path())
 
-    # aihere should be .table_as_model(name)
-    def get_table(self, name: str) -> Any:  # noqa: ANN401 # dynamic model: fields/manager not statically known
+    def table_as_model(self, name: str) -> Any:  # noqa: ANN401 # dynamic model: fields/manager not statically known
         """Return the dynamic model for one of this app's tables.
 
         Typed ``Any``: the model is built at runtime, so its fields/manager are
@@ -423,15 +417,14 @@ class ApplicationTableColumn(models.Model):
             raise ValidationError({"decimal_places": msg})
 
 
-# aihere remove middleware reference
 class AppsGeneration(models.Model):
     """Singleton counter tracking the installed-apps generation.
 
-    ``setup`` bumps it on a successful install. The invalidation middleware
-    compares each worker's last-seen value to the live one and, on a change,
-    resets the dynamic-model + app-module caches — so a running devserver or
-    gunicorn worker picks up the latest installed app/models without a restart.
-    Cross-worker/hosts-safe via the shared DB (no in-process cache).
+    ``setup`` bumps it on a successful install. ``AppModuleLoader.load`` compares
+    each worker's last-seen value to the live one and, on a change, clears the
+    dynamic-model + app-module caches — so a running devserver or gunicorn worker
+    picks up the latest installed app/models without a restart. Cross-worker/
+    hosts-safe via the shared DB (no in-process cache).
     """
 
     value = models.PositiveIntegerField(default=0)

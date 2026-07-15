@@ -5,7 +5,7 @@ Feeds ``test_endpoints.py`` (HTTP serving of @get_endpoint / @inertia_endpoint):
 ``random_code`` returns a seeded code at random; ``endpoint_page`` renders the
 first row's code as an Inertia page. No ``frontend/`` bundle — ``app_bundle`` is
 a pure path derivation, so the inertia-URL test needs no built file (Vue
-*rendering* is exercised by ``Tests/Browser`` via buildapp).
+*rendering* is exercised by ``Tests/Browser`` via buildfrontend).
 """
 
 from __future__ import annotations
@@ -52,14 +52,14 @@ def setup_app() -> None:
         name=APP,
         tables={TABLE: [CharColumn("code", max_length=10)]},
     )
-    model = Application.get_by_names(COLLECTION, APP).get_table(TABLE)
+    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
     model.objects.bulk_create([model(code=code) for code in ITEMS])
 
 
 @get_endpoint
 def random_code(request_context: RequestContext) -> CodeOut:
     """GET endpoint returning one seeded code at random."""
-    model = Application.get_by_names(COLLECTION, APP).get_table(TABLE)
+    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
     row = model.objects.order_by("?").first()
     return CodeOut(code=row.code if row else "")
 
@@ -67,7 +67,7 @@ def random_code(request_context: RequestContext) -> CodeOut:
 @inertia_endpoint
 def endpoint_page(request_context: RequestContext) -> InertiaPage[EndpointPageProps]:
     """Inertia page: the first seeded row's code as a prop."""
-    row = Application.get_by_names(COLLECTION, APP).get_table(TABLE).objects.first()
+    row = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.first()
     return InertiaPage(
         component="EndpointPage", props=EndpointPageProps(code=row.code if row else "")
     )

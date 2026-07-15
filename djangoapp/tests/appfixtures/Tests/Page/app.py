@@ -1,7 +1,7 @@
 # ruff: noqa: INP001 # fixture app loaded by file path, not a package
 """Install/seed fixture: the happy-path install + a backend-test rollback proof.
 
-Feeds ``test_installorupdate.py``: ``@setup`` seeds an ``items`` table, and a
+Feeds ``test_buildbackend.py``: ``@setup`` seeds an ``items`` table, and a
 ``@backend_test`` writes a row during install — proving the install savepoint
 rolls it back (the row count is unchanged after install). No endpoints or
 inertia here; endpoint serving lives in ``Tests/Endpoints``.
@@ -33,14 +33,14 @@ def setup_app() -> None:
         name=APP,
         tables={TABLE: [CharColumn("code", max_length=10)]},
     )
-    model = Application.get_by_names(COLLECTION, APP).get_table(TABLE)
+    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
     model.objects.bulk_create([model(code=code) for code in ITEMS])
 
 
 @backend_test
 def test_backend_test_writes_roll_back() -> None:
     """A backend_test's writes must not persist past setup (savepoint isolation)."""
-    model = Application.get_by_names(COLLECTION, APP).get_table(TABLE)
+    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
     before = model.objects.count()
     model.objects.create(code="Tmp")
     assert model.objects.count() == before + 1

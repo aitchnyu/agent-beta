@@ -4,7 +4,7 @@
 ``@setup`` creates a valid app, but ``@backend_test`` raises. The setup runner
 rolls back the whole script (the app, its table, the physical table, and the
 registry cache), so after the failed run nothing remains. Used by
-``InstallOrUpdateTests.test_fails_backend_test_rolls_back``.
+``BuildBackendTests.test_fails_backend_test_rolls_back``.
 """
 
 from __future__ import annotations

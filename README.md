@@ -4,14 +4,6 @@ We are making a Django app for users to manage mini apps with backend code, fron
 
 I will request some features which are present in prevproject. Do not use it for any other reason. Ensure its not covered by linters etc.
 
-## USP
-easy to use migrations - why not use Django migrations?
-why have Model = generate_model('dir', 'model') instead of using the code?
-
-## Why sqlite and modules?
-Can copy apps around
-Can replace data
-
 ## Examples
 Maps and complaints
 
@@ -39,6 +31,37 @@ email (matched case-insensitively; sets both `is_superuser` and `is_staff` so
 ```bash
 ./run python manage.py makesuperuser alice@example.com
 ```
+
+Once promoted, that user can reach the management routes below.
+
+## User management
+
+Users are managed under `/users/` (`djangoapp/views/users.py`). Every management
+route — list, search, edit, history — requires a superuser; **anyone else gets a
+404** (not 403, so which users exist isn't leaked). A user's **identity in every
+URL and response is `public_id`** (a URL-safe UUID7); the integer `pk` is never
+sent to clients.
+
+- `/users/list` — paginated list of users (25/page). `?q=` does a trigram search
+  across first/last name and username; `?page=N` paginates.
+- `/users/api/search?q=` — top-20 username matches (the list page's
+  jump-to-profile). Superuser-only.
+- `/users/id/<public_id>` — a user's profile. First/last name are always shown;
+  `username` and `description` appear only when the user has `has_public_profile`
+  set. A **superuser viewer** additionally sees the admin panel (email, flags,
+  history count); anonymous viewers never do.
+- `/users/edit/<public_id>` (GET form + POST) — superuser-only edit. `username`
+  is read-only; editable fields are first/last name, email, `description`
+  (HTML-sanitised on save), `has_public_profile`, `is_active`, `is_staff`,
+  `is_superuser`.
+- `/users/history/<public_id>` — superuser-only audit trail. Every edit (and
+  every `makesuperuser` promotion) is recorded into `UserHistory` via
+  `User.update(...)`.
+
+**Admin self-lockout guard:** a superuser can't clear their own `is_superuser`
+or `is_active` flag. Because every `/users/*` route gates on an authenticated
+*active* superuser, the active-superuser count can never fall to zero through
+the UI.
 
 ## Application collections, applications and tables
 
@@ -173,7 +196,7 @@ def test_facts():
 Install (and self-test) an app with:
 
 ```bash
-./run djangomanage installorupdate collectionname/appname
+./run djangomanage buildbackend collectionname/appname
 ```
 
 This imports the module, runs `@setup`, then runs every `@backend_test`. If
@@ -184,7 +207,7 @@ registry cache reset) so a failed install leaves nothing behind.
 Build an app's frontend into its derived static folder with:
 
 ```bash
-./run djangomanage buildapp collectionname/appname
+./run djangomanage buildfrontend collectionname/appname
 ```
 
 This resolves the app, locates its `frontend/` dir (`<apps_root>/<collection>/<app>/frontend/`),
@@ -195,12 +218,12 @@ and runs `npm run build -- --emptyOutDir --outDir <static_folder>` so vite write
 On success it bumps the apps generation, so a running server picks up the rebuilt
 bundle without a restart.
 
-After building, `buildapp` runs the app's `@playwright_test(context, base_url)`
+After building, `buildfrontend` runs the app's `@playwright_test(context, base_url)`
 funcs in a headless browser against a short-lived live server. Every DB change
 they cause — written in-process by the test body or triggered over HTTP by the
 browser — is rolled back (a rolled-back `transaction.atomic()` for in-process
 writes, plus a per-request rolled-back `atomic()` middleware for browser writes),
-whether `buildapp` ultimately passes or fails. Only the `@playwright_test` phase
+whether `buildfrontend` ultimately passes or fails. Only the `@playwright_test` phase
 is covered: the build itself still writes the bundle and bumps the apps
 generation. Pass `--skip-playwright` to build only.
 
@@ -213,7 +236,10 @@ is served as JSON at:
 /apps/a/<collection>/<app>/endpoint/get/<function_name>
 ```
 
-### Superuser views
+### Application management views (superuser)
+
+These list/manage installed apps and their tables (user accounts are managed
+under `/users/`, see [User management](#user-management)):
 
 - `/apps/collections` — list collections
 - `/apps/a/<collection_name>/list` — list apps in a collection

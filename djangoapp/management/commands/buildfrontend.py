@@ -1,16 +1,16 @@
 """Build an app's frontend, then verify it in a browser before completing.
 
-Usage: ``./run djangomanage buildapp <collection>/<app>``
+Usage: ``./run djangomanage buildfrontend <collection>/<app>``
 
-Resolves the app, locates its ``frontend/`` dir (``application.frontend_dir``),
+Resolves the app, locates its ``frontend/`` dir (``application.frontend_dir()``),
 and runs ``npm run build -- --emptyOutDir --outDir <static_folder>`` so vite
 writes ``main.js``/``main.css`` to the app's derived static folder
-(``application.static_folder``). Constant asset path; cache-busting is via the
+(``application.static_folder()``). Constant asset path; cache-busting is via the
 ``?cache_buster=<generation>`` the inertia view appends (no hashed filenames).
 
 After the build, the app's ``@playwright_test`` funcs are driven in a headless
 browser against a short-lived live server (see :func:`_drive_playwright_tests`)
-so a green buildapp means the built bundle actually mounts and interacts. This
+so a green buildfrontend means the built bundle actually mounts and interacts. This
 drives the app's *own* funcs against the current DB install (the app must be
 installed first via ``setup``), so it works for real apps in ``apps/`` as well
 as fixtures under tests. An app with no ``@playwright_test`` skips the browser
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 
 
 class Command(BaseCommand):
-    """``djangomanage buildapp <collection/app>`` — build + browser-smoke an app."""
+    """``djangomanage buildfrontend <collection/app>`` — build + browser-smoke an app."""
 
     help = "Build an app's Vue frontend, then run its @playwright_test suite."
 
@@ -73,36 +73,28 @@ class Command(BaseCommand):
             msg_0 = f"No app '{identity}'."
             raise CommandError(msg_0) from exc
 
-        frontend_dir = application.frontend_dir
+        frontend_dir = application.frontend_dir()
         if not (frontend_dir / "package.json").exists():
             msg = (
                 f"No frontend at {frontend_dir} (expected package.json next to "
-                f"{application.script_path})."
+                f"{application.script_path()})."
             )
             raise CommandError(msg)
 
-        # static_folder is a property (a pure path derivation, like frontend_dir
-        # and app_bundle); .module() is a method because it does import work.
-        # aihere dont keep as property, it should be .static_folder() for clarity
-        static_folder = application.static_folder
-        # aihere why not put this in _run_npm
-        npm = shutil.which("npm")
-        if npm is None:
-            msg_1 = "npm not found on PATH."
-            raise CommandError(msg_1)
+        # frontend_dir/static_folder/app_bundle are pure path derivations exposed
+        # as methods (no @property, per the Application convention).
+        static_folder = application.static_folder()
         # Ensure the app's deps are installed (idempotent — a no-op once
-        # node_modules exists) so ``buildapp <app>`` is self-sufficient and the
+        # node_modules exists) so ``buildfrontend <app>`` is self-sufficient and the
         # test harnesses don't each replicate an npm-install step.
         if not (frontend_dir / "node_modules").exists():
             self.stdout.write(f"Installing deps for {identity}…")
-            _run_npm(npm, ["install"], cwd=frontend_dir, identity=identity, step="npm install")
+            _run_npm(["install"], cwd=frontend_dir, identity=identity)
         self.stdout.write(f"Building {identity} → {static_folder}")
         _run_npm(
-            npm,
             ["run", "build", "--", "--emptyOutDir", "--outDir", str(static_folder)],
             cwd=frontend_dir,
             identity=identity,
-            step="vite build",
         )
 
         if not (static_folder / "main.js").exists():
@@ -118,7 +110,7 @@ class Command(BaseCommand):
         self._run_playwright_suite(identity, application)
 
     def _run_playwright_suite(self, identity: str, application: Application) -> None:
-        """Drive the app's ``@playwright_test`` funcs; fail buildapp on the first failure.
+        """Drive the app's ``@playwright_test`` funcs; fail buildfrontend on the first failure.
 
         Skips cleanly when the app declares no ``@playwright_test``. The funcs run
         against the current DB install (the app must already be set up) and the
@@ -140,19 +132,20 @@ class Command(BaseCommand):
 
 
 def _run_npm(
-    npm: str,
     args: Sequence[str],
     *,
     cwd: Path,
     identity: str,
-    step: str,  # aihere dont take this param, and error message should just have args
 ) -> None:
-    """Run ``npm <args>`` in ``cwd``; raise ``CommandError`` on failure.
+    """Run ``npm <args>`` in ``cwd``; raise ``CommandError`` if npm is missing or it fails.
 
-    Shared by the app frontend's ``npm install`` (deps) and ``npm run build``
-    (bundle) so both share one failure -> ``CommandError`` path. ``step`` labels
-    the failure message ("npm install" / "vite build").
+    ``shutil.which("npm")`` lives here (not at each call site) so callers don't
+    repeat the missing-npm check; the failure message is built from ``args``.
     """
+    npm = shutil.which("npm")
+    if npm is None:
+        msg = "npm not found on PATH."
+        raise CommandError(msg)
     try:
         subprocess.run(  # noqa: S603 # argv fixed; cwd is an app frontend dir
             [npm, *args],
@@ -160,7 +153,7 @@ def _run_npm(
             check=True,
         )
     except subprocess.CalledProcessError as exc:
-        msg = f"{step} for {identity} failed (exit {exc.returncode})."
+        msg = f"npm {' '.join(args)} for {identity} failed (exit {exc.returncode})."
         raise CommandError(msg) from exc
 
 
@@ -243,7 +236,7 @@ def _drive_playwright_tests(
             if server.error is not None:
                 raise server.error
             base_url = f"http://{host}:{server.port}"
-            # Imported lazily so importing buildapp never needs playwright
+            # Imported lazily so importing buildfrontend never needs playwright
             # (a test/dev dep; --skip-playwright builds must not require it).
             from playwright.sync_api import sync_playwright  # noqa: PLC0415
 

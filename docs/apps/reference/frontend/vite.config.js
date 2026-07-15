@@ -1,7 +1,7 @@
-// Reference app vite config. `buildapp` passes --outDir (the app's derived static dir)
+// Reference app vite config. `buildfrontend` passes --outDir (the app's derived static dir)
 // and --emptyOutDir, so this only needs the vue plugin + the entry.
 //
-// `npm run build` (the convention) = `vite build`; buildapp forwards the outDir.
+// `npm run build` (the convention) = `vite build`; buildfrontend forwards the outDir.
 import { defineConfig } from "vite"
 import vue from "@vitejs/plugin-vue"
 

@@ -1,14 +1,14 @@
 # ruff: noqa: INP001, ARG001 # fixture app loaded by file path, not a package; required request_context signature
-"""Minimal fixture app dedicated to buildapp's browser phase.
+"""Minimal fixture app dedicated to buildfrontend's browser phase.
 
 A focused counterpart to ``Tests/Page`` (the comprehensive demo): just enough to
-exercise ``buildapp`` end to end — ``@setup`` seeds one row, an
+exercise ``buildfrontend`` end to end — ``@setup`` seeds one row, an
 ``@inertia_endpoint`` renders it with the app's own bundle, and a
 ``@playwright_test`` does a real browser-based assertion (mount + Refresh
 interaction).
 
-The rollback-proof ``@playwright_test``s exercise both of buildapp's rollback
-layers so ``BuildappDrivesPlaywrightTests`` can assert the drive left the DB
+The rollback-proof ``@playwright_test``s exercise both of buildfrontend's rollback
+layers so ``BuildFrontendDrivesPlaywrightTests`` can assert the drive left the DB
 unchanged:
 
 - an in-process write (rolled back by the drive's ``transaction.atomic``);
@@ -79,13 +79,13 @@ def setup_app() -> None:
         name=APP,
         tables={TABLE: [CharColumn("code", max_length=10)]},
     )
-    Application.get_by_names(COLLECTION, APP).get_table(TABLE).objects.create(code=SEED)
+    Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.create(code=SEED)
 
 
 @inertia_endpoint
 def browser_page(request_context: RequestContext) -> InertiaPage[BrowserPageProps]:
     """Inertia page: the seeded row's code as a prop."""
-    row = Application.get_by_names(COLLECTION, APP).get_table(TABLE).objects.first()
+    row = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.first()
     return InertiaPage(
         component="BrowserPage", props=BrowserPageProps(value=row.code if row else "")
     )
@@ -94,7 +94,7 @@ def browser_page(request_context: RequestContext) -> InertiaPage[BrowserPageProp
 @get_endpoint
 def current_value(request_context: RequestContext) -> ValueOut:
     """GET endpoint the page's Refresh button calls (the seeded value)."""
-    row = Application.get_by_names(COLLECTION, APP).get_table(TABLE).objects.first()
+    row = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.first()
     return ValueOut(value=row.code if row else "")
 
 
@@ -106,7 +106,9 @@ def create_row(request_context: RequestContext) -> CreatedOut:
     framework exposes only ``@get_endpoint`` GETs): the insert is visible within
     this request's response, then ``RollbackEveryRequestMiddleware`` rolls it back.
     """
-    Application.get_by_names(COLLECTION, APP).get_table(TABLE).objects.create(code=BROWSER_WRITE)
+    Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.create(
+        code=BROWSER_WRITE
+    )
     return CreatedOut(created=BROWSER_WRITE)
 
 
@@ -117,7 +119,7 @@ def modify_seed(request_context: RequestContext) -> ModifiedOut:
     Like :func:`create_row`, a test-fixture-only side-effecting GET: the new code
     is visible within this request's response, then rolled back.
     """
-    row = Application.get_by_names(COLLECTION, APP).get_table(TABLE).objects.get(code=SEED)
+    row = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.get(code=SEED)
     row.code = MODIFY_TO
     row.save()
     return ModifiedOut(value=MODIFY_TO)
@@ -139,9 +141,9 @@ def test_page_renders_seed(context: BrowserContext, base_url: str) -> None:
 
 
 # Marker the rollback-probe test writes in-process. Short enough for the code
-# column (CharColumn max_length=10). buildapp's drive wraps each @playwright_test
+# column (CharColumn max_length=10). buildfrontend's drive wraps each @playwright_test
 # in a rolled-back savepoint, so this row never commits;
-# BuildappDrivesPlaywrightTests asserts it's gone after the drive (end-to-end
+# BuildFrontendDrivesPlaywrightTests asserts it's gone after the drive (end-to-end
 # rollback proof).
 ROLLBACK_PROBE = "smoke"
 
@@ -150,12 +152,12 @@ ROLLBACK_PROBE = "smoke"
 def test_inprocess_write_is_visible_to_self(context: BrowserContext, base_url: str) -> None:
     """An in-process write is visible to the test on its own connection.
 
-    Writes a probe row; visible here (same connection), but buildapp wraps the
+    Writes a probe row; visible here (same connection), but buildfrontend wraps the
     test in a rolled-back savepoint so it never commits — the server's separate
-    connection can't see it, hence no browser verify. BuildappDrivesPlaywrightTests
+    connection can't see it, hence no browser verify. BuildFrontendDrivesPlaywrightTests
     asserts the probe is gone after the drive.
     """
-    model = Application.get_by_names(COLLECTION, APP).get_table(TABLE)
+    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
     model.objects.create(code=ROLLBACK_PROBE)
     assert model.objects.filter(code=ROLLBACK_PROBE).exists()
 

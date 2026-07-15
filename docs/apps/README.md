@@ -20,7 +20,7 @@ apps/<collection>/<app>/        # install dir (gitignored at the repo root)
 ```
 
 The committed **reference app** lives in `docs/apps/reference/` (copy it to
-`apps/<collection>/<app>/` to start a new app). `buildapp` writes to
+`apps/<collection>/<app>/` to start a new app). `buildfrontend` writes to
 `djangoapp/static/djangoapp/apps/<collection>/<app>/` (gitignored build
 artifacts).
 
@@ -30,15 +30,15 @@ artifacts).
 # 1. Install: run @setup (creates app+tables, commits) then @backend_test s.
 #    Rolls back the whole install on any failure. No CLI for creating
 #    apps/tables — that is @setup's job.
-./run djangomanage installorupdate <collection>/<app>
+./run djangomanage buildbackend <collection>/<app>
 
 # 2. Build the app's frontend into its derived static folder (vite, emptyOutDir),
 #    then drive its @playwright_test funcs in a browser against the live install
-#    (a green buildapp means the bundle mounts + interacts). Constant main.js path;
+#    (a green buildfrontend means the bundle mounts + interacts). Constant main.js path;
 #    cache-bust via ?cache_buster=<generation>. --skip-playwright builds only
-#    (fast dev-loop; the browser suite is skipped). buildapp also installs deps
+#    (fast dev-loop; the browser suite is skipped). buildfrontend also installs deps
 #    (npm install) when node_modules is missing.
-./run djangomanage buildapp <collection>/<app>
+./run djangomanage buildfrontend <collection>/<app>
 
 # Read-only inspection of what's installed:
 ./run djangomanage applications list_application_collections
@@ -48,10 +48,10 @@ artifacts).
 
 ## Dev loop & invalidation
 
-Edit `app.py`/Vue → `setup`/`buildapp` → refresh the browser. A running
+Edit `app.py`/Vue → `setup`/`buildfrontend` → refresh the browser. A running
 devserver or gunicorn worker picks up a `setup` install **without a restart**:
 `setup` bumps an `AppsGeneration` counter, and every registry/view call runs
-`sync_app_caches`, which resets the worker's dynamic-model + app-module caches
+`clear_app_caches`, which resets the worker's dynamic-model + app-module caches
 when the counter changes (no middleware needed).
 
 > Open issue: re-running `setup` on an already-installed app errors on the

@@ -1,40 +1,18 @@
-Build - can run on real db 
-We cant create a context
+Have ForeignKeyColumn(name, *, target=(collection, app), nullable) - it uses collection, app to resolve table.
 
-Rollback - writes are rolled back
-    todos - writes confirmed, not present
-    create issue and redirect - created 100, redirect fails
-    create family tree - 
+The column will refer to the table.
 
-----------
+Use a graph library to ensure no cycles, when creating a table that refers to another, or adding a column that refers another table. Report the cycle.
 
-No. A browser-caused DB change is not rolled back by the savepoint.
+Have a command to export tables as nodes and fk columns as edges. Which graph format can be readily opened?
 
-The savepoint (transaction.savepoint()) lives on the command's DB connection (the main thread's, the one transaction.atomic() wraps). The browser doesn't write on that connection — it drives the server, which runs on its own separate connection with autocommit ON. So a click that triggers a write commits immediately on the server's connection, and that's a different connection than the one the savepoint controls. Transactions/savepoints are per-connection; the command's savepoint can't touch a commit on the server's connection.
+Prevent deletes to avoid breaking foreign key relationships.
 
-So after the drive:
+Update readme
 
-In-process writes (ORM on the command's connection, inside the savepoint) → rolled back. ✓ (that's the smoke probe)
-Browser→server writes (the click's POST) → persist. ✗
-This is exactly why write-then-verify-via-browser is impossible here, and why the buildapp guarantee is scoped to "in-process writes never commit" (buildapp.py docstring) — a @playwright_test that triggers a server write will leak it past the drive. App tests must stay read-only with respect to the server (or the test author owns cleaning up any server-side write).
-
--------------
-aihere stuff
-
-Setup must be idempotent using setup function names
-Tests with failed browser
-
-rename
-    installorupdate - buildbackend
-    buildapp - buildfrontend
+How to test multi step write operations like creating a family tree?
 
 --------
-Have a table foreignkey type - target specific table
-Does fk get automatic indexes?
-Prevent deletes - find downstream
-
-Relationships - detect and report cycles
-
 Merge both inertia and json endpoints?
 
 `/facts_page?k=v&k2=v2`
@@ -43,7 +21,6 @@ Merge both inertia and json endpoints?
 
 shared props - send collection and application name
 
-Why abstract connection.schema_editor()?
 out = row(fake_context()) - make something better
 
 `./run djangomanage applications` - break into own commands 
@@ -53,8 +30,9 @@ setup - what all code?
 app - what all code?
 
 Are readme instructions complete?
-User management in readme
 -----------
+vue3-sfc-loader - try to avoid multiple apps
+Ignore back button if its hard
 
 Playwright tests check errors are gone
 
@@ -66,7 +44,7 @@ https://github.com/butlerx/wetty
 
 https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md
 Command whitelist
-Make a file browser?
+Make a file browser, py, vue, json, images
 
 Opencode with prompt
     whats an app
