@@ -12,7 +12,7 @@ from djangoapp.models import (
     ApplicationCollection,
     ApplicationTable,
 )
-from djangoapp.models.columns import CharColumn, IntegerColumn
+from djangoapp.models.columns import CharColumn, ForeignKeyColumn, IntegerColumn
 from djangoapp.models.dynamic import dynamic_models
 
 
@@ -146,3 +146,67 @@ class ApplicationsCommandTests(TestCase):
         self.assertIn("No table", out)
         self.assertFalse(ApplicationTable.objects.filter(name="nope").exists())
         self.assertTrue(Application.objects.filter(name="orders").exists())
+
+
+class ExportFkGraphTests(TestCase):
+    """``applications export_fk_graph`` renders tables + FK edges.
+
+    Tables are nodes (label ``collection:app:table`` — ``:`` is Mermaid-id-safe,
+    so it doubles as the node id and text); each foreign-key column is an edge
+    source -> target labelled with the column name. DOT is the default;
+    ``--format mermaid`` emits a Mermaid graph. The whole graph is emitted
+    (no scoping).
+
+    - test_dot_default_emits_nodes_and_edge, default format is DOT with nodes + a labelled edge
+    - test_mermaid_format_emits_graph, --format mermaid emits a renderable Mermaid graph
+    - test_all_tables_emitted, every table across apps appears as a node
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        dynamic_models.reset()
+        # graphapp: beta references alpha.
+        dynamic_models.create_application_collection("inv")
+        dynamic_models.create_application(
+            collection="inv",
+            name="graphapp",
+            tables={
+                "alpha": [CharColumn("code", max_length=5)],
+                "beta": [
+                    ForeignKeyColumn("link", target=("inv", "graphapp", "alpha"), nullable=True)
+                ],
+            },
+        )
+
+    def tearDown(self) -> None:
+        dynamic_models.reset()
+        super().tearDown()
+
+    def test_dot_default_emits_nodes_and_edge(self) -> None:
+        """Default format is DOT: nodes for tables, a labelled edge for the FK."""
+        code, out = run("export_fk_graph")
+        self.assertEqual(code, 0)
+        self.assertIn("digraph fk {", out)
+        self.assertIn('"inv:graphapp:alpha" [label="alpha"];', out)
+        self.assertIn('"inv:graphapp:beta" [label="beta"];', out)
+        self.assertIn('"inv:graphapp:beta" -> "inv:graphapp:alpha" [label="link"];', out)
+
+    def test_mermaid_format_emits_graph(self) -> None:
+        """--format mermaid emits a graph: the ':'-label is the id and the text."""
+        code, out = run("export_fk_graph", "--format", "mermaid")
+        self.assertEqual(code, 0)
+        self.assertIn("graph LR", out)
+        self.assertIn('inv:graphapp:alpha["inv:graphapp:alpha"]', out)
+        self.assertIn("inv:graphapp:beta -->|link| inv:graphapp:alpha", out)
+
+    def test_all_tables_emitted(self) -> None:
+        """Every table across apps appears as a node (the graph is unscoped)."""
+        dynamic_models.create_application(
+            collection="inv",
+            name="plainapp",
+            tables={"solo": [CharColumn("code", max_length=5)]},
+        )
+        code, out = run("export_fk_graph")
+        self.assertEqual(code, 0)
+        self.assertIn('"inv:plainapp:solo"', out)
+        self.assertIn('"inv:graphapp:alpha"', out)

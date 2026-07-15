@@ -21,10 +21,10 @@ reset (the cache key, ``physical_name``, is immutable).
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Callable
 from functools import wraps
 from typing import TYPE_CHECKING, Any, cast
 
+import networkx as nx
 from django.apps import apps
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxLengthValidator, MinLengthValidator
@@ -42,11 +42,10 @@ from djangoapp.models.applications import (
     ColumnType,
 )
 from djangoapp.models.base import User
+from djangoapp.models.columns import Column, ForeignKeyColumn
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from djangoapp.models.columns import Column
+    from collections.abc import Callable, Iterable
 
 
 class TableNotFoundError(Exception):
@@ -144,6 +143,30 @@ def _user_field(col: ApplicationTableColumn) -> models.Field[Any, Any]:
     )
 
 
+def _foreign_key_field(col: ApplicationTableColumn) -> models.Field[Any, Any]:
+    # Self-reference (a table pointing at itself, e.g. a tree parent) must use
+    # the lazy "self" string: resolving the target through get_model *during*
+    # this very model's build would recurse without end. The table graph is
+    # acyclic (enforced at create/add-column time), so any *other* target is
+    # already built + registered and safe to resolve by physical_name.
+    assert (
+        col.fk_target_table is not None
+    )  # foreign_key columns always set a target (clean() enforces it)
+    if col.fk_target_table_id == col.application_table_id:
+        to: type[BaseTable] | str = "self"
+    else:
+        to = dynamic_models.get_model(col.fk_target_table.physical_name)
+    return models.ForeignKey(
+        to,
+        null=col.nullable,
+        blank=col.nullable,
+        on_delete=models.RESTRICT,
+        # related_name="+" disables reverse accessors so several FK columns can
+        # target the same table without clashing on an auto-generated name.
+        related_name="+",
+    )
+
+
 # Dispatch table keeps _column_field to a single return statement.
 _COLUMN_FIELD_BUILDERS: dict[str, Callable[[ApplicationTableColumn], models.Field[Any, Any]]] = {
     ColumnType.CHAR: _char_field,
@@ -153,6 +176,7 @@ _COLUMN_FIELD_BUILDERS: dict[str, Callable[[ApplicationTableColumn], models.Fiel
     ColumnType.DECIMAL: _decimal_field,
     ColumnType.DATETIME: _datetime_field,
     ColumnType.USER: _user_field,
+    ColumnType.FOREIGN_KEY: _foreign_key_field,
 }
 
 
@@ -267,7 +291,7 @@ class DynamicModelRegistry:
             registry.pop(model_name, None)
 
     # ------------------------------------------------------------------
-    # DB resolvers (stateless)
+    # Collection resolution and column creation
     # ------------------------------------------------------------------
 
     def _resolve_collection(
@@ -280,23 +304,44 @@ class DynamicModelRegistry:
             msg = f"No application collection '{appcollection}'."
             raise TableNotFoundError(msg) from exc
 
-    def _resolve_application(self, appcollection: str, app: str) -> Application:
-        try:
-            return Application.get_by_names(appcollection, app)
-        except Application.DoesNotExist as exc:
-            msg = f"No application '{app}' in collection '{appcollection}'."
-            raise TableNotFoundError(msg) from exc
+    def _create_column(self, table: ApplicationTable, col: Column) -> ApplicationTableColumn:
+        """Validate a column declaration and persist an ApplicationTableColumn.
 
-    def _get_application_table_for(
-        self,
-        application: Application,
-        table_name: str,  # registry-owned lookup, self unused
-    ) -> ApplicationTable:
-        try:
-            return ApplicationTable.objects.get(application=application, name=table_name)
-        except ApplicationTable.DoesNotExist as exc:
-            msg = f"No table '{table_name}' in application '{application.name}'."
-            raise TableNotFoundError(msg) from exc
+        The :class:`Column` already validated itself in ``__post_init__``; this
+        builds the row from :meth:`Column.row` and runs ``full_clean`` so the
+        model-level cross-field invariants hold. For a foreign-key column the
+        ``(collection, app, table)`` target is resolved to its row here (the only
+        relation): a forward reference inside one ``create_application`` resolves
+        because targets are created first (topological order), while a cross-app
+        target must already exist — else ``DoesNotExist``.
+        """
+        row = col.row()
+        if isinstance(col, ForeignKeyColumn):
+            tc, ta, tt = col.target
+            row["fk_target_table"] = Application.get_by_names(tc, ta).get_table(tt)
+        obj = ApplicationTableColumn(application_table=table, **row)
+        obj.full_clean()
+        obj.save()
+        return obj
+
+    def _assert_add_columns_acyclic(
+        self, app_table: ApplicationTable, columns: list[Column]
+    ) -> None:
+        """Reject new FK columns that would close a foreign-key cycle.
+
+        Starts from the live table graph (by ``collection/app/table`` label) and
+        adds the edges this add would introduce; a cycle is reported by label.
+        """
+        graph = DependencyGraph.from_db()
+        src_label = _table_label(app_table)
+        for col in columns:
+            if isinstance(col, ForeignKeyColumn):
+                tc, ta, tt = col.target
+                target = Application.get_by_names(tc, ta).get_table(tt)
+                # A self-reference adds no cross-table edge (and is allowed).
+                if target.pk != app_table.pk:
+                    graph.add_edge(src_label, _table_label(target))
+        graph.assert_acyclic()
 
     # ------------------------------------------------------------------
     # Collection / application lifecycle
@@ -351,7 +396,10 @@ class DynamicModelRegistry:
 
         ``tables`` maps each table's display name to
         its Column list; each is created via :meth:`_create_application_table`
-        (which also builds the physical table).
+        (which also builds the physical table). Tables are created in
+        dependency order (a table's foreign-key targets first) so a target's
+        physical table + registered model exist before a referencer's
+        ``create_model`` runs; a foreign-key cycle is rejected up front.
         """
         with transaction.atomic():
             collection_row = self._resolve_collection(collection)
@@ -362,8 +410,15 @@ class DynamicModelRegistry:
             )
             application.full_clean()
             application.save()
-            for table_name, cols in (tables or {}).items():
-                self._create_application_table(application, table_name, cols)
+            declared = tables or {}
+            # Build the new-table graph once: the cycle check and the creation
+            # order both read it (edges run table -> target, so a target is
+            # created before its referencer). Only edges among the new tables
+            # matter, so nodes are their names (see from_application_tables).
+            graph = DependencyGraph.from_application_tables(collection, name, declared)
+            graph.assert_acyclic()
+            for table_name in graph.topological_order():
+                self._create_application_table(application, table_name, declared[table_name])
             return application
 
     @_synced
@@ -376,7 +431,7 @@ class DynamicModelRegistry:
         scoped to its collection), enforced by resolving the source app.
         """
         with transaction.atomic():
-            application = self._resolve_application(collection, old_name)
+            application = Application.get_by_names(collection, old_name)
             application.name = new_name
             application.full_clean()
             application.save()
@@ -395,8 +450,16 @@ class DynamicModelRegistry:
         lookups and ignores any unsaved display-name change on the app.
         """
         with transaction.atomic():
-            for table in list(application.tables.all()):
-                self._drop_application_table(table)
+            tables = list(application.tables.all())
+            # Tables in this app may reference each other; capture their pks
+            # once here and pass as ``also_dropping`` so the per-table guard
+            # ignores references among siblings (they are being dropped
+            # together) instead of blocking the cascade. Pks (not the table
+            # objects) because ``_drop_application_table`` nulls each table's
+            # pk on delete, so a later iteration's filter could not reuse them.
+            also_dropping = {t.pk for t in tables}
+            for table in tables:
+                self._drop_application_table(table, also_dropping=also_dropping)
             application.delete()
 
     # ------------------------------------------------------------------
@@ -427,7 +490,7 @@ class DynamicModelRegistry:
         table.full_clean()
         table.save()
         for col in columns:
-            _create_column_row(table, col)
+            self._create_column(table, col)
 
         # Build the model and create the physical table before caching:
         # the DB rows and DDL are rolled back by the caller's atomic block
@@ -454,7 +517,7 @@ class DynamicModelRegistry:
     ) -> ApplicationTable:
         """Resolve (collection, app, table) names, then create the table + physical table."""
         with transaction.atomic():
-            application_row = self._resolve_application(collection, application)
+            application_row = Application.get_by_names(collection, application)
             return self._create_application_table(application_row, table, columns)
 
     @_synced
@@ -466,15 +529,20 @@ class DynamicModelRegistry:
         table: str,
         columns: list[Column],
     ) -> list[ApplicationTableColumn]:
-        """Add columns to an existing table (DDL ALTER TABLE ADD COLUMN)."""
+        """Add columns to an existing table (DDL ALTER TABLE ADD COLUMN).
+
+        A foreign-key column that would close a cycle is rejected before any
+        DDL.
+        """
         with transaction.atomic():
-            application_row = self._resolve_application(collection, application)
-            app_table = self._get_application_table_for(application_row, table)
+            application_row = Application.get_by_names(collection, application)
+            app_table = application_row.get_table(table)
+            self._assert_add_columns_acyclic(app_table, columns)
             model = self.get_model(app_table.physical_name)
             created: list[ApplicationTableColumn] = []
             with connection.schema_editor() as schema_editor:
                 for col in columns:
-                    col_row = _create_column_row(app_table, col)
+                    col_row = self._create_column(app_table, col)
                     field = _column_field(col_row)
                     # The field is not yet attached to a model, so set its DB
                     # column/attribute name before the schema editor reads it.
@@ -498,8 +566,8 @@ class DynamicModelRegistry:
     ) -> ApplicationTable:
         """Remove columns from a table (DDL ALTER TABLE DROP COLUMN)."""
         with transaction.atomic():
-            application_row = self._resolve_application(collection, application)
-            app_table = self._get_application_table_for(application_row, table)
+            application_row = Application.get_by_names(collection, application)
+            app_table = application_row.get_table(table)
             model = self.get_model(app_table.physical_name)
             with connection.schema_editor() as schema_editor:
                 for col_name in names:
@@ -521,14 +589,42 @@ class DynamicModelRegistry:
             self.reset()
             return app_table
 
-    def _drop_application_table(self, app_table: ApplicationTable) -> None:
+    def _drop_application_table(
+        self,
+        app_table: ApplicationTable,
+        *,
+        also_dropping: Iterable[int] | None = None,
+    ) -> None:
         """Drop a table's physical table and delete its definition rows.
 
         Instance-based: takes the ``ApplicationTable`` directly so callers
         that already hold it (e.g. ``delete_application``'s cascade) pay no
         name-resolution queries.
+
+        Refuses to drop a table still referenced by a foreign-key column on
+        *another* table (breaking it would dangle the FK). ``also_dropping``
+        is the set of table pks dropped in the same operation (e.g. an app's
+        own tables during ``delete_application``); references from those
+        tables are ignored so a whole-app cascade isn't falsely blocked.
         """
         with transaction.atomic():
+            # A surviving column on another table pointing here would dangle.
+            refs = ApplicationTableColumn.objects.filter(fk_target_table=app_table).exclude(
+                application_table=app_table
+            )
+            if also_dropping:
+                refs = refs.exclude(application_table__pk__in=also_dropping)
+            ref = refs.select_related(
+                "application_table__application__application_collection"
+            ).first()
+            if ref is not None:
+                src = ref.application_table
+                msg = (
+                    f"Cannot drop {_table_label(app_table)}: column "
+                    f"'{_table_label(src)}.{ref.name}' references it. "
+                    "Remove that column (or its table) first."
+                )
+                raise ValidationError(msg)
             cached = self._cache.pop(app_table.physical_name, None)
             model = cached or self._build_model_class(app_table.physical_name)
             # Table already absent (e.g. partial state); tolerate the
@@ -549,8 +645,8 @@ class DynamicModelRegistry:
     def delete_application_table(self, *, collection: str, application: str, table: str) -> None:
         """Resolve (collection, app, table) names to a row, then drop it."""
         with transaction.atomic():
-            application_row = self._resolve_application(collection, application)
-            app_table = self._get_application_table_for(application_row, table)
+            application_row = Application.get_by_names(collection, application)
+            app_table = application_row.get_table(table)
             self._drop_application_table(app_table)
 
     @_synced
@@ -590,18 +686,117 @@ class DynamicModelRegistry:
 # ---------------------------------------------------------------------------
 
 
-def _create_column_row(table: ApplicationTable, col: Column) -> ApplicationTableColumn:
-    """Validate a column declaration and persist an ApplicationTableColumn row.
+def _table_label(table: ApplicationTable) -> str:
+    """``collection/app/table`` label for a table (used in graph errors/export)."""
+    return f"{table.application.application_collection.name}/{table.application.name}/{table.name}"
 
-    The :class:`Column` already validated itself in ``__post_init__``; this
-    builds the row from :meth:`Column.row` and runs ``full_clean`` so the
-    model-level cross-field invariants (e.g. choices only on char) hold too.
+
+class DependencyGraph:
+    """Mutable foreign-key dependency graph with cycle/order queries.
+
+    Wraps an ``nx.DiGraph`` so every ``networkx`` touch — construction,
+    ``find_cycle`` and ``topological_sort`` — lives in one place. Nodes are
+    plain strings: the live graph (:meth:`from_db`) keys them by
+    ``collection/app/table`` label, while the new-table graph
+    (:meth:`from_application_tables`) keys them by table name — the set is
+    scoped to one app, so bare names are unique there and the new tables need no
+    pk. Edges run ``source -> target`` (source depends on target); self-loops
+    are never added (a self-reference is allowed and carries no cross-table
+    dependency).
+
+    :meth:`cycle` returns the raw node path; :meth:`assert_acyclic` formats it
+    into the ``foreign-key cycle: A -> B -> A`` error — label-agnostic, since the
+    path is whatever labels the graph was built from.
     """
-    row = col.row()
-    obj = ApplicationTableColumn(application_table=table, **row)
-    obj.full_clean()
-    obj.save()
-    return obj
+
+    def __init__(self) -> None:
+        self._graph: nx.DiGraph[str] = nx.DiGraph()
+
+    @staticmethod
+    def from_db() -> DependencyGraph:
+        """Live graph of every installed FK column (nodes = collection/app/table labels)."""
+        graph = DependencyGraph()
+        columns = ApplicationTableColumn.objects.filter(
+            type=ColumnType.FOREIGN_KEY, fk_target_table__isnull=False
+        ).select_related(
+            "application_table__application__application_collection",
+            "fk_target_table__application__application_collection",
+        )
+        for col in columns:
+            target = col.fk_target_table
+            # fk_target_table is nullable on the model; the filter makes it
+            # non-null, but this guard keeps the type and label lookup safe. A
+            # self-reference is allowed and adds no cross-table edge.
+            if target is None:
+                continue
+            src = _table_label(col.application_table)
+            dst = _table_label(target)
+            if src == dst:
+                continue
+            graph.add_edge(src, dst)
+        return graph
+
+    @staticmethod
+    def from_application_tables(
+        collection: str,
+        app: str,
+        tables: dict[str, list[Column]],
+    ) -> DependencyGraph:
+        """FK dependency graph among the new tables of one ``create_application``.
+
+        Nodes are the new table names; an edge ``table -> target`` means
+        ``table`` foreign-keys ``target`` (so target must be created first).
+        Only in-set edges are added: a create-time cycle can only run among
+        these tables, since an existing table cannot reference a not-yet-created
+        one. Self-references are allowed and omitted. Built from the declared
+        ``Column`` specs (not the live DB): the new tables have no pk yet, so
+        nodes are their names — sufficient as the set is one app.
+        """
+        graph = DependencyGraph()
+        graph.add_nodes(tables)
+        for table_name, cols in tables.items():
+            for col in cols:
+                if isinstance(col, ForeignKeyColumn):
+                    tc, ta, tt = col.target
+                    if (tc, ta) == (collection, app) and tt != table_name and tt in tables:
+                        graph.add_edge(table_name, tt)
+        return graph
+
+    def add_nodes(self, nodes: Iterable[str]) -> None:
+        self._graph.add_nodes_from(nodes)
+
+    def add_edge(self, src: str, dst: str) -> None:
+        self._graph.add_edge(src, dst)
+
+    def cycle(self) -> list[str] | None:
+        """One cycle's nodes as a closed path (e.g. [A, B, A]), or None."""
+        try:
+            edges = nx.find_cycle(self._graph)
+        except nx.NetworkXNoCycle:
+            return None
+        nodes = [src for src, _dst in edges]
+        nodes.append(edges[0][0])
+        return nodes
+
+    def assert_acyclic(self) -> None:
+        """Raise a ValidationError naming one cycle if the graph has one.
+
+        Edges run ``source -> target`` (depends-on), so a cycle means a set of
+        tables mutually depend on each other and can neither be created nor
+        ordered. Label-agnostic: the cycle path is the raw nodes, formatted
+        whatever labels the graph was built from.
+        """
+        cycle = self.cycle()
+        if cycle is not None:
+            raise ValidationError("foreign-key cycle: " + " -> ".join(cycle))
+
+    def topological_order(self) -> list[str]:
+        """Targets-first order; only valid once :meth:`cycle` returns None.
+
+        Edges run ``source -> target`` (depends-on), so the reversed graph's
+        ``topological_sort`` yields each target before its referencers.
+        """
+        return list(nx.topological_sort(self._graph.reverse()))
 
 
 # The single registry instance; the only way to retrieve dynamic models.

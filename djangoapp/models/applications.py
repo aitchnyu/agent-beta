@@ -46,7 +46,9 @@ class ColumnType(StrEnum):
 
     Value-only: the stored value is also the value sent to the client, so no
     separate human "label" is kept. ``user`` is a ForeignKey to the project
-    ``User`` model; every other type maps to a single Django field kind.
+    ``User`` model; ``foreign_key`` is a ForeignKey to another ApplicationTable
+    (whose identity is stored on ``fk_target_table``); every other type maps to
+    a single Django field kind.
     """
 
     CHAR = "char"
@@ -56,6 +58,7 @@ class ColumnType(StrEnum):
     DECIMAL = "decimal"
     DATETIME = "datetime"
     USER = "user"
+    FOREIGN_KEY = "foreign_key"
 
 
 class BaseTable(models.Model):
@@ -209,13 +212,22 @@ class Application(models.Model):
 
         return app_modules.load(self.script_path())
 
+    def get_table(self, name: str) -> ApplicationTable:
+        """Return one of this app's ``ApplicationTable`` rows by display name.
+
+        Raises ``ApplicationTable.DoesNotExist`` if no such table; callers that
+        want a clean error should wrap it. The single table-by-name lookup used
+        across the codebase (registry resolution, ``table_as_model``).
+        """
+        return self.tables.get(name=name)
+
     def table_as_model(self, name: str) -> Any:  # noqa: ANN401 # dynamic model: fields/manager not statically known
         """Return the dynamic model for one of this app's tables.
 
         Typed ``Any``: the model is built at runtime, so its fields/manager are
         not statically known.
         """
-        return self.tables.get(name=name).as_model()
+        return self.get_table(name).as_model()
 
 
 class ApplicationTable(models.Model):
@@ -387,6 +399,18 @@ class ApplicationTableColumn(models.Model):
     )
     decimal_max_digits = models.PositiveIntegerField(default=10)
     decimal_places = models.PositiveIntegerField(default=2)
+    # Set only for ``foreign_key`` columns: the ApplicationTable this column
+    # references. Drives the delete guard, the cycle graph and the export; the
+    # dynamic field's on_delete=RESTRICT is the row-level backstop. RESTRICT
+    # here is a backstop for the definition row (a referenced table can't be
+    # deleted while a column points at it).
+    fk_target_table = models.ForeignKey(
+        ApplicationTable,
+        on_delete=models.RESTRICT,
+        related_name="referencing_columns",
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         db_table = "application_table_column"
@@ -415,6 +439,9 @@ class ApplicationTableColumn(models.Model):
         if self.decimal_places > self.decimal_max_digits:
             msg = "decimal_places cannot exceed decimal_max_digits."
             raise ValidationError({"decimal_places": msg})
+        if self.type == ColumnType.FOREIGN_KEY and self.fk_target_table_id is None:
+            msg = "foreign_key columns must reference a target table."
+            raise ValidationError({"fk_target_table": msg})
 
 
 class AppsGeneration(models.Model):

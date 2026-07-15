@@ -13,6 +13,7 @@ from djangoapp.models.columns import (
     CharColumn,
     DateTimeColumn,
     DecimalColumn,
+    ForeignKeyColumn,
     IntegerColumn,
     TextColumn,
     UserColumn,
@@ -204,13 +205,16 @@ class RowDetailPageTests(
 class RowValuesViewTests(InertiaTestCase):
     """All column types rendered in the list/detail views + list sort/pagination.
 
-    Seeds a table spanning every column type and a page's worth of rows,
-    then asserts each cell's serialised value is present in both the list
-    and the detail page, and that the list sorts (created_at / edited_at)
-    and paginates (per_page=25).
+    Seeds a table spanning every column type (char/text/int/bool/decimal/
+    datetime/user/foreign_key) plus a target table for the FK, and a page's
+    worth of rows, then asserts each cell's serialised value is present in both
+    the list and the detail page, the foreign_key column def carries the target
+    table, and that the list sorts (created_at / edited_at) and paginates
+    (per_page=25).
 
     - test_all_values_in_list, every column-type value serialised in list rows
     - test_all_values_in_detail, every column-type value serialised on detail
+    - test_foreign_key_column_def_links_to_target, FK column def carries the target table
     - test_default_sort_created_at_desc, newest row first under default sort
     - test_edited_at_sort, re-saved row jumps to front under sort=edited_at
     - test_pagination_splits_rows_by_per_page, per_page=25 splits 31 rows into 25 + 6
@@ -234,6 +238,15 @@ class RowValuesViewTests(InertiaTestCase):
     def setUp(self) -> None:
         super().setUp()
         dynamic_models.reset()
+        # "targets" exists before "items" so the foreign_key column can resolve.
+        self.target_table = dynamic_models.create_application_table(
+            collection="inv3",
+            application="orders",
+            table="targets",
+            columns=[CharColumn("code", max_length=10)],
+        )
+        self.target_model = cast("Any", self.target_table.as_model())
+        self.target = self.target_model.objects.create(code="T1")
         self.table = dynamic_models.create_application_table(
             collection="inv3",
             application="orders",
@@ -246,6 +259,7 @@ class RowValuesViewTests(InertiaTestCase):
                 DecimalColumn("price", max_digits=10, decimal_places=2, nullable=True),
                 DateTimeColumn("due", nullable=True),
                 UserColumn("owner", nullable=True),
+                ForeignKeyColumn("ref", target=("inv3", "orders", "targets"), nullable=True),
             ],
         )
         self.model = cast("Any", self.table.as_model())
@@ -263,6 +277,7 @@ class RowValuesViewTests(InertiaTestCase):
                 price=Decimal(f"{i}.00"),
                 due=base + timedelta(hours=i),
                 owner=self.superuser,
+                ref=self.target,
                 _created_by=self.superuser,
             )
             for i in range(31)
@@ -282,6 +297,7 @@ class RowValuesViewTests(InertiaTestCase):
             "price": str(row.price),
             "due": row.due.isoformat(),
             "owner": {"public_id": self.superuser.public_id, "title": self.superuser.display_name},
+            "ref": {"public_id": self.target._public_id},
         }
 
     def _list_props(self, query: str = "") -> dict[str, Any]:
@@ -303,6 +319,16 @@ class RowValuesViewTests(InertiaTestCase):
         self.client.get(f"/apps/a/inv3/orders/manage/items/id/{self.rows[15]._public_id}")
         values = cast("dict[str, Any]", self.props()["props"]["values"])
         self.assertEqual(values, self._expected_values(self.rows[15]))
+
+    def test_foreign_key_column_def_links_to_target(self) -> None:
+        """A foreign_key column def carries the target table (frontend links to its row)."""
+        columns = self._list_props()["columns"]
+        ref_col = next(c for c in columns if c["name"] == "ref")
+        self.assertEqual(ref_col["type"], "foreign_key")
+        self.assertEqual(
+            ref_col["fk_target"],
+            {"collection_name": "inv3", "app_name": "orders", "table_name": "targets"},
+        )
 
     def test_default_sort_created_at_desc(self) -> None:
         """Newest row first under default sort."""

@@ -172,17 +172,36 @@ export const RowColumnTypeSchema = z.enum([
   "decimal",
   "datetime",
   "user",
+  "foreign_key",
 ])
+
+// The table a foreign_key column points at (lets a cell link to a target row).
+export const FkTargetSchema = z.object({
+  collection_name: z.string(),
+  app_name: z.string(),
+  table_name: z.string(),
+})
+
+export type FkTarget = z.infer<typeof FkTargetSchema>
+
+// A foreign_key cell value: the referenced row's public_id (or null when unset).
+export const FkCellValueSchema = z.object({
+  public_id: z.string(),
+})
+
+export type FkCellValue = z.infer<typeof FkCellValueSchema>
 
 // Cell values keyed by column name. Frontend casts each cell by its column
 // type (looked up via columns): user cells are a {public_id, title} profile
-// or null, decimal/datetime cells are strings, others are raw.
+// or null, decimal/datetime cells are strings, foreign_key cells are a
+// {public_id} ref or null, others are raw.
 export const RowValuesSchema = z.record(z.string(), z.unknown())
 
 export const RowListColumnDefSchema = z.object({
   name: z.string(),
   type: RowColumnTypeSchema,
   has_choices: z.boolean(),
+  fk_target: FkTargetSchema.nullable().default(null),
 })
 
 export type RowListColumnDef = z.infer<typeof RowListColumnDefSchema>

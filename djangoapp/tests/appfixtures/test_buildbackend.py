@@ -49,6 +49,7 @@ class BuildBackendTests(TestCase):
     - test_fails_setup_rolls_back, a failing setup reverts the whole install
     - test_install_alltypes, every column class materialises a physical column
     - test_install_http_mock, HTTP-calling endpoint's backend_test patches the helper (no network)
+    - test_install_relations_fk, a ForeignKeyColumn installs and resolves across two tables
     - test_successful_setup_bumps_generation, success bumps AppsGeneration; failure does not
     """
 
@@ -105,10 +106,21 @@ class BuildBackendTests(TestCase):
         """Every column class materialises a physical column."""
         self._run("Tests/AllTypes")
         table = ApplicationTable.objects.get(
-            application__name="AllTypes", application__application_collection__name="Tests"
+            application__name="AllTypes",
+            application__application_collection__name="Tests",
+            name="row",
         )
         physical = set(table.physical_columns())
-        for name in ["code", "note", "qty", "active", "price", "due", "owner_id"]:
+        for name in [
+            "code",
+            "note",
+            "qty",
+            "active",
+            "price",
+            "due",
+            "owner_id",
+            "category_id",
+        ]:
             with self.subTest(col=name):
                 self.assertIn(name, physical)
 

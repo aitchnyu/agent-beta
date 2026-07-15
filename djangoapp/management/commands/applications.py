@@ -24,7 +24,8 @@ from djangoapp.management.commands.applications_schemas import (
     DescribeApplicationTableSchema,
     ListApplicationCollectionSchema,
 )
-from djangoapp.models import ApplicationCollection
+from djangoapp.models import ApplicationCollection, ApplicationTable, ApplicationTableColumn
+from djangoapp.models.applications import ColumnType
 
 
 def _format_django_error(exc: DjangoValidationError | Exception) -> str:
@@ -44,6 +45,7 @@ class Command(BaseCommand):
         "list_application_collections",
         "list_application_collection",
         "describe_application_table",
+        "export_fk_graph",
     ]
 
     def add_arguments(self, parser: CommandParser) -> None:
@@ -58,6 +60,14 @@ class Command(BaseCommand):
         p.add_argument("--appcollection", required=True)
         p.add_argument("--app", required=True)
         p.add_argument("--name", required=True)
+
+        p = sub.add_parser("export_fk_graph")
+        p.add_argument(
+            "--format",
+            choices=["dot", "mermaid"],
+            default="dot",
+            help="Graph format (default: dot).",
+        )
 
     def handle(self, **options: Any) -> None:  # noqa: ANN401 # options is untyped Django command flags
         # Django's BaseCommand.execute() writes handle()'s return value to
@@ -101,3 +111,76 @@ class Command(BaseCommand):
         self.stdout.write(f"column_order: {json.dumps(table.column_order)}")
         for col in table.columns.all().order_by("name"):
             self.stdout.write(f"  - {col.name}: {col.type}")
+
+    def _handle_export_fk_graph(self, options: dict[str, Any]) -> None:
+        def label(table: ApplicationTable) -> str:
+            """``collection:app:table``; ``:`` is Mermaid-id-safe, so it doubles as id and text."""
+            return (
+                f"{table.application.application_collection.name}:"
+                f"{table.application.name}:{table.name}"
+            )
+
+        # Every table is a node; every foreign-key column is a labelled edge
+        # source -> target. Emits the whole graph (no scoping), so isolated
+        # tables (no FK in or out) appear as nodes too.
+        tables = list(
+            ApplicationTable.objects.select_related("application__application_collection").order_by(
+                "application__application_collection__name", "application__name", "name"
+            )
+        )
+        # Labels are unique per table (application+name is unique), so a single
+        # comprehension needs no dedup. Both endpoints of every edge are
+        # ApplicationTable rows already in this list, so the edge loop below only
+        # reads their labels — no registration there.
+        node_labels = [label(t) for t in tables]
+
+        edges: list[tuple[str, str, str]] = []
+        fk_columns = (
+            ApplicationTableColumn.objects.filter(type=ColumnType.FOREIGN_KEY)
+            .select_related(
+                "application_table__application__application_collection",
+                "fk_target_table__application__application_collection",
+            )
+            .order_by("application_table__name", "name")
+        )
+        for column in fk_columns:
+            target = column.fk_target_table
+            # clean() forces a target for every foreign_key column, so an
+            # orphaned column is impossible in a correctly-created app.
+            assert target is not None
+            edges.append((label(column.application_table), label(target), column.name))
+
+        emit = _emit_mermaid if options["format"] == "mermaid" else _emit_graphviz
+        self.stdout.write(emit(node_labels, edges))
+
+
+def _emit_graphviz(nodes: list[str], edges: list[tuple[str, str, str]]) -> str:
+    """Render nodes + FK edges as a Graphviz DOT digraph.
+
+    Each node's id is the full ``collection:app:table`` label, but its visible
+    text is just the table name (the segment after the last ``:``) — the unique
+    ids keep same-named tables across apps distinct, while the boxes stay short.
+    """
+    lines = ["digraph fk {"]
+    lines.extend(f'  "{label}" [label="{label.rsplit(":", 1)[-1]}"];' for label in nodes)
+    lines.extend(
+        f'  "{source}" -> "{destination}" [label="{column_name}"];'
+        for source, destination, column_name in edges
+    )
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def _emit_mermaid(nodes: list[str], edges: list[tuple[str, str, str]]) -> str:
+    """Render nodes + FK edges as a Mermaid graph (renders in GitHub/VS Code).
+
+    Unlike DOT, the full ``collection:app:table`` label is both the node id and
+    its displayed text, so same-named tables across apps stay distinct in both
+    (DOT collapses them to the bare table name). ``graph LR`` is left-to-right.
+    """
+    lines = ["graph LR"]
+    lines.extend(f'  {label}["{label}"]' for label in nodes)
+    lines.extend(
+        f"  {source} -->|{column_name}| {destination}" for source, destination, column_name in edges
+    )
+    return "\n".join(lines)

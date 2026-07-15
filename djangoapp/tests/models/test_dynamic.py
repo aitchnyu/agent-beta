@@ -5,7 +5,7 @@ from typing import Any, ClassVar, cast
 from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import models, transaction
 from django.test import TestCase
 
 from djangoapp.models import (
@@ -21,6 +21,7 @@ from djangoapp.models.columns import (
     Column,
     DateTimeColumn,
     DecimalColumn,
+    ForeignKeyColumn,
     IntegerColumn,
     TextColumn,
     UserColumn,
@@ -538,3 +539,196 @@ class RowLifecycleTests(DynamicTableTestCase):
         row = model.objects.create(code="A1")
         row.delete()
         self.assertFalse(model.objects.filter(pk=row.pk).exists())
+
+
+class ForeignKeyColumnTests(DynamicTableTestCase):
+    """Foreign-key columns between tables + the table-graph invariants.
+
+    A ``ForeignKeyColumn`` points one table at another via a
+    ``(collection, app, table)`` target; the dynamic field is a Django
+    ``ForeignKey(on_delete=RESTRICT)`` referencing the target's immutable
+    physical table. Cycles are rejected, referenced tables can't be dropped,
+    and multi-table apps are created in dependency order.
+
+    - test_fk_column_creates_physical_reference, FK lands as <name>_id + a ForeignKey field
+    - test_fk_column_blocks_deleting_referenced_row, deleting a referenced row raises (RESTRICT)
+    - test_self_referential_fk_builds, a table referencing itself builds and round-trips a parent
+    - test_forward_reference_topo_ordered, a referencer declared before its target still installs
+    - test_add_fk_column_to_existing_target, adds a FK to an existing table
+    - test_cycle_rejected_on_create, mutually-referencing tables rejected with a readable cycle
+    - test_cycle_rejected_on_add_column, an FK that closes a cycle is rejected with a cycle message
+    - test_drop_referenced_table_refused, dropping a referenced table raises; referencer drops fine
+    - test_delete_application_with_internal_fk, an app whose tables cross-reference deletes cleanly
+    """
+
+    def _table(self, app: str, name: str) -> ApplicationTable:
+        """Fetch an ApplicationTable row by app + table name within the seeded collection."""
+        return ApplicationTable.objects.get(
+            application__name=app,
+            application__application_collection=self.collection,
+            name=name,
+        )
+
+    def test_fk_column_creates_physical_reference(self) -> None:
+        """Cross-table FK materialises as a ``<name>_id`` column and a ForeignKey field."""
+        dynamic_models.create_application(
+            collection="inv",
+            name="fkapp",
+            tables={
+                "target": [CharColumn("code", max_length=10)],
+                "ref": [ForeignKeyColumn("link", target=("inv", "fkapp", "target"))],
+            },
+        )
+        ref = self._table("fkapp", "ref")
+        self.assertIn("link_id", ref.physical_columns())
+        model = cast(Any, ref.as_model())
+        self.assertIsInstance(model._meta.get_field("link"), models.ForeignKey)
+        # The FK stores the target row's pk; setting it via the ORM round-trips.
+        target_model = cast(Any, self._table("fkapp", "target").as_model())
+        target = target_model.objects.create(code="A")
+        created = cast(Any, model.objects.create(link=target))
+        self.assertEqual(cast(Any, created.link_id), target.pk)
+
+    def test_fk_column_blocks_deleting_referenced_row(self) -> None:
+        """Deleting a row another row points at raises (on_delete=RESTRICT backstop)."""
+        dynamic_models.create_application(
+            collection="inv",
+            name="restapp",
+            tables={
+                "target": [CharColumn("code", max_length=10)],
+                "ref": [ForeignKeyColumn("link", target=("inv", "restapp", "target"))],
+            },
+        )
+        target_model = cast(Any, self._table("restapp", "target").as_model())
+        ref_model = cast(Any, self._table("restapp", "ref").as_model())
+        target = target_model.objects.create(code="A")
+        ref_model.objects.create(link=target)
+        with self.assertRaises(models.RestrictedError):
+            target.delete()
+
+    def test_self_referential_fk_builds(self) -> None:
+        """A table referencing itself builds (to='self') and round-trips a parent row."""
+        dynamic_models.create_application(
+            collection="inv",
+            name="treeapp",
+            tables={
+                "nodes": [
+                    CharColumn("name", max_length=10),
+                    ForeignKeyColumn("parent", target=("inv", "treeapp", "nodes"), nullable=True),
+                ]
+            },
+        )
+        model = cast(Any, self._table("treeapp", "nodes").as_model())
+        root = model.objects.create(name="root", parent=None)
+        child = model.objects.create(name="child", parent=root)
+        fetched = model.objects.get(pk=child.pk)
+        self.assertEqual(cast(Any, fetched.parent_id), root.pk)
+
+    def test_forward_reference_topo_ordered(self) -> None:
+        """A referencer declared before its target installs (target created first)."""
+        dynamic_models.create_application(
+            collection="inv",
+            name="fwdapp",
+            tables={
+                # "ref" is declared first but depends on "target"; topo order
+                # must create "target" before "ref"'s create_model runs.
+                "ref": [
+                    ForeignKeyColumn("link", target=("inv", "fwdapp", "target"), nullable=True)
+                ],
+                "target": [CharColumn("code", max_length=10)],
+            },
+        )
+        ref = self._table("fwdapp", "ref")
+        self.assertIn("link_id", ref.physical_columns())
+
+    def test_add_fk_column_to_existing_target(self) -> None:
+        """add_application_table_columns adds a FK to an already-existing target table."""
+        dynamic_models.create_application(
+            collection="inv",
+            name="addapp",
+            tables={"target": [CharColumn("code", max_length=10)]},
+        )
+        # A second table created standalone, then given a FK to "target".
+        dynamic_models.create_application_table(
+            collection="inv",
+            application="addapp",
+            table="ref",
+            columns=[CharColumn("note", max_length=10)],
+        )
+        dynamic_models.add_application_table_columns(
+            collection="inv",
+            application="addapp",
+            table="ref",
+            columns=[ForeignKeyColumn("link", target=("inv", "addapp", "target"), nullable=True)],
+        )
+        self.assertIn("link_id", self._table("addapp", "ref").physical_columns())
+
+    def test_cycle_rejected_on_create(self) -> None:
+        """Two tables that reference each other are rejected with a readable cycle path."""
+        with self.assertRaises(ValidationError) as ctx:
+            dynamic_models.create_application(
+                collection="inv",
+                name="cycapp",
+                tables={
+                    "alpha": [ForeignKeyColumn("b", target=("inv", "cycapp", "beta"))],
+                    "beta": [ForeignKeyColumn("a", target=("inv", "cycapp", "alpha"))],
+                },
+            )
+        self.assertIn("foreign-key cycle", "; ".join(ctx.exception.messages))
+        self.assertIn("alpha", "; ".join(ctx.exception.messages))
+
+    def test_cycle_rejected_on_add_column(self) -> None:
+        """An FK added via add_columns that closes a cycle is rejected with a cycle message."""
+        dynamic_models.create_application(
+            collection="inv",
+            name="cyc2app",
+            tables={
+                "alpha": [CharColumn("code", max_length=5)],
+                "beta": [ForeignKeyColumn("a", target=("inv", "cyc2app", "alpha"))],
+            },
+        )
+        with self.assertRaises(ValidationError) as ctx:
+            dynamic_models.add_application_table_columns(
+                collection="inv",
+                application="cyc2app",
+                table="alpha",
+                columns=[ForeignKeyColumn("back", target=("inv", "cyc2app", "beta"))],
+            )
+        self.assertIn("foreign-key cycle", "; ".join(ctx.exception.messages))
+
+    def test_drop_referenced_table_refused(self) -> None:
+        """Dropping a referenced table raises; the referencer drops fine."""
+        dynamic_models.create_application(
+            collection="inv",
+            name="dropapp",
+            tables={
+                "target": [CharColumn("code", max_length=5)],
+                "ref": [ForeignKeyColumn("link", target=("inv", "dropapp", "target"))],
+            },
+        )
+        with self.assertRaises(ValidationError):
+            dynamic_models.delete_application_table(
+                collection="inv", application="dropapp", table="target"
+            )
+        # The referencer (nothing references it) drops cleanly, and then so does
+        # the now-unreferenced target.
+        dynamic_models.delete_application_table(
+            collection="inv", application="dropapp", table="ref"
+        )
+        dynamic_models.delete_application_table(
+            collection="inv", application="dropapp", table="target"
+        )
+
+    def test_delete_application_with_internal_fk(self) -> None:
+        """An app whose own tables cross-reference deletes cleanly (internal refs ignored)."""
+        app = dynamic_models.create_application(
+            collection="inv",
+            name="delapp",
+            tables={
+                "target": [CharColumn("code", max_length=5)],
+                "ref": [ForeignKeyColumn("link", target=("inv", "delapp", "target"))],
+            },
+        )
+        dynamic_models.delete_application(app)
+        self.assertFalse(Application.objects.filter(pk=app.pk).exists())
+        self.assertFalse(ApplicationTable.objects.filter(application__name="delapp").exists())

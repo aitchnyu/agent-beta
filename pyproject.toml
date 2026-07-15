@@ -8,6 +8,7 @@ dependencies = [
     "django-allauth[socialaccount]>=65.11.2", # OAuth and social login
     "django-ninja>=1.6.2", # API scaffolding for later prompts
     "inertia-django>=1.2.0", # Inertia.js backend
+    "networkx>=3.6.1",
     "nh3>=0.2.21", # HTML sanitization
     "psycopg2-binary>=2.9.10", # Postgres driver
     "pydantic>=2.11.10",
@@ -71,6 +72,7 @@ ignore = [
 "stubs/**/*.pyi" = [
     "ANN401",  # stubbed return types are Any
     "N802",  # third-party API names cannot be renamed
+    "N818",  # exception names mirror the library (e.g. NetworkXNoCycle)
 ]
 
 [tool.ruff.lint.pycodestyle]

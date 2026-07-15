@@ -10,7 +10,7 @@ has a single import:
     # setup, get_endpoint, inertia_endpoint, backend_test, playwright_test,
     # RequestContext, fake_context, InertiaPage, BaseModel, Application,
     # CharColumn, TextColumn, IntegerColumn, BooleanColumn, DecimalColumn,
-    # DateTimeColumn, UserColumn, dynamic_models
+    # DateTimeColumn, UserColumn, ForeignKeyColumn, dynamic_models
 
 Re-exports only; this module adds no logic.
 """
@@ -36,6 +36,7 @@ from djangoapp.models.columns import (
     Column,
     DateTimeColumn,
     DecimalColumn,
+    ForeignKeyColumn,
     IntegerColumn,
     TextColumn,
     UserColumn,
@@ -50,6 +51,7 @@ __all__ = [
     "Column",
     "DateTimeColumn",
     "DecimalColumn",
+    "ForeignKeyColumn",
     "InertiaPage",
     "IntegerColumn",
     "RequestContext",

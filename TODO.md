@@ -1,19 +1,15 @@
-Have ForeignKeyColumn(name, *, target=(collection, app), nullable) - it uses collection, app to resolve table.
-
-The column will refer to the table.
-
-Use a graph library to ensure no cycles, when creating a table that refers to another, or adding a column that refers another table. Report the cycle.
-
-Have a command to export tables as nodes and fk columns as edges. Which graph format can be readily opened?
-
-Prevent deletes to avoid breaking foreign key relationships.
-
-Update readme
+_cycle_error - why two places
+model = cast(Any, self._table("treeapp", "nodes").as_model()) - why this cast
 
 How to test multi step write operations like creating a family tree?
 
---------
 Merge both inertia and json endpoints?
+GET /e/endpoint - can take Inertia, Pydantic, json
+POST /e/endpoint - can take Pydantic/json/form
+
+/e/funcname/p1?
+/e/funcname/p1/p2?
+/e/funcname/p1/p2/p3?
 
 `/facts_page?k=v&k2=v2`
 `/facts_page/-<rison>-`
@@ -23,13 +19,6 @@ shared props - send collection and application name
 
 out = row(fake_context()) - make something better
 
-`./run djangomanage applications` - break into own commands 
-
-How to review? File browser for python, vue, json etc
-setup - what all code?
-app - what all code?
-
-Are readme instructions complete?
 -----------
 vue3-sfc-loader - try to avoid multiple apps
 Ignore back button if its hard
@@ -59,14 +48,7 @@ Responses
 
 ------
 Pending:
-post/inertia endpoints
 Track setup runs - skip the completed ones
-
-ensure dynamic functions are under savepoint
-Test all api endpoints
-get, post endpoint
-/app/appname/get_endpoint/search_users/-query:anilk-
-@test for test functions
 
 _create_column_row - long function
 NinjaAPI consistency - like error handlers etc
@@ -77,15 +59,7 @@ Log changes to a table - dont make a page for that yet
 
 -----------------
 
-Dynamic modules that can run functions
-Agent makes these modules
-Vue apps
-Agent can test apps and deploy
-
-create 
-
-FK later
-Files too
+File fields
 Renames and null/not null later
 
 type - 
@@ -101,6 +75,14 @@ SCHEMA_SERIALIZERS
 Migration and schema evolution?
 
 How to generate db and queries?
+
+## Separate frontends
+Very easy to build individually, can add new libraries etc
+
+Challenges
+How to add common behavior and style? Like a notification dropdown
+Each app has to be kept updated separately, need to compile
+Command to audit all apps at once?
 
 ## Future
 keep login_for_test?

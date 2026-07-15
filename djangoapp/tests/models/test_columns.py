@@ -10,6 +10,7 @@ from djangoapp.models.columns import (
     CharColumn,
     DateTimeColumn,
     DecimalColumn,
+    ForeignKeyColumn,
     IntegerColumn,
     TextColumn,
     UserColumn,
@@ -28,6 +29,7 @@ class ColumnClassTests(SimpleTestCase):
     - test_column_type_is_reported, each class reports its ColumnType
     - test_row_renders_char_fields, CharColumn.row() populates the char/text fields
     - test_row_renders_decimal_default, DecimalColumn.row() coerces default to Decimal
+    - test_foreign_key_target_shape_validated, ForeignKeyColumn rejects a malformed target triple
     """
 
     def test_name_is_positional_others_keyword_only(self) -> None:
@@ -77,6 +79,9 @@ class ColumnClassTests(SimpleTestCase):
         )
         self.assertEqual(DateTimeColumn("c").column_type, ColumnType.DATETIME)
         self.assertEqual(UserColumn("c").column_type, ColumnType.USER)
+        self.assertEqual(
+            ForeignKeyColumn("c", target=("col", "app", "t")).column_type, ColumnType.FOREIGN_KEY
+        )
 
     def test_row_renders_char_fields(self) -> None:
         """CharColumn.row() populates the shared char/text fields with its options."""
@@ -95,3 +100,13 @@ class ColumnClassTests(SimpleTestCase):
         self.assertEqual(row["decimal_default"], Decimal("1.50"))
         self.assertEqual(row["decimal_max_digits"], 8)
         self.assertEqual(row["decimal_places"], 2)
+
+    def test_foreign_key_target_shape_validated(self) -> None:
+        """Rejects a target that isn't a 3-tuple (values checked later, at resolve)."""
+        for bad in [
+            ("col", "app"),  # too few parts
+            ("col", "app", "t", "x"),  # too many parts
+            ["col", "app", "t"],  # a list, not a tuple
+        ]:
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                ForeignKeyColumn("c", target=bad)  # type: ignore[arg-type]

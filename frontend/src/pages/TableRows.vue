@@ -27,6 +27,7 @@ const createdByCol: RowListColumnDef = {
   name: "created_by",
   type: "user",
   has_choices: false,
+  fk_target: null,
 }
 
 function applyFilters(perPage: number, sort: string) {

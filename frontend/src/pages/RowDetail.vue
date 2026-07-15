@@ -15,6 +15,7 @@ const createdByCol: RowListColumnDef = {
   name: "created_by",
   type: "user",
   has_choices: false,
+  fk_target: null,
 }
 
 const listHref = rowListUrl(p.collection_name, p.app_name, p.table_name)

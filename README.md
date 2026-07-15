@@ -94,6 +94,7 @@ from djangoapp.models.columns import (
     CharColumn,
     DateTimeColumn,
     DecimalColumn,
+    ForeignKeyColumn,
     IntegerColumn,
     TextColumn,
     UserColumn,
@@ -148,11 +149,13 @@ creating apps or tables):
 ./run djangomanage applications list_application_collections
 ./run djangomanage applications list_application_collection --name Inv
 ./run djangomanage applications describe_application_table --appcollection Inv --app Orders --name Products
+./run djangomanage applications export_fk_graph [--format dot|mermaid]
 ```
 
 - `list_application_collections` — list every collection name
 - `list_application_collection --name` — list an app's contents
 - `describe_application_table --appcollection --app --name` — print a table's columns (omits physical_name/db_table)
+- `export_fk_graph` — export the table graph (tables = nodes, FK columns = edges) as DOT (default) or Mermaid
 
 ### Column classes
 
@@ -167,6 +170,52 @@ letters/digits.
 - `DecimalColumn(name, *, default, max_digits, decimal_places, nullable)`
 - `DateTimeColumn(name, *, nullable)`
 - `UserColumn(name, *, nullable)` — ForeignKey to the project `User`
+- `ForeignKeyColumn(name, *, target, nullable)` — ForeignKey to another table (see [Foreign keys](#foreign-keys-between-tables))
+
+### Foreign keys between tables
+
+A `ForeignKeyColumn` points one table at another via a `(collection, app, table)`
+target. The link is stored against the target's immutable `physical_name`, so
+renaming a collection/app/table never breaks it. A table may reference itself
+(e.g. a tree parent). When a single `create_application(tables={...})` declares
+several tables, they are created in dependency order (targets first).
+
+```python
+dynamic_models.create_application(
+    collection="Inv",
+    name="HR",
+    tables={
+        "departments": [CharColumn("code", max_length=10)],
+        "employees": [
+            CharColumn("code", max_length=10),
+            ForeignKeyColumn("dept", target=("Inv", "HR", "departments"), nullable=True),
+        ],
+    },
+)
+# A self-referential FK (a node's parent is another node in the same table):
+ForeignKeyColumn("parent", target=("Inv", "Org", "nodes"), nullable=True)
+```
+
+**Cycles are rejected.** Creating a table (or adding a column) whose foreign keys
+close a cycle raises `ValidationError` naming the loop, e.g.
+`foreign-key cycle: alpha -> beta -> alpha`. Detection runs over the full live
+table graph via the stdlib `graphlib`.
+
+**Referenced tables can't be dropped.** `delete_application_table` refuses a
+table still pointed at by another table's FK (the error names the referencer),
+and the FK uses `on_delete=RESTRICT` so deleting a *row* another row points at
+also raises.
+
+**Export the graph** (tables = nodes, FK columns = edges) as DOT (default) or
+Mermaid:
+
+```bash
+./run djangomanage applications export_fk_graph                       # DOT (default), all tables
+./run djangomanage applications export_fk_graph --format mermaid
+```
+
+DOT opens in any Graphviz viewer (`dot -Tpng`, WebGraphviz, Obsidian); Mermaid
+renders natively in GitHub and VS Code.
 
 ### App framework
 

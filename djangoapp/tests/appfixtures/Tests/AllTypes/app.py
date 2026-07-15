@@ -18,6 +18,7 @@ from djangoapp.apps.shortcuts import (
     CharColumn,
     DateTimeColumn,
     DecimalColumn,
+    ForeignKeyColumn,
     IntegerColumn,
     RequestContext,
     TextColumn,
@@ -32,6 +33,7 @@ from djangoapp.apps.shortcuts import (
 COLLECTION = "Tests"
 APP = "AllTypes"
 TABLE = "row"
+CATEGORY = "category"
 
 
 class RowOut(BaseModel):
@@ -43,6 +45,7 @@ class RowOut(BaseModel):
     active: bool
     price: str
     due: str | None
+    category: str | None
 
 
 @setup
@@ -53,6 +56,7 @@ def setup_app() -> None:
         collection=COLLECTION,
         name=APP,
         tables={
+            CATEGORY: [CharColumn("code", max_length=10)],
             TABLE: [
                 CharColumn("code", max_length=10),
                 TextColumn("note"),
@@ -61,12 +65,22 @@ def setup_app() -> None:
                 DecimalColumn("price", max_digits=8, decimal_places=2),
                 DateTimeColumn("due", nullable=True),
                 UserColumn("owner", nullable=True),
-            ]
+                ForeignKeyColumn("category", target=(COLLECTION, APP, CATEGORY), nullable=True),
+            ],
         },
     )
+    category_model = Application.get_by_names(COLLECTION, APP).table_as_model(CATEGORY)
+    cat = category_model.objects.create(code="C1")
     model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
     model.objects.create(
-        code="A1", note="hi", qty=7, active=True, price=Decimal("9.99"), due=None, owner=None
+        code="A1",
+        note="hi",
+        qty=7,
+        active=True,
+        price=Decimal("9.99"),
+        due=None,
+        owner=None,
+        category=cat,
     )
 
 
@@ -83,6 +97,7 @@ def row(request_context: RequestContext) -> RowOut:
         active=instance.active,
         price=str(instance.price),
         due=str(instance.due) if instance.due else None,
+        category=instance.category.code if instance.category else None,
     )
 
 
@@ -96,3 +111,4 @@ def test_row_round_trips_every_type() -> None:
     assert out.active is True
     assert out.price == "9.99"
     assert out.due is None
+    assert out.category == "C1"

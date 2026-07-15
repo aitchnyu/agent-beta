@@ -76,10 +76,21 @@ class ManageProps(PydanticBaseModel):
     tables: list[TableItem]
 
 
+class FkTarget(PydanticBaseModel):
+    """The table a foreign-key column points at (so the frontend can link to a row)."""
+
+    collection_name: str
+    app_name: str
+    table_name: str
+
+
 class RowListColumnDef(PydanticBaseModel):
     name: str
     type: ColumnType
     has_choices: bool
+    # Set only for foreign_key columns: the target table, so the frontend can
+    # link a cell to the referenced row's detail page.
+    fk_target: FkTarget | None = None
 
 
 class RowListItem(PydanticBaseModel):
@@ -185,8 +196,31 @@ def _cell_value(col_type: ColumnType, raw: object) -> object:
         return cast("datetime", raw).isoformat() if raw is not None else None
     if col_type == ColumnType.USER:
         return _user_profile(cast("User | None", raw))
+    if col_type == ColumnType.FOREIGN_KEY:
+        # raw is the related row (a BaseTable); the frontend links to it via
+        # the column's fk_target table + this public_id. None = nullable, unset.
+        return (
+            {"public_id": cast("BaseTable", raw)._public_id}  # noqa: SLF001 # BaseTable built-in column
+            if raw is not None
+            else None
+        )
     msg = f"Unknown column type: {col_type}"
     raise ValueError(msg)
+
+
+def _column_def(c: ApplicationTableColumn) -> RowListColumnDef:
+    """Build the client-facing column def, resolving a foreign_key target table."""
+    fk_target = None
+    if ColumnType(c.type) == ColumnType.FOREIGN_KEY and c.fk_target_table is not None:
+        target = c.fk_target_table
+        fk_target = FkTarget(
+            collection_name=target.collection.name,
+            app_name=target.application.name,
+            table_name=target.name,
+        )
+    return RowListColumnDef(
+        name=c.name, type=ColumnType(c.type), has_choices=bool(c.char_choices), fk_target=fk_target
+    )
 
 
 def _row_values(columns: list[ApplicationTableColumn], instance: BaseTable) -> dict[str, Any]:
@@ -285,10 +319,7 @@ def row_list_page(
     paginator = Paginator(qs, filters.per_page, orphans=5)
     page_obj = paginator.get_page(filters.page)
 
-    column_defs = [
-        RowListColumnDef(name=c.name, type=ColumnType(c.type), has_choices=bool(c.char_choices))
-        for c in columns
-    ]
+    column_defs = [_column_def(c) for c in columns]
     # TODO make this an ApplicationTable method along with columns?
     rows = [_row_item(columns, instance) for instance in page_obj.object_list]
 
@@ -331,10 +362,7 @@ def row_detail_page(
     except model.DoesNotExist as exc:
         raise Http404 from exc
 
-    column_defs = [
-        RowListColumnDef(name=c.name, type=ColumnType(c.type), has_choices=bool(c.char_choices))
-        for c in columns
-    ]
+    column_defs = [_column_def(c) for c in columns]
     row = _row_item(columns, instance)
     props = RowDetailProps(
         collection_name=table.collection.name,
@@ -364,6 +392,7 @@ __all__ = [
     "AppListProps",
     "CollectionItem",
     "CollectionsProps",
+    "FkTarget",
     "ManageProps",
     "RowDetailProps",
     "RowListColumnDef",
