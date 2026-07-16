@@ -225,22 +225,32 @@ example apps live under `djangoapp/tests/`). The entry module tags functions
 with decorators from `djangoapp.apps`:
 
 ```python
-from djangoapp.apps import setup, get_endpoint, backend_test, playwright_test, RequestContext
+from djangoapp.apps import (
+    HttpRequest, a_test_request, backend_test, get_endpoint, playwright_test, post_endpoint, setup,
+)
 
 @setup
 def setup_app():
     ...  # create_application(collection=..., name=..., tables=...)
 
 @get_endpoint
-def facts(request_context: RequestContext) -> SomePydanticSchema:
+def facts(request: HttpRequest) -> SomePydanticSchema:
     model = ...  # get_model()
     return SomePydanticSchema(facts=[...])
 
 @backend_test
 def test_facts():
-    a = facts(fake_context())
+    a = facts(a_test_request())
     assert len(a.facts) > 0, "We need facts"
 ```
+
+`a_test_request()` builds a Django `HttpRequest` for in-process endpoint calls
+inside `@backend_test`s — the same object the HTTP layer hands a handler, so
+`request.user.is_authenticated`, `request.GET`, `request.POST`, and `request.body`
+all work. `user` defaults to `AnonymousUser` (unauthenticated); pass `params=`
+(query string, any method), `data=` (form body), or `json=` (JSON body) to
+populate it. A body (`data`/`json`) is incompatible with GET and the two are
+mutually exclusive — both raise `ValueError`.
 
 Install (and self-test) an app with:
 
@@ -278,12 +288,19 @@ generation. Pass `--skip-playwright` to build only.
 
 ### Endpoints
 
-A `@get_endpoint` function `def name(request_context: RequestContext) -> SomePydanticSchema:`
+A `@get_endpoint` function `def name(request: HttpRequest) -> SomePydanticSchema:`
 is served as JSON at:
 
 ```
-/apps/a/<collection>/<app>/endpoint/get/<function_name>
+/apps/a/<collection>/<app>/e/<function_name>
 ```
+
+All four verbs dispatch by HTTP method at `.../e/<function>` — `@get_endpoint`,
+`@post_endpoint`, `@put_endpoint`, `@delete_endpoint` — and a name is registered
+under exactly one method (a request whose method doesn't match is a 404). A
+`@get_endpoint` may instead return an `InertiaPage` to render an Inertia page
+with the app's own bundle. `GET .../e` (no function) serves the function named
+`default`.
 
 ### Application management views (superuser)
 

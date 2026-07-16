@@ -27,7 +27,7 @@ const CountOut = z.object({ count: z.number() })
 async function refresh() {
   loading.value = true
   try {
-    const res = await axios.get("/apps/a/Reference/Demo/endpoint/get/current_count")
+    const res = await axios.get("/apps/a/Reference/Demo/e/current_count")
     fetched.value = CountOut.parse(res.data).count
   } catch (e) {
     showErrorToast(e, "Could not load the count")

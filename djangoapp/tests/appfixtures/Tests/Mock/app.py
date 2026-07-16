@@ -1,4 +1,4 @@
-# ruff: noqa: INP001, ARG001 # fixture app loaded by file path, not a package; Any dynamic model; required request_context signature
+# ruff: noqa: INP001, ARG001 # fixture app loaded by file path, not a package; Any dynamic model; request param unused by this endpoint
 """Example app: an endpoint that calls an external HTTP API, mocked in its test.
 
 Demonstrates mocking the HTTP helper inside a ``@backend_test``. ``setup_app``
@@ -19,11 +19,11 @@ from unittest.mock import patch
 from djangoapp.apps.shortcuts import (
     Application,
     BaseModel,
-    RequestContext,
+    HttpRequest,
     TextColumn,
+    a_test_request,
     backend_test,
     dynamic_models,
-    fake_context,
     get_endpoint,
     setup,
 )
@@ -58,7 +58,7 @@ def setup_app() -> None:
 
 
 @get_endpoint
-def random_fact(request_context: RequestContext) -> FactOut:
+def random_fact(request: HttpRequest) -> FactOut:
     """Return the external API's fact, falling back to a stored row on error."""
     try:
         data = _fetch_json(FACT_URL)
@@ -74,6 +74,6 @@ def test_random_fact_uses_mocked_http() -> None:
     """random_fact returns the patched response; no real network call is made."""
     module = sys.modules[__name__]
     with patch.object(module, "_fetch_json", return_value={"fact": "mocked fact"}) as mock_fetch:
-        out = random_fact(fake_context())
+        out = random_fact(a_test_request())
     mock_fetch.assert_called_once_with(FACT_URL)
     assert out.fact == "mocked fact"

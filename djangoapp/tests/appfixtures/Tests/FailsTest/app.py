@@ -1,4 +1,4 @@
-# ruff: noqa: INP001, ARG001, PT015 # fixture app loaded by file path; required request_context signature; intentional assert False
+# ruff: noqa: INP001, ARG001, PT015 # fixture app loaded by file path; request param unused; intentional assert False
 """Negative example: a backend test that fails, so the install must roll back.
 
 ``@setup`` creates a valid app, but ``@backend_test`` raises. The setup runner
@@ -12,7 +12,7 @@ from __future__ import annotations
 from djangoapp.apps.shortcuts import (
     BaseModel,
     CharColumn,
-    RequestContext,
+    HttpRequest,
     backend_test,
     dynamic_models,
     get_endpoint,
@@ -40,7 +40,7 @@ def setup_app() -> None:
 
 
 @get_endpoint
-def things(request_context: RequestContext) -> ThingsOut:
+def things(request: HttpRequest) -> ThingsOut:
     return ThingsOut(count=0)
 
 

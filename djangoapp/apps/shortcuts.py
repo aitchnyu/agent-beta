@@ -7,26 +7,29 @@ has a single import:
 .. code-block:: python
 
     from djangoapp.apps.shortcuts import *  # noqa: F403
-    # setup, get_endpoint, inertia_endpoint, backend_test, playwright_test,
-    # RequestContext, fake_context, InertiaPage, BaseModel, Application,
-    # CharColumn, TextColumn, IntegerColumn, BooleanColumn, DecimalColumn,
-    # DateTimeColumn, UserColumn, ForeignKeyColumn, dynamic_models
+    # setup, get_endpoint, post_endpoint, put_endpoint, delete_endpoint,
+    # backend_test, playwright_test, a_test_request, InertiaPage, BaseModel,
+    # HttpRequest, Application, CharColumn, TextColumn, IntegerColumn,
+    # BooleanColumn, DecimalColumn, DateTimeColumn, UserColumn,
+    # ForeignKeyColumn, dynamic_models
 
 Re-exports only; this module adds no logic.
 """
 
 from __future__ import annotations
 
+from django.http import HttpRequest
 from pydantic import BaseModel
 
 from djangoapp.apps.dynamic_module import (
     InertiaPage,
-    RequestContext,
+    a_test_request,
     backend_test,
-    fake_context,
+    delete_endpoint,
     get_endpoint,
-    inertia_endpoint,
     playwright_test,
+    post_endpoint,
+    put_endpoint,
     setup,
 )
 from djangoapp.models import Application
@@ -52,16 +55,18 @@ __all__ = [
     "DateTimeColumn",
     "DecimalColumn",
     "ForeignKeyColumn",
+    "HttpRequest",
     "InertiaPage",
     "IntegerColumn",
-    "RequestContext",
     "TextColumn",
     "UserColumn",
+    "a_test_request",
     "backend_test",
+    "delete_endpoint",
     "dynamic_models",
-    "fake_context",
     "get_endpoint",
-    "inertia_endpoint",
     "playwright_test",
+    "post_endpoint",
+    "put_endpoint",
     "setup",
 ]

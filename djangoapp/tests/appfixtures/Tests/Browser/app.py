@@ -1,9 +1,9 @@
-# ruff: noqa: INP001, ARG001 # fixture app loaded by file path, not a package; required request_context signature
+# ruff: noqa: INP001, ARG001 # fixture app loaded by file path, not a package; request param unused by these endpoints
 """Minimal fixture app dedicated to buildfrontend's browser phase.
 
 A focused counterpart to ``Tests/Page`` (the comprehensive demo): just enough to
-exercise ``buildfrontend`` end to end — ``@setup`` seeds one row, an
-``@inertia_endpoint`` renders it with the app's own bundle, and a
+exercise ``buildfrontend`` end to end — ``@setup`` seeds one row, a
+``@get_endpoint`` renders it as an Inertia page with the app's own bundle, and a
 ``@playwright_test`` does a real browser-based assertion (mount + Refresh
 interaction).
 
@@ -24,12 +24,13 @@ from djangoapp.apps.shortcuts import (
     Application,
     BaseModel,
     CharColumn,
+    HttpRequest,
     InertiaPage,
-    RequestContext,
     dynamic_models,
     get_endpoint,
-    inertia_endpoint,
     playwright_test,
+    post_endpoint,
+    put_endpoint,
     setup,
 )
 
@@ -82,8 +83,8 @@ def setup_app() -> None:
     Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.create(code=SEED)
 
 
-@inertia_endpoint
-def browser_page(request_context: RequestContext) -> InertiaPage[BrowserPageProps]:
+@get_endpoint
+def browser_page(request: HttpRequest) -> InertiaPage[BrowserPageProps]:
     """Inertia page: the seeded row's code as a prop."""
     row = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.first()
     return InertiaPage(
@@ -92,19 +93,19 @@ def browser_page(request_context: RequestContext) -> InertiaPage[BrowserPageProp
 
 
 @get_endpoint
-def current_value(request_context: RequestContext) -> ValueOut:
+def current_value(request: HttpRequest) -> ValueOut:
     """GET endpoint the page's Refresh button calls (the seeded value)."""
     row = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.first()
     return ValueOut(value=row.code if row else "")
 
 
-@get_endpoint
-def create_row(request_context: RequestContext) -> CreatedOut:
+@post_endpoint
+def create_row(request: HttpRequest) -> CreatedOut:
     """Insert a row — a browser-triggered write the rollback middleware reverts per request.
 
-    Exists only so a ``@playwright_test`` can trigger a write over HTTP (the app
-    framework exposes only ``@get_endpoint`` GETs): the insert is visible within
-    this request's response, then ``RollbackEveryRequestMiddleware`` rolls it back.
+    A ``@post_endpoint`` so a ``@playwright_test`` can trigger a write over HTTP:
+    the insert is visible within this request's response, then
+    ``RollbackEveryRequestMiddleware`` rolls it back.
     """
     Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.create(
         code=BROWSER_WRITE
@@ -112,12 +113,12 @@ def create_row(request_context: RequestContext) -> CreatedOut:
     return CreatedOut(created=BROWSER_WRITE)
 
 
-@get_endpoint
-def modify_seed(request_context: RequestContext) -> ModifiedOut:
+@put_endpoint
+def modify_seed(request: HttpRequest) -> ModifiedOut:
     """Update the seed row's code — a browser-triggered write reverted per request.
 
-    Like :func:`create_row`, a test-fixture-only side-effecting GET: the new code
-    is visible within this request's response, then rolled back.
+    Like :func:`create_row`, a test-fixture-only side-effecting write: the new
+    code is visible within this request's response, then rolled back.
     """
     row = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.get(code=SEED)
     row.code = MODIFY_TO
@@ -130,7 +131,7 @@ def test_page_renders_seed(context: BrowserContext, base_url: str) -> None:
     """The built app mounts, renders the seed, and Refresh round-trips the GET endpoint."""
     page = context.new_page()
     try:
-        page.goto(f"{base_url}/apps/a/{COLLECTION}/{APP}/endpoint/inertia/browser_page")
+        page.goto(f"{base_url}/apps/a/{COLLECTION}/{APP}/e/browser_page")
         page.wait_for_selector(".browser-value")
         assert page.locator(".browser-value").text_content() == SEED
         page.locator(".browser-refresh").click()
@@ -170,7 +171,7 @@ def test_browser_insert_round_trips(context: BrowserContext, base_url: str) -> N
     middleware; the inserted code is in the response (visible for the request's
     lifetime), and the middleware rolls it back after.
     """
-    resp = context.request.get(f"{base_url}/apps/a/{COLLECTION}/{APP}/endpoint/get/create_row")
+    resp = context.request.post(f"{base_url}/apps/a/{COLLECTION}/{APP}/e/create_row")
     assert resp.ok
     assert resp.json()["created"] == BROWSER_WRITE
 
@@ -183,6 +184,6 @@ def test_browser_modify_round_trips(context: BrowserContext, base_url: str) -> N
     the middleware rolls the update back after, so the seed keeps its original
     value.
     """
-    resp = context.request.get(f"{base_url}/apps/a/{COLLECTION}/{APP}/endpoint/get/modify_seed")
+    resp = context.request.put(f"{base_url}/apps/a/{COLLECTION}/{APP}/e/modify_seed")
     assert resp.ok
     assert resp.json()["value"] == MODIFY_TO

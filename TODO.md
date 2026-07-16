@@ -1,37 +1,15 @@
-_cycle_error - why two places
-model = cast(Any, self._table("treeapp", "nodes").as_model()) - why this cast
+How to run opencode in server mode?
+Communication endpoints that can forward messages and streaming stuff
+Basic chat page
+Configure the opencode, prompt and whitelist
 
-How to test multi step write operations like creating a family tree?
-
-Merge both inertia and json endpoints?
-GET /e/endpoint - can take Inertia, Pydantic, json
-POST /e/endpoint - can take Pydantic/json/form
-
-/e/funcname/p1?
-/e/funcname/p1/p2?
-/e/funcname/p1/p2/p3?
-
-`/facts_page?k=v&k2=v2`
-`/facts_page/-<rison>-`
-- facts app - permalink
-
-shared props - send collection and application name
-
-out = row(fake_context()) - make something better
-
------------
-vue3-sfc-loader - try to avoid multiple apps
-Ignore back button if its hard
-
-Playwright tests check errors are gone
-
-Indexing for columns
 
 ## Chatting
-Web terminals
-https://github.com/butlerx/wetty
+Use opencode in daemon mode with custom config.
+Continuous output - have async endpoint?
 
-https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md
+Web terminals
+
 Command whitelist
 Make a file browser, py, vue, json, images
 
@@ -44,13 +22,28 @@ Responses
     rich md with links
     request command
         git commit - confirm
+    read file
+    write file
     thinking traces
+    show raw json?
+
+How to test multi step write operations like creating a family tree?
+Does Mypy lint application?
+
+Remove collection - harder to organize shared modules?
+shared props - send collection and application name
+
+-----------
+vue3-sfc-loader - try to avoid multiple apps
+Ignore back button if its hard
+
+Playwright tests check errors are gone
+
+Indexing for columns
 
 ------
-Pending:
 Track setup runs - skip the completed ones
 
-_create_column_row - long function
 NinjaAPI consistency - like error handlers etc
 
 Command to list table ddl and class statement
@@ -62,19 +55,19 @@ Log changes to a table - dont make a page for that yet
 File fields
 Renames and null/not null later
 
-type - 
-    char - nope
-    text - 
-    int
-    decimal
-    date
-    fk
+## Deployment
+Async support for terminal
+Long lived connections for notifications
+Tool to analyse error logs and stacktraces
+Opencode as service
 
-SCHEMA_SERIALIZERS
-
-Migration and schema evolution?
-
-How to generate db and queries?
+## Agents and terminals
+https://github.com/butlerx/wetty
+https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md
+https://github.com/tsl0922/ttyd
+https://github.com/xtermjs/xterm.js#browser-support
+https://xtermjs.org/ - lots of users, including clouds. Plugins for images and links/rich text
+https://github.com/open-webui/open-terminal - agent stuff
 
 ## Separate frontends
 Very easy to build individually, can add new libraries etc
@@ -87,3 +80,4 @@ Command to audit all apps at once?
 ## Future
 keep login_for_test?
 Offline workers and notifications
+Error handling for frontend and backend

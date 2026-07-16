@@ -1,12 +1,12 @@
-# ruff: noqa: INP001, ANN401, ARG001 # template reference app; loaded by path, not a package; Any dynamic model; required request_context signature
+# ruff: noqa: INP001, ANN401, ARG001 # template reference app; loaded by path, not a package; Any dynamic model; request param unused by these endpoints
 """Reference app: copy this to ``apps/<collection>/<app>/`` to start a new app.
 
 Demonstrates the full contract:
 
 - ``@setup`` installs the collection/app + a table;
 - ``@get_endpoint current_count`` returns JSON the page fetches (axios + zod);
-- ``@inertia_endpoint reference_page`` renders an Inertia page with the app's own
-  bundle;
+- ``@get_endpoint reference_page`` renders an Inertia page (via an ``InertiaPage``
+  return) with the app's own bundle;
 - ``@backend_test`` self-tests the page prop;
 - ``@playwright_test`` drives the built UI (render + Refresh interaction).
 
@@ -21,13 +21,12 @@ from djangoapp.apps.shortcuts import (
     Application,
     BaseModel,
     CharColumn,
+    HttpRequest,
     InertiaPage,
-    RequestContext,
+    a_test_request,
     backend_test,
     dynamic_models,
-    fake_context,
     get_endpoint,
-    inertia_endpoint,
     playwright_test,
     setup,
 )
@@ -69,13 +68,13 @@ def setup_app() -> None:
 
 
 @get_endpoint
-def current_count(request_context: RequestContext) -> CountOut:
+def current_count(request: HttpRequest) -> CountOut:
     """GET endpoint the page's Refresh button calls (the seeded row count)."""
     return CountOut(count=_model().objects.count())
 
 
-@inertia_endpoint
-def reference_page(request_context: RequestContext) -> InertiaPage[ReferencePageProps]:
+@get_endpoint
+def reference_page(request: HttpRequest) -> InertiaPage[ReferencePageProps]:
     """Inertia page: how many rows are seeded."""
     return InertiaPage(
         component="ReferencePage", props=ReferencePageProps(count=_model().objects.count())
@@ -85,7 +84,7 @@ def reference_page(request_context: RequestContext) -> InertiaPage[ReferencePage
 @backend_test
 def test_reference_page_count() -> None:
     """The page reports the seeded row count."""
-    assert reference_page(fake_context()).props.count == 1
+    assert reference_page(a_test_request()).props.count == 1
 
 
 @playwright_test
@@ -93,7 +92,7 @@ def test_reference_page_renders_and_interacts(context: BrowserContext, base_url:
     """The built app mounts, renders the count, and Refresh round-trips the GET endpoint."""
     page = context.new_page()
     try:
-        page.goto(f"{base_url}/apps/a/Reference/Demo/endpoint/inertia/reference_page")
+        page.goto(f"{base_url}/apps/a/Reference/Demo/e/reference_page")
         page.wait_for_selector(".ref-count")
         assert page.locator(".ref-count").text_content() == "1"
         page.locator(".ref-refresh").click()

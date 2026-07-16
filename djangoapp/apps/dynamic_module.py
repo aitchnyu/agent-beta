@@ -6,7 +6,7 @@ the function's kind (no instance to create):
 .. code-block:: python
 
     from djangoapp.apps import (
-        RequestContext, backend_test, get_endpoint, inertia_endpoint, setup,
+        HttpRequest, backend_test, get_endpoint, post_endpoint, setup,
     )
 
     @setup
@@ -14,18 +14,25 @@ the function's kind (no instance to create):
         ...  # create_application(...)
 
     @get_endpoint
-    def facts(request_context: RequestContext) -> FactsOut:
+    def facts(request: HttpRequest) -> FactsOut:
         ...
 
-    @inertia_endpoint
-    def facts_page(request_context: RequestContext) -> InertiaPage[FactsPageProps]:
+    @post_endpoint
+    def save(request: HttpRequest) -> SavedOut:
         ...
+
+All four verbs (get/post/put/delete) are served at one path
+``/a/<collection>/<app>/e/<function>`` and dispatched by HTTP method; a function
+name is registered under exactly one method — globally unique across verbs, so a
+duplicate name under two methods is rejected at load. A ``@get_endpoint`` may
+additionally return an :class:`InertiaPage` (rendered as an Inertia page); the
+other verbs return a Pydantic model or dict (JSON).
 
 The loader imports the module and constructs a :class:`DynamicModule` from it,
 which scans the module's namespace for the marked functions and exposes them as
-``setup_function`` / ``endpoints`` / ``inertia_endpoints`` / ``backend_tests`` /
-``playwright_tests``. ``DynamicModule`` is constructed only by the loader — app
-authors never instantiate it.
+``setup_function`` / ``endpoints`` / ``backend_tests`` / ``playwright_tests``.
+``DynamicModule`` is constructed only by the loader — app authors never
+instantiate it.
 """
 
 from __future__ import annotations
@@ -34,15 +41,17 @@ import importlib.util
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
+from json import dumps as json_dumps
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar, cast
 
 from django.conf import settings
-from django.http import HttpRequest
 from pydantic import BaseModel
 
 if TYPE_CHECKING:
     from types import ModuleType
+
+    from django.http import HttpRequest
 
     from djangoapp.models import User
 
@@ -57,39 +66,40 @@ _MARKER_ATTR = "_app_marker"
 
 SETUP = "setup"
 GET_ENDPOINT = "get_endpoint"
-INERTIA_ENDPOINT = "inertia_endpoint"
+POST_ENDPOINT = "post_endpoint"
+PUT_ENDPOINT = "put_endpoint"
+DELETE_ENDPOINT = "delete_endpoint"
 BACKEND_TEST = "backend_test"
 PLAYWRIGHT_TEST = "playwright_test"
 
-
-@dataclass(frozen=True)
-class RequestContext:
-    """The request + viewer user handed to a ``@get_endpoint`` function."""
-
-    request: HttpRequest
-    user: User | None
-
-
-def fake_context() -> RequestContext:
-    """Build a no-user context for backend tests calling endpoints in-process.
-
-    Uses a bare ``HttpRequest`` so endpoints that read the user via the context
-    (not the request) work without a real WSGI environ.
-    """
-    return RequestContext(request=HttpRequest(), user=None)
+MARKER_METHOD: dict[str, str] = {
+    GET_ENDPOINT: "GET",
+    POST_ENDPOINT: "POST",
+    PUT_ENDPOINT: "PUT",
+    DELETE_ENDPOINT: "DELETE",
+}
 
 
 @dataclass(frozen=True)
 class InertiaPage[TProps: BaseModel]:
-    """What an ``@inertia_endpoint`` returns: a component name + typed props.
+    """What a ``@get_endpoint`` may return to render an Inertia page.
 
     The view turns this into an ``InertiaResponse``; ``props`` is serialised
     via ``model_dump(mode="json")``. Generic over the props type so an endpoint
-    can declare ``-> InertiaPage[MyPageProps]`` for type-checking.
+    can declare ``-> InertiaPage[MyPageProps]`` for type-checking. Only a GET
+    endpoint may return this; the other verbs return a Pydantic model or dict.
     """
 
     component: str
     props: TProps
+
+
+@dataclass(frozen=True)
+class Endpoint:
+    """One registered endpoint: its HTTP method and the handler callable."""
+
+    method: str
+    func: Callable[..., object]
 
 
 def _mark(kind: str) -> Callable[[F], F]:
@@ -102,13 +112,90 @@ def _mark(kind: str) -> Callable[[F], F]:
     return decorator
 
 
+# Approved endpoint returns. A GET handler may return Pydantic, dict, or an
+# InertiaPage; post/put/delete return Pydantic or dict. Enforced statically by
+# the typed decorators below (the runtime assert in call_endpoint re-checks it).
+GetEndpointReturn = BaseModel | dict[str, Any] | InertiaPage[Any]
+WriteEndpointReturn = BaseModel | dict[str, Any]
+
+
 # Standalone decorators — import these in app.py and apply directly. They only
 # tag the function; discovery happens later in DynamicModule(module).
+def get_endpoint[RTGet: GetEndpointReturn](
+    func: Callable[[HttpRequest], RTGet],
+) -> Callable[[HttpRequest], RTGet]:
+    """Tag a GET endpoint handler (returns Pydantic, dict, or InertiaPage)."""
+    return _mark(GET_ENDPOINT)(func)
+
+
+def post_endpoint[RTWrite: WriteEndpointReturn](
+    func: Callable[[HttpRequest], RTWrite],
+) -> Callable[[HttpRequest], RTWrite]:
+    """Tag a POST endpoint handler (returns Pydantic or dict)."""
+    return _mark(POST_ENDPOINT)(func)
+
+
+def put_endpoint[RTWrite: WriteEndpointReturn](
+    func: Callable[[HttpRequest], RTWrite],
+) -> Callable[[HttpRequest], RTWrite]:
+    """Tag a PUT endpoint handler (returns Pydantic or dict)."""
+    return _mark(PUT_ENDPOINT)(func)
+
+
+def delete_endpoint[RTWrite: WriteEndpointReturn](
+    func: Callable[[HttpRequest], RTWrite],
+) -> Callable[[HttpRequest], RTWrite]:
+    """Tag a DELETE endpoint handler (returns Pydantic or dict)."""
+    return _mark(DELETE_ENDPOINT)(func)
+
+
 setup = _mark(SETUP)
-get_endpoint = _mark(GET_ENDPOINT)
-inertia_endpoint = _mark(INERTIA_ENDPOINT)
 backend_test = _mark(BACKEND_TEST)
 playwright_test = _mark(PLAYWRIGHT_TEST)
+
+
+def a_test_request(
+    *,
+    user: User | None = None,
+    method: str = "GET",
+    params: dict[str, str] | None = None,
+    data: dict[str, str] | None = None,
+    json: object | None = None,
+) -> HttpRequest:
+    """Build a Django ``HttpRequest`` for in-process calls to endpoints/tests.
+
+    Replaces ``fake_context``. ``params`` is the query string (``request.GET``,
+    valid on any method). ``data`` (form-encoded → ``request.POST``) and ``json``
+    (→ ``request.body``) are request bodies: mutually exclusive, and incompatible
+    with GET — supplying a body with GET, or both ``data`` and ``json``, raises
+    ``ValueError``. ``user`` defaults to ``AnonymousUser`` when ``None`` so
+    handlers check ``request.user.is_authenticated`` rather than a None sentinel.
+    """
+    # Deferred to runtime: django.test / auth.models pull in model machinery that
+    # isn't ready during app-registry population, and djangoapp.apps imports this
+    # module at setup — a top-level import would raise AppRegistryNotReady.
+    from django.contrib.auth.models import AnonymousUser  # noqa: PLC0415
+    from django.test import RequestFactory  # noqa: PLC0415
+
+    method = method.upper()
+    if data is not None and json is not None:
+        msg = "a_test_request: pass either data or json, not both."
+        raise ValueError(msg)
+    if (data is not None or json is not None) and method == "GET":
+        msg = "a_test_request: a request body (data/json) is incompatible with GET."
+        raise ValueError(msg)
+    factory = getattr(RequestFactory(), method.lower())
+    if method == "GET":
+        request = factory("/", data=params or {})
+    elif json is not None:
+        request = factory("/", data=json_dumps(json), content_type="application/json")
+    elif data is not None:
+        request = factory("/", data=data)
+    else:
+        request = factory("/", data={})
+    # RequestFactory's methods are typed ``Any``; the built object is an HttpRequest.
+    request.user = user if user is not None else AnonymousUser()
+    return cast("HttpRequest", request)
 
 
 class DynamicModule:
@@ -119,8 +206,11 @@ class DynamicModule:
     and groups callables by their ``_app_marker``:
 
     - setup_function, the single ``@setup`` callable (required)
-    - json_endpoints, dict ``name -> @get_endpoint``
-    - inertia_endpoints, dict ``name -> @inertia_endpoint``
+    - endpoints, dict ``name -> Endpoint`` (one method per name). Uniqueness is
+      structural, not a runtime check: a module-level name binds once, so a
+      second ``def foo`` (even under a different ``@verb_endpoint``) rebinds it
+      and the earlier definition is simply gone — by the time ``vars(module)``
+      is scanned only the last survives.
     - backend_tests, list of ``@backend_test`` (definition order)
     - playwright_tests, list of ``@playwright_test`` (definition order)
 
@@ -128,15 +218,13 @@ class DynamicModule:
     """
 
     setup_function: Callable[..., object]
-    json_endpoints: dict[str, Callable[..., object]]
-    inertia_endpoints: dict[str, Callable[..., object]]
+    endpoints: dict[str, Endpoint]
     backend_tests: list[Callable[..., object]]
     playwright_tests: list[Callable[..., object]]
 
     def __init__(self, module: ModuleType) -> None:
         setup_function: Callable[..., object] | None = None
-        self.json_endpoints = {}
-        self.inertia_endpoints = {}
+        self.endpoints = {}
         self.backend_tests = []
         self.playwright_tests = []
         for obj in vars(module).values():
@@ -145,10 +233,8 @@ class DynamicModule:
             kind = getattr(obj, _MARKER_ATTR, None)
             if kind == SETUP:
                 setup_function = obj
-            elif kind == GET_ENDPOINT:
-                self.json_endpoints[obj.__name__] = obj
-            elif kind == INERTIA_ENDPOINT:
-                self.inertia_endpoints[obj.__name__] = obj
+            elif kind in MARKER_METHOD:
+                self.endpoints[obj.__name__] = Endpoint(method=MARKER_METHOD[kind], func=obj)
             elif kind == BACKEND_TEST:
                 self.backend_tests.append(obj)
             elif kind == PLAYWRIGHT_TEST:
@@ -158,36 +244,35 @@ class DynamicModule:
             raise ValueError(msg)
         self.setup_function = setup_function
 
-    def has_json_endpoint(self, name: str) -> bool:
-        """Whether a ``@get_endpoint`` (JSON) with ``name`` is registered."""
-        return name in self.json_endpoints
+    def has_endpoint(self, name: str) -> bool:
+        """Whether an endpoint with ``name`` is registered (under any method)."""
+        return name in self.endpoints
 
-    def has_inertia_endpoint(self, name: str) -> bool:
-        """Whether an ``@inertia_endpoint`` with ``name`` is registered."""
-        return name in self.inertia_endpoints
+    def endpoint_for(self, name: str) -> Endpoint | None:
+        """Return the registered :class:`Endpoint` for ``name``, or ``None`` if absent."""
+        return self.endpoints.get(name)
 
-    def call_json_endpoint(
-        self, *, name: str, request: HttpRequest, user: User | None
-    ) -> BaseModel | dict[str, Any]:
-        """Call a ``@get_endpoint`` by name, building the ``RequestContext``.
+    def call_endpoint(
+        self, *, name: str, request: HttpRequest
+    ) -> BaseModel | dict[str, Any] | InertiaPage[Any]:
+        """Call an endpoint by name, asserting its return matches the method contract.
 
-        A ``@get_endpoint`` must return a Pydantic model or dict; asserted at the
-        call boundary so the contract check lives with the call, not the view.
+        The caller (the view) decides the 404 (name absent or method mismatch);
+        this assumes ``name`` exists. A GET endpoint may return a Pydantic model,
+        dict, or :class:`InertiaPage`; the other verbs must return a Pydantic
+        model or dict. The contract check lives with the call, not the view; the
+        declared union return type lets callers narrow with ``isinstance`` alone.
         """
-        result = self.json_endpoints[name](RequestContext(request=request, user=user))
-        assert isinstance(result, (BaseModel, dict)), (
-            f"@get_endpoint '{name}' must return a Pydantic model or dict."
-        )
-        return result
-
-    def call_inertia_endpoint(
-        self, *, name: str, request: HttpRequest, user: User | None
-    ) -> InertiaPage[Any]:
-        """Call a ``@inertia_endpoint`` by name, building the ``RequestContext``."""
-        result = self.inertia_endpoints[name](RequestContext(request=request, user=user))
-        assert isinstance(result, InertiaPage), (
-            f"@inertia_endpoint '{name}' did not return InertiaPage."
-        )
+        ep = self.endpoints[name]
+        result = ep.func(request)
+        if ep.method == "GET":
+            assert isinstance(result, (BaseModel, dict, InertiaPage)), (
+                f"@get_endpoint '{name}' must return a Pydantic model, dict, or InertiaPage."
+            )
+        else:
+            assert isinstance(result, (BaseModel, dict)), (
+                f"@{ep.method.lower()}_endpoint '{name}' must return a Pydantic model or dict."
+            )
         return result
 
 
@@ -212,10 +297,10 @@ class AppModuleLoader:
     """Load app modules by ``app.py`` path, cache them, and return their handler.
 
     ``load`` returns a :class:`DynamicModule` built from the module — the handler
-    exposing ``setup_function`` / ``endpoints`` / ``inertia_endpoints`` /
-    ``backend_tests`` / ``playwright_tests``. Each load first syncs the in-memory
-    caches to the live apps generation (see :func:`clear_app_caches`), so a
-    ``setup`` install in another process is picked up without a server restart.
+    exposing ``setup_function`` / ``endpoints`` / ``backend_tests`` /
+    ``playwright_tests``. Each load first syncs the in-memory caches to the live
+    apps generation (see :func:`clear_app_caches`), so a ``setup`` install in
+    another process is picked up without a server restart.
     """
 
     def __init__(self) -> None:
@@ -303,15 +388,17 @@ app_modules = AppModuleLoader()
 __all__ = [
     "AppModuleLoader",
     "DynamicModule",
+    "Endpoint",
     "InertiaPage",
-    "RequestContext",
+    "a_test_request",
     "app_modules",
     "apps_root",
     "backend_test",
     "clear_app_caches",
-    "fake_context",
+    "delete_endpoint",
     "get_endpoint",
-    "inertia_endpoint",
     "playwright_test",
+    "post_endpoint",
+    "put_endpoint",
     "setup",
 ]

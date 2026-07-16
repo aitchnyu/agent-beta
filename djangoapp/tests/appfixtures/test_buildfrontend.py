@@ -130,13 +130,13 @@ class BuildFrontendPlaywrightPhaseTests(SimpleTestCase):
 class BuildFrontendDrivesPlaywrightTests(TransactionTestCase):
     """``buildfrontend`` builds the frontend then drives ``@playwright_test`` for real.
 
-    The dedicated sample is ``Tests/Browser`` (a minimal app: one seeded row, an
-    ``@inertia_endpoint`` rendered with its own bundle, and a ``@playwright_test``
-    asserting it via the browser). The browser phase is triggered by ``buildfrontend``
-    itself (no ``--skip-playwright``), exercising buildfrontend's own live-server +
-    playwright drive (``_drive_playwright_tests``). ``TransactionTestCase`` so the
-    installed app's seeded row is committed and visible to the drive's server
-    thread.
+    The dedicated sample is ``Tests/Browser`` (a minimal app: one seeded row, a
+    ``@get_endpoint`` rendered as an Inertia page with its own bundle, and a
+    ``@playwright_test`` asserting it via the browser). The browser phase is
+    triggered by ``buildfrontend`` itself (no ``--skip-playwright``), exercising
+    buildfrontend's own live-server + playwright drive (``_drive_playwright_tests``).
+    ``TransactionTestCase`` so the installed app's seeded row is committed and
+    visible to the drive's server thread.
 
     - test_buildfrontend_drives_browser_app, buildfrontend builds + drives Tests/Browser;
       bundle written; the drive's writes (in-process + browser insert/modify) all

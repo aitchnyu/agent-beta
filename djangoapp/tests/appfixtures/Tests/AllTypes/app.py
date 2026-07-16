@@ -1,4 +1,4 @@
-# ruff: noqa: INP001, ARG001 # fixture app loaded by file path, not a package; Any dynamic model; required request_context signature
+# ruff: noqa: INP001, ARG001 # fixture app loaded by file path, not a package; Any dynamic model; request param unused by this endpoint
 """Example app: a table spanning every column class, served as one typed row.
 
 Exercises all ``Column`` classes end-to-end through the app framework:
@@ -19,13 +19,13 @@ from djangoapp.apps.shortcuts import (
     DateTimeColumn,
     DecimalColumn,
     ForeignKeyColumn,
+    HttpRequest,
     IntegerColumn,
-    RequestContext,
     TextColumn,
     UserColumn,
+    a_test_request,
     backend_test,
     dynamic_models,
-    fake_context,
     get_endpoint,
     setup,
 )
@@ -85,7 +85,7 @@ def setup_app() -> None:
 
 
 @get_endpoint
-def row(request_context: RequestContext) -> RowOut:
+def row(request: HttpRequest) -> RowOut:
     """Return the single seed row's typed values."""
     model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
     instance = model.objects.first()
@@ -104,7 +104,7 @@ def row(request_context: RequestContext) -> RowOut:
 @backend_test
 def test_row_round_trips_every_type() -> None:
     """The endpoint returns the seed row with each type intact."""
-    out = row(fake_context())
+    out = row(a_test_request())
     assert out.code == "A1"
     assert out.note == "hi"
     assert out.qty == 7

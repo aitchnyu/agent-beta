@@ -79,7 +79,16 @@ done. (The reference app under `docs/apps/reference/` is the canonical example.)
 ## Reference app
 
 `docs/apps/reference/` — a minimal but complete app: `app.py` with `@setup`,
-`@inertia_endpoint`, `@backend_test`; a `frontend/` with `vite.config.js`,
+`@get_endpoint` (one returning JSON, one returning `InertiaPage`), `@backend_test`;
+a `frontend/` with `vite.config.js`,
 `main.ts` (createInertiaApp + axios CSRF + global error toast + Bootstrap), a
 `Layout.vue` (current user + home link), and a page component. Copy it, rename,
 and adapt.
+
+`@backend_test`s call endpoints in-process (no HTTP), passing each handler an
+`HttpRequest` built by `a_test_request()` — the same object the HTTP layer hands
+a handler, so `request.user.is_authenticated`, `request.GET`, `request.POST`, and
+`request.body` all work. `user` defaults to `AnonymousUser` (unauthenticated);
+`params=`/`data=`/`json=` populate the query string, form body, and JSON body
+respectively. A body (`data`/`json`) is incompatible with GET and the two are
+mutually exclusive — both raise `ValueError`.
