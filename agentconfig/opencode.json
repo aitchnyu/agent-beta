@@ -1,0 +1,26 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["agentconfig/steer.md"],
+  "permission": {
+    "read": "allow",
+    "glob": "allow",
+    "grep": "allow",
+    "list": "allow",
+    "edit": {
+      "*": "ask",
+      "apps/*": "allow"
+    },
+    "bash": {
+      "*": "ask",
+      "pwd": "allow"
+    },
+    "doom_loop": "allow",
+    "task": "deny",
+    "todowrite": "deny",
+    "question": "deny",
+    "webfetch": "ask",
+    "websearch": "allow",
+    "lsp": "deny",
+    "skill": "deny"
+  }
+}

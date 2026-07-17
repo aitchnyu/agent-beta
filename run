@@ -44,6 +44,78 @@ runserver() {
   djangomanage runserver
 }
 
+opencode() {
+  # Bind address for the daemon. 4196, not opencode's default 4096: 4096
+  # collides with the Kilo extension's random `kilo serve` server in this
+  # session. Override via OPENCODE_* env vars. No `setenv` here: this command
+  # only spawns the daemon, no Python/.env needed.
+  local hostname="${OPENCODE_HOSTNAME:-127.0.0.1}"
+  local port="${OPENCODE_PORT:-4196}"
+  # Resolve paths from this script's location (the repo root), not $PWD, so
+  # `./run opencode` works no matter which directory it's invoked from — the
+  # opencode.json `instructions` path is CWD-relative to the daemon process.
+  local repo_root
+  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # Point opencode at agentconfig/ for the web-chat agent + permission rules.
+  local config_dir="${OPENCODE_CONFIG_DIR:-$repo_root/agentconfig}"
+  local config_file="${OPENCODE_CONFIG:-$repo_root/agentconfig/opencode.json}"
+
+  # Preflight — fail fast before serving, in order:
+  #   (1) the agentconfig/ config file exists,
+  #   (2) no competing opencode config would override it,
+  #   (3) the opencode binary is on PATH,
+  #   (4) the config validates (`opencode debug config`),
+  #   (5) the port is free to bind.
+  # Each check prints why it refuses and returns 1.
+
+  # (1) Config file exists — without it the daemon runs with no agent/permissions.
+  [[ -f "$config_file" ]] || {
+    echo "Refusing to start: $config_file not found" >&2
+    return 1
+  }
+
+  # (2) No competing config — opencode merges every config it finds, which would
+  #     override agentconfig/. Delete the other one so only $config_file is used.
+  local global_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
+  if [[ -f "$global_config_dir/opencode.json" || -f "$global_config_dir/opencode.jsonc" || -f "$global_config_dir/config.json" || -f "$repo_root/opencode.json" || -n "${OPENCODE_CONFIG_CONTENT:-}" ]]; then
+    echo "Refusing to start: another opencode config exists (global, project, or \$OPENCODE_CONFIG_CONTENT); delete it so only $config_file is used." >&2
+    return 1
+  fi
+
+  # (3) Binary on PATH — check before `debug config` so a missing binary isn't
+  #     misreported as "config invalid".
+  if ! command -v opencode >/dev/null 2>&1; then
+    echo "opencode binary not found on PATH — install it first" >&2
+    return 1
+  fi
+
+  # (4) Config valid — `opencode serve` starts even on an invalid config and
+  #     only 400s per request, so validate first and refuse to serve if broken.
+  local check_output
+  if ! check_output=$(
+    OPENCODE_CONFIG_DIR="$config_dir" OPENCODE_CONFIG="$config_file" \
+      command opencode debug config 2>&1
+  ); then
+    echo "opencode config is invalid — refusing to serve:" >&2
+    echo "$check_output" >&2
+    return 1
+  fi
+
+  # (5) Port free — fail fast so the error names the cause instead of relying on
+  #     opencode's bind-time failure (which can leave a half-started process).
+  #     `lsof` is present on macOS.
+  if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+    echo "Refusing to start: port $port is already in use (set OPENCODE_PORT to override)." >&2
+    return 1
+  fi
+
+  # All checks passed — announce and serve. If `serve` fails to bind
+  # (permissions) opencode prints its own error and exits non-zero.
+  echo "Starting opencode serve on ${hostname}:${port} (Ctrl+C to stop)…"
+  OPENCODE_CONFIG_DIR="$config_dir" OPENCODE_CONFIG="$config_file" \
+    command opencode serve --hostname "$hostname" --port "$port" "$@"
+}
+
 test() {
   setenv
   uv run manage.py test --exclude-tag playwright "$@"

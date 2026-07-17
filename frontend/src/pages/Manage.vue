@@ -3,7 +3,7 @@ import { Link } from "@inertiajs/vue3"
 import BackToTopLink from "../components/BackToTopLink.vue"
 import Layout from "../components/Layout.vue"
 import { ManagePropsSchema } from "../schemas"
-import { rowListUrl } from "../utils/urls"
+import { appEndpointUrl, rowListUrl } from "../utils/urls"
 
 const props = defineProps<{ props: object }>()
 
@@ -40,9 +40,16 @@ const p = ManagePropsSchema.parse(props.props)
           </tr>
         </tbody>
       </table>
-      <BackToTopLink :href="`/apps/a/${p.collection_name}/list`"
-        >Back to {{ p.collection_name }}</BackToTopLink
-      >
+      <div class="apps-manage-links">
+        <BackToTopLink :href="`/apps/a/${p.collection_name}/list`"
+          >Back to {{ p.collection_name }}</BackToTopLink
+        >
+        <Link
+          class="apps-manage-home"
+          :href="appEndpointUrl(p.collection_name, p.app_name)"
+          >Open {{ p.app_name }}</Link
+        >
+      </div>
     </div>
   </Layout>
 </template>

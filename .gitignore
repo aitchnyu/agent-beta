@@ -26,4 +26,8 @@ djangoapp/static/djangoapp/apps/
 .kilo/package-lock.json
 .kilocode/package-lock.json
 
-# uv lock is tracked; ignore nothing else here
+# Playwright MCP (browser tooling) artifacts: snapshots, console logs
+.playwright-mcp/
+
+# Only uv.lock is tracked in this section; nothing else to ignore here.
+

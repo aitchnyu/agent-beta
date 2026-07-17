@@ -23,6 +23,7 @@ fails, or any ``@playwright_test`` fails.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import traceback
@@ -213,7 +214,19 @@ def _drive_playwright_tests(
     blocked — see :class:`RollbackEveryRequestMiddleware`). So a write is visible only for
     the **request** that makes it: per-request, not per-test — a write in one
     request is gone by the next.
+
+    ``sync_playwright`` runs an asyncio loop in this thread, which would trip
+    Django's ``async_unsafe`` guard on the rolled-back atomic + per-test
+    savepoints (and any in-test ORM) — the ORM calls here are synchronous, not
+    actually concurrent with the loop, so the guard's caution doesn't apply.
+    ``DJANGO_ALLOW_ASYNC_UNSAFE`` is set for the drive only and restored after
+    (same workaround the playwright test runner applies globally).
     """
+    # Set before anything else so the env var covers the whole drive (the
+    # atomic below, the per-test savepoints, and any in-test ORM), then
+    # restore the prior value (or unset) in the server-cleanup finally.
+    saved_allow_async_unsafe = os.environ.get("DJANGO_ALLOW_ASYNC_UNSAFE")
+    os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
     # port=0 lets the OS pick; LiveServerThread publishes the chosen port after
     # is_ready. daemon=True so a crashed command can't strand the server thread.
     server = LiveServerThread(host, StaticFilesHandler, port=0)
@@ -279,5 +292,9 @@ def _drive_playwright_tests(
                     transaction.set_rollback(True)
                 browser.close()
     finally:
+        if saved_allow_async_unsafe is None:
+            os.environ.pop("DJANGO_ALLOW_ASYNC_UNSAFE", None)
+        else:
+            os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = saved_allow_async_unsafe
         if server.is_alive():
             server.terminate()

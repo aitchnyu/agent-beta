@@ -1,25 +1,32 @@
-How to run opencode in server mode?
-Communication endpoints that can forward messages and streaming stuff
-Basic chat page
-Configure the opencode, prompt and whitelist
+How to make /prompt endpoint as stateless as possible?
 
+Track setup runs - skip the completed ones
+shared props - send collection and application name
+
+↑ Back to Trivia Open Facts - should be at top
+./run djangomanage buildbackend - allow all the time
+
+Render with css - mention that css has to be rendered
+
+Can we reset session or kill agent?
+
+Have checkpoint for running setup repeatedly?
+```python
+if savepoint('')
+```
+
+logger = logging.getLogger(__name__) - agent added
+
+Make a real app
+
+Give chat to end users?
 
 ## Chatting
-Use opencode in daemon mode with custom config.
-Continuous output - have async endpoint?
-
-Web terminals
-
-Command whitelist
 Make a file browser, py, vue, json, images
-
-Opencode with prompt
-    whats an app
-    Markup with links that open in file browser
-    Two phases
+Markup with links that open in file browser
+Two phases
 
 Responses
-    rich md with links
     request command
         git commit - confirm
     read file
@@ -31,9 +38,11 @@ How to test multi step write operations like creating a family tree?
 Does Mypy lint application?
 
 Remove collection - harder to organize shared modules?
-shared props - send collection and application name
 
 -----------
+Have better error messages for /opencode
+NinjaAPI consistency - like error handlers etc
+
 vue3-sfc-loader - try to avoid multiple apps
 Ignore back button if its hard
 
@@ -42,14 +51,9 @@ Playwright tests check errors are gone
 Indexing for columns
 
 ------
-Track setup runs - skip the completed ones
-
-NinjaAPI consistency - like error handlers etc
-
 Command to list table ddl and class statement
 
-Log changes to a table - dont make a page for that yet
-
+Log changes to a table - dont make a page for that yet, can query from commandline
 -----------------
 
 File fields
@@ -60,6 +64,7 @@ Async support for terminal
 Long lived connections for notifications
 Tool to analyse error logs and stacktraces
 Opencode as service
+Whitelist of services
 
 ## Agents and terminals
 https://github.com/butlerx/wetty

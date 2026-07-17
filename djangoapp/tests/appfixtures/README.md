@@ -31,5 +31,3 @@ the loader builds a `DynamicModule` from the imported module. See
 [`djangoapp/apps/dynamic_module.py`](../../apps/dynamic_module.py)
 and the [app framework](../../../README.md#app-framework) section of the main
 README.
-
-# aihere keep this updated

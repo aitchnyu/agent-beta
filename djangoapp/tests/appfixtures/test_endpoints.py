@@ -12,11 +12,11 @@ from django.conf import settings
 from django.test import SimpleTestCase, TestCase
 from pydantic import BaseModel
 
-from djangoapp.apps import (
+from djangoapp.apps import dynamic_module
+from djangoapp.apps.dynamic_module import (
     DynamicModule,
     InertiaPage,
     a_test_request,
-    dynamic_module,
     post_endpoint,
     setup,
 )

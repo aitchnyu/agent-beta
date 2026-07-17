@@ -1,0 +1,100 @@
+@use "variables" as *;
+
+.opencode-page {
+  max-width: 56rem;
+}
+
+.opencode-actions {
+  margin-top: 0.5rem;
+}
+
+.opencode-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.opencode-user {
+  align-self: flex-end;
+  max-width: 80%;
+  background-color: $indigo-50;
+  border-radius: $radius-md;
+  padding: 0.5rem 0.75rem;
+}
+
+.opencode-reasoning {
+  color: $gray-600;
+  font-style: italic;
+  font-size: 0.85em;
+  white-space: pre-wrap;
+  max-height: 300px;
+  overflow: auto;
+}
+
+.opencode-tool {
+  border: $border-light;
+  border-radius: $radius-md;
+  padding: 0.5rem 0.75rem;
+  background-color: $gray-50;
+}
+
+.opencode-tool-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.opencode-tool-name {
+  font-weight: 600;
+  font-family: monospace;
+}
+
+.opencode-tool-status {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: $radius-sm;
+  background-color: $gray-200;
+}
+
+.opencode-tool-input,
+.opencode-tool-output {
+  margin: 0.5rem 0 0;
+  font-size: 0.8rem;
+  white-space: pre-wrap;
+  max-height: 600px;
+  overflow: auto;
+}
+
+.opencode-permission {
+  border: 1px solid $amber-500;
+  border-radius: $radius-md;
+  padding: 0.5rem 0.75rem;
+  background-color: $amber-50;
+}
+
+.opencode-permission-cmd {
+  font-family: monospace;
+  margin-left: 0.5rem;
+}
+
+.opencode-permission-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.opencode-permission-answered {
+  color: $gray-500;
+  font-size: 0.85em;
+  margin-top: 0.25rem;
+}
+
+.opencode-input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.opencode-input {
+  flex: 1;
+}

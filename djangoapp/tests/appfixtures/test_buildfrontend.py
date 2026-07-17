@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -150,12 +149,6 @@ class BuildFrontendDrivesPlaywrightTests(TransactionTestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        # buildfrontend's drive runs DB ops (the rolled-back atomic) while a
-        # sync_playwright event loop is live; the test runner's async-unsafe
-        # guard would block that. ``BasePlaywrightTestCase`` sets this too, but
-        # this class isn't one — set it itself so it doesn't depend on test
-        # ordering (it's now the first playwright-tagged appfixtures test).
-        os.environ["DJANGO_ALLOW_ASYNC_UNSAFE"] = "true"
         super().setUpClass()
 
     def setUp(self) -> None:

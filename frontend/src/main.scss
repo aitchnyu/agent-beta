@@ -1,4 +1,5 @@
 @use "styles/users";
+@use "styles/opencode";
 
 @import "bootstrap/dist/css/bootstrap.min.css";
 
@@ -7,6 +8,16 @@ body {
   margin: 0;
   padding: 0.5rem 1rem;
   color: #1a1a1a;
+}
+
+// Navbar: keep the greeting + logout on one line. Without flex the logout
+// <form> (block-level) drops to a second line under "Hello, username".
+.layout-navbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 .home-container {
@@ -47,4 +58,28 @@ body {
 .apps-back-to-top-arrow {
   margin-right: 0.35rem;
   font-weight: 700;
+}
+
+.apps-manage-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+// Reuse the back-to-top look for the Home link so both read as subtle nav.
+.apps-manage-links .apps-back-to-top,
+.apps-manage-home {
+  margin-top: 0; // the row's gap handles spacing now
+}
+
+.apps-manage-home {
+  padding: 0;
+  background: none;
+  border: none;
+  color: #2563eb;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
 }

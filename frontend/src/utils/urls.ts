@@ -31,3 +31,11 @@ export function rowDetailUrl(
 ): string {
   return `/apps/a/${collectionName}/${appName}/manage/${tableName}/id/${publicId}`
 }
+
+// The app's main page: the `default` endpoint served at the bare `/e` route.
+export function appEndpointUrl(
+  collectionName: string,
+  appName: string,
+): string {
+  return `/apps/a/${collectionName}/${appName}/e`
+}
