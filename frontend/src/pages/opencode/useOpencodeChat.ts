@@ -203,30 +203,38 @@ export function useOpencodeChat() {
     }
   }
 
-  // Tear down everything client-side: the in-flight fetch, the streaming flag,
-  // the transcript, the lookup indexes, the persisted session id, and the
-  // partKind map. Shared by `clear` (drop the view) and `resetSession`
-  // (kill + drop) so the two stay in lockstep.
-  function resetLocal() {
+  // Tear down the client view: the in-flight fetch, the streaming flag, the
+  // transcript, the lookup indexes, and the partKind map. Does NOT touch the
+  // session — `clear` calls this directly to wipe only the window while keeping
+  // the daemon session for continuity; `resetSession` layers the session-id drop
+  // on top via `resetLocal` (after killing the daemon session).
+  function clearView() {
     controller?.abort()
     streaming.value = false
     blocks.value = []
     partIndex.clear()
     permissionIndex.clear()
-    sessionId.value = null
-    storeSession(null)
     for (const key of Object.keys(partKind)) delete partKind[key]
   }
 
+  // `clearView` + drop the persisted session id. Used only by `resetSession`,
+  // which first frees the daemon session; that keeps the two buttons distinct.
+  function resetLocal() {
+    clearView()
+    sessionId.value = null
+    storeSession(null)
+  }
+
   function clear() {
-    // Drop the transcript and abandon the session so the next prompt starts a
-    // fresh opencode session. Best-effort abort an in-flight turn so the daemon
-    // isn't left running. The daemon session is NOT deleted here — the daemon
-    // keeps its context; use `resetSession` to free it.
+    // Drop the transcript but KEEP the session id, so the next prompt continues
+    // the same daemon session — the agent keeps its memory; only the window is
+    // wiped. Best-effort abort an in-flight turn first so the cleared view isn't
+    // repopulated by its deltas (the daemon session stays). To free the daemon
+    // session entirely, use `resetSession`.
     if (streaming.value && sessionId.value) {
       void postAbort(sessionId.value).catch(() => {})
     }
-    resetLocal()
+    clearView()
   }
 
   async function resetSession() {

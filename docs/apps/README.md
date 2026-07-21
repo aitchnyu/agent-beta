@@ -26,9 +26,11 @@ The committed **reference app** lives in `docs/apps/reference/` (copy it to
 ## Commands (workflow order)
 
 ```bash
-# 1. Install: run @setup (creates app+tables, commits) then @backend_test s.
-#    Rolls back the whole install on any failure. No CLI for creating
-#    apps/tables — that is @setup's job.
+# 1. Install: run @setup functions (resumes from the last completed), then
+#    @backend_tests. An app may declare several @setup functions (source
+#    order); buildbackend runs only the ones past the last completed, tracked
+#    via Application.executed_setups. Rolls back the whole install on any
+#    failure. No CLI for creating apps/tables — that is @setup's job.
 ./run djangomanage buildbackend <app>
 
 # 2. Build the app's frontend into its derived static folder (vite, emptyOutDir),
@@ -52,9 +54,14 @@ devserver or gunicorn worker picks up a `setup` install **without a restart**:
 `clear_app_caches`, which resets the worker's dynamic-model + app-module caches
 when the counter changes (no middleware needed).
 
-> Open issue: re-running `setup` on an already-installed app errors on the app
-> name unique constraint (the "track setup runs" TODO). Until that lands,
-> reinstalling means dropping the app first.
+> **Multi-step, resumable setups.** An app may declare several `@setup`
+> functions; they run in source order, and `buildbackend` **resumes from the
+> last completed one** — `Application.executed_setups` records the `__name__`s
+> that have finished, and only the suffix past that recorded prefix runs.
+> Forward-only (like DB migrations): a completed setup never re-runs; to redo
+> work, append a *new* setup. The loaded module's setup names must extend the
+> recorded prefix (same names, same order) — a rename, reorder, mid-list
+> deletion, or downgrade is refused with an error naming both lists.
 
 ## Mandatory shell checklist (definition of done for every app frontend)
 

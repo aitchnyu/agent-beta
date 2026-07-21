@@ -1,14 +1,7 @@
--------------
-
-New prompt:
-
-We will have multiple @setup decorators. It will collect into a list of functions. We must execute them in order. Store the last completed step in application in a new column.
-
-Test by having different versions of an app in different folders as mock. One app will have setup1. Another will have setup1 and setup2. Run first app, verify its installed. Mock path to second app, then verify build will run only second step. 
-
--------------------
-
 How to make /prompt endpoint as stateless as possible?
+
+Test session reset
+Proper border for all traces
 
 shared props - send application name?
 
@@ -20,14 +13,18 @@ Render with css - mention that css has to be rendered
 logger = logging.getLogger(__name__) - agent added
 
 Make a real app
-Test session reset
 
-Give chat to end users?
+## Give chat to end users?
+Limit file access to specific tree
+Specific tool calls
 
 ## Chatting
+Apps is not ignored in vcs
 Make a file browser, py, vue, json, images
+Available only to superruser, intended for /apps only
+Diff and blame renderer?
+Render images in md
 Markup with links that open in file browser
-Two phases
 
 Responses
     request command
@@ -66,14 +63,7 @@ Long lived connections for notifications
 Tool to analyse error logs and stacktraces
 Opencode as service
 Whitelist of services
-
-## Agents and terminals
-https://github.com/butlerx/wetty
-https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/rpc.md
-https://github.com/tsl0922/ttyd
-https://github.com/xtermjs/xterm.js#browser-support
-https://xtermjs.org/ - lots of users, including clouds. Plugins for images and links/rich text
-https://github.com/open-webui/open-terminal - agent stuff
+Serve files in fs, accelerate using Caddy
 
 ## Separate frontends
 Very easy to build individually, can add new libraries etc

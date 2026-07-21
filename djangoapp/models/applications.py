@@ -115,6 +115,15 @@ class Application(models.Model):
     )
     name = models.CharField(max_length=100, unique=True, validators=[app_name_validator])
     description = models.TextField(blank=True, default="")
+    # Ordered ``__name__``s of the app's ``@setup`` functions that have already
+    # completed, in completion order — the app's install "phase". The runner
+    # resumes by checking that the loaded module's setups are an exact prefix
+    # of this list (forward-only, like DB migrations): it runs only the suffix
+    # the file adds beyond the recorded prefix. ``blank=True`` because a row is
+    # born empty inside step 1 (``create_application`` runs ``full_clean``
+    # before the runner can append); the runner populates it as each setup
+    # completes. A committed row is never empty.
+    executed_setups = models.JSONField(default=list, blank=True)
 
     class Meta:
         db_table = "application"

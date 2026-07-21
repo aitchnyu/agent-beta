@@ -13,6 +13,10 @@ the function's kind (no instance to create):
     def setup_app() -> None:
         ...  # create_application(...)
 
+    # An app may declare several @setup functions; they run in source order,
+    # and the runner resumes from the last completed one (see
+    # Application.executed_setups).
+
     @get_endpoint
     def facts(request: HttpRequest) -> FactsOut:
         ...
@@ -30,7 +34,7 @@ other verbs return a Pydantic model or dict (JSON).
 
 The loader imports the module and constructs a :class:`DynamicModule` from it,
 which scans the module's namespace for the marked functions and exposes them as
-``setup_function`` / ``endpoints`` / ``backend_tests`` / ``playwright_tests``.
+``setups`` / ``endpoints`` / ``backend_tests`` / ``playwright_tests``.
 ``DynamicModule`` is constructed only by the loader — app authors never
 instantiate it.
 """
@@ -205,7 +209,12 @@ class DynamicModule:
     app.py. Iterates ``vars(module)`` in definition order (CPython preserves it)
     and groups callables by their ``_app_marker``:
 
-    - setup_function, the single ``@setup`` callable (required)
+    - setups, the list of ``@setup`` callables (definition order; may be empty).
+      The runner executes them in this order and resumes from the last
+      completed one — see ``Application.executed_setups``. A module-level name
+      binds once, so a second ``def setup_app`` (under any marker) rebinds it
+      and the earlier definition is simply gone before discovery; duplicate
+      ``__name__``s therefore cannot reach this list.
     - endpoints, dict ``name -> Endpoint`` (one method per name). Uniqueness is
       structural, not a runtime check: a module-level name binds once, so a
       second ``def foo`` (even under a different ``@verb_endpoint``) rebinds it
@@ -214,16 +223,18 @@ class DynamicModule:
     - backend_tests, list of ``@backend_test`` (definition order)
     - playwright_tests, list of ``@playwright_test`` (definition order)
 
-    Raises ``ValueError`` if the module has no @setup function.
+    An app may declare zero ``@setup`` functions: ``setups`` is then an empty
+    list, and ``buildbackend`` runs its ``@backend_test``s + bumps the
+    generation but creates no ``Application`` row (no setup to make one).
     """
 
-    setup_function: Callable[..., object]
+    setups: list[Callable[..., object]]
     endpoints: dict[str, Endpoint]
     backend_tests: list[Callable[..., object]]
     playwright_tests: list[Callable[..., object]]
 
     def __init__(self, module: ModuleType) -> None:
-        setup_function: Callable[..., object] | None = None
+        self.setups = []
         self.endpoints = {}
         self.backend_tests = []
         self.playwright_tests = []
@@ -232,17 +243,13 @@ class DynamicModule:
                 continue
             kind = getattr(obj, _MARKER_ATTR, None)
             if kind == SETUP:
-                setup_function = obj
+                self.setups.append(obj)
             elif kind in MARKER_METHOD:
                 self.endpoints[obj.__name__] = Endpoint(method=MARKER_METHOD[kind], func=obj)
             elif kind == BACKEND_TEST:
                 self.backend_tests.append(obj)
             elif kind == PLAYWRIGHT_TEST:
                 self.playwright_tests.append(obj)
-        if setup_function is None:
-            msg = f"{module.__name__} has no @setup function."
-            raise ValueError(msg)
-        self.setup_function = setup_function
 
     def has_endpoint(self, name: str) -> bool:
         """Whether an endpoint with ``name`` is registered (under any method)."""
@@ -297,7 +304,7 @@ class AppModuleLoader:
     """Load app modules by ``app.py`` path, cache them, and return their handler.
 
     ``load`` returns a :class:`DynamicModule` built from the module — the handler
-    exposing ``setup_function`` / ``endpoints`` / ``backend_tests`` /
+    exposing ``setups`` / ``endpoints`` / ``backend_tests`` /
     ``playwright_tests``. Each load first syncs the in-memory caches to the live
     apps generation (see :func:`clear_app_caches`), so a ``setup`` install in
     another process is picked up without a server restart.

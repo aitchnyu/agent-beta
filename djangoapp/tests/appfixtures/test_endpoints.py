@@ -18,7 +18,6 @@ from djangoapp.apps.dynamic_module import (
     InertiaPage,
     a_test_request,
     post_endpoint,
-    setup,
 )
 from djangoapp.management.commands.buildbackend import build_backend
 from djangoapp.models.dynamic import dynamic_models
@@ -177,24 +176,18 @@ class EndpointViewTests(TestCase):
                 self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
 
-@setup
-def _placeholder_setup() -> None:
-    """Stand-in ``@setup`` so synthetic modules load (DynamicModule requires one)."""
-
-
 def _synthetic_module(*fns: Callable[..., object]) -> ModuleType:
-    """Build a throwaway module carrying ``fns`` plus a placeholder ``@setup``.
+    """Build a throwaway module carrying ``fns`` (no ``@setup`` required).
 
     Keys are positional (``_0``, ``_1``, …) so two functions sharing an
     ``__name__`` both survive in ``vars(module)`` — ``DynamicModule`` reads the
     endpoint name from ``obj.__name__``, not the dict key.
     """
     mod = types.ModuleType("synthetic")
-    # Populate via vars() subscripts: mypy rejects `mod._setup = ...` (ModuleType
+    # Populate via vars() subscripts: mypy rejects `mod._0 = ...` (ModuleType
     # has no such attribute), and ruff's unsafe-fixes would convert setattr(...) back
     # to that assignment. Dict-key assignment is stable under both.
     namespace = vars(mod)
-    namespace["_setup"] = _placeholder_setup
     for i, fn in enumerate(fns):
         namespace[f"_{i}"] = fn
     return mod
