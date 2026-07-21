@@ -203,7 +203,7 @@ class _OpencodeProxyMixin:
         """A daemon transport failure (conn refused/DNS/timeout) -> 502, not 500."""
         self.client.force_login(self.superuser)  # type: ignore[attr-defined]
         with patch(
-            "djangoapp.views.opencode.httpx.post",
+            "djangoapp.views.opencode.httpx.request",
             side_effect=httpx.HTTPError("conn refused"),
         ):
             self.assertEqual(self._post().status_code, HTTPStatus.BAD_GATEWAY)  # type: ignore[attr-defined]
@@ -254,7 +254,7 @@ class OpencodePermissionTests(_OpencodeProxyMixin, TestCase):
         """A valid decision is forwarded to opencode with the same body, no extra fields."""
         self.client.force_login(self.superuser)
         with patch(
-            "djangoapp.views.opencode.httpx.post", return_value=Mock(is_success=True)
+            "djangoapp.views.opencode.httpx.request", return_value=Mock(is_success=True)
         ) as posted:
             response = self.client.post(
                 "/api/opencode/permission/ses_x/per_x/",
@@ -263,6 +263,7 @@ class OpencodePermissionTests(_OpencodeProxyMixin, TestCase):
             )
         self.assertEqual(response.status_code, HTTPStatus.OK)
         posted.assert_called_once_with(
+            "POST",
             f"{opencode._OPENCODE_BASE}/session/ses_x/permissions/per_x",
             json={"response": "always"},
             timeout=opencode._OPENCODE_TIMEOUT,
@@ -272,16 +273,25 @@ class OpencodePermissionTests(_OpencodeProxyMixin, TestCase):
         """Opencode rejection surfaces as 502, not 200 with ``ok:false``."""
         self.client.force_login(self.superuser)
         with patch(
-            "djangoapp.views.opencode.httpx.post",
+            "djangoapp.views.opencode.httpx.request",
             return_value=Mock(is_success=False, text="no such permission"),
-        ):
+        ) as posted:
             response = self.client.post(
                 "/api/opencode/permission/ses_x/per_x/",
                 {"response": "once"},
                 content_type="application/json",
             )
+        # The mock must actually intercept (and be the rejection, not a transport
+        # error): assert the exact call + detail-from-body so a drifted patch
+        # target can't let a real httpx call raise HTTPError and still pass 502.
+        posted.assert_called_once_with(
+            "POST",
+            f"{opencode._OPENCODE_BASE}/session/ses_x/permissions/per_x",
+            json={"response": "once"},
+            timeout=opencode._OPENCODE_TIMEOUT,
+        )
         self.assertEqual(response.status_code, HTTPStatus.BAD_GATEWAY)
-        self.assertEqual(response.json()["ok"], False)
+        self.assertEqual(response.json(), {"ok": False, "detail": "no such permission"})
 
 
 class OpencodeAbortTests(_OpencodeProxyMixin, TestCase):
@@ -311,14 +321,68 @@ class OpencodeAbortTests(_OpencodeProxyMixin, TestCase):
         """A superuser stop is forwarded to opencode's session abort."""
         self.client.force_login(self.superuser)
         with patch(
-            "djangoapp.views.opencode.httpx.post", return_value=Mock(is_success=True)
+            "djangoapp.views.opencode.httpx.request", return_value=Mock(is_success=True)
         ) as posted:
             response = self.client.post("/api/opencode/abort/ses_x/")
         self.assertEqual(response.status_code, HTTPStatus.OK)
         posted.assert_called_once_with(
+            "POST",
             f"{opencode._OPENCODE_BASE}/session/ses_x/abort",
             timeout=opencode._OPENCODE_TIMEOUT,
         )
+
+
+class OpencodeDeleteSessionTests(_OpencodeProxyMixin, TestCase):
+    """Session-delete endpoint POST /api/opencode/delete/<sid>/.
+
+    The proxy stays POST (CSRF/axios consistency) and translates to opencode's
+    ``DELETE /session/:id``. Inherits non-superuser-404, wrong-method-405,
+    transport-error-502 from the mixin.
+
+    - test_anonymous_404, unauthenticated POST is 404
+    - test_proxies_to_opencode_as_delete, a superuser POST is forwarded as DELETE
+    - test_proxies_opencode_failure_returns_502, opencode rejection -> 502
+    """
+
+    endpoint = "/api/opencode/delete/ses_x/"
+    body: ClassVar[dict[str, Any]] = {}
+    superuser: ClassVar[User]
+    plain: ClassVar[User]
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.superuser = User.objects.create_user(username="admin", is_superuser=True, is_staff=True)
+        cls.plain = User.objects.create_user(username="plain")
+
+    def test_anonymous_404(self) -> None:
+        """Unauthenticated POST never reaches the opencode delete endpoint."""
+        response = self.client.post("/api/opencode/delete/ses_x/")
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_proxies_to_opencode_as_delete(self) -> None:
+        """The POST proxy is forwarded to opencode as ``DELETE /session/:id``."""
+        self.client.force_login(self.superuser)
+        with patch(
+            "djangoapp.views.opencode.httpx.request", return_value=Mock(is_success=True)
+        ) as posted:
+            response = self.client.post("/api/opencode/delete/ses_x/")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        posted.assert_called_once_with(
+            "DELETE",
+            f"{opencode._OPENCODE_BASE}/session/ses_x",
+            timeout=opencode._OPENCODE_TIMEOUT,
+        )
+
+    def test_proxies_opencode_failure_returns_502(self) -> None:
+        """An opencode rejection (e.g. unknown session) surfaces as 502."""
+        self.client.force_login(self.superuser)
+        with patch(
+            "djangoapp.views.opencode.httpx.request",
+            return_value=Mock(is_success=False, text="no such session"),
+        ):
+            response = self.client.post("/api/opencode/delete/ses_x/")
+        self.assertEqual(response.status_code, HTTPStatus.BAD_GATEWAY)
+        self.assertEqual(response.json()["ok"], False)
 
 
 class OpencodeStreamCoreTests(TestCase):

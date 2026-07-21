@@ -7,8 +7,17 @@ import { useOpencodeChat } from "./opencode/useOpencodeChat"
 import { blockKey } from "./opencode/types"
 
 const input = ref("")
-const { blocks, streaming, send, stop, clear, answerPermission } =
-  useOpencodeChat()
+const {
+  blocks,
+  streaming,
+  resetting,
+  hasSession,
+  send,
+  stop,
+  clear,
+  resetSession,
+  answerPermission,
+} = useOpencodeChat()
 
 async function sendPrompt() {
   const message = input.value.trim()
@@ -99,6 +108,14 @@ async function sendPrompt() {
           @click="clear"
         >
           Clear conversation
+        </button>
+        <button
+          class="btn btn-sm btn-outline-danger opencode-reset"
+          type="button"
+          :disabled="!hasSession || resetting || streaming"
+          @click="resetSession"
+        >
+          {{ resetting ? "Resetting…" : "Reset session" }}
         </button>
       </div>
     </div>

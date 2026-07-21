@@ -1,8 +1,8 @@
-import { nextTick, onUnmounted, reactive, ref } from "vue"
+import { computed, nextTick, onUnmounted, reactive, ref } from "vue"
 import axios from "axios"
 import { OpencodeEventSchema } from "../../schemas"
 import type { Part, PermissionAsked } from "../../schemas"
-import { postAbort, postPermission } from "./api"
+import { postAbort, postDeleteSession, postPermission } from "./api"
 import { parsePermissionBlock } from "./types"
 import type {
   Block,
@@ -102,6 +102,10 @@ export function useOpencodeChat() {
   const blocks = ref<Block[]>([])
   const sessionId = ref<string | null>(loadStoredSession())
   const streaming = ref(false)
+  // True while a Reset-session round-trip (abort + daemon delete) is in flight,
+  // so the button can disable and re-entry is blocked.
+  const resetting = ref(false)
+  const hasSession = computed(() => sessionId.value !== null)
   // Plain `let` (no reactivity needed; never read in a template/computed).
   let controller: AbortController | null = null
   // Lifecycle flag so events arriving after unmount (the fetch is still
@@ -199,19 +203,12 @@ export function useOpencodeChat() {
     }
   }
 
-  function clear() {
-    // Drop the transcript and abandon the session so the next prompt starts a
-    // fresh opencode session (the daemon remembers the old one's context —
-    // clearing only the visible blocks would leave the agent's memory intact).
-    // If a turn is streaming, ask the daemon to abort (best-effort, not
-    // awaited — don't block the UI on it) and tear down the client fetch.
-    if (streaming.value && sessionId.value) {
-      void postAbort(sessionId.value).catch(() => {})
-    }
+  // Tear down everything client-side: the in-flight fetch, the streaming flag,
+  // the transcript, the lookup indexes, the persisted session id, and the
+  // partKind map. Shared by `clear` (drop the view) and `resetSession`
+  // (kill + drop) so the two stay in lockstep.
+  function resetLocal() {
     controller?.abort()
-    // Reset the streaming flag now rather than waiting for the fetch to reject
-    // — otherwise the input stays disabled and the Stop button lingers, making
-    // the Clear look like a no-op.
     streaming.value = false
     blocks.value = []
     partIndex.clear()
@@ -219,6 +216,43 @@ export function useOpencodeChat() {
     sessionId.value = null
     storeSession(null)
     for (const key of Object.keys(partKind)) delete partKind[key]
+  }
+
+  function clear() {
+    // Drop the transcript and abandon the session so the next prompt starts a
+    // fresh opencode session. Best-effort abort an in-flight turn so the daemon
+    // isn't left running. The daemon session is NOT deleted here — the daemon
+    // keeps its context; use `resetSession` to free it.
+    if (streaming.value && sessionId.value) {
+      void postAbort(sessionId.value).catch(() => {})
+    }
+    resetLocal()
+  }
+
+  async function resetSession() {
+    // Kill the daemon session entirely (frees its history/context) and reset
+    // the view. Re-entry is blocked while a reset is in flight.
+    if (resetting.value || !sessionId.value) return
+    resetting.value = true
+    const sid = sessionId.value
+    const wasStreaming = streaming.value
+    // Tear down the client stream first so the UI stops spinning while the
+    // daemon round-trip runs. `send`'s finally sets streaming=false and freezes
+    // pending cards on this abort (AbortError is not surfaced as a toast).
+    controller?.abort()
+    try {
+      // Abort the turn before deleting it (deleting a running session is
+      // undefined). Both calls are best-effort: a daemon-down failure still
+      // resets the client — the session is effectively gone from the user's
+      // view — and surfaces a toast so the failure isn't silent.
+      if (wasStreaming) await postAbort(sid).catch(() => {})
+      await postDeleteSession(sid)
+    } catch (e: unknown) {
+      showErrorToast(e, "Failed to reset session")
+    } finally {
+      resetLocal()
+      resetting.value = false
+    }
   }
 
   onUnmounted(() => {
@@ -411,9 +445,12 @@ export function useOpencodeChat() {
   return {
     blocks,
     streaming,
+    resetting,
+    hasSession,
     send,
     stop,
     clear,
+    resetSession,
     answerPermission,
   }
 }

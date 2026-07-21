@@ -1,6 +1,21 @@
+Remove collections. Apps will be in one namespace. You can clean the db if moving files around does not work out.
+
+Instead of http://127.0.0.1:8000/apps/a/collection/Page/e, it will be http://127.0.0.1:8000/apps/Page for homepage. No collection in paths. Other endpoints will be under /e.
+
+Propose me the endpoint changes.
+
+-----------------
+
+New prompt:
+
+We will have multiple @setup decorators. It will collect into a list of functions. We must execute them in order. Store the last completed step in application in a new column.
+
+Test by having different versions of an app in different folders as mock. One app will have setup1. Another will have setup1 and setup2. Run first app, verify its installed. Mock path to second app, then verify build will run only second step. 
+
+-------------------
+
 How to make /prompt endpoint as stateless as possible?
 
-Track setup runs - skip the completed ones
 shared props - send collection and application name
 
 ↑ Back to Trivia Open Facts - should be at top
@@ -8,16 +23,10 @@ shared props - send collection and application name
 
 Render with css - mention that css has to be rendered
 
-Can we reset session or kill agent?
-
-Have checkpoint for running setup repeatedly?
-```python
-if savepoint('')
-```
-
 logger = logging.getLogger(__name__) - agent added
 
 Make a real app
+Test reset
 
 Give chat to end users?
 

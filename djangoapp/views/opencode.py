@@ -154,6 +154,17 @@ def abort(request: HttpRequest, session_id: str) -> HttpResponse:
     return _forward(f"/session/{_encode_path_segment(session_id)}/abort")
 
 
+@opencode_router.post("/delete/{session_id}/", response=None)
+def delete_session(request: HttpRequest, session_id: str) -> HttpResponse:
+    """Delete the opencode session and all its data (history/context).
+
+    The proxy stays POST (CSRF/axios consistency with the other proxies) and
+    translates to opencode's ``DELETE /session/:id`` here.
+    """
+    _require_superuser(request)
+    return _forward(f"/session/{_encode_path_segment(session_id)}", method="DELETE")
+
+
 def _encode_path_segment(value: str) -> str:
     """URL-encode a path component.
 
@@ -162,18 +173,24 @@ def _encode_path_segment(value: str) -> str:
     return quote(value, safe="")
 
 
-def _forward(path: str, *, json_body: dict[str, Any] | None = None) -> HttpResponse:
-    """POST to opencode at ``path`` and return a JSON status response.
+def _forward(
+    path: str, *, json_body: dict[str, Any] | None = None, method: str = "POST"
+) -> HttpResponse:
+    """Forward a request to opencode at ``path`` and return a JSON status response.
 
     Success → ``200 {"ok": true}``. Failure → ``502 {"ok": false, "detail"}``
     so HTTP status alone distinguishes transport success from opencode
     rejection (the frontend's axios throws on 502, surfacing a toast).
+
+    ``method`` defaults to POST (permission/abort); the session-delete proxy
+    passes ``DELETE`` — opencode's session removal is ``DELETE /session/:id``,
+    not POST.
     """
     kwargs: dict[str, Any] = {"timeout": _OPENCODE_TIMEOUT}
     if json_body is not None:
         kwargs["json"] = json_body
     try:
-        opencode_resp = httpx.post(f"{_OPENCODE_BASE}{path}", **kwargs)
+        opencode_resp = httpx.request(method, f"{_OPENCODE_BASE}{path}", **kwargs)
     except httpx.HTTPError as exc:
         detail = str(exc)
         logger.warning("opencode transport error for %s: %s", path, detail)

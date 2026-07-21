@@ -29,3 +29,12 @@ export async function postAbort(sessionId: string): Promise<void> {
     (await axios.post(`/api/opencode/abort/${sessionId}/`)).data,
   )
 }
+
+// Delete the session on the daemon
+// Used by the "Reset session" button to free the daemon's conversation
+// history/context, not just drop the client's handle.
+export async function postDeleteSession(sessionId: string): Promise<void> {
+  OpencodeActionResponseSchema.parse(
+    (await axios.post(`/api/opencode/delete/${sessionId}/`)).data,
+  )
+}
