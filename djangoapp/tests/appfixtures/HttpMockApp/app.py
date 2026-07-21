@@ -28,8 +28,7 @@ from djangoapp.apps.shortcuts import (
     setup,
 )
 
-COLLECTION = "Tests"
-APP = "Mock"
+APP = "HttpMockApp"
 TABLE = "facts"
 FACT_URL = "https://example.com/facts/random"
 
@@ -46,14 +45,12 @@ def _fetch_json(url: str) -> dict[str, Any]:
 
 @setup
 def setup_app() -> None:
-    """Create the Http/Mock app + a facts table seeded with a fallback row."""
-    dynamic_models.create_application_collection(COLLECTION)
+    """Create the HttpMockApp + a facts table seeded with a fallback row."""
     dynamic_models.create_application(
-        collection=COLLECTION,
         name=APP,
         tables={TABLE: [TextColumn("content")]},
     )
-    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
+    model = Application.objects.get(name=APP).table_as_model(TABLE)
     model.objects.create(content="local fallback fact")
 
 
@@ -64,7 +61,7 @@ def random_fact(request: HttpRequest) -> FactOut:
         data = _fetch_json(FACT_URL)
         return FactOut(fact=str(data["fact"]))
     except OSError, KeyError, ValueError:
-        model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
+        model = Application.objects.get(name=APP).table_as_model(TABLE)
         row = model.objects.order_by("?").first()
         return FactOut(fact=row.content if row else "")
 

@@ -28,8 +28,7 @@ from djangoapp.apps.shortcuts import (
     setup,
 )
 
-COLLECTION = "Tests"
-APP = "Endpoints"
+APP = "EndpointsApp"
 TABLE = "items"
 # ≥2 distinct codes so the randomness test sees more than one value.
 ITEMS = ["A1", "A2", "A3"]
@@ -61,28 +60,26 @@ class CountOut(BaseModel):
 
 @setup
 def setup_app() -> None:
-    """Create the Tests/Endpoints app + an items table seeded with rows."""
-    dynamic_models.create_application_collection(COLLECTION)
+    """Create the EndpointsApp app + an items table seeded with rows."""
     dynamic_models.create_application(
-        collection=COLLECTION,
         name=APP,
         tables={TABLE: [CharColumn("code", max_length=10)]},
     )
-    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
+    model = Application.objects.get(name=APP).table_as_model(TABLE)
     model.objects.bulk_create([model(code=code) for code in ITEMS])
 
 
 def _row_count() -> int:
     # table_as_model returns a dynamic model typed as Any, so annotate the local
     # to keep the int return type without a cast (count() is int at runtime).
-    count: int = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.count()
+    count: int = Application.objects.get(name=APP).table_as_model(TABLE).objects.count()
     return count
 
 
 @get_endpoint
 def random_code(request: HttpRequest) -> CodeOut:
     """GET endpoint returning one seeded code at random."""
-    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
+    model = Application.objects.get(name=APP).table_as_model(TABLE)
     row = model.objects.order_by("?").first()
     return CodeOut(code=row.code if row else "")
 
@@ -90,7 +87,7 @@ def random_code(request: HttpRequest) -> CodeOut:
 @get_endpoint
 def default(request: HttpRequest) -> CodeOut:
     """GET endpoint served at the bare ``/e`` route (the app's default page)."""
-    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
+    model = Application.objects.get(name=APP).table_as_model(TABLE)
     row = model.objects.first()
     return CodeOut(code=row.code if row else "")
 
@@ -98,7 +95,7 @@ def default(request: HttpRequest) -> CodeOut:
 @get_endpoint
 def endpoint_page(request: HttpRequest) -> InertiaPage[EndpointPageProps]:
     """GET endpoint rendering the first seeded row's code as an Inertia page."""
-    row = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.first()
+    row = Application.objects.get(name=APP).table_as_model(TABLE).objects.first()
     return InertiaPage(
         component="EndpointPage", props=EndpointPageProps(code=row.code if row else "")
     )
@@ -107,18 +104,14 @@ def endpoint_page(request: HttpRequest) -> InertiaPage[EndpointPageProps]:
 @post_endpoint
 def echo(request: HttpRequest) -> CreatedOut:
     """POST: insert a fixed row and return its code (exercises POST dispatch)."""
-    row = (
-        Application.get_by_names(COLLECTION, APP)
-        .table_as_model(TABLE)
-        .objects.create(code="echoed")
-    )
+    row = Application.objects.get(name=APP).table_as_model(TABLE).objects.create(code="echoed")
     return CreatedOut(created=row.code)
 
 
 @put_endpoint
 def rename_first(request: HttpRequest) -> CountOut:
     """PUT: re-title the first row's code, then return the (unchanged) row count."""
-    row = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.first()
+    row = Application.objects.get(name=APP).table_as_model(TABLE).objects.first()
     if row is not None:
         row.code = "renamed"
         row.save()
@@ -128,7 +121,7 @@ def rename_first(request: HttpRequest) -> CountOut:
 @delete_endpoint
 def drop_first(request: HttpRequest) -> CountOut:
     """DELETE: remove the first row, then return the new (lower) row count."""
-    row = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.first()
+    row = Application.objects.get(name=APP).table_as_model(TABLE).objects.first()
     if row is not None:
         row.delete()
     return CountOut(count=_row_count())

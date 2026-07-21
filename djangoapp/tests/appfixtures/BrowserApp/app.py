@@ -37,8 +37,7 @@ from djangoapp.apps.shortcuts import (
 if TYPE_CHECKING:
     from playwright.sync_api import BrowserContext
 
-COLLECTION = "Tests"
-APP = "Browser"
+APP = "BrowserApp"
 TABLE = "items"
 SEED = "hi"
 # Codes the browser rollback-proof @playwright_test writes; within the ``code``
@@ -74,19 +73,17 @@ class ModifiedOut(BaseModel):
 @setup
 def setup_app() -> None:
     """Create the Tests/Browser app + an items table seeded with one row."""
-    dynamic_models.create_application_collection(COLLECTION)
     dynamic_models.create_application(
-        collection=COLLECTION,
         name=APP,
         tables={TABLE: [CharColumn("code", max_length=10)]},
     )
-    Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.create(code=SEED)
+    Application.objects.get(name=APP).table_as_model(TABLE).objects.create(code=SEED)
 
 
 @get_endpoint
 def browser_page(request: HttpRequest) -> InertiaPage[BrowserPageProps]:
     """Inertia page: the seeded row's code as a prop."""
-    row = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.first()
+    row = Application.objects.get(name=APP).table_as_model(TABLE).objects.first()
     return InertiaPage(
         component="BrowserPage", props=BrowserPageProps(value=row.code if row else "")
     )
@@ -95,7 +92,7 @@ def browser_page(request: HttpRequest) -> InertiaPage[BrowserPageProps]:
 @get_endpoint
 def current_value(request: HttpRequest) -> ValueOut:
     """GET endpoint the page's Refresh button calls (the seeded value)."""
-    row = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.first()
+    row = Application.objects.get(name=APP).table_as_model(TABLE).objects.first()
     return ValueOut(value=row.code if row else "")
 
 
@@ -107,9 +104,7 @@ def create_row(request: HttpRequest) -> CreatedOut:
     the insert is visible within this request's response, then
     ``RollbackEveryRequestMiddleware`` rolls it back.
     """
-    Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.create(
-        code=BROWSER_WRITE
-    )
+    Application.objects.get(name=APP).table_as_model(TABLE).objects.create(code=BROWSER_WRITE)
     return CreatedOut(created=BROWSER_WRITE)
 
 
@@ -120,7 +115,7 @@ def modify_seed(request: HttpRequest) -> ModifiedOut:
     Like :func:`create_row`, a test-fixture-only side-effecting write: the new
     code is visible within this request's response, then rolled back.
     """
-    row = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE).objects.get(code=SEED)
+    row = Application.objects.get(name=APP).table_as_model(TABLE).objects.get(code=SEED)
     row.code = MODIFY_TO
     row.save()
     return ModifiedOut(value=MODIFY_TO)
@@ -131,7 +126,7 @@ def test_page_renders_seed(context: BrowserContext, base_url: str) -> None:
     """The built app mounts, renders the seed, and Refresh round-trips the GET endpoint."""
     page = context.new_page()
     try:
-        page.goto(f"{base_url}/apps/a/{COLLECTION}/{APP}/e/browser_page")
+        page.goto(f"{base_url}/apps/{APP}/e/browser_page")
         page.wait_for_selector(".browser-value")
         assert page.locator(".browser-value").text_content() == SEED
         page.locator(".browser-refresh").click()
@@ -158,7 +153,7 @@ def test_inprocess_write_is_visible_to_self(context: BrowserContext, base_url: s
     connection can't see it, hence no browser verify. BuildFrontendDrivesPlaywrightTests
     asserts the probe is gone after the drive.
     """
-    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
+    model = Application.objects.get(name=APP).table_as_model(TABLE)
     model.objects.create(code=ROLLBACK_PROBE)
     assert model.objects.filter(code=ROLLBACK_PROBE).exists()
 
@@ -171,7 +166,7 @@ def test_browser_insert_round_trips(context: BrowserContext, base_url: str) -> N
     middleware; the inserted code is in the response (visible for the request's
     lifetime), and the middleware rolls it back after.
     """
-    resp = context.request.post(f"{base_url}/apps/a/{COLLECTION}/{APP}/e/create_row")
+    resp = context.request.post(f"{base_url}/apps/{APP}/e/create_row")
     assert resp.ok
     assert resp.json()["created"] == BROWSER_WRITE
 
@@ -184,6 +179,6 @@ def test_browser_modify_round_trips(context: BrowserContext, base_url: str) -> N
     the middleware rolls the update back after, so the seed keeps its original
     value.
     """
-    resp = context.request.put(f"{base_url}/apps/a/{COLLECTION}/{APP}/e/modify_seed")
+    resp = context.request.put(f"{base_url}/apps/{APP}/e/modify_seed")
     assert resp.ok
     assert resp.json()["value"] == MODIFY_TO

@@ -1,9 +1,9 @@
 # ruff: noqa: INP001, ANN401, ARG001 # template reference app; loaded by path, not a package; Any dynamic model; request param unused by these endpoints
-"""Reference app: copy this to ``apps/<collection>/<app>/`` to start a new app.
+"""Reference app: copy this to ``apps/<app>/`` to start a new app.
 
 Demonstrates the full contract:
 
-- ``@setup`` installs the collection/app + a table;
+- ``@setup`` installs the app + a table;
 - ``@get_endpoint current_count`` returns JSON the page fetches (axios + zod);
 - ``@get_endpoint reference_page`` renders an Inertia page (via an ``InertiaPage``
   return) with the app's own bundle;
@@ -34,8 +34,7 @@ from djangoapp.apps.shortcuts import (
 if TYPE_CHECKING:
     from playwright.sync_api import BrowserContext
 
-COLLECTION = "Reference"
-APP = "Demo"
+APP = "ReferenceDemo"
 TABLE = "items"
 
 
@@ -52,15 +51,13 @@ class CountOut(BaseModel):
 
 
 def _model() -> Any:
-    return Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
+    return Application.objects.get(name=APP).table_as_model(TABLE)
 
 
 @setup
 def setup_app() -> None:
-    """Create the collection/app/table and seed one row."""
-    dynamic_models.create_application_collection(COLLECTION)
+    """Create the app/table and seed one row."""
     dynamic_models.create_application(
-        collection=COLLECTION,
         name=APP,
         tables={TABLE: [CharColumn("code", max_length=10)]},
     )
@@ -92,7 +89,7 @@ def test_reference_page_renders_and_interacts(context: BrowserContext, base_url:
     """The built app mounts, renders the count, and Refresh round-trips the GET endpoint."""
     page = context.new_page()
     try:
-        page.goto(f"{base_url}/apps/a/Reference/Demo/e/reference_page")
+        page.goto(f"{base_url}/apps/{APP}/e/reference_page")
         page.wait_for_selector(".ref-count")
         assert page.locator(".ref-count").text_content() == "1"
         page.locator(".ref-refresh").click()

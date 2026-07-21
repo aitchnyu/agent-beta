@@ -212,24 +212,22 @@ class UserColumn(Column):
 class ForeignKeyColumn(Column):
     """A ForeignKey column to another application table.
 
-    ``target`` is a ``(collection, app, table)`` triple naming the referenced
+    ``target`` is a ``(app, table)`` pair naming the referenced
     ``ApplicationTable``. It is resolved to the target row at column-creation
     time (by the registry, not here — this class stays DB-free), and the dynamic
     field references the target by its immutable ``physical_name``, so renaming
-    a collection/app/table display name never breaks the link. Self-reference
+    an app/table display name never breaks the link. Self-reference
     (``target`` naming the column's own table) is allowed (e.g. a tree parent).
     """
 
-    target: tuple[str, str, str] = field(kw_only=True)
+    target: tuple[str, str] = field(kw_only=True)
     column_type: ClassVar[ColumnType] = ColumnType.FOREIGN_KEY
 
     def _validate(self) -> None:
         if (
-            not isinstance(self.target, tuple) or len(self.target) != 3  # noqa: PLR2004 # (collection, app, table) triple arity
+            not isinstance(self.target, tuple) or len(self.target) != 2  # noqa: PLR2004 # (app, table) pair arity
         ):
-            msg = (
-                f"ForeignKeyColumn '{self.name}': target must be a (collection, app, table) triple."
-            )
+            msg = f"ForeignKeyColumn '{self.name}': target must be a (app, table) pair."
             raise ValueError(msg)
 
 

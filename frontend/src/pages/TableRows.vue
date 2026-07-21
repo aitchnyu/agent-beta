@@ -19,9 +19,7 @@ const SORT_OPTIONS = [
   { value: "edited_at", label: "Edited" },
 ]
 
-const manageHref = computed(
-  () => `/apps/a/${p.collection_name}/${p.app_name}/manage`,
-)
+const manageHref = computed(() => `/manage/apps/${p.app_name}`)
 
 const createdByCol: RowListColumnDef = {
   name: "created_by",
@@ -33,7 +31,7 @@ const createdByCol: RowListColumnDef = {
 function applyFilters(perPage: number, sort: string) {
   // Changing the page size or sort order starts from page 1.
   router.visit(
-    rowListUrl(p.collection_name, p.app_name, p.table_name, {
+    rowListUrl(p.app_name, p.table_name, {
       page: 1,
       per_page: perPage,
       sort,
@@ -43,7 +41,7 @@ function applyFilters(perPage: number, sort: string) {
 
 const prevHref = computed(() => {
   if (p.pagination.page <= 1) return null
-  return rowListUrl(p.collection_name, p.app_name, p.table_name, {
+  return rowListUrl(p.app_name, p.table_name, {
     page: p.pagination.page - 1,
     per_page: p.filters.per_page,
     sort: p.filters.sort,
@@ -52,7 +50,7 @@ const prevHref = computed(() => {
 
 const nextHref = computed(() => {
   if (p.pagination.page >= p.pagination.total_pages) return null
-  return rowListUrl(p.collection_name, p.app_name, p.table_name, {
+  return rowListUrl(p.app_name, p.table_name, {
     page: p.pagination.page + 1,
     per_page: p.filters.per_page,
     sort: p.filters.sort,
@@ -65,11 +63,7 @@ const nextHref = computed(() => {
     <div class="container apps-tablerows-page">
       <h1>{{ p.table_name }}</h1>
       <p class="text-muted">
-        <Link href="/apps/collections">Collections</Link> /
-        <Link :href="`/apps/a/${p.collection_name}/list`">{{
-          p.collection_name
-        }}</Link>
-        /
+        <Link href="/manage/apps">Apps</Link> /
         <Link :href="manageHref">{{ p.app_name }}</Link>
       </p>
       <div class="d-flex align-items-center gap-3 mb-3 apps-tablerows-controls">
@@ -129,14 +123,7 @@ const nextHref = computed(() => {
             <td class="apps-row-link-col">
               <Link
                 class="apps-row-link"
-                :href="
-                  rowDetailUrl(
-                    p.collection_name,
-                    p.app_name,
-                    p.table_name,
-                    row.public_id,
-                  )
-                "
+                :href="rowDetailUrl(p.app_name, p.table_name, row.public_id)"
                 >&rarr;</Link
               >
             </td>

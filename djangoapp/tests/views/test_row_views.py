@@ -7,7 +7,7 @@ from typing import Any, ClassVar, cast
 
 from inertia.test import InertiaTestCase
 
-from djangoapp.models import Application, ApplicationCollection, User
+from djangoapp.models import Application, User
 from djangoapp.models.columns import (
     BooleanColumn,
     CharColumn,
@@ -20,6 +20,8 @@ from djangoapp.models.columns import (
 )
 from djangoapp.models.dynamic import dynamic_models
 
+_APP = "OrdersData"
+
 
 class RowListPageTests(
     InertiaTestCase,
@@ -27,7 +29,7 @@ class RowListPageTests(
     """Superuser-only paginated row list for a table's dynamic model.
 
     - test_non_superuser_404, non-superuser gets 404
-    - test_missing_collection_404, unknown collection resolves to 404
+    - test_missing_app_404, unknown app resolves to 404
     - test_missing_table_404, unknown table resolves to 404
     - test_default_sort_and_pagination, defaults sort=created_at, per_page=25, page=1
     - test_invalid_sort_falls_back, unknown sort falls back to created_at (no 500)
@@ -37,24 +39,19 @@ class RowListPageTests(
 
     superuser: ClassVar[User]
     plain: ClassVar[User]
-    collection: ClassVar[ApplicationCollection]
     app: ClassVar[Application]
 
     @classmethod
     def setUpTestData(cls) -> None:
         cls.superuser = User.objects.create_user(username="admin", is_superuser=True, is_staff=True)
         cls.plain = User.objects.create_user(username="plain")
-        cls.collection = ApplicationCollection.objects.create(name="inv")
-        cls.app = cls.collection.applications.create(
-            name="orders",
-        )
+        cls.app = Application.objects.create(name=_APP)
 
     def setUp(self) -> None:
         super().setUp()
         dynamic_models.reset()
         self.table = dynamic_models.create_application_table(
-            collection="inv",
-            application="orders",
+            application=_APP,
             table="items",
             columns=[
                 CharColumn("code", max_length=100),
@@ -81,25 +78,25 @@ class RowListPageTests(
     def test_non_superuser_404(self) -> None:
         """non-superuser gets 404."""
         self.client.force_login(self.plain)
-        resp = self.client.get("/apps/a/inv/orders/manage/items/list")
+        resp = self.client.get(f"/manage/apps/{_APP}/items/list")
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
-    def test_missing_collection_404(self) -> None:
-        """Unknown collection resolves to 404."""
+    def test_missing_app_404(self) -> None:
+        """Unknown app resolves to 404."""
         self.client.force_login(self.superuser)
-        resp = self.client.get("/apps/a/nope/orders/manage/items/list")
+        resp = self.client.get("/manage/apps/UnknownApp/items/list")
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
     def test_missing_table_404(self) -> None:
         """Unknown table resolves to 404."""
         self.client.force_login(self.superuser)
-        resp = self.client.get("/apps/a/inv/orders/manage/nope/list")
+        resp = self.client.get(f"/manage/apps/{_APP}/nope/list")
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
     def test_default_sort_and_pagination(self) -> None:
         """Defaults sort=created_at, per_page=25, page=1."""
         self.client.force_login(self.superuser)
-        self.client.get("/apps/a/inv/orders/manage/items/list")
+        self.client.get(f"/manage/apps/{_APP}/items/list")
         self.assertComponentUsed("TableRows")
         props = self.props()["props"]
         self.assertEqual(props["filters"], {"per_page": 25, "page": 1, "sort": "created_at"})
@@ -110,21 +107,21 @@ class RowListPageTests(
     def test_invalid_sort_falls_back(self) -> None:
         """Unknown sort falls back to created_at (no 500)."""
         self.client.force_login(self.superuser)
-        resp = self.client.get("/apps/a/inv/orders/manage/items/list?sort=bogus")
+        resp = self.client.get(f"/manage/apps/{_APP}/items/list?sort=bogus")
         self.assertEqual(resp.status_code, HTTPStatus.OK)
         self.assertEqual(self.props()["props"]["filters"]["sort"], "created_at")
 
     def test_edited_at_sort(self) -> None:
         """sort=edited_at orders by most-recently-edited first."""
         self.client.force_login(self.superuser)
-        self.client.get("/apps/a/inv/orders/manage/items/list?sort=edited_at")
+        self.client.get(f"/manage/apps/{_APP}/items/list?sort=edited_at")
         # r1 was re-saved last, so it is first under edited_at desc.
         self.assertEqual(self.props()["props"]["rows"][0]["public_id"], self.r1._public_id)
 
     def test_owner_cell_pk_free(self) -> None:
         """Owner user column is a pk-free profile keyed by name."""
         self.client.force_login(self.superuser)
-        self.client.get("/apps/a/inv/orders/manage/items/list")
+        self.client.get(f"/manage/apps/{_APP}/items/list")
         owner_value = self.props()["props"]["rows"][0]["values"]["owner"]
         self.assertEqual(owner_value["public_id"], self.superuser.public_id)
 
@@ -142,24 +139,19 @@ class RowDetailPageTests(
 
     superuser: ClassVar[User]
     plain: ClassVar[User]
-    collection: ClassVar[ApplicationCollection]
     app: ClassVar[Application]
 
     @classmethod
     def setUpTestData(cls) -> None:
         cls.superuser = User.objects.create_user(username="admin", is_superuser=True, is_staff=True)
         cls.plain = User.objects.create_user(username="plain")
-        cls.collection = ApplicationCollection.objects.create(name="inv2")
-        cls.app = cls.collection.applications.create(
-            name="orders",
-        )
+        cls.app = Application.objects.create(name=_APP)
 
     def setUp(self) -> None:
         super().setUp()
         dynamic_models.reset()
         self.table = dynamic_models.create_application_table(
-            collection="inv2",
-            application="orders",
+            application=_APP,
             table="items",
             columns=[CharColumn("code", max_length=100), UserColumn("owner", nullable=True)],
         )
@@ -173,19 +165,19 @@ class RowDetailPageTests(
     def test_non_superuser_404(self) -> None:
         """non-superuser gets 404."""
         self.client.force_login(self.plain)
-        resp = self.client.get(f"/apps/a/inv2/orders/manage/items/id/{self.row._public_id}")
+        resp = self.client.get(f"/manage/apps/{_APP}/items/id/{self.row._public_id}")
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
     def test_missing_row_404(self) -> None:
         """Unknown public_id resolves to 404."""
         self.client.force_login(self.superuser)
-        resp = self.client.get("/apps/a/inv2/orders/manage/items/id/does-not-exist")
+        resp = self.client.get(f"/manage/apps/{_APP}/items/id/does-not-exist")
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
     def test_created_by_pk_free(self) -> None:
         """created_by is a {public_id, title} profile with no pk."""
         self.client.force_login(self.superuser)
-        self.client.get(f"/apps/a/inv2/orders/manage/items/id/{self.row._public_id}")
+        self.client.get(f"/manage/apps/{_APP}/items/id/{self.row._public_id}")
         self.assertComponentUsed("RowDetail")
         props = self.props()["props"]
         self.assertEqual(
@@ -196,7 +188,7 @@ class RowDetailPageTests(
     def test_timestamps_iso(self) -> None:
         """created_at/edited_at are ISO strings."""
         self.client.force_login(self.superuser)
-        self.client.get(f"/apps/a/inv2/orders/manage/items/id/{self.row._public_id}")
+        self.client.get(f"/manage/apps/{_APP}/items/id/{self.row._public_id}")
         props = self.props()["props"]
         self.assertEqual(props["created_at"], self.row._created_at.isoformat())
         self.assertEqual(props["edited_at"], self.row._edited_at.isoformat())
@@ -222,7 +214,6 @@ class RowValuesViewTests(InertiaTestCase):
     """
 
     superuser: ClassVar[User]
-    collection: ClassVar[ApplicationCollection]
     app: ClassVar[Application]
 
     @classmethod
@@ -230,26 +221,21 @@ class RowValuesViewTests(InertiaTestCase):
         cls.superuser = User.objects.create_user(
             username="values-admin", is_superuser=True, is_staff=True
         )
-        cls.collection = ApplicationCollection.objects.create(name="inv3")
-        cls.app = cls.collection.applications.create(
-            name="orders",
-        )
+        cls.app = Application.objects.create(name=_APP)
 
     def setUp(self) -> None:
         super().setUp()
         dynamic_models.reset()
         # "targets" exists before "items" so the foreign_key column can resolve.
         self.target_table = dynamic_models.create_application_table(
-            collection="inv3",
-            application="orders",
+            application=_APP,
             table="targets",
             columns=[CharColumn("code", max_length=10)],
         )
         self.target_model = cast("Any", self.target_table.as_model())
         self.target = self.target_model.objects.create(code="T1")
         self.table = dynamic_models.create_application_table(
-            collection="inv3",
-            application="orders",
+            application=_APP,
             table="items",
             columns=[
                 CharColumn("code", max_length=100),
@@ -259,7 +245,7 @@ class RowValuesViewTests(InertiaTestCase):
                 DecimalColumn("price", max_digits=10, decimal_places=2, nullable=True),
                 DateTimeColumn("due", nullable=True),
                 UserColumn("owner", nullable=True),
-                ForeignKeyColumn("ref", target=("inv3", "orders", "targets"), nullable=True),
+                ForeignKeyColumn("ref", target=(_APP, "targets"), nullable=True),
             ],
         )
         self.model = cast("Any", self.table.as_model())
@@ -301,7 +287,7 @@ class RowValuesViewTests(InertiaTestCase):
         }
 
     def _list_props(self, query: str = "") -> dict[str, Any]:
-        url = "/apps/a/inv3/orders/manage/items/list"
+        url = f"/manage/apps/{_APP}/items/list"
         if query:
             url += f"?{query}"
         self.client.get(url)
@@ -316,7 +302,7 @@ class RowValuesViewTests(InertiaTestCase):
 
     def test_all_values_in_detail(self) -> None:
         """Detail serialises every column type (decimal→str, datetime→ISO, user→profile)."""
-        self.client.get(f"/apps/a/inv3/orders/manage/items/id/{self.rows[15]._public_id}")
+        self.client.get(f"/manage/apps/{_APP}/items/id/{self.rows[15]._public_id}")
         values = cast("dict[str, Any]", self.props()["props"]["values"])
         self.assertEqual(values, self._expected_values(self.rows[15]))
 
@@ -327,7 +313,7 @@ class RowValuesViewTests(InertiaTestCase):
         self.assertEqual(ref_col["type"], "foreign_key")
         self.assertEqual(
             ref_col["fk_target"],
-            {"collection_name": "inv3", "app_name": "orders", "table_name": "targets"},
+            {"app_name": _APP, "table_name": "targets"},
         )
 
     def test_default_sort_created_at_desc(self) -> None:
@@ -355,5 +341,5 @@ class RowValuesViewTests(InertiaTestCase):
 
     def test_invalid_per_page_rejected(self) -> None:
         """per_page outside {25,50,100} is rejected with 422 (sent as a string)."""
-        resp = self.client.get("/apps/a/inv3/orders/manage/items/list?per_page=10")
+        resp = self.client.get(f"/manage/apps/{_APP}/items/list?per_page=10")
         self.assertEqual(resp.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)

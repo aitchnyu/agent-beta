@@ -63,26 +63,26 @@ or `is_active` flag. Because every `/users/*` route gates on an authenticated
 *active* superuser, the active-superuser count can never fall to zero through
 the UI.
 
-## Application collections, applications and tables
+## Applications and tables
 
-Mini-apps live in a three-level hierarchy: **collection → application →
-table**. Each table is materialised as a real Postgres table named
+Mini-apps live in a two-level hierarchy: **application → table**, all in one
+flat app namespace. Each table is materialised as a real Postgres table named
 `zz_<physical_name>`, where `physical_name` is an immutable, creation-time
 identifier (`<tablename><unix-seconds>`, generated once). Names start with a
 letter and are alphanumeric; the display **name** is the identity (used
 directly in URLs), so there are no separate slugs. Because the physical table
 is keyed by the immutable `physical_name` and not by the display name,
-renaming a collection, application, or table is a plain row update with
+renaming an application or table is a plain row update with
 **zero DDL** — no physical table is ever renamed.
 
 Manage everything through the `dynamic_models` registry (`djangoapp/models/dynamic.py`),
-the single home for all collection/app/table mutation. Each method runs in a
-transaction; collection/app renames and table renames are display-name-only
-updates with zero DDL. `delete_application` cascade-drops its tables;
-`delete_application_collection` refuses a non-empty collection. All arguments
-are keyword-only. There is no CLI for creating apps or tables — creation
-happens only through the registry, inside a setup script (see
-[App framework](#app-framework) below).
+the single home for all app/table mutation. Each method runs in a
+transaction; app renames and table renames are display-name-only
+updates with zero DDL. `delete_application` cascade-drops its tables.
+All arguments are keyword-only. There is no CLI for creating apps or
+tables — creation happens only through the registry, inside a setup script
+(see [App framework](#app-framework) below). Apps live in one flat namespace,
+so `name` is globally unique and must be at least 10 characters.
 
 Columns are declared with typed column classes (positional `name`, everything
 else keyword-only) from `djangoapp.models.columns`. The old `{"name", "type",
@@ -101,44 +101,37 @@ from djangoapp.models.columns import (
 )
 from djangoapp.models.dynamic import dynamic_models
 
-dynamic_models.create_application_collection("Inv")
-
 # description is kept (rich text, sanitized on save); tables are created
 # inline when given; script is a file path to the app's entry module.
 dynamic_models.create_application(
-    collection="Inv",
-    name="Orders",
+    name="OrdersData",
     description="...",
 )
 
 # create_application_table takes the same column objects (no duplicate or
 # existing names):
 dynamic_models.create_application_table(
-    collection="Inv",
-    application="Orders",
+    application="OrdersData",
     table="Items",
     columns=[CharColumn("code", max_length=10), IntegerColumn("qty", nullable=True)],
 )
 
 # add_application_table_columns takes the same column objects too:
 dynamic_models.add_application_table_columns(
-    collection="Inv",
-    application="Orders",
+    application="OrdersData",
     table="Items",
     columns=[CharColumn("region", max_length=5), DecimalColumn("discount", max_digits=5, decimal_places=2)],
 )
-dynamic_models.delete_application_table_columns(collection="Inv", application="Orders", table="Items", names=["region"])
+dynamic_models.delete_application_table_columns(application="OrdersData", table="Items", names=["region"])
 dynamic_models.rename_application_table(table, "Products")
-dynamic_models.delete_application_table(collection="Inv", application="Orders", table="Products")
+dynamic_models.delete_application_table(application="OrdersData", table="Products")
 dynamic_models.delete_application(app)            # cascade-drops its tables
-dynamic_models.delete_application_collection(collection)  # refuses if non-empty
 ```
 
 ### Registry methods
 
-- Collections: `create_application_collection(name)` / `rename_application_collection(collection, new_name)` / `delete_application_collection(collection)` (refuses if non-empty)
-- Applications: `create_application(*, collection, name, description="", tables=None)` / `rename_application(collection, old_name, new_name)` / `delete_application(application)` (cascade-drops its tables). The `app.py` path is derived from the apps root + collection/app names (not stored).
-- Tables: `create_application_table(*, collection, application, table, columns)` / `add_application_table_columns(*, collection, application, table, columns)` / `delete_application_table_columns(*, collection, application, table, names)` / `rename_application_table(table, new_name)` / `delete_application_table(*, collection, application, table)`
+- Applications: `create_application(*, name, description="", tables=None)` / `rename_application(*, old_name, new_name)` / `delete_application(application)` (cascade-drops its tables). The `app.py` path is derived from the apps root + app name (not stored).
+- Tables: `create_application_table(*, application, table, columns)` / `add_application_table_columns(*, application, table, columns)` / `delete_application_table_columns(*, application, table, names)` / `rename_application_table(table, new_name)` / `delete_application_table(*, application, table)`
 
 ### Read-only `applications` command
 
@@ -146,15 +139,13 @@ Listing/describe only (mutation is on the registry above; there is no CLI for
 creating apps or tables):
 
 ```bash
-./run djangomanage applications list_application_collections
-./run djangomanage applications list_application_collection --name Inv
-./run djangomanage applications describe_application_table --appcollection Inv --app Orders --name Products
+./run djangomanage applications list_applications
+./run djangomanage applications describe_application_table --app OrdersData --name Products
 ./run djangomanage applications export_fk_graph [--format dot|mermaid]
 ```
 
-- `list_application_collections` — list every collection name
-- `list_application_collection --name` — list an app's contents
-- `describe_application_table --appcollection --app --name` — print a table's columns (omits physical_name/db_table)
+- `list_applications` — list every app name
+- `describe_application_table --app --name` — print a table's columns (omits physical_name/db_table)
 - `export_fk_graph` — export the table graph (tables = nodes, FK columns = edges) as DOT (default) or Mermaid
 
 ### Column classes
@@ -174,26 +165,25 @@ letters/digits.
 
 ### Foreign keys between tables
 
-A `ForeignKeyColumn` points one table at another via a `(collection, app, table)`
+A `ForeignKeyColumn` points one table at another via a `(app, table)`
 target. The link is stored against the target's immutable `physical_name`, so
-renaming a collection/app/table never breaks it. A table may reference itself
+renaming an app/table never breaks it. A table may reference itself
 (e.g. a tree parent). When a single `create_application(tables={...})` declares
 several tables, they are created in dependency order (targets first).
 
 ```python
 dynamic_models.create_application(
-    collection="Inv",
-    name="HR",
+    name="HRApp",
     tables={
         "departments": [CharColumn("code", max_length=10)],
         "employees": [
             CharColumn("code", max_length=10),
-            ForeignKeyColumn("dept", target=("Inv", "HR", "departments"), nullable=True),
+            ForeignKeyColumn("dept", target=("HRApp", "departments"), nullable=True),
         ],
     },
 )
 # A self-referential FK (a node's parent is another node in the same table):
-ForeignKeyColumn("parent", target=("Inv", "Org", "nodes"), nullable=True)
+ForeignKeyColumn("parent", target=("OrgApp", "nodes"), nullable=True)
 ```
 
 **Cycles are rejected.** Creating a table (or adding a column) whose foreign keys
@@ -220,9 +210,9 @@ renders natively in GitHub and VS Code.
 ### App framework
 
 Apps are Python modules installed via a setup script. An app lives at
-`apps/<collection>/<app>/app.py` (the install dir is gitignored; committed
-example apps live under `djangoapp/tests/`). The entry module tags functions
-with decorators from `djangoapp.apps`:
+`apps/<app>/app.py` (the install dir is gitignored; committed example apps
+live under `djangoapp/tests/`). The entry module tags functions with
+decorators from `djangoapp.apps`:
 
 ```python
 from djangoapp.apps import (
@@ -231,7 +221,7 @@ from djangoapp.apps import (
 
 @setup
 def setup_app():
-    ...  # create_application(collection=..., name=..., tables=...)
+    ...  # create_application(name=..., tables=...)
 
 @get_endpoint
 def facts(request: HttpRequest) -> SomePydanticSchema:
@@ -255,7 +245,7 @@ mutually exclusive — both raise `ValueError`.
 Install (and self-test) an app with:
 
 ```bash
-./run djangomanage buildbackend collectionname/appname
+./run djangomanage buildbackend appname
 ```
 
 This imports the module, runs `@setup`, then runs every `@backend_test`. If
@@ -266,12 +256,12 @@ registry cache reset) so a failed install leaves nothing behind.
 Build an app's frontend into its derived static folder with:
 
 ```bash
-./run djangomanage buildfrontend collectionname/appname
+./run djangomanage buildfrontend appname
 ```
 
-This resolves the app, locates its `frontend/` dir (`<apps_root>/<collection>/<app>/frontend/`),
+This resolves the app, locates its `frontend/` dir (`<apps_root>/<app>/frontend/`),
 and runs `npm run build -- --emptyOutDir --outDir <static_folder>` so vite writes
-`main.js`/`main.css` to `djangoapp/static/djangoapp/apps/<collection>/<app>/`
+`main.js`/`main.css` to `djangoapp/static/djangoapp/apps/<app>/`
 (gitignored build artifacts). Constant asset path; cache-busting is via the
 `?cache_buster=<apps-generation>` the inertia view appends (no hashed filenames).
 On success it bumps the apps generation, so a running server picks up the rebuilt
@@ -292,24 +282,27 @@ A `@get_endpoint` function `def name(request: HttpRequest) -> SomePydanticSchema
 is served as JSON at:
 
 ```
-/apps/a/<collection>/<app>/e/<function_name>
+/apps/<app>/e/<function_name>
 ```
 
 All four verbs dispatch by HTTP method at `.../e/<function>` — `@get_endpoint`,
 `@post_endpoint`, `@put_endpoint`, `@delete_endpoint` — and a name is registered
 under exactly one method (a request whose method doesn't match is a 404). A
 `@get_endpoint` may instead return an `InertiaPage` to render an Inertia page
-with the app's own bundle. `GET .../e` (no function) serves the function named
-`default`.
+with the app's own bundle. `GET /apps/<app>` (the app root) serves the function
+named `default`.
 
 ### Application management views (superuser)
 
-These list/manage installed apps and their tables (user accounts are managed
-under `/users/`, see [User management](#user-management)):
+These list/manage installed apps and their tables, mounted under `/manage`
+(separate from the public `/apps/<app>` app surface so an app name can never
+collide with a path literal). User accounts are managed under `/users/`, see
+[User management](#user-management):
 
-- `/apps/collections` — list collections
-- `/apps/a/<collection_name>/list` — list apps in a collection
-- `/apps/a/<collection_name>/<app_name>/manage` — list an app's tables with live row counts
+- `/manage/apps` — list every app
+- `/manage/apps/<app_name>` — list an app's tables with live row counts
+- `/manage/apps/<app_name>/<table_name>/list` — list rows in a table, paginated
+- `/manage/apps/<app_name>/<table_name>/id/<public_id>` — single-row detail
 
-All three require a superuser; anyone else gets a 404.
+All require a superuser; anyone else gets a 404.
 

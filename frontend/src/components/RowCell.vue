@@ -31,12 +31,7 @@ function fkHref(col: RowListColumnDef, cell: unknown): string | null {
   const fk = fkOf(cell)
   const target = col.fk_target
   if (!fk || !target) return null
-  return rowDetailUrl(
-    target.collection_name,
-    target.app_name,
-    target.table_name,
-    fk.public_id,
-  )
+  return rowDetailUrl(target.app_name, target.table_name, fk.public_id)
 }
 
 function renderText(col: RowListColumnDef, cell: unknown): string {

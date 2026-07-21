@@ -20,7 +20,7 @@ const csrfToken = computed(() => getCsrfToken())
       <Link
         v-if="isSuperuser"
         class="btn btn-outline-secondary btn-sm"
-        href="/apps/collections"
+        href="/manage/apps"
       >
         Apps
       </Link>

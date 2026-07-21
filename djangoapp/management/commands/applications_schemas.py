@@ -17,7 +17,6 @@ from __future__ import annotations
 from pydantic import (
     BaseModel,
     ConfigDict,
-    Field,
     PrivateAttr,
     ValidationInfo,
     field_validator,
@@ -26,7 +25,6 @@ from pydantic import (
 
 from djangoapp.models import (
     Application,
-    ApplicationCollection,
     ApplicationTable,
 )
 
@@ -43,37 +41,11 @@ def _must_be_alphanumeric_name(value: str, field_name: str) -> str:
     return value
 
 
-class ListApplicationCollectionSchema(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    name: str = Field(min_length=1, max_length=100)
-    _collection: ApplicationCollection = PrivateAttr(default=None)  # type: ignore[assignment] # set by validator
-
-    @property
-    def collection(self) -> ApplicationCollection:
-        return self._collection
-
-    @field_validator("name")
-    @classmethod
-    def _check_name(cls, v: str) -> str:
-        return _must_be_alphanumeric_name(v, "name")
-
-    @model_validator(mode="after")
-    def _resolve_collection(self) -> ListApplicationCollectionSchema:
-        try:
-            self._collection = ApplicationCollection.objects.get(name=self.name)
-        except ApplicationCollection.DoesNotExist as exc:
-            msg = f"No collection '{self.name}'."
-            raise ValueError(msg) from exc
-        return self
-
-
 class DescribeApplicationTableSchema(BaseModel):
-    """Resolve appcollection/app/table name args to a live ApplicationTable row."""
+    """Resolve app/table name args to a live ApplicationTable row."""
 
     model_config = ConfigDict(extra="forbid")
 
-    appcollection: str
     app: str
     name: str
     _application_table: ApplicationTable = PrivateAttr(default=None)  # type: ignore[assignment] # set by validator
@@ -82,7 +54,7 @@ class DescribeApplicationTableSchema(BaseModel):
     def application_table(self) -> ApplicationTable:
         return self._application_table
 
-    @field_validator("appcollection", "app", "name")
+    @field_validator("app", "name")
     @classmethod
     def _check_alnum(cls, v: str, info: ValidationInfo[object]) -> str:
         return _must_be_alphanumeric_name(v, info.field_name or "value")
@@ -91,9 +63,9 @@ class DescribeApplicationTableSchema(BaseModel):
     def _resolve_table(self) -> DescribeApplicationTableSchema:
         """Resolve the app and table rows named by the request."""
         try:
-            application = Application.get_by_names(self.appcollection, self.app)
+            application = Application.objects.get(name=self.app)
         except Application.DoesNotExist as exc:
-            msg = f"No application '{self.app}' in collection '{self.appcollection}'."
+            msg = f"No application '{self.app}'."
             raise ValueError(msg) from exc
         try:
             self._application_table = ApplicationTable.objects.get(
@@ -108,5 +80,4 @@ class DescribeApplicationTableSchema(BaseModel):
 
 __all__ = [
     "DescribeApplicationTableSchema",
-    "ListApplicationCollectionSchema",
 ]

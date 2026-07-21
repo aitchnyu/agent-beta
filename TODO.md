@@ -1,10 +1,4 @@
-Remove collections. Apps will be in one namespace. You can clean the db if moving files around does not work out.
-
-Instead of http://127.0.0.1:8000/apps/a/collection/Page/e, it will be http://127.0.0.1:8000/apps/Page for homepage. No collection in paths. Other endpoints will be under /e.
-
-Propose me the endpoint changes.
-
------------------
+-------------
 
 New prompt:
 
@@ -16,7 +10,7 @@ Test by having different versions of an app in different folders as mock. One ap
 
 How to make /prompt endpoint as stateless as possible?
 
-shared props - send collection and application name
+shared props - send application name?
 
 ↑ Back to Trivia Open Facts - should be at top
 ./run djangomanage buildbackend - allow all the time
@@ -26,7 +20,7 @@ Render with css - mention that css has to be rendered
 logger = logging.getLogger(__name__) - agent added
 
 Make a real app
-Test reset
+Test session reset
 
 Give chat to end users?
 
@@ -45,8 +39,6 @@ Responses
 
 How to test multi step write operations like creating a family tree?
 Does Mypy lint application?
-
-Remove collection - harder to organize shared modules?
 
 -----------
 Have better error messages for /opencode

@@ -14,7 +14,6 @@ const p = ManagePropsSchema.parse(props.props)
   <Layout>
     <div class="container apps-manage-page">
       <h1>{{ p.app_name }}</h1>
-      <p class="text-muted">{{ p.collection_name }}</p>
       <table class="table table-sm align-middle apps-manage-table">
         <thead>
           <tr>
@@ -27,7 +26,7 @@ const p = ManagePropsSchema.parse(props.props)
             <td class="apps-manage-table-name">
               <Link
                 class="apps-manage-table-link"
-                :href="rowListUrl(p.collection_name, p.app_name, table.name)"
+                :href="rowListUrl(p.app_name, table.name)"
                 >{{ table.name }}</Link
               >
             </td>
@@ -41,12 +40,8 @@ const p = ManagePropsSchema.parse(props.props)
         </tbody>
       </table>
       <div class="apps-manage-links">
-        <BackToTopLink :href="`/apps/a/${p.collection_name}/list`"
-          >Back to {{ p.collection_name }}</BackToTopLink
-        >
-        <Link
-          class="apps-manage-home"
-          :href="appEndpointUrl(p.collection_name, p.app_name)"
+        <BackToTopLink href="/manage/apps">Back to apps</BackToTopLink>
+        <Link class="apps-manage-home" :href="appEndpointUrl(p.app_name)"
           >Open {{ p.app_name }}</Link
         >
       </div>

@@ -1,28 +1,27 @@
 # Test fixture apps
 
-Each fixture lives at `Tests/<app>/app.py` under this tree (matching the app
-framework's `<apps_root>/<collection>/<app>/app.py` convention — all fixtures
-share one collection, `Tests`); `apps_root` is patched to this tree in the app
-tests. They double as runnable examples of the framework and as the data the
-tests in `test_buildbackend.py` / `test_buildfrontend.py` / `test_endpoints.py`
-install.
+Each fixture lives at `<app>/app.py` under this tree (matching the app
+framework's `<apps_root>/<app>/app.py` convention); `apps_root` is patched to
+this tree in the app tests. They double as runnable examples of the framework
+and as the data the tests in `test_buildbackend.py` / `test_buildfrontend.py` /
+`test_endpoints.py` install.
 
 Loaded by file path (not imported as a package), so the fixture dirs have no
 `__init__.py` on purpose.
 
-Apps are installed inside the test's transaction, so created collections/apps/
-tables are rolled back automatically; `dynamic_models.reset()` +
-`app_modules.clear()` keep the in-memory state clean between tests.
+Apps are installed inside the test's transaction, so created apps/tables are
+rolled back automatically; `dynamic_models.reset()` + `app_modules.clear()`
+keep the in-memory state clean between tests.
 
-| Collection/App | What it exercises |
+| App | What it exercises |
 | --- | --- |
-| `Tests/Page` | Install/seed fixture: `@setup` seeds an `items` table; a `@backend_test` writes a row during install (proving savepoint rollback). Feeds `test_buildbackend.py`. |
-| `Tests/Endpoints` | Endpoint-serving fixture: one of each verb (`@get_endpoint`/`@post_endpoint`/`@put_endpoint`/`@delete_endpoint`), incl. a `@get_endpoint` returning `InertiaPage` (no built bundle — `app_bundle` is a pure path derivation). Feeds `test_endpoints.py`. |
-| `Tests/Browser` | Minimal app dedicated to buildfrontend's browser phase: one seeded row, a `@get_endpoint` rendered as an Inertia page with its own bundle, and `@playwright_test`s that assert the built UI via the browser (a `@post_endpoint` insert and a `@put_endpoint` modify, each rolled back per request by buildfrontend's drive). |
-| `Tests/AllTypes` | Every `Column` class (char/text/integer/boolean/decimal/datetime/user/foreign_key) materialised through the framework — a `category` target table is referenced by an FK on the main `row` table, served as one typed row. |
-| `Tests/Mock` | An endpoint that calls an external HTTP API via `_fetch_json`; its `@backend_test` patches that helper (`unittest.mock.patch`) so no real network call runs. |
-| `Tests/FailsTest` | A valid install whose `@backend_test` raises — used to prove the whole install rolls back (no app/table/physical table left). |
-| `Tests/FailsSetup` | `@setup` itself raises (a bad `CharColumn(max_length=0)`) — used to prove the same rollback guarantee on a setup-time failure. |
+| `HappyPathApp` | Install/seed fixture: `@setup` seeds an `items` table; a `@backend_test` writes a row during install (proving savepoint rollback). Feeds `test_buildbackend.py`. |
+| `EndpointsApp` | Endpoint-serving fixture: one of each verb (`@get_endpoint`/`@post_endpoint`/`@put_endpoint`/`@delete_endpoint`), incl. a `@get_endpoint` returning `InertiaPage` (no built bundle — `app_bundle` is a pure path derivation). Feeds `test_endpoints.py`. |
+| `BrowserApp` | Minimal app dedicated to buildfrontend's browser phase: one seeded row, a `@get_endpoint` rendered as an Inertia page with its own bundle, and `@playwright_test`s that assert the built UI via the browser (a `@post_endpoint` insert and a `@put_endpoint` modify, each rolled back per request by buildfrontend's drive). |
+| `AllColumns` | Every `Column` class (char/text/integer/boolean/decimal/datetime/user/foreign_key) materialised through the framework — a `category` target table is referenced by an FK on the main `row` table, served as one typed row. |
+| `HttpMockApp` | An endpoint that calls an external HTTP API via `_fetch_json`; its `@backend_test` patches that helper (`unittest.mock.patch`) so no real network call runs. |
+| `FailsTestApp` | A valid install whose `@backend_test` raises — used to prove the whole install rolls back (no app/table/physical table left). |
+| `FailsSetup` | `@setup` itself raises (a bad `CharColumn(max_length=0)`) — used to prove the same rollback guarantee on a setup-time failure. |
 
 Each `app.py` tags its functions with standalone decorators (`@setup` /
 `@get_endpoint` / `@post_endpoint` / `@put_endpoint` / `@delete_endpoint` /

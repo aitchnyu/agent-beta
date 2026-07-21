@@ -1,6 +1,6 @@
 """Build an app's frontend, then verify it in a browser before completing.
 
-Usage: ``./run djangomanage buildfrontend <collection>/<app>``
+Usage: ``./run djangomanage buildfrontend <app>``
 
 Resolves the app, locates its ``frontend/`` dir (``application.frontend_dir()``),
 and runs ``npm run build -- --emptyOutDir --outDir <static_folder>`` so vite
@@ -44,14 +44,14 @@ if TYPE_CHECKING:
 
 
 class Command(BaseCommand):
-    """``djangomanage buildfrontend <collection/app>`` — build + browser-smoke an app."""
+    """``djangomanage buildfrontend <app>`` — build + browser-smoke an app."""
 
     help = "Build an app's Vue frontend, then run its @playwright_test suite."
 
     def add_arguments(self, parser: Any) -> None:  # noqa: ANN401 # Django parser is untyped
         parser.add_argument(
             "app",
-            help="App identity as '<collection>/<app>' (e.g. Demo/Page).",
+            help="App identity as '<app>' (e.g. TriviaFacts).",
         )
         parser.add_argument(
             "--skip-playwright",
@@ -63,13 +63,12 @@ class Command(BaseCommand):
     def handle(self, *_args: Any, **options: Any) -> None:  # noqa: ANN401 # Django options is untyped
         identity: str = options["app"]
         skip_playwright: bool = options["skip_playwright"]
-        if "/" not in identity:
-            msg = f"Expected '<collection>/<app>', got {identity!r}."
+        if "/" in identity:
+            msg = f"Expected '<app>' (a single name), got {identity!r}."
             raise CommandError(msg)
-        collection_name, app_name = identity.split("/", 1)
 
         try:
-            application = Application.get_by_names(collection_name, app_name)
+            application = Application.objects.get(name=identity)
         except Application.DoesNotExist as exc:
             msg_0 = f"No app '{identity}'."
             raise CommandError(msg_0) from exc

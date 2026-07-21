@@ -80,7 +80,7 @@ class ColumnClassTests(SimpleTestCase):
         self.assertEqual(DateTimeColumn("c").column_type, ColumnType.DATETIME)
         self.assertEqual(UserColumn("c").column_type, ColumnType.USER)
         self.assertEqual(
-            ForeignKeyColumn("c", target=("col", "app", "t")).column_type, ColumnType.FOREIGN_KEY
+            ForeignKeyColumn("c", target=("app", "t")).column_type, ColumnType.FOREIGN_KEY
         )
 
     def test_row_renders_char_fields(self) -> None:
@@ -102,11 +102,11 @@ class ColumnClassTests(SimpleTestCase):
         self.assertEqual(row["decimal_places"], 2)
 
     def test_foreign_key_target_shape_validated(self) -> None:
-        """Rejects a target that isn't a 3-tuple (values checked later, at resolve)."""
+        """Rejects a target that isn't a 2-tuple (values checked later, at resolve)."""
         for bad in [
-            ("col", "app"),  # too few parts
-            ("col", "app", "t", "x"),  # too many parts
-            ["col", "app", "t"],  # a list, not a tuple
+            ("app",),  # too few parts
+            ("col", "app", "t"),  # too many parts
+            ["app", "t"],  # a list, not a tuple
         ]:
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 ForeignKeyColumn("c", target=bad)  # type: ignore[arg-type]

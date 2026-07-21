@@ -41,20 +41,19 @@ class EndpointViewTests(TestCase):
     Each test installs the relevant fixture app (inside the test's transaction),
     then hits the endpoint over HTTP and asserts the JSON shape / values / 404s /
     Inertia page object. ``apps_root`` is patched to the fixture tree so
-    ``<collection>/<app>`` resolves. A (method, name) mismatch is a 404, not 405.
+    ``<app>`` resolves. A (method, name) mismatch is a 404, not 405.
 
     - test_demo_random_code_varies, GET returns 200 with a seeded code, and repeats vary
     - test_alltypes_row, GET returns the seed row with every type serialised
-    - test_unknown_collection_404, an unknown collection resolves to 404
     - test_unknown_app_404, an unknown app resolves to 404
     - test_unknown_function_404, an unknown function resolves to 404
     - test_get_endpoint_renders_inertia_page, X-Inertia GET returns the app's component + props
     - test_get_endpoint_loads_app_bundle, first-load HTML loads the app's bundle, not the host's
-    - test_default_route_serves_default, GET /e serves `default`; /e/default is identical
-    - test_default_route_missing_is_404, GET /e with no `default` endpoint resolves to 404
+    - test_default_route_serves_default, GET app root serves `default`; /e/default is identical
+    - test_default_route_missing_is_404, app root with no `default` endpoint resolves to 404
     - test_post_put_delete_served, POST/PUT/DELETE dispatch to their decorators and return JSON
     - test_method_mismatch_is_404, POST to a get-only name resolves to 404 (not 405)
-    - test_non_get_on_bare_e_is_404, POST/PUT/DELETE on bare /e resolve to 404 (not 405)
+    - test_non_get_on_app_root_is_404, POST/PUT/DELETE on the app root resolve to 404 (not 405)
     """
 
     def setUp(self) -> None:
@@ -72,8 +71,8 @@ class EndpointViewTests(TestCase):
 
     def test_demo_random_code_varies(self) -> None:
         """GET returns 200 with a seeded code, and repeats vary across calls."""
-        self._install("Tests/Endpoints")
-        url = "/apps/a/Tests/Endpoints/e/random_code"
+        self._install("EndpointsApp")
+        url = "/apps/EndpointsApp/e/random_code"
         seen: set[str] = set()
         for _ in range(20):
             resp = self.client.get(url)
@@ -85,8 +84,8 @@ class EndpointViewTests(TestCase):
 
     def test_alltypes_row(self) -> None:
         """GET returns the seed row with every column type serialised."""
-        self._install("Tests/AllTypes")
-        resp = self.client.get("/apps/a/Tests/AllTypes/e/row")
+        self._install("AllColumns")
+        resp = self.client.get("/apps/AllColumns/e/row")
         self.assertEqual(resp.status_code, HTTPStatus.OK)
         body = resp.json()
         self.assertEqual(body["code"], "A1")
@@ -95,27 +94,22 @@ class EndpointViewTests(TestCase):
         self.assertEqual(body["price"], "9.99")
         self.assertIsNone(body["due"])
 
-    def test_unknown_collection_404(self) -> None:
-        """An unknown collection resolves to 404."""
-        resp = self.client.get("/apps/a/Nope/Page/e/random_code")
-        self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
-
     def test_unknown_app_404(self) -> None:
         """An unknown app resolves to 404."""
-        resp = self.client.get("/apps/a/Tests/Nope/e/random_code")
+        resp = self.client.get("/apps/UnknownApp/e/random_code")
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
     def test_unknown_function_404(self) -> None:
         """An unknown function on an installed app resolves to 404."""
-        self._install("Tests/Endpoints")
-        resp = self.client.get("/apps/a/Tests/Endpoints/e/nope")
+        self._install("EndpointsApp")
+        resp = self.client.get("/apps/EndpointsApp/e/nope")
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
     def test_get_endpoint_renders_inertia_page(self) -> None:
         """An X-Inertia GET returns the page object with the app's component + props."""
-        self._install("Tests/Endpoints")
+        self._install("EndpointsApp")
         resp = self.client.get(
-            "/apps/a/Tests/Endpoints/e/endpoint_page",
+            "/apps/EndpointsApp/e/endpoint_page",
             HTTP_X_INERTIA="true",
         )
         self.assertEqual(resp.status_code, HTTPStatus.OK)
@@ -126,58 +120,60 @@ class EndpointViewTests(TestCase):
 
     def test_get_endpoint_loads_app_bundle(self) -> None:
         """A first-load GET renders base.html with the app's bundle URL."""
-        self._install("Tests/Endpoints")
-        resp = self.client.get("/apps/a/Tests/Endpoints/e/endpoint_page")
+        self._install("EndpointsApp")
+        resp = self.client.get("/apps/EndpointsApp/e/endpoint_page")
         self.assertEqual(resp.status_code, HTTPStatus.OK)
         body = resp.content.decode("utf-8")
         # base.html must load the app's own bundle, not the host's.
-        self.assertIn("/static/djangoapp/apps/Tests/Endpoints/main.js", body)
+        self.assertIn("/static/djangoapp/apps/EndpointsApp/main.js", body)
         self.assertNotIn('src="/static/djangoapp/main.js', body)
 
     def test_default_route_serves_default(self) -> None:
-        """GET /e serves `default`; /e/default serves the same endpoint."""
-        self._install("Tests/Endpoints")
-        base = "/apps/a/Tests/Endpoints/e"
+        """GET app root serves `default`; /e/default serves the same endpoint."""
+        self._install("EndpointsApp")
+        base = "/apps/EndpointsApp"
         resp = self.client.get(base)
         self.assertEqual(resp.status_code, HTTPStatus.OK)
         self.assertEqual(resp.json(), {"code": "A1"})
-        # The bare /e and /e/default resolve the same `default` endpoint.
-        self.assertEqual(self.client.get(base).json(), self.client.get(f"{base}/default").json())
+        # The app root and /e/default resolve the same `default` endpoint.
+        self.assertEqual(
+            self.client.get(base).json(), self.client.get("/apps/EndpointsApp/e/default").json()
+        )
 
     def test_default_route_missing_is_404(self) -> None:
-        """GET /e on an app with no `default` endpoint resolves to 404."""
-        self._install("Tests/AllTypes")
-        resp = self.client.get("/apps/a/Tests/AllTypes/e")
+        """GET app root with no `default` endpoint resolves to 404."""
+        self._install("AllColumns")
+        resp = self.client.get("/apps/AllColumns")
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
     def test_post_put_delete_served(self) -> None:
         """POST/PUT/DELETE dispatch to their decorators and return JSON."""
-        self._install("Tests/Endpoints")
-        post_resp = self.client.post("/apps/a/Tests/Endpoints/e/echo")
+        self._install("EndpointsApp")
+        post_resp = self.client.post("/apps/EndpointsApp/e/echo")
         self.assertEqual(post_resp.status_code, HTTPStatus.OK)
         self.assertEqual(post_resp.json(), {"created": "echoed"})
         # echo inserted a row: 3 seeds + 1 = 4. rename_first re-titles a row but
         # doesn't change the count.
-        put_resp = self.client.put("/apps/a/Tests/Endpoints/e/rename_first")
+        put_resp = self.client.put("/apps/EndpointsApp/e/rename_first")
         self.assertEqual(put_resp.status_code, HTTPStatus.OK)
         self.assertEqual(put_resp.json()["count"], 4)
         # drop_first deletes a row: 4 - 1 = 3.
-        delete_resp = self.client.delete("/apps/a/Tests/Endpoints/e/drop_first")
+        delete_resp = self.client.delete("/apps/EndpointsApp/e/drop_first")
         self.assertEqual(delete_resp.status_code, HTTPStatus.OK)
         self.assertEqual(delete_resp.json()["count"], 3)
 
     def test_method_mismatch_is_404(self) -> None:
         """A POST to a get-only name resolves to 404 (not 405)."""
-        self._install("Tests/Endpoints")
-        resp = self.client.post("/apps/a/Tests/Endpoints/e/random_code")
+        self._install("EndpointsApp")
+        resp = self.client.post("/apps/EndpointsApp/e/random_code")
         self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
-    def test_non_get_on_bare_e_is_404(self) -> None:
-        """A non-GET to bare ``/e`` resolves to 404, not 405 (404-everywhere)."""
-        self._install("Tests/Endpoints")
+    def test_non_get_on_app_root_is_404(self) -> None:
+        """A non-GET on the app root resolves to 404, not 405 (404-everywhere)."""
+        self._install("EndpointsApp")
         for method in ("post", "put", "delete"):
             with self.subTest(method=method):
-                resp = getattr(self.client, method)("/apps/a/Tests/Endpoints/e")
+                resp = getattr(self.client, method)("/apps/EndpointsApp")
                 self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
 

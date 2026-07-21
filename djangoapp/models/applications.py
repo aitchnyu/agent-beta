@@ -18,12 +18,18 @@ from djangoapp.utils import sanitize_html
 if TYPE_CHECKING:
     from djangoapp.apps.dynamic_module import DynamicModule
 
-# Identity/display names for collections/apps/tables: start with a letter,
-# then alphanumeric only. Leading digit/underscore would collide with the
+# Identity/display names for apps/tables: start with a letter, then
+# alphanumeric only. Leading digit/underscore would collide with the
 # underscore-prefixed built-in column namespace and is rejected. Names are
 # the identity (used directly in physical table names and URLs), so they are
 # validated up front instead of being slugified.
 ALPHANUMERIC_RE = r"^[A-Za-z][A-Za-z0-9]*$"
+
+# App names: one flat namespace, so they double as URL
+# segments and on-disk dir names. At least 10 chars: the length floor keeps
+# names descriptive and reserves short literals (e.g. the ``/e`` endpoint
+# path segment) so they can never collide with an app name.
+APP_NAME_RE = r"^[A-Za-z][A-Za-z0-9]{9,}$"
 
 # User-defined column names: must start with a letter and contain only
 # letters/digits (no underscore). Built-in BaseTable columns are
@@ -34,6 +40,11 @@ COLUMN_NAME_RE = r"^[A-Za-z][A-Za-z0-9]*$"
 alphanumeric_validator = RegexValidator(
     ALPHANUMERIC_RE,
     "Must start with a letter and contain only letters and digits.",
+)
+app_name_validator = RegexValidator(
+    APP_NAME_RE,
+    "App names must be at least 10 chars, start with a letter, "
+    "and contain only letters and digits.",
 )
 column_name_validator = RegexValidator(
     COLUMN_NAME_RE,
@@ -87,36 +98,13 @@ class BaseTable(models.Model):
         abstract = True
 
 
-class ApplicationCollection(models.Model):
-    """Top-level grouping of applications.
-
-    ``name`` is both the display name and the identity used in physical
-    table names (``zz_<collection_name>_<table_name>``) and URLs.
-    """
-
-    public_id = models.CharField(
-        max_length=36,
-        unique=True,
-        editable=False,
-        default=generate_uuid7_id,
-    )
-    name = models.CharField(max_length=100, unique=True, validators=[alphanumeric_validator])
-
-    class Meta:
-        db_table = "application_collection"
-        ordering: ClassVar[list[str]] = ["name"]
-
-    def __str__(self) -> str:
-        """Display name."""
-        return self.name
-
-
 class Application(models.Model):
-    """A single application within a collection.
+    """A single application.
 
-    Holds a rich-text ``description`` (nh3-sanitized on save). ``name`` is
-    unique within its collection; it may be renamed, but renaming only
-    changes the display name (the physical table name omits the app).
+    Apps live in one flat namespace, so ``name`` is globally
+    unique. Holds a rich-text ``description`` (nh3-sanitized on save). ``name``
+    may be renamed, but renaming only changes the display name (the physical
+    table name omits the app).
     """
 
     public_id = models.CharField(
@@ -125,24 +113,12 @@ class Application(models.Model):
         editable=False,
         default=generate_uuid7_id,
     )
-    application_collection = models.ForeignKey(
-        ApplicationCollection,
-        on_delete=models.RESTRICT,
-        related_name="applications",
-    )
-    name = models.CharField(max_length=100, validators=[alphanumeric_validator])
+    name = models.CharField(max_length=100, unique=True, validators=[app_name_validator])
     description = models.TextField(blank=True, default="")
 
     class Meta:
         db_table = "application"
         ordering: ClassVar[list[str]] = ["name"]
-        constraints: ClassVar[list[models.BaseConstraint]] = [
-            models.UniqueConstraint(
-                models.F("application_collection"),
-                models.F("name"),
-                name="application_collection_name_unique",
-            ),
-        ]
 
     def __str__(self) -> str:
         """Display name."""
@@ -155,37 +131,26 @@ class Application(models.Model):
         super().save(*args, **kwargs)  # type: ignore[arg-type] # Django Model.save is loosely typed
 
     @classmethod
-    def get_by_names(cls, collection_name: str, app_name: str) -> Application:
-        """Fetch an app by collection + app name (raises ``DoesNotExist``)."""
-        return cls.objects.get(application_collection__name=collection_name, name=app_name)
-
-    @classmethod
-    def app_or_404(cls, collection_name: str, app_name: str) -> Application:
-        """Fetch an app by collection + app name, raising ``Http404`` if absent."""
+    def app_or_404(cls, app_name: str) -> Application:
+        """Fetch an app by name, raising ``Http404`` if absent."""
         try:
-            return cls.get_by_names(collection_name, app_name)
+            return cls.objects.get(name=app_name)
         except cls.DoesNotExist as exc:
-            msg = f"No app '{collection_name}/{app_name}'."
+            msg = f"No app '{app_name}'."
             raise Http404(msg) from exc
 
     def script_path(self) -> Path:
-        """Absolute path to the app's ``app.py`` (``<apps_root>/<collection>/<app>``)."""
+        """Absolute path to the app's ``app.py`` (``<apps_root>/<app>``)."""
         from djangoapp.apps.dynamic_module import (  # noqa: PLC0415 # deferred: avoid applications <-> dynamic_module cycle
             apps_root,
         )
 
-        return (apps_root() / self.application_collection.name / self.name / "app.py").resolve()
+        return (apps_root() / self.name / "app.py").resolve()
 
     def static_folder(self) -> Path:
-        """Absolute dir the app's vite build writes to (derived from names)."""
+        """Absolute dir the app's vite build writes to (derived from the name)."""
         return (
-            Path(str(settings.BASE_DIR))
-            / "djangoapp"
-            / "static"
-            / "djangoapp"
-            / "apps"
-            / self.application_collection.name
-            / self.name
+            Path(str(settings.BASE_DIR)) / "djangoapp" / "static" / "djangoapp" / "apps" / self.name
         )
 
     def frontend_dir(self) -> Path:
@@ -237,10 +202,8 @@ class ApplicationTable(models.Model):
     physical table is created via the dynamic-model factory using
     ``zz_<physical_name>`` as its db_table. ``physical_name`` is an immutable,
     creation-time identifier (``<tablename><unix-seconds>``), so renaming the
-    collection or the table's display ``name`` never touches the physical
-    table. Because the display name is unique within the whole collection
-    (it omits the app in URLs), that scoping is enforced in ``clean`` since
-    UniqueConstraint cannot span the app->collection relation.
+    table's display ``name`` never touches the physical table. Display-name
+    uniqueness is app-scoped, enforced by the DB constraint.
     """
 
     public_id = models.CharField(
@@ -264,9 +227,6 @@ class ApplicationTable(models.Model):
         db_table = "application_table"
         ordering: ClassVar[list[str]] = ["name"]
         constraints: ClassVar[list[models.BaseConstraint]] = [
-            # App-scoped uniqueness is the strongest relation-spanning
-            # guarantee the DB gives us; collection-scoped uniqueness is
-            # reinforced in clean() to prevent physical table-name clashes.
             models.UniqueConstraint(
                 models.F("application"),
                 models.F("name"),
@@ -277,10 +237,6 @@ class ApplicationTable(models.Model):
     def __str__(self) -> str:
         """Display name."""
         return self.name
-
-    @property
-    def collection(self) -> ApplicationCollection:
-        return self.application.application_collection
 
     def ordered_columns(self) -> list[ApplicationTableColumn]:
         """Return this table's columns in ``column_order``.
@@ -334,13 +290,18 @@ class ApplicationTable(models.Model):
 
     def clean(self) -> None:
         super().clean()
-        # Collection-scoped uniqueness of the display name (URL identity).
-        siblings = ApplicationTable.objects.filter(
-            application__application_collection=self.collection,
-        ).exclude(pk=self.pk)
-        if self.name and siblings.filter(name=self.name).exists():
-            msg = f"A table named '{self.name}' already exists in collection '{self.collection.name}'."  # noqa: E501 let user-facing message stay on one line
-            raise ValidationError({"name": msg})
+        # App-scoped display-name uniqueness (URL identity). Enforced at the DB
+        # by application_table_app_name_unique too, but checked here so the
+        # error surfaces as a ValidationError before any DDL runs.
+        if self.name:
+            siblings = ApplicationTable.objects.filter(
+                application=self.application,
+            ).exclude(pk=self.pk)
+            if siblings.filter(name=self.name).exists():
+                msg = (
+                    f"A table named '{self.name}' already exists in app '{self.application.name}'."
+                )
+                raise ValidationError({"name": msg})
 
     @staticmethod
     def make_physical_name(name: str) -> str:
@@ -476,9 +437,9 @@ class AppsGeneration(models.Model):
 
 __all__ = [
     "ALPHANUMERIC_RE",
+    "APP_NAME_RE",
     "COLUMN_NAME_RE",
     "Application",
-    "ApplicationCollection",
     "ApplicationTable",
     "ApplicationTableColumn",
     "AppsGeneration",

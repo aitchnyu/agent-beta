@@ -10,7 +10,6 @@ from django.test import TestCase
 
 from djangoapp.models import (
     Application,
-    ApplicationCollection,
     ApplicationTable,
     ApplicationTableColumn,
     User,
@@ -32,6 +31,8 @@ from djangoapp.models.dynamic import (
     dynamic_models,
 )
 
+_APP = "OrdersData"
+
 
 class _RollbackError(Exception):
     """Sentinel raised inside a savepoint to force it to roll back."""
@@ -51,25 +52,21 @@ def _all_column_types() -> list[Column]:
 
 
 class DynamicTableTestCase(TestCase):
-    """Shared fixture (inv/orders), registry reset, and physical-DB helpers.
+    """Shared fixture (OrdersData), registry reset, and physical-DB helpers.
 
     Subclasses cover a single module's behaviour; this base owns the only
     copy of the cursor helpers so they cannot drift.
 
-    - setUpTestData, seeds the inv collection + orders app once per class
+    - setUpTestData, seeds the OrdersData app once per class
     - setUp, resets the in-memory dynamic-model registry before each test
     - tearDown, resets the registry again (registrations survive the per-test rollback)
     """
 
-    collection: ClassVar[ApplicationCollection]
     app: ClassVar[Application]
 
     @classmethod
     def setUpTestData(cls) -> None:
-        cls.collection = ApplicationCollection.objects.create(name="inv")
-        cls.app = cls.collection.applications.create(
-            name="orders",
-        )
+        cls.app = Application.objects.create(name=_APP)
 
     def setUp(self) -> None:
         super().setUp()
@@ -94,9 +91,8 @@ class DynamicSchemaTests(DynamicTableTestCase):
     - test_delete_columns_alters_table_and_order, ALTER TABLE DROP COLUMN + column_order trim
     - test_delete_table_drops_physical_table, DROP TABLE + definition rows removed
     - test_dynamic_model_supports_row_roundtrip, generated model can insert/read a row
-    - test_duplicate_table_in_collection_rejected, collection-scoped name clash rejected
+    - test_duplicate_table_in_app_rejected, app-scoped name clash rejected
     - test_rename_table_keeps_physical_name, table rename leaves physical_name/db_table unchanged
-    - test_rename_collection_keeps_physical_name, collection rename leaves physical tables intact
     - test_resolve_missing_table_raises, TableNotFoundError for an unknown physical name
     - test_add_application_table_columns_all_types, every type materialises a column (user as _id)
     - test_delete_columns_removes_definition_and_physical, gone from definition + physical table
@@ -114,7 +110,7 @@ class DynamicSchemaTests(DynamicTableTestCase):
 
     def _make_items(self) -> ApplicationTable:
         return dynamic_models.create_application_table(
-            collection="inv", application="orders", table="items", columns=self._columns_spec()
+            application=_APP, table="items", columns=self._columns_spec()
         )
 
     def test_create_table_creates_physical_table_and_model(self) -> None:
@@ -152,8 +148,7 @@ class DynamicSchemaTests(DynamicTableTestCase):
         """ALTER TABLE ADD COLUMN adds the column and appends to column_order."""
         table = self._make_items()
         dynamic_models.add_application_table_columns(
-            collection="inv",
-            application="orders",
+            application=_APP,
             table="items",
             columns=[CharColumn("region", max_length=5)],
         )
@@ -165,7 +160,7 @@ class DynamicSchemaTests(DynamicTableTestCase):
         """ALTER TABLE DROP COLUMN removes the column and trims column_order."""
         table = self._make_items()
         dynamic_models.delete_application_table_columns(
-            collection="inv", application="orders", table="items", names=["note", "due"]
+            application=_APP, table="items", names=["note", "due"]
         )
         cols = table.physical_columns()
         self.assertNotIn("note", cols)
@@ -178,9 +173,7 @@ class DynamicSchemaTests(DynamicTableTestCase):
         """DROP TABLE removes the physical table and all definition rows."""
         table = self._make_items()
         self.assertTrue(table.does_physical_table_exist())
-        dynamic_models.delete_application_table(
-            collection="inv", application="orders", table="items"
-        )
+        dynamic_models.delete_application_table(application=_APP, table="items")
         self.assertFalse(table.does_physical_table_exist())
         self.assertFalse(ApplicationTable.objects.filter(name="items").exists())
         self.assertFalse(
@@ -198,21 +191,15 @@ class DynamicSchemaTests(DynamicTableTestCase):
         self.assertEqual(refreshed.code, "A1")
         self.assertEqual(refreshed.qty, 3)
 
-    def test_duplicate_table_in_collection_rejected(self) -> None:
-        """Collection-scoped name clash is rejected before DDL runs."""
+    def test_duplicate_table_in_app_rejected(self) -> None:
+        """App-scoped name clash is rejected before DDL runs."""
         self._make_items()
-        # A second app in the same collection must not be able to reuse the name.
-        other = self.collection.applications.create(
-            name="other",
-        )
         with self.assertRaises(ValidationError):
             dynamic_models.create_application_table(
-                collection="inv",
-                application="other",
+                application=_APP,
                 table="items",
                 columns=[CharColumn("a", max_length=10)],
             )
-        self.assertFalse(other.tables.filter(name="items").exists())
 
     def test_rename_table_keeps_physical_name(self) -> None:
         """Renaming a table changes only the display name; physical table is untouched."""
@@ -225,17 +212,6 @@ class DynamicSchemaTests(DynamicTableTestCase):
         self.assertEqual(dynamic_db_table(table.physical_name), db_table)  # physical table intact
         self.assertTrue(table.does_physical_table_exist())
 
-    def test_rename_collection_keeps_physical_name(self) -> None:
-        """Renaming a collection changes no physical table (keyed by physical_name)."""
-        table = self._make_items()
-        dynamic_models.rename_application_collection(self.collection, "inv2")
-        table.refresh_from_db()
-        self.assertEqual(self.collection.name, "inv2")
-        self.assertTrue(table.does_physical_table_exist())  # physical table intact
-        # The dynamic model still resolves and counts rows.
-        model = cast(Any, table.as_model())
-        self.assertEqual(model.objects.count(), 0)
-
     def test_resolve_missing_table_raises(self) -> None:
         """TableNotFoundError surfaces for an unknown physical name."""
         with self.assertRaises(TableNotFoundError):
@@ -244,13 +220,12 @@ class DynamicSchemaTests(DynamicTableTestCase):
     def test_add_application_table_columns_all_types(self) -> None:
         """Every column type materialises a column; user columns land as `<name>_id` FKs."""
         table = dynamic_models.create_application_table(
-            collection="inv",
-            application="orders",
+            application=_APP,
             table="items",
             columns=[CharColumn("seed", max_length=10)],
         )
         dynamic_models.add_application_table_columns(
-            collection="inv", application="orders", table="items", columns=_all_column_types()
+            application=_APP, table="items", columns=_all_column_types()
         )
         table.refresh_from_db()
         for name in [c.name for c in _all_column_types()]:
@@ -265,13 +240,12 @@ class DynamicSchemaTests(DynamicTableTestCase):
     def test_delete_columns_removes_definition_and_physical(self) -> None:
         """Columns gone from both the ApplicationTableColumn rows and the physical table."""
         table = dynamic_models.create_application_table(
-            collection="inv",
-            application="orders",
+            application=_APP,
             table="items",
             columns=[CharColumn("code", max_length=10), IntegerColumn("qty")],
         )
         dynamic_models.delete_application_table_columns(
-            collection="inv", application="orders", table="items", names=["qty"]
+            application=_APP, table="items", names=["qty"]
         )
         table.refresh_from_db()
         self.assertEqual(table.column_order, ["code"])
@@ -298,8 +272,7 @@ class TransactionalDDLRollbackTests(DynamicTableTestCase):
         """CREATE TABLE + definition rows gone after rollback."""
         with self.assertRaises(_RollbackError), transaction.atomic():
             table = dynamic_models.create_application_table(
-                collection="inv",
-                application="orders",
+                application=_APP,
                 table="items",
                 columns=[CharColumn("code", max_length=10)],
             )
@@ -310,16 +283,14 @@ class TransactionalDDLRollbackTests(DynamicTableTestCase):
     def test_add_columns_rolled_back(self) -> None:
         """ALTER TABLE ADD COLUMN reverted, columns absent."""
         table = dynamic_models.create_application_table(
-            collection="inv",
-            application="orders",
+            application=_APP,
             table="items",
             columns=[CharColumn("code", max_length=10)],
         )
         before = table.physical_columns()
         with self.assertRaises(_RollbackError), transaction.atomic():
             dynamic_models.add_application_table_columns(
-                collection="inv",
-                application="orders",
+                application=_APP,
                 table="items",
                 columns=[IntegerColumn("qty")],
             )
@@ -332,15 +303,14 @@ class TransactionalDDLRollbackTests(DynamicTableTestCase):
     def test_delete_columns_rolled_back(self) -> None:
         """ALTER TABLE DROP COLUMN reverted, columns restored."""
         table = dynamic_models.create_application_table(
-            collection="inv",
-            application="orders",
+            application=_APP,
             table="items",
             columns=[CharColumn("code", max_length=10), IntegerColumn("qty")],
         )
         before = table.physical_columns()
         with self.assertRaises(_RollbackError), transaction.atomic():
             dynamic_models.delete_application_table_columns(
-                collection="inv", application="orders", table="items", names=["qty"]
+                application=_APP, table="items", names=["qty"]
             )
             raise _RollbackError
         table.refresh_from_db()
@@ -351,15 +321,12 @@ class TransactionalDDLRollbackTests(DynamicTableTestCase):
     def test_delete_table_rolled_back(self) -> None:
         """DROP TABLE reverted, physical table still exists."""
         table = dynamic_models.create_application_table(
-            collection="inv",
-            application="orders",
+            application=_APP,
             table="items",
             columns=[CharColumn("code", max_length=10)],
         )
         with self.assertRaises(_RollbackError), transaction.atomic():
-            dynamic_models.delete_application_table(
-                collection="inv", application="orders", table="items"
-            )
+            dynamic_models.delete_application_table(application=_APP, table="items")
             raise _RollbackError
         self.assertTrue(ApplicationTable.objects.filter(name="items").exists())
         self.assertTrue(table.does_physical_table_exist())
@@ -367,109 +334,66 @@ class TransactionalDDLRollbackTests(DynamicTableTestCase):
     def test_delete_application_cascade_rolled_back(self) -> None:
         """Cascade drop reverted, tables + physical tables intact."""
         table = dynamic_models.create_application_table(
-            collection="inv",
-            application="orders",
+            application=_APP,
             table="items",
             columns=[CharColumn("code", max_length=10)],
         )
         with self.assertRaises(_RollbackError), transaction.atomic():
             dynamic_models.delete_application(self.app)
             raise _RollbackError
-        self.assertTrue(Application.objects.filter(name="orders").exists())
+        self.assertTrue(Application.objects.filter(name=_APP).exists())
         self.assertTrue(ApplicationTable.objects.filter(name="items").exists())
         self.assertTrue(table.does_physical_table_exist())
 
 
 class GraphLifecycleTests(DynamicTableTestCase):
-    """Collection/application create/rename/delete via the registry.
+    """Application create/rename/delete via the registry.
 
     Positive behaviour plus the cascade-drop guarantee and the
     cascade-failure safety net (the real reason each method wraps its
     work in ``transaction.atomic()``).
 
-    - test_create_application_collection, collection carries the name and is queryable
-    - test_rename_application_collection, name updated, no physical change
-    - test_delete_application_collection_empty, no row remains for an app-less collection
-    - test_delete_application_collection_non_empty_refused, non-empty raises and untouched
-    - test_create_application, app created under the right collection
-    - test_rename_application, old name gone / new name set within its collection (no DDL)
+    - test_create_application, app created and queryable
+    - test_rename_application, old name gone / new name set (no DDL)
     - test_delete_application_no_tables, no Application row remains after delete
     - test_delete_application_cascades_tables, child physical tables dropped
     - test_delete_application_mid_cascade_failure, failure rolls back the whole graph
     """
 
-    def test_create_application_collection(self) -> None:
-        """Returned collection carries the name and is queryable by it."""
-        collection = dynamic_models.create_application_collection("inventory")
-        self.assertEqual(collection.name, "inventory")
-        self.assertTrue(ApplicationCollection.objects.filter(name="inventory").exists())
-
-    def test_rename_application_collection(self) -> None:
-        """Name updated, no physical change."""
-        table = dynamic_models.create_application_table(
-            collection="inv",
-            application="orders",
-            table="items",
-            columns=[CharColumn("code", max_length=10)],
-        )
-        dynamic_models.rename_application_collection(self.collection, "inventory")
-        self.collection.refresh_from_db()
-        self.assertEqual(self.collection.name, "inventory")
-        # Display-name rename must not touch the physical table.
-        self.assertTrue(table.does_physical_table_exist())
-
-    def test_delete_application_collection_empty(self) -> None:
-        """An app-less collection has no row after delete."""
-        empty = dynamic_models.create_application_collection("ephemeral")
-        dynamic_models.delete_application_collection(empty)
-        self.assertFalse(ApplicationCollection.objects.filter(name="ephemeral").exists())
-
-    def test_delete_application_collection_non_empty_refused(self) -> None:
-        """non-empty raises and untouched."""
-        with self.assertRaises(ValidationError):
-            dynamic_models.delete_application_collection(self.collection)
-        self.assertTrue(ApplicationCollection.objects.filter(name="inv").exists())
-        self.assertTrue(Application.objects.filter(name="orders").exists())
-
     def test_create_application(self) -> None:
-        """App created under the right collection."""
-        app = dynamic_models.create_application(
-            collection="inv", name="billing", description="bills"
-        )
-        self.assertEqual(app.name, "billing")
-        self.assertEqual(app.application_collection, self.collection)
-        self.assertEqual(Application.get_by_names("inv", "billing").description, "bills")
+        """App created and queryable."""
+        app = dynamic_models.create_application(name="BillingData", description="bills")
+        self.assertEqual(app.name, "BillingData")
+        self.assertEqual(Application.objects.get(name="BillingData").description, "bills")
 
     def test_rename_application(self) -> None:
-        """Old app name is gone and the new one is set, within its own collection (no DDL)."""
-        dynamic_models.rename_application(collection="inv", old_name="orders", new_name="orders2")
-        self.assertTrue(Application.objects.filter(name="orders2").exists())
-        self.assertFalse(Application.objects.filter(name="orders").exists())
+        """Old app name is gone and the new one is set (no DDL)."""
+        dynamic_models.rename_application(old_name=_APP, new_name="OrdersData2")
+        self.assertTrue(Application.objects.filter(name="OrdersData2").exists())
+        self.assertFalse(Application.objects.filter(name=_APP).exists())
 
     def test_delete_application_no_tables(self) -> None:
         """No Application row remains for the app after delete."""
-        app = dynamic_models.create_application(collection="inv", name="ephemeral")
+        app = dynamic_models.create_application(name="EphemeralApp")
         dynamic_models.delete_application(app)
-        self.assertFalse(Application.objects.filter(name="ephemeral").exists())
+        self.assertFalse(Application.objects.filter(name="EphemeralApp").exists())
 
     def test_delete_application_cascades_tables(self) -> None:
         """Child physical tables dropped."""
         table = dynamic_models.create_application_table(
-            collection="inv",
-            application="orders",
+            application=_APP,
             table="items",
             columns=[CharColumn("code", max_length=10)],
         )
         dynamic_models.delete_application(self.app)
-        self.assertFalse(Application.objects.filter(name="orders").exists())
+        self.assertFalse(Application.objects.filter(name=_APP).exists())
         self.assertFalse(ApplicationTable.objects.filter(name="items").exists())
         self.assertFalse(table.does_physical_table_exist())
 
     def test_delete_application_mid_cascade_failure(self) -> None:
         """Failure rolls back the whole graph (no half-deleted state)."""
         table = dynamic_models.create_application_table(
-            collection="inv",
-            application="orders",
+            application=_APP,
             table="items",
             columns=[CharColumn("code", max_length=10)],
         )
@@ -485,7 +409,7 @@ class GraphLifecycleTests(DynamicTableTestCase):
         ):
             dynamic_models.delete_application(self.app)
         # The atomic block must roll back: app + table + physical table intact.
-        self.assertTrue(Application.objects.filter(name="orders").exists())
+        self.assertTrue(Application.objects.filter(name=_APP).exists())
         self.assertTrue(ApplicationTable.objects.filter(name="items").exists())
         self.assertTrue(table.does_physical_table_exist())
 
@@ -509,8 +433,7 @@ class RowLifecycleTests(DynamicTableTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.table = dynamic_models.create_application_table(
-            collection="inv",
-            application="orders",
+            application=_APP,
             table="items",
             columns=[CharColumn("code", max_length=10), UserColumn("owner", nullable=True)],
         )
@@ -545,7 +468,7 @@ class ForeignKeyColumnTests(DynamicTableTestCase):
     """Foreign-key columns between tables + the table-graph invariants.
 
     A ``ForeignKeyColumn`` points one table at another via a
-    ``(collection, app, table)`` target; the dynamic field is a Django
+    ``(app, table)`` target; the dynamic field is a Django
     ``ForeignKey(on_delete=RESTRICT)`` referencing the target's immutable
     physical table. Cycles are rejected, referenced tables can't be dropped,
     and multi-table apps are created in dependency order.
@@ -562,29 +485,27 @@ class ForeignKeyColumnTests(DynamicTableTestCase):
     """
 
     def _table(self, app: str, name: str) -> ApplicationTable:
-        """Fetch an ApplicationTable row by app + table name within the seeded collection."""
+        """Fetch an ApplicationTable row by app + table name."""
         return ApplicationTable.objects.get(
             application__name=app,
-            application__application_collection=self.collection,
             name=name,
         )
 
     def test_fk_column_creates_physical_reference(self) -> None:
         """Cross-table FK materialises as a ``<name>_id`` column and a ForeignKey field."""
         dynamic_models.create_application(
-            collection="inv",
-            name="fkapp",
+            name="FkTargetApp",
             tables={
                 "target": [CharColumn("code", max_length=10)],
-                "ref": [ForeignKeyColumn("link", target=("inv", "fkapp", "target"))],
+                "ref": [ForeignKeyColumn("link", target=("FkTargetApp", "target"))],
             },
         )
-        ref = self._table("fkapp", "ref")
+        ref = self._table("FkTargetApp", "ref")
         self.assertIn("link_id", ref.physical_columns())
         model = cast(Any, ref.as_model())
         self.assertIsInstance(model._meta.get_field("link"), models.ForeignKey)
         # The FK stores the target row's pk; setting it via the ORM round-trips.
-        target_model = cast(Any, self._table("fkapp", "target").as_model())
+        target_model = cast(Any, self._table("FkTargetApp", "target").as_model())
         target = target_model.objects.create(code="A")
         created = cast(Any, model.objects.create(link=target))
         self.assertEqual(cast(Any, created.link_id), target.pk)
@@ -592,15 +513,14 @@ class ForeignKeyColumnTests(DynamicTableTestCase):
     def test_fk_column_blocks_deleting_referenced_row(self) -> None:
         """Deleting a row another row points at raises (on_delete=RESTRICT backstop)."""
         dynamic_models.create_application(
-            collection="inv",
-            name="restapp",
+            name="RestrictApp",
             tables={
                 "target": [CharColumn("code", max_length=10)],
-                "ref": [ForeignKeyColumn("link", target=("inv", "restapp", "target"))],
+                "ref": [ForeignKeyColumn("link", target=("RestrictApp", "target"))],
             },
         )
-        target_model = cast(Any, self._table("restapp", "target").as_model())
-        ref_model = cast(Any, self._table("restapp", "ref").as_model())
+        target_model = cast(Any, self._table("RestrictApp", "target").as_model())
+        ref_model = cast(Any, self._table("RestrictApp", "ref").as_model())
         target = target_model.objects.create(code="A")
         ref_model.objects.create(link=target)
         with self.assertRaises(models.RestrictedError):
@@ -609,16 +529,15 @@ class ForeignKeyColumnTests(DynamicTableTestCase):
     def test_self_referential_fk_builds(self) -> None:
         """A table referencing itself builds (to='self') and round-trips a parent row."""
         dynamic_models.create_application(
-            collection="inv",
-            name="treeapp",
+            name="TreeAppDemo",
             tables={
                 "nodes": [
                     CharColumn("name", max_length=10),
-                    ForeignKeyColumn("parent", target=("inv", "treeapp", "nodes"), nullable=True),
+                    ForeignKeyColumn("parent", target=("TreeAppDemo", "nodes"), nullable=True),
                 ]
             },
         )
-        model = cast(Any, self._table("treeapp", "nodes").as_model())
+        model = cast(Any, self._table("TreeAppDemo", "nodes").as_model())
         root = model.objects.create(name="root", parent=None)
         child = model.objects.create(name="child", parent=root)
         fetched = model.objects.get(pk=child.pk)
@@ -627,51 +546,44 @@ class ForeignKeyColumnTests(DynamicTableTestCase):
     def test_forward_reference_topo_ordered(self) -> None:
         """A referencer declared before its target installs (target created first)."""
         dynamic_models.create_application(
-            collection="inv",
-            name="fwdapp",
+            name="FwdRefTest",
             tables={
                 # "ref" is declared first but depends on "target"; topo order
                 # must create "target" before "ref"'s create_model runs.
-                "ref": [
-                    ForeignKeyColumn("link", target=("inv", "fwdapp", "target"), nullable=True)
-                ],
+                "ref": [ForeignKeyColumn("link", target=("FwdRefTest", "target"), nullable=True)],
                 "target": [CharColumn("code", max_length=10)],
             },
         )
-        ref = self._table("fwdapp", "ref")
+        ref = self._table("FwdRefTest", "ref")
         self.assertIn("link_id", ref.physical_columns())
 
     def test_add_fk_column_to_existing_target(self) -> None:
         """add_application_table_columns adds a FK to an already-existing target table."""
         dynamic_models.create_application(
-            collection="inv",
-            name="addapp",
+            name="AddColumnApp",
             tables={"target": [CharColumn("code", max_length=10)]},
         )
         # A second table created standalone, then given a FK to "target".
         dynamic_models.create_application_table(
-            collection="inv",
-            application="addapp",
+            application="AddColumnApp",
             table="ref",
             columns=[CharColumn("note", max_length=10)],
         )
         dynamic_models.add_application_table_columns(
-            collection="inv",
-            application="addapp",
+            application="AddColumnApp",
             table="ref",
-            columns=[ForeignKeyColumn("link", target=("inv", "addapp", "target"), nullable=True)],
+            columns=[ForeignKeyColumn("link", target=("AddColumnApp", "target"), nullable=True)],
         )
-        self.assertIn("link_id", self._table("addapp", "ref").physical_columns())
+        self.assertIn("link_id", self._table("AddColumnApp", "ref").physical_columns())
 
     def test_cycle_rejected_on_create(self) -> None:
         """Two tables that reference each other are rejected with a readable cycle path."""
         with self.assertRaises(ValidationError) as ctx:
             dynamic_models.create_application(
-                collection="inv",
-                name="cycapp",
+                name="CycleAppOne",
                 tables={
-                    "alpha": [ForeignKeyColumn("b", target=("inv", "cycapp", "beta"))],
-                    "beta": [ForeignKeyColumn("a", target=("inv", "cycapp", "alpha"))],
+                    "alpha": [ForeignKeyColumn("b", target=("CycleAppOne", "beta"))],
+                    "beta": [ForeignKeyColumn("a", target=("CycleAppOne", "alpha"))],
                 },
             )
         self.assertIn("foreign-key cycle", "; ".join(ctx.exception.messages))
@@ -680,55 +592,45 @@ class ForeignKeyColumnTests(DynamicTableTestCase):
     def test_cycle_rejected_on_add_column(self) -> None:
         """An FK added via add_columns that closes a cycle is rejected with a cycle message."""
         dynamic_models.create_application(
-            collection="inv",
-            name="cyc2app",
+            name="CycleAppTwo",
             tables={
                 "alpha": [CharColumn("code", max_length=5)],
-                "beta": [ForeignKeyColumn("a", target=("inv", "cyc2app", "alpha"))],
+                "beta": [ForeignKeyColumn("a", target=("CycleAppTwo", "alpha"))],
             },
         )
         with self.assertRaises(ValidationError) as ctx:
             dynamic_models.add_application_table_columns(
-                collection="inv",
-                application="cyc2app",
+                application="CycleAppTwo",
                 table="alpha",
-                columns=[ForeignKeyColumn("back", target=("inv", "cyc2app", "beta"))],
+                columns=[ForeignKeyColumn("back", target=("CycleAppTwo", "beta"))],
             )
         self.assertIn("foreign-key cycle", "; ".join(ctx.exception.messages))
 
     def test_drop_referenced_table_refused(self) -> None:
         """Dropping a referenced table raises; the referencer drops fine."""
         dynamic_models.create_application(
-            collection="inv",
-            name="dropapp",
+            name="DropAppDemo",
             tables={
                 "target": [CharColumn("code", max_length=5)],
-                "ref": [ForeignKeyColumn("link", target=("inv", "dropapp", "target"))],
+                "ref": [ForeignKeyColumn("link", target=("DropAppDemo", "target"))],
             },
         )
         with self.assertRaises(ValidationError):
-            dynamic_models.delete_application_table(
-                collection="inv", application="dropapp", table="target"
-            )
+            dynamic_models.delete_application_table(application="DropAppDemo", table="target")
         # The referencer (nothing references it) drops cleanly, and then so does
         # the now-unreferenced target.
-        dynamic_models.delete_application_table(
-            collection="inv", application="dropapp", table="ref"
-        )
-        dynamic_models.delete_application_table(
-            collection="inv", application="dropapp", table="target"
-        )
+        dynamic_models.delete_application_table(application="DropAppDemo", table="ref")
+        dynamic_models.delete_application_table(application="DropAppDemo", table="target")
 
     def test_delete_application_with_internal_fk(self) -> None:
         """An app whose own tables cross-reference deletes cleanly (internal refs ignored)."""
         app = dynamic_models.create_application(
-            collection="inv",
-            name="delapp",
+            name="DeleteAppOne",
             tables={
                 "target": [CharColumn("code", max_length=5)],
-                "ref": [ForeignKeyColumn("link", target=("inv", "delapp", "target"))],
+                "ref": [ForeignKeyColumn("link", target=("DeleteAppOne", "target"))],
             },
         )
         dynamic_models.delete_application(app)
         self.assertFalse(Application.objects.filter(pk=app.pk).exists())
-        self.assertFalse(ApplicationTable.objects.filter(application__name="delapp").exists())
+        self.assertFalse(ApplicationTable.objects.filter(application__name="DeleteAppOne").exists())

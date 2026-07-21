@@ -22,7 +22,7 @@ the function's kind (no instance to create):
         ...
 
 All four verbs (get/post/put/delete) are served at one path
-``/a/<collection>/<app>/e/<function>`` and dispatched by HTTP method; a function
+``/apps/<app>/e/<function>`` and dispatched by HTTP method; a function
 name is registered under exactly one method — globally unique across verbs, so a
 duplicate name under two methods is rejected at load. A ``@get_endpoint`` may
 additionally return an :class:`InertiaPage` (rendered as an Inertia page); the
@@ -277,7 +277,7 @@ class DynamicModule:
 
 
 # Apps root: the directory the import + frontend machinery resolves apps from.
-# An app lives at ``<apps_root()>/<collection>/<app>/app.py`` (+ a ``frontend/``
+# An app lives at ``<apps_root()>/<app>/app.py`` (+ a ``frontend/``
 # sibling). Default ``<BASE_DIR>/apps``; tests patch this (via the module global
 # or ``apps_root``) to point at the fixture tree, so no per-app path is stored.
 _APPS_ROOT: Path = Path(str(settings.BASE_DIR)) / "apps"

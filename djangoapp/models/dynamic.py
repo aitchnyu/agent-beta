@@ -3,8 +3,8 @@
 Each ``ApplicationTable`` is materialised as a real Django model class
 (subclassing ``BaseTable``) whose ``db_table`` is
 ``zz_<physical_name>``, where ``physical_name`` is the table's immutable
-creation-time identifier (``<tablename><unix-seconds>``). Collection and
-table display-name renames therefore never touch the physical table.
+creation-time identifier (``<tablename><unix-seconds>``). Table display-name
+renames therefore never touch the physical table.
 Table creation, column add/remove and table deletion all go through
 ``connection.schema_editor()`` (Baserow-style), so the underlying Postgres
 table is altered in place without Django migrations.
@@ -35,7 +35,6 @@ from django.db.utils import ProgrammingError
 from djangoapp.apps.dynamic_module import clear_app_caches
 from djangoapp.models.applications import (
     Application,
-    ApplicationCollection,
     ApplicationTable,
     ApplicationTableColumn,
     BaseTable,
@@ -80,7 +79,7 @@ def _dynamic_class_name(physical_name: str) -> str:
 
     Capitalises the first character of the immutable ``physical_name`` and
     appends ``DynamicModel``. Keys on ``physical_name`` (not on display
-    names) so collection/table renames never change the generated class
+    names) so table renames never change the generated class
     name. Note this is not full PascalCase/camel-casing — ``physical_name``
     is ``<letters><digits>``, so only the leading letter is uppercased.
     """
@@ -195,7 +194,7 @@ class DynamicModelRegistry:
     Generated model classes are cached by the table's immutable
     ``physical_name`` and registered in Django's app registry; column
     mutations invalidate both so the next :meth:`get_model` rebuilds from
-    live columns. Collection/table display-name renames never touch the
+    live columns. Table display-name renames never touch the
     cache (the key is immutable).
     """
 
@@ -291,18 +290,8 @@ class DynamicModelRegistry:
             registry.pop(model_name, None)
 
     # ------------------------------------------------------------------
-    # Collection resolution and column creation
+    # Column creation
     # ------------------------------------------------------------------
-
-    def _resolve_collection(
-        self,
-        appcollection: str,  # registry-owned lookup, self unused
-    ) -> ApplicationCollection:
-        try:
-            return ApplicationCollection.objects.get(name=appcollection)
-        except ApplicationCollection.DoesNotExist as exc:
-            msg = f"No application collection '{appcollection}'."
-            raise TableNotFoundError(msg) from exc
 
     def _create_column(self, table: ApplicationTable, col: Column) -> ApplicationTableColumn:
         """Validate a column declaration and persist an ApplicationTableColumn.
@@ -310,15 +299,15 @@ class DynamicModelRegistry:
         The :class:`Column` already validated itself in ``__post_init__``; this
         builds the row from :meth:`Column.row` and runs ``full_clean`` so the
         model-level cross-field invariants hold. For a foreign-key column the
-        ``(collection, app, table)`` target is resolved to its row here (the only
+        ``(app, table)`` target is resolved to its row here (the only
         relation): a forward reference inside one ``create_application`` resolves
         because targets are created first (topological order), while a cross-app
         target must already exist — else ``DoesNotExist``.
         """
         row = col.row()
         if isinstance(col, ForeignKeyColumn):
-            tc, ta, tt = col.target
-            row["fk_target_table"] = Application.get_by_names(tc, ta).get_table(tt)
+            ta, tt = col.target
+            row["fk_target_table"] = Application.objects.get(name=ta).get_table(tt)
         obj = ApplicationTableColumn(application_table=table, **row)
         obj.full_clean()
         obj.save()
@@ -329,65 +318,35 @@ class DynamicModelRegistry:
     ) -> None:
         """Reject new FK columns that would close a foreign-key cycle.
 
-        Starts from the live table graph (by ``collection/app/table`` label) and
+        Starts from the live table graph (by ``app/table`` label) and
         adds the edges this add would introduce; a cycle is reported by label.
         """
         graph = DependencyGraph.from_db()
         src_label = _table_label(app_table)
         for col in columns:
             if isinstance(col, ForeignKeyColumn):
-                tc, ta, tt = col.target
-                target = Application.get_by_names(tc, ta).get_table(tt)
+                ta, tt = col.target
+                target = Application.objects.get(name=ta).get_table(tt)
                 # A self-reference adds no cross-table edge (and is allowed).
                 if target.pk != app_table.pk:
                     graph.add_edge(src_label, _table_label(target))
         graph.assert_acyclic()
 
     # ------------------------------------------------------------------
-    # Collection / application lifecycle
+    # Application lifecycle
     # ------------------------------------------------------------------
     #
     # Co-located with the table methods below, so DynamicModelRegistry is
-    # the single place for all application-graph mutation. Create/rename
-    # are thin (full_clean + save); ``delete_application`` cascades its
-    # tables (dropping each physical table), while
-    # ``delete_application_collection`` refuses a non-empty collection so a
-    # live app never vanishes under its tables. The ``on_delete=RESTRICT``
+    # the single place for all application-graph mutation. Create/rename are
+    # thin (full_clean + save); ``delete_application`` cascades its
+    # tables (dropping each physical table). The ``on_delete=RESTRICT``
     # FKs are only a DB backstop — the registry always deletes children
     # first.
-
-    @_synced
-    def create_application_collection(self, name: str) -> ApplicationCollection:
-        """Create and return an application collection."""
-        with transaction.atomic():
-            collection = ApplicationCollection(name=name)
-            collection.full_clean()
-            collection.save()
-            return collection
-
-    @_synced
-    def delete_application_collection(self, collection: ApplicationCollection) -> None:
-        """Delete a collection, refusing if it still has apps.
-
-        Apps own their tables' physical cleanup (via ``delete_application``),
-        so a collection must be emptied of apps first — deleting it under
-        live apps would leave their physical tables orphaned.
-        """
-        with transaction.atomic():
-            if collection.applications.exists():
-                msg = (
-                    f"Collection '{collection.name}' is not empty "
-                    f"({collection.applications.count()} application(s)); "
-                    "delete its applications first."
-                )
-                raise ValidationError(msg)
-            collection.delete()
 
     @_synced
     def create_application(
         self,
         *,
-        collection: str,
         name: str,
         description: str = "",
         tables: dict[str, list[Column]] | None = None,
@@ -399,12 +358,10 @@ class DynamicModelRegistry:
         (which also builds the physical table). Tables are created in
         dependency order (a table's foreign-key targets first) so a target's
         physical table + registered model exist before a referencer's
-        ``create_model`` runs; a foreign-key cycle is rejected up front.
+        create_model runs; a foreign-key cycle is rejected up front.
         """
         with transaction.atomic():
-            collection_row = self._resolve_collection(collection)
             application = Application(
-                application_collection=collection_row,
                 name=name,
                 description=description,
             )
@@ -415,23 +372,21 @@ class DynamicModelRegistry:
             # order both read it (edges run table -> target, so a target is
             # created before its referencer). Only edges among the new tables
             # matter, so nodes are their names (see from_application_tables).
-            graph = DependencyGraph.from_application_tables(collection, name, declared)
+            graph = DependencyGraph.from_application_tables(name, declared)
             graph.assert_acyclic()
             for table_name in graph.topological_order():
                 self._create_application_table(application, table_name, declared[table_name])
             return application
 
     @_synced
-    def rename_application(self, *, collection: str, old_name: str, new_name: str) -> Application:
-        """Rename an application within its own collection.
+    def rename_application(self, *, old_name: str, new_name: str) -> Application:
+        """Rename an application (display-name only).
 
-        Display-name only: physical tables are keyed by the immutable
-        ``physical_name`` which omits the app, so no DDL and no registry
-        reset. Cross-collection moves are not supported (an app's name is
-        scoped to its collection), enforced by resolving the source app.
+        Physical tables are keyed by the immutable ``physical_name`` which
+        omits the app, so no DDL and no registry reset.
         """
         with transaction.atomic():
-            application = Application.get_by_names(collection, old_name)
+            application = Application.objects.get(name=old_name)
             application.name = new_name
             application.full_clean()
             application.save()
@@ -485,7 +440,7 @@ class DynamicModelRegistry:
             column_order=[c.name for c in columns],
         )
         # full_clean runs ApplicationTable.clean(), which enforces the
-        # collection-scoped display-name uniqueness before any column rows
+        # app-scoped display-name uniqueness before any column rows
         # or DDL are created.
         table.full_clean()
         table.save()
@@ -510,21 +465,19 @@ class DynamicModelRegistry:
     def create_application_table(
         self,
         *,
-        collection: str,
         application: str,
         table: str,
         columns: list[Column],
     ) -> ApplicationTable:
-        """Resolve (collection, app, table) names, then create the table + physical table."""
+        """Resolve (app, table) names, then create the table + physical table."""
         with transaction.atomic():
-            application_row = Application.get_by_names(collection, application)
+            application_row = Application.objects.get(name=application)
             return self._create_application_table(application_row, table, columns)
 
     @_synced
     def add_application_table_columns(
         self,
         *,
-        collection: str,
         application: str,
         table: str,
         columns: list[Column],
@@ -535,7 +488,7 @@ class DynamicModelRegistry:
         DDL.
         """
         with transaction.atomic():
-            application_row = Application.get_by_names(collection, application)
+            application_row = Application.objects.get(name=application)
             app_table = application_row.get_table(table)
             self._assert_add_columns_acyclic(app_table, columns)
             model = self.get_model(app_table.physical_name)
@@ -559,14 +512,13 @@ class DynamicModelRegistry:
     def delete_application_table_columns(
         self,
         *,
-        collection: str,
         application: str,
         table: str,
         names: list[str],
     ) -> ApplicationTable:
         """Remove columns from a table (DDL ALTER TABLE DROP COLUMN)."""
         with transaction.atomic():
-            application_row = Application.get_by_names(collection, application)
+            application_row = Application.objects.get(name=application)
             app_table = application_row.get_table(table)
             model = self.get_model(app_table.physical_name)
             with connection.schema_editor() as schema_editor:
@@ -614,9 +566,7 @@ class DynamicModelRegistry:
             )
             if also_dropping:
                 refs = refs.exclude(application_table__pk__in=also_dropping)
-            ref = refs.select_related(
-                "application_table__application__application_collection"
-            ).first()
+            ref = refs.select_related("application_table__application").first()
             if ref is not None:
                 src = ref.application_table
                 msg = (
@@ -642,28 +592,12 @@ class DynamicModelRegistry:
             app_table.delete()
 
     @_synced
-    def delete_application_table(self, *, collection: str, application: str, table: str) -> None:
-        """Resolve (collection, app, table) names to a row, then drop it."""
+    def delete_application_table(self, *, application: str, table: str) -> None:
+        """Resolve (app, table) names to a row, then drop it."""
         with transaction.atomic():
-            application_row = Application.get_by_names(collection, application)
+            application_row = Application.objects.get(name=application)
             app_table = application_row.get_table(table)
             self._drop_application_table(app_table)
-
-    @_synced
-    def rename_application_collection(
-        self, collection: ApplicationCollection, new_name: str
-    ) -> None:
-        """Rename a collection's display name (no physical-table changes).
-
-        Physical tables are keyed by the immutable ``physical_name`` and named
-        ``zz_<physical_name>``, which does not include the collection name, so
-        renaming the collection is a plain row update — no DDL, no registry
-        reset.
-        """
-        with transaction.atomic():
-            collection.name = new_name
-            collection.full_clean()
-            collection.save()
 
     @_synced
     def rename_application_table(
@@ -687,8 +621,8 @@ class DynamicModelRegistry:
 
 
 def _table_label(table: ApplicationTable) -> str:
-    """``collection/app/table`` label for a table (used in graph errors/export)."""
-    return f"{table.application.application_collection.name}/{table.application.name}/{table.name}"
+    """``app/table`` label for a table (used in graph errors/export)."""
+    return f"{table.application.name}/{table.name}"
 
 
 class DependencyGraph:
@@ -697,7 +631,7 @@ class DependencyGraph:
     Wraps an ``nx.DiGraph`` so every ``networkx`` touch — construction,
     ``find_cycle`` and ``topological_sort`` — lives in one place. Nodes are
     plain strings: the live graph (:meth:`from_db`) keys them by
-    ``collection/app/table`` label, while the new-table graph
+    ``app/table`` label, while the new-table graph
     (:meth:`from_application_tables`) keys them by table name — the set is
     scoped to one app, so bare names are unique there and the new tables need no
     pk. Edges run ``source -> target`` (source depends on target); self-loops
@@ -714,13 +648,13 @@ class DependencyGraph:
 
     @staticmethod
     def from_db() -> DependencyGraph:
-        """Live graph of every installed FK column (nodes = collection/app/table labels)."""
+        """Live graph of every installed FK column (nodes = app/table labels)."""
         graph = DependencyGraph()
         columns = ApplicationTableColumn.objects.filter(
             type=ColumnType.FOREIGN_KEY, fk_target_table__isnull=False
         ).select_related(
-            "application_table__application__application_collection",
-            "fk_target_table__application__application_collection",
+            "application_table__application",
+            "fk_target_table__application",
         )
         for col in columns:
             target = col.fk_target_table
@@ -738,7 +672,6 @@ class DependencyGraph:
 
     @staticmethod
     def from_application_tables(
-        collection: str,
         app: str,
         tables: dict[str, list[Column]],
     ) -> DependencyGraph:
@@ -757,8 +690,8 @@ class DependencyGraph:
         for table_name, cols in tables.items():
             for col in cols:
                 if isinstance(col, ForeignKeyColumn):
-                    tc, ta, tt = col.target
-                    if (tc, ta) == (collection, app) and tt != table_name and tt in tables:
+                    ta, tt = col.target
+                    if ta == app and tt != table_name and tt in tables:
                         graph.add_edge(table_name, tt)
         return graph
 

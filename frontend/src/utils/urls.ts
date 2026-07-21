@@ -8,12 +8,11 @@ export interface RowListQuery {
 }
 
 export function rowListUrl(
-  collectionName: string,
   appName: string,
   tableName: string,
   query: RowListQuery = {},
 ): string {
-  const base = `/apps/a/${collectionName}/${appName}/manage/${tableName}/list`
+  const base = `/manage/apps/${appName}/${tableName}/list`
   const params = new URLSearchParams()
   if (query.page !== undefined) params.set("page", String(query.page))
   if (query.per_page !== undefined)
@@ -24,18 +23,14 @@ export function rowListUrl(
 }
 
 export function rowDetailUrl(
-  collectionName: string,
   appName: string,
   tableName: string,
   publicId: string,
 ): string {
-  return `/apps/a/${collectionName}/${appName}/manage/${tableName}/id/${publicId}`
+  return `/manage/apps/${appName}/${tableName}/id/${publicId}`
 }
 
-// The app's main page: the `default` endpoint served at the bare `/e` route.
-export function appEndpointUrl(
-  collectionName: string,
-  appName: string,
-): string {
-  return `/apps/a/${collectionName}/${appName}/e`
+// The app's main page: the `default` endpoint served at the app root.
+export function appEndpointUrl(appName: string): string {
+  return `/apps/${appName}`
 }

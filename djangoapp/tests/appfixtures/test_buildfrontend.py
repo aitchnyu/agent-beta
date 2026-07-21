@@ -17,7 +17,7 @@ from djangoapp.management.commands.buildfrontend import Command
 from djangoapp.models import Application
 from djangoapp.models.dynamic import dynamic_models
 
-# Point the apps machinery at the fixture tree so <collection>/<app>/app.py resolves.
+# Point the apps machinery at the fixture tree so <app>/app.py resolves.
 _APPS_ROOT_PATCH = patch.object(
     dynamic_module,
     "_APPS_ROOT",
@@ -32,7 +32,7 @@ class BuildFrontendCommandTests(TestCase):
     browser phase is covered by ``BuildFrontendDrivesPlaywrightTests`` below). All
     three must raise ``CommandError``.
 
-    - test_buildfrontend_rejects_bad_identity, no slash in identity -> CommandError
+    - test_buildfrontend_rejects_bad_identity, a slash in the identity -> CommandError
     - test_buildfrontend_unknown_app_errors, app not installed -> CommandError
     - test_buildfrontend_missing_frontend_errors, installed app with no frontend/ -> CommandError
     """
@@ -51,20 +51,20 @@ class BuildFrontendCommandTests(TestCase):
         build_backend(identity)
 
     def test_buildfrontend_rejects_bad_identity(self) -> None:
-        """Buildfrontend errors on an identity without a collection/app slash."""
+        """Buildfrontend errors on an identity that contains a slash."""
         with self.assertRaises(CommandError):
-            call_command("buildfrontend", "nope", skip_playwright=True, stdout=StringIO())
+            call_command("buildfrontend", "has/slash", skip_playwright=True, stdout=StringIO())
 
     def test_buildfrontend_unknown_app_errors(self) -> None:
         """Buildfrontend errors when the app is not installed."""
         with self.assertRaises(CommandError):
-            call_command("buildfrontend", "Tests/Nope", skip_playwright=True, stdout=StringIO())
+            call_command("buildfrontend", "UnknownApp", skip_playwright=True, stdout=StringIO())
 
     def test_buildfrontend_missing_frontend_errors(self) -> None:
         """Buildfrontend errors when an installed app has no frontend/ dir."""
-        self._run("Tests/AllTypes")
+        self._run("AllColumns")
         with self.assertRaises(CommandError):
-            call_command("buildfrontend", "Tests/AllTypes", skip_playwright=True, stdout=StringIO())
+            call_command("buildfrontend", "AllColumns", skip_playwright=True, stdout=StringIO())
 
 
 class BuildFrontendPlaywrightPhaseTests(SimpleTestCase):
@@ -99,7 +99,7 @@ class BuildFrontendPlaywrightPhaseTests(SimpleTestCase):
         with patch(
             "djangoapp.management.commands.buildfrontend._drive_playwright_tests"
         ) as mock_drive:
-            self._command()._run_playwright_suite("Tests/Browser", self._app([]))
+            self._command()._run_playwright_suite("BrowserApp", self._app([]))
             mock_drive.assert_not_called()
 
     def test_phase_passes_when_suite_clean(self) -> None:
@@ -109,7 +109,7 @@ class BuildFrontendPlaywrightPhaseTests(SimpleTestCase):
         ) as mock_drive:
             fn = MagicMock()
             mock_drive.return_value = None
-            self._command()._run_playwright_suite("Tests/Browser", self._app([fn]))
+            self._command()._run_playwright_suite("BrowserApp", self._app([fn]))
             mock_drive.assert_called_once()
             self.assertEqual(mock_drive.call_args.args[0], [fn])
             self.assertIn("err_write", mock_drive.call_args.kwargs)
@@ -121,7 +121,7 @@ class BuildFrontendPlaywrightPhaseTests(SimpleTestCase):
         ) as mock_drive:
             mock_drive.side_effect = RuntimeError("boom")
             with self.assertRaises(CommandError):
-                self._command()._run_playwright_suite("Tests/Browser", self._app([MagicMock()]))
+                self._command()._run_playwright_suite("BrowserApp", self._app([MagicMock()]))
 
 
 @tag("playwright")
@@ -129,7 +129,7 @@ class BuildFrontendPlaywrightPhaseTests(SimpleTestCase):
 class BuildFrontendDrivesPlaywrightTests(TransactionTestCase):
     """``buildfrontend`` builds the frontend then drives ``@playwright_test`` for real.
 
-    The dedicated sample is ``Tests/Browser`` (a minimal app: one seeded row, a
+    The dedicated sample is ``BrowserApp`` (a minimal app: one seeded row, a
     ``@get_endpoint`` rendered as an Inertia page with its own bundle, and a
     ``@playwright_test`` asserting it via the browser). The browser phase is
     triggered by ``buildfrontend`` itself (no ``--skip-playwright``), exercising
@@ -137,15 +137,14 @@ class BuildFrontendDrivesPlaywrightTests(TransactionTestCase):
     ``TransactionTestCase`` so the installed app's seeded row is committed and
     visible to the drive's server thread.
 
-    - test_buildfrontend_drives_browser_app, buildfrontend builds + drives Tests/Browser;
+    - test_buildfrontend_drives_browser_app, buildfrontend builds + drives BrowserApp;
       bundle written; the drive's writes (in-process + browser insert/modify) all
       roll back, leaving only the seed row
     """
 
     # The dedicated buildfrontend sample (a minimal app exercised end to end).
-    _COLLECTION = "Tests"
-    _APP = "Browser"
-    _IDENTITY = f"{_COLLECTION}/{_APP}"
+    _APP = "BrowserApp"
+    _IDENTITY = _APP
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -160,19 +159,17 @@ class BuildFrontendDrivesPlaywrightTests(TransactionTestCase):
 
     def tearDown(self) -> None:
         # Drop the installed app's tables before the TransactionTestCase flush.
-        app = Application.objects.filter(
-            name=self._APP, application_collection__name=self._COLLECTION
-        ).first()
+        app = Application.objects.filter(name=self._APP).first()
         if app is not None:
             dynamic_models.delete_application(app)
         dynamic_models.reset()
         super().tearDown()
 
     def test_buildfrontend_drives_browser_app(self) -> None:
-        """Buildfrontend builds + drives Tests/Browser; bundle written; the DB is unchanged.
+        """Buildfrontend builds + drives BrowserApp; bundle written; the DB is unchanged.
 
         Each write the drive causes comes from a ``@playwright_test`` in
-        ``Tests/Browser/app.py`` and must revert:
+        ``BrowserApp/app.py`` and must revert:
         - ``smoke`` — ``test_inprocess_write_is_visible_to_self`` writes the
           ``ROLLBACK_PROBE`` row in-process (reverted by the drive's atomic);
         - ``bw1`` — ``test_browser_insert_round_trips`` GETs ``create_row`` (reverted
@@ -186,7 +183,7 @@ class BuildFrontendDrivesPlaywrightTests(TransactionTestCase):
         call_command("buildfrontend", self._IDENTITY, stdout=out)
         self.assertIn("passed", out.getvalue())
         # The build wrote the app's bundle.
-        app = Application.get_by_names(self._COLLECTION, self._APP)
+        app = Application.objects.get(name=self._APP)
         self.assertTrue((app.static_folder() / "main.js").exists())
         # The drive left the DB unchanged: no inserted row, the seed unmodified,
         # and the in-process probe gone.

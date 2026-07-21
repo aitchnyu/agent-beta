@@ -9,11 +9,12 @@ from django.test import TestCase
 
 from djangoapp.models import (
     Application,
-    ApplicationCollection,
     ApplicationTable,
 )
 from djangoapp.models.columns import CharColumn, ForeignKeyColumn, IntegerColumn
 from djangoapp.models.dynamic import dynamic_models
+
+_APP = "OrdersData"
 
 
 def run(subcommand: str, *args: str) -> tuple[int, str]:
@@ -35,25 +36,18 @@ class ApplicationsCommandTests(TestCase):
     """Read-only ``applications`` command subcommands.
 
     Mutation lives on ``dynamic_models`` now; these tests only cover the
-    three read subcommands, seeded via the registry/ORM directly.
+    read subcommands, seeded via the registry/ORM directly.
 
-    - test_list_application_collections, every collection name printed one per line, sorted
-    - test_list_application_collection, apps under the collection printed one per line, sorted
-    - test_list_application_collection_missing, unknown collection exits non-zero
+    - test_list_applications, every app name printed one per line, sorted
     - test_describe_application_table, prints table + columns, omits physical_name/db_table
     - test_describe_application_table_missing, unknown table exits non-zero
-    - test_leading_digit_name_rejected, names must start with a letter
     """
 
-    collection: ClassVar[ApplicationCollection]
     app: ClassVar[Application]
 
     @classmethod
     def setUpTestData(cls) -> None:
-        cls.collection = ApplicationCollection.objects.create(name="inv")
-        cls.app = cls.collection.applications.create(
-            name="orders",
-        )
+        cls.app = Application.objects.create(name=_APP)
 
     def setUp(self) -> None:
         super().setUp()
@@ -68,46 +62,20 @@ class ApplicationsCommandTests(TestCase):
 
     def _create_table(self, name: str = "items") -> ApplicationTable:
         return dynamic_models.create_application_table(
-            collection="inv",
-            application="orders",
+            application=_APP,
             table=name,
             columns=[CharColumn("code", max_length=10), IntegerColumn("qty")],
         )
 
-    # -- list_application_collections ---------------------------------
+    # -- list_applications --------------------------------------------
 
-    def test_list_application_collections(self) -> None:
-        """Every collection name printed one per line, sorted."""
-        ApplicationCollection.objects.create(name="aaa")
-        code, out = run("list_application_collections")
-        self.assertEqual(code, 0)
-        # Output is sorted by name; "aaa" precedes "inv".
-        lines = [ln for ln in out.splitlines() if ln]
-        self.assertEqual(lines, ["aaa", "inv"])
-
-    # -- list_application_collection ----------------------------------
-
-    def test_list_application_collection(self) -> None:
-        """Apps under the collection printed one per line, sorted."""
-        self.collection.applications.create(
-            name="billing",
-        )
-        code, out = run("list_application_collection", "--name", "inv")
+    def test_list_applications(self) -> None:
+        """Every app name printed one per line, sorted."""
+        Application.objects.create(name="ApplesData")  # precedes OrdersData sorted
+        code, out = run("list_applications")
         self.assertEqual(code, 0)
         lines = [ln for ln in out.splitlines() if ln]
-        self.assertEqual(lines, ["billing", "orders"])
-
-    def test_list_application_collection_missing(self) -> None:
-        """Unknown collection exits non-zero."""
-        code, out = run("list_application_collection", "--name", "nope")
-        self.assertNotEqual(code, 0)
-        self.assertIn("No collection", out)
-
-    def test_leading_digit_name_rejected(self) -> None:
-        """Names must start with a letter."""
-        code, out = run("list_application_collection", "--name", "2bad")
-        self.assertNotEqual(code, 0)
-        self.assertIn("start with a letter", out)
+        self.assertEqual(lines, ["ApplesData", _APP])
 
     # -- describe_application_table -----------------------------------
 
@@ -116,10 +84,8 @@ class ApplicationsCommandTests(TestCase):
         table = self._create_table()
         code, out = run(
             "describe_application_table",
-            "--appcollection",
-            "inv",
             "--app",
-            "orders",
+            _APP,
             "--name",
             "items",
         )
@@ -135,24 +101,22 @@ class ApplicationsCommandTests(TestCase):
         """Unknown table exits non-zero."""
         code, out = run(
             "describe_application_table",
-            "--appcollection",
-            "inv",
             "--app",
-            "orders",
+            _APP,
             "--name",
             "nope",
         )
         self.assertNotEqual(code, 0)
         self.assertIn("No table", out)
         self.assertFalse(ApplicationTable.objects.filter(name="nope").exists())
-        self.assertTrue(Application.objects.filter(name="orders").exists())
+        self.assertTrue(Application.objects.filter(name=_APP).exists())
 
 
 class ExportFkGraphTests(TestCase):
     """``applications export_fk_graph`` renders tables + FK edges.
 
-    Tables are nodes (label ``collection:app:table`` — ``:`` is Mermaid-id-safe,
-    so it doubles as the node id and text); each foreign-key column is an edge
+    Tables are nodes (label ``app:table`` — ``:`` is Mermaid-id-safe, so it
+    doubles as the node id and text); each foreign-key column is an edge
     source -> target labelled with the column name. DOT is the default;
     ``--format mermaid`` emits a Mermaid graph. The whole graph is emitted
     (no scoping).
@@ -165,16 +129,12 @@ class ExportFkGraphTests(TestCase):
     def setUp(self) -> None:
         super().setUp()
         dynamic_models.reset()
-        # graphapp: beta references alpha.
-        dynamic_models.create_application_collection("inv")
+        # GraphAppOne: beta references alpha.
         dynamic_models.create_application(
-            collection="inv",
-            name="graphapp",
+            name="GraphAppOne",
             tables={
                 "alpha": [CharColumn("code", max_length=5)],
-                "beta": [
-                    ForeignKeyColumn("link", target=("inv", "graphapp", "alpha"), nullable=True)
-                ],
+                "beta": [ForeignKeyColumn("link", target=("GraphAppOne", "alpha"), nullable=True)],
             },
         )
 
@@ -187,26 +147,25 @@ class ExportFkGraphTests(TestCase):
         code, out = run("export_fk_graph")
         self.assertEqual(code, 0)
         self.assertIn("digraph fk {", out)
-        self.assertIn('"inv:graphapp:alpha" [label="alpha"];', out)
-        self.assertIn('"inv:graphapp:beta" [label="beta"];', out)
-        self.assertIn('"inv:graphapp:beta" -> "inv:graphapp:alpha" [label="link"];', out)
+        self.assertIn('"GraphAppOne:alpha" [label="alpha"];', out)
+        self.assertIn('"GraphAppOne:beta" [label="beta"];', out)
+        self.assertIn('"GraphAppOne:beta" -> "GraphAppOne:alpha" [label="link"];', out)
 
     def test_mermaid_format_emits_graph(self) -> None:
         """--format mermaid emits a graph: the ':'-label is the id and the text."""
         code, out = run("export_fk_graph", "--format", "mermaid")
         self.assertEqual(code, 0)
         self.assertIn("graph LR", out)
-        self.assertIn('inv:graphapp:alpha["inv:graphapp:alpha"]', out)
-        self.assertIn("inv:graphapp:beta -->|link| inv:graphapp:alpha", out)
+        self.assertIn('GraphAppOne:alpha["GraphAppOne:alpha"]', out)
+        self.assertIn("GraphAppOne:beta -->|link| GraphAppOne:alpha", out)
 
     def test_all_tables_emitted(self) -> None:
         """Every table across apps appears as a node (the graph is unscoped)."""
         dynamic_models.create_application(
-            collection="inv",
-            name="plainapp",
+            name="PlainAppOne",
             tables={"solo": [CharColumn("code", max_length=5)]},
         )
         code, out = run("export_fk_graph")
         self.assertEqual(code, 0)
-        self.assertIn('"inv:plainapp:solo"', out)
-        self.assertIn('"inv:graphapp:alpha"', out)
+        self.assertIn('"PlainAppOne:solo"', out)
+        self.assertIn('"GraphAppOne:alpha"', out)

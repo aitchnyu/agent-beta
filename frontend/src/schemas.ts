@@ -134,20 +134,11 @@ export type SharedProps = z.infer<typeof SharedPropsSchema>
 
 // ---- Applications (superuser read views) ----
 
-export const CollectionItemSchema = z.object({
-  name: z.string(),
-})
-
-export const CollectionsPropsSchema = z.object({
-  collections: z.array(CollectionItemSchema),
-})
-
 export const AppItemSchema = z.object({
   name: z.string(),
 })
 
 export const AppListPropsSchema = z.object({
-  collection_name: z.string(),
   apps: z.array(AppItemSchema),
 })
 
@@ -157,7 +148,6 @@ export const TableItemSchema = z.object({
 })
 
 export const ManagePropsSchema = z.object({
-  collection_name: z.string(),
   app_name: z.string(),
   tables: z.array(TableItemSchema),
 })
@@ -177,7 +167,6 @@ export const RowColumnTypeSchema = z.enum([
 
 // The table a foreign_key column points at (lets a cell link to a target row).
 export const FkTargetSchema = z.object({
-  collection_name: z.string(),
   app_name: z.string(),
   table_name: z.string(),
 })
@@ -227,7 +216,6 @@ export const RowListFiltersSchema = z.object({
 })
 
 export const RowListPropsSchema = z.object({
-  collection_name: z.string(),
   app_name: z.string(),
   table_name: z.string(),
   columns: z.array(RowListColumnDefSchema),
@@ -237,7 +225,6 @@ export const RowListPropsSchema = z.object({
 })
 
 export const RowDetailPropsSchema = z.object({
-  collection_name: z.string(),
   app_name: z.string(),
   table_name: z.string(),
   public_id: z.string(),

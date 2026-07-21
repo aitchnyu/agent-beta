@@ -1,12 +1,12 @@
 """Install (or update) an app by running its ``app.py`` setup + self-tests.
 
-Usage: ``./run djangomanage buildbackend <collection>/<app>``
+Usage: ``./run djangomanage buildbackend <app>``
 
 Resolves the app's ``app.py`` from the apps root
-(``<apps_root>/<collection>/<app>/app.py``), imports it
+(``<apps_root>/<app>/app.py``), imports it
 (``app_modules.load(..., force_reload=True)`` so re-runs pick up edits), runs its
-``@setup`` (which calls ``create_application(collection=…, name=…)``), then runs
-every ``@backend_test`` in-process. If setup or any test fails, the whole run is
+``@setup`` (which calls ``create_application(name=…)``), then runs every
+``@backend_test`` in-process. If setup or any test fails, the whole run is
 rolled back — the transaction (Postgres transactional DDL) reverts every created
 app/table and the dynamic-model registry cache is reset — so a failed install
 leaves nothing behind. Exits non-zero on failure so an agent can use it as a
@@ -39,7 +39,7 @@ def _stderr_line(msg: str) -> None:
 
 
 def build_backend(identity: str, *, err_write: Callable[[str], None] | None = None) -> int:
-    """Install ``<collection>/<app>``: run ``@setup`` + ``@backend_test``s.
+    """Install ``<app>``: run ``@setup`` + ``@backend_test``s.
 
     Raises :class:`CommandError` on any failure (after writing the failing
     test's name + traceback via ``err_write``, so the detail isn't lost — Django prints
@@ -49,14 +49,14 @@ def build_backend(identity: str, *, err_write: Callable[[str], None] | None = No
     """
     if err_write is None:
         err_write = _stderr_line
-    if "/" not in identity:
-        msg = f"Expected '<collection>/<app>', got {identity!r}."
+    if "/" in identity:
+        msg = f"Expected '<app>' (a single name), got {identity!r}."
         raise CommandError(msg)
-    collection_name, app_name = identity.split("/", 1)
-    # Derived from apps_root + names: no Application row exists yet (the
+    app_name = identity
+    # Derived from apps_root + name: no Application row exists yet (the
     # @setup below is what creates it), so Application.script_path() can't be
     # used here — only after install.
-    script_path = (apps_root() / collection_name / app_name / "app.py").resolve()
+    script_path = (apps_root() / app_name / "app.py").resolve()
 
     # force_reload: even though buildbackend is a fresh CLI process,
     # build_backend() is called in-process by tests, so a second install of
@@ -108,14 +108,14 @@ def build_backend(identity: str, *, err_write: Callable[[str], None] | None = No
 
 
 class Command(BaseCommand):
-    """``djangomanage buildbackend <collection>/<app>`` — install + self-test an app."""
+    """``djangomanage buildbackend <app>`` — install + self-test an app."""
 
     help = "Install (or update) an app: run its @setup + @backend_test functions."
 
     def add_arguments(self, parser: Any) -> None:  # noqa: ANN401 # Django parser is untyped
         parser.add_argument(
             "app",
-            help="App identity as '<collection>/<app>' (e.g. Tests/Page).",
+            help="App identity as '<app>' (e.g. HappyPathApp).",
         )
 
     def handle(self, *_args: Any, **options: Any) -> None:  # noqa: ANN401 # Django options is untyped

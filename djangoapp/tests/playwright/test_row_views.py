@@ -5,7 +5,7 @@ from decimal import Decimal
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
 
-from djangoapp.models import ApplicationCollection, User
+from djangoapp.models import Application, User
 from djangoapp.models.columns import (
     BooleanColumn,
     CharColumn,
@@ -30,7 +30,7 @@ ROW_COUNT = 31
 class _RowViewsE2eBase(BasePlaywrightTestCase):
     """Shared seed + URL/page helpers for the row-view E2E tests.
 
-    Creates a superuser, a collection/app/table spanning every column type, and
+    Creates a superuser, an app/table spanning every column type, and
     ``ROW_COUNT`` rows whose ``code`` is ``R<index>`` (created in index order so
     ``_created_at`` ascends with the index — the default sort is created_at desc,
     so the newest row ``R<last>`` is first). Each test reuses the same shared
@@ -38,8 +38,7 @@ class _RowViewsE2eBase(BasePlaywrightTestCase):
     session cookies never leak between tests.
     """
 
-    COLLECTION = "pw"
-    APP = "orders"
+    APP = "OrdersData"
     TABLE = "items"
 
     def setUp(self) -> None:
@@ -50,13 +49,9 @@ class _RowViewsE2eBase(BasePlaywrightTestCase):
             is_staff=True,
             is_superuser=True,
         )
-        self.collection = ApplicationCollection.objects.create(name=self.COLLECTION)
-        self.app = self.collection.applications.create(
-            name=self.APP,
-        )
+        self.app = Application.objects.create(name=self.APP)
         dynamic_models.reset()
         self.table = dynamic_models.create_application_table(
-            collection=self.COLLECTION,
             application=self.APP,
             table=self.TABLE,
             columns=[
@@ -96,9 +91,7 @@ class _RowViewsE2eBase(BasePlaywrightTestCase):
         # setUp that failed before creating the table doesn't mask the real
         # error with an AttributeError.
         if getattr(self, "table", None) is not None:
-            dynamic_models.delete_application_table(
-                collection=self.COLLECTION, application=self.APP, table=self.TABLE
-            )
+            dynamic_models.delete_application_table(application=self.APP, table=self.TABLE)
         dynamic_models.reset()
         super().tearDown()
 
@@ -125,10 +118,7 @@ class RowDetailE2eTests(_RowViewsE2eBase):
     """
 
     def _detail_url(self, public_id: str) -> str:
-        return (
-            f"{self.live_server_url}/apps/a/{self.COLLECTION}/{self.APP}/manage/"
-            f"{self.TABLE}/id/{public_id}"
-        )
+        return f"{self.live_server_url}/manage/apps/{self.APP}/{self.TABLE}/id/{public_id}"
 
     def test_detail_renders_all_column_values(self) -> None:
         """Detail renders every column type (text/bool/dec/dt/user) + created-by link."""
@@ -171,7 +161,7 @@ class RowListNavigationE2eTests(_RowViewsE2eBase):
     """
 
     def _list_url(self, query: str = "") -> str:
-        url = f"{self.live_server_url}/apps/a/{self.COLLECTION}/{self.APP}/manage/{self.TABLE}/list"
+        url = f"{self.live_server_url}/manage/apps/{self.APP}/{self.TABLE}/list"
         return f"{url}?{query}" if query else url
 
     def test_list_renders_rows_and_total(self) -> None:

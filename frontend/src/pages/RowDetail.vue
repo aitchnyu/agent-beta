@@ -18,7 +18,7 @@ const createdByCol: RowListColumnDef = {
   fk_target: null,
 }
 
-const listHref = rowListUrl(p.collection_name, p.app_name, p.table_name)
+const listHref = rowListUrl(p.app_name, p.table_name)
 </script>
 
 <template>

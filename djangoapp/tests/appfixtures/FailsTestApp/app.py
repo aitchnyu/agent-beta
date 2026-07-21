@@ -19,8 +19,7 @@ from djangoapp.apps.shortcuts import (
     setup,
 )
 
-COLLECTION = "Tests"
-APP = "FailsTest"
+APP = "FailsTestApp"
 TABLE = "things"
 
 
@@ -31,9 +30,7 @@ class ThingsOut(BaseModel):
 @setup
 def setup_app() -> None:
     """Create a valid app (the failure is in the backend test, not here)."""
-    dynamic_models.create_application_collection(COLLECTION)
     dynamic_models.create_application(
-        collection=COLLECTION,
         name=APP,
         tables={TABLE: [CharColumn("code", max_length=10)]},
     )

@@ -11,18 +11,15 @@ from __future__ import annotations
 
 from djangoapp.apps.shortcuts import CharColumn, dynamic_models, setup
 
-COLLECTION = "Tests"
 APP = "FailsSetup"
 TABLE = "things"
 
 
 @setup
 def setup_app() -> None:
-    # Collection is created first so the failure is the bad column (max_length=0),
-    # exercising setup-time validation rollback rather than a missing collection.
-    dynamic_models.create_application_collection(COLLECTION)
+    # The failure is the bad column (max_length=0), exercising setup-time
+    # validation rollback.
     dynamic_models.create_application(
-        collection=COLLECTION,
         name=APP,
         tables={TABLE: [CharColumn("code", max_length=0)]},
     )

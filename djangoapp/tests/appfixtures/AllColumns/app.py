@@ -30,8 +30,7 @@ from djangoapp.apps.shortcuts import (
     setup,
 )
 
-COLLECTION = "Tests"
-APP = "AllTypes"
+APP = "AllColumns"
 TABLE = "row"
 CATEGORY = "category"
 
@@ -50,10 +49,8 @@ class RowOut(BaseModel):
 
 @setup
 def setup_app() -> None:
-    """Create the Schema/AllTypes app + one-each-type table + a seed row."""
-    dynamic_models.create_application_collection(COLLECTION)
+    """Create the AllColumns app + one-each-type table + a seed row."""
     dynamic_models.create_application(
-        collection=COLLECTION,
         name=APP,
         tables={
             CATEGORY: [CharColumn("code", max_length=10)],
@@ -65,13 +62,13 @@ def setup_app() -> None:
                 DecimalColumn("price", max_digits=8, decimal_places=2),
                 DateTimeColumn("due", nullable=True),
                 UserColumn("owner", nullable=True),
-                ForeignKeyColumn("category", target=(COLLECTION, APP, CATEGORY), nullable=True),
+                ForeignKeyColumn("category", target=(APP, CATEGORY), nullable=True),
             ],
         },
     )
-    category_model = Application.get_by_names(COLLECTION, APP).table_as_model(CATEGORY)
+    category_model = Application.objects.get(name=APP).table_as_model(CATEGORY)
     cat = category_model.objects.create(code="C1")
-    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
+    model = Application.objects.get(name=APP).table_as_model(TABLE)
     model.objects.create(
         code="A1",
         note="hi",
@@ -87,7 +84,7 @@ def setup_app() -> None:
 @get_endpoint
 def row(request: HttpRequest) -> RowOut:
     """Return the single seed row's typed values."""
-    model = Application.get_by_names(COLLECTION, APP).table_as_model(TABLE)
+    model = Application.objects.get(name=APP).table_as_model(TABLE)
     instance = model.objects.first()
     assert instance is not None
     return RowOut(

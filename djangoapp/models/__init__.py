@@ -1,8 +1,8 @@
 from djangoapp.models.applications import (
     ALPHANUMERIC_RE,
+    APP_NAME_RE,
     COLUMN_NAME_RE,
     Application,
-    ApplicationCollection,
     ApplicationTable,
     ApplicationTableColumn,
     AppsGeneration,
@@ -24,9 +24,9 @@ from djangoapp.models.base import (
 
 __all__ = [
     "ALPHANUMERIC_RE",
+    "APP_NAME_RE",
     "COLUMN_NAME_RE",
     "Application",
-    "ApplicationCollection",
     "ApplicationTable",
     "ApplicationTableColumn",
     "AppsGeneration",

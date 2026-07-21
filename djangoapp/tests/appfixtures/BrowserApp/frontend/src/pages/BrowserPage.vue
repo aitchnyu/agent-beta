@@ -22,7 +22,7 @@ const loading = ref(false)
 async function refresh() {
   loading.value = true
   try {
-    const res = await axios.get("/apps/a/Tests/Browser/e/current_value")
+    const res = await axios.get("/apps/BrowserApp/e/current_value")
     fetched.value = res.data.value
   } catch {
     fetched.value = "error"

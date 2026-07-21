@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
-import BackToTopLink from "../components/BackToTopLink.vue"
 import Layout from "../components/Layout.vue"
 import { AppListPropsSchema } from "../schemas"
 
@@ -12,7 +11,7 @@ const p = AppListPropsSchema.parse(props.props)
 <template>
   <Layout>
     <div class="container apps-applist-page">
-      <h1>{{ p.collection_name }}</h1>
+      <h1>Applications</h1>
       <table class="table table-sm align-middle">
         <thead>
           <tr>
@@ -22,11 +21,9 @@ const p = AppListPropsSchema.parse(props.props)
         <tbody>
           <tr v-for="app in p.apps" :key="app.name">
             <td>
-              <Link
-                class="apps-app-link"
-                :href="`/apps/a/${p.collection_name}/${app.name}/manage`"
-                >{{ app.name }}</Link
-              >
+              <Link class="apps-app-link" :href="`/manage/apps/${app.name}`">{{
+                app.name
+              }}</Link>
             </td>
           </tr>
           <tr v-if="p.apps.length === 0">
@@ -34,9 +31,6 @@ const p = AppListPropsSchema.parse(props.props)
           </tr>
         </tbody>
       </table>
-      <BackToTopLink href="/apps/collections"
-        >Back to collections</BackToTopLink
-      >
     </div>
   </Layout>
 </template>

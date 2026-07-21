@@ -1,14 +1,13 @@
 """``applications`` management command: read-only listing/describe.
 
-A single command with argparse subparsers. Mutation of collections, apps
-and tables lives on ``dynamic_models`` (see ``djangoapp/models/dynamic.py``);
-this command only lists collections, lists an app's contents, and describes
-a table's columns.
+A single command with argparse subparsers. Mutation of apps and tables lives
+on ``dynamic_models`` (see ``djangoapp/models/dynamic.py``); this command only
+lists apps and describes a table's columns.
 
-Renaming an application, table, or collection only changes its display
-name: physical tables are keyed by the immutable ``physical_name``
-(``zz_<physical_name>``), which omits the collection/app/table name
-entirely, so renames never trigger DDL.
+Renaming an application or table only changes its display name: physical
+tables are keyed by the immutable ``physical_name``
+(``zz_<physical_name>``), which omits the app/table name entirely, so
+renames never trigger DDL.
 """
 
 from __future__ import annotations
@@ -20,11 +19,8 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.management.base import BaseCommand, CommandParser
 from django.db import IntegrityError
 
-from djangoapp.management.commands.applications_schemas import (
-    DescribeApplicationTableSchema,
-    ListApplicationCollectionSchema,
-)
-from djangoapp.models import ApplicationCollection, ApplicationTable, ApplicationTableColumn
+from djangoapp.management.commands.applications_schemas import DescribeApplicationTableSchema
+from djangoapp.models import Application, ApplicationTable, ApplicationTableColumn
 from djangoapp.models.applications import ColumnType
 
 
@@ -37,13 +33,12 @@ def _format_django_error(exc: DjangoValidationError | Exception) -> str:
 
 
 class Command(BaseCommand):
-    """List application collections, apps, and describe tables."""
+    """List apps and describe tables."""
 
-    help = "List application collections/apps and describe tables (read-only)."
+    help = "List apps and describe tables (read-only)."
 
     SUBCOMMANDS: ClassVar[list[str]] = [
-        "list_application_collections",
-        "list_application_collection",
+        "list_applications",
         "describe_application_table",
         "export_fk_graph",
     ]
@@ -51,13 +46,9 @@ class Command(BaseCommand):
     def add_arguments(self, parser: CommandParser) -> None:
         sub = parser.add_subparsers(dest="subcommand", required=True)
 
-        sub.add_parser("list_application_collections")
-
-        p = sub.add_parser("list_application_collection")
-        p.add_argument("--name", required=True)
+        sub.add_parser("list_applications")
 
         p = sub.add_parser("describe_application_table")
-        p.add_argument("--appcollection", required=True)
         p.add_argument("--app", required=True)
         p.add_argument("--name", required=True)
 
@@ -91,18 +82,12 @@ class Command(BaseCommand):
     # Read handlers
     # ------------------------------------------------------------------
 
-    def _handle_list_application_collections(self, _options: dict[str, Any]) -> None:
-        for collection in ApplicationCollection.objects.all().order_by("name"):
-            self.stdout.write(collection.name)
-
-    def _handle_list_application_collection(self, options: dict[str, Any]) -> None:
-        payload = ListApplicationCollectionSchema(name=options["name"])
-        for app in payload.collection.applications.all().order_by("name"):
+    def _handle_list_applications(self, _options: dict[str, Any]) -> None:
+        for app in Application.objects.all().order_by("name"):
             self.stdout.write(app.name)
 
     def _handle_describe_application_table(self, options: dict[str, Any]) -> None:
         payload = DescribeApplicationTableSchema(
-            appcollection=options["appcollection"],
             app=options["app"],
             name=options["name"],
         )
@@ -114,18 +99,15 @@ class Command(BaseCommand):
 
     def _handle_export_fk_graph(self, options: dict[str, Any]) -> None:
         def label(table: ApplicationTable) -> str:
-            """``collection:app:table``; ``:`` is Mermaid-id-safe, so it doubles as id and text."""
-            return (
-                f"{table.application.application_collection.name}:"
-                f"{table.application.name}:{table.name}"
-            )
+            """``app:table``; ``:`` is Mermaid-id-safe, so it doubles as id and text."""
+            return f"{table.application.name}:{table.name}"
 
         # Every table is a node; every foreign-key column is a labelled edge
         # source -> target. Emits the whole graph (no scoping), so isolated
         # tables (no FK in or out) appear as nodes too.
         tables = list(
-            ApplicationTable.objects.select_related("application__application_collection").order_by(
-                "application__application_collection__name", "application__name", "name"
+            ApplicationTable.objects.select_related("application").order_by(
+                "application__name", "name"
             )
         )
         # Labels are unique per table (application+name is unique), so a single
@@ -138,8 +120,8 @@ class Command(BaseCommand):
         fk_columns = (
             ApplicationTableColumn.objects.filter(type=ColumnType.FOREIGN_KEY)
             .select_related(
-                "application_table__application__application_collection",
-                "fk_target_table__application__application_collection",
+                "application_table__application",
+                "fk_target_table__application",
             )
             .order_by("application_table__name", "name")
         )
@@ -157,9 +139,9 @@ class Command(BaseCommand):
 def _emit_graphviz(nodes: list[str], edges: list[tuple[str, str, str]]) -> str:
     """Render nodes + FK edges as a Graphviz DOT digraph.
 
-    Each node's id is the full ``collection:app:table`` label, but its visible
-    text is just the table name (the segment after the last ``:``) — the unique
-    ids keep same-named tables across apps distinct, while the boxes stay short.
+    Each node's id is the full ``app:table`` label, but its visible text is just
+    the table name (the segment after the last ``:``) — the unique ids keep
+    same-named tables across apps distinct, while the boxes stay short.
     """
     lines = ["digraph fk {"]
     lines.extend(f'  "{label}" [label="{label.rsplit(":", 1)[-1]}"];' for label in nodes)
@@ -174,9 +156,9 @@ def _emit_graphviz(nodes: list[str], edges: list[tuple[str, str, str]]) -> str:
 def _emit_mermaid(nodes: list[str], edges: list[tuple[str, str, str]]) -> str:
     """Render nodes + FK edges as a Mermaid graph (renders in GitHub/VS Code).
 
-    Unlike DOT, the full ``collection:app:table`` label is both the node id and
-    its displayed text, so same-named tables across apps stay distinct in both
-    (DOT collapses them to the bare table name). ``graph LR`` is left-to-right.
+    Unlike DOT, the full ``app:table`` label is both the node id and its
+    displayed text, so same-named tables across apps stay distinct in both (DOT
+    collapses them to the bare table name). ``graph LR`` is left-to-right.
     """
     lines = ["graph LR"]
     lines.extend(f'  {label}["{label}"]' for label in nodes)
