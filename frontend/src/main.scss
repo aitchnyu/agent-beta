@@ -65,7 +65,9 @@ body {
   align-items: center;
   flex-wrap: wrap;
   gap: 1rem;
-  margin-top: 1rem;
+  // Sits at the top of the page (between the heading and the table), so balance
+  // the spacing on both sides instead of the bottom-only margin it had there.
+  margin: 1rem 0;
 }
 
 // Reuse the back-to-top look for the Home link so both read as subtle nav.

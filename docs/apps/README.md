@@ -78,8 +78,14 @@ done. (The reference app under `docs/apps/reference/` is the canonical example.)
       zod schema when the page has one. Never `throw` after toasting
       (double-toasts via the global handler).
 - [ ] "Go home" / back-to-host navigation works.
-- [ ] Loads Bootstrap exactly once (app pages load only the app bundle; the
-      host CSS must not also load on app pages).
+- [ ] Loads Bootstrap exactly once **and includes its CSS** — the app bundle
+      ships Bootstrap itself (`import "bootstrap"` **and**
+      `import "bootstrap/dist/css/bootstrap.min.css"` in `main.ts`). App pages
+      load only the app bundle; the host CSS/JS does not load on them, so the
+      bundle must carry Bootstrap (the host uses it) or the app renders unstyled.
+- [ ] `buildfrontend <app>` emits CSS —
+      `djangoapp/static/djangoapp/apps/<app>/main.css` exists and is non-empty
+      (a build that emits only JS leaves the page unstyled).
 
 ## Reference app
 

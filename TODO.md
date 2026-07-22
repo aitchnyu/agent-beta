@@ -1,14 +1,9 @@
+Install marked, then in RenderRawHtml: sanitizeHtml(marked.parse(text))
+
+Show source maps?
+
 How to make /prompt endpoint as stateless as possible?
-
-Test session reset
-Proper border for all traces
-
-shared props - send application name?
-
-↑ Back to Trivia Open Facts - should be at top
-./run djangomanage buildbackend - allow all the time
-
-Render with css - mention that css has to be rendered
+Poorly typed stuff in opencode.py - `def _is_idle(event: dict[str, Any]) -> bool:`
 
 logger = logging.getLogger(__name__) - agent added
 

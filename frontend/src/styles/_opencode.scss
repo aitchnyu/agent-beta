@@ -21,7 +21,7 @@
 .opencode-user {
   align-self: flex-end;
   max-width: 80%;
-  background-color: $indigo-50;
+  border: 1px solid $blue-600;
   border-radius: $radius-md;
   padding: 0.5rem 0.75rem;
 }
@@ -30,13 +30,29 @@
   color: $gray-600;
   font-style: italic;
   font-size: 0.85em;
-  white-space: pre-wrap;
+  white-space: pre;
   max-height: 300px;
   overflow: auto;
+  background-color: $gray-50;
+  border-radius: $radius-md;
+  padding: 0.5rem 0.75rem;
+}
+
+// Agent markdown prose (rendered via RenderRawHtml). This is the only content
+// block that wraps; read/command output and reasoning scroll instead. The last
+// child's margin is collapsed so it doesn't double up with the box's bottom
+// padding.
+.opencode-text {
+  border: $border-light;
+  border-radius: $radius-md;
+  padding: 0.5rem 0.75rem;
+
+  > :last-child {
+    margin-bottom: 0;
+  }
 }
 
 .opencode-tool {
-  border: $border-light;
   border-radius: $radius-md;
   padding: 0.5rem 0.75rem;
   background-color: $gray-50;
@@ -64,13 +80,12 @@
 .opencode-tool-output {
   margin: 0.5rem 0 0;
   font-size: 0.8rem;
-  white-space: pre-wrap;
+  white-space: pre;
   max-height: 600px;
   overflow: auto;
 }
 
 .opencode-permission {
-  border: 1px solid $amber-500;
   border-radius: $radius-md;
   padding: 0.5rem 0.75rem;
   background-color: $amber-50;

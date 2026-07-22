@@ -12,7 +12,27 @@
     },
     "bash": {
       "*": "ask",
-      "pwd": "allow"
+      "pwd": "allow",
+      "./run djangomanage buildbackend *": "allow",
+      "./run djangomanage buildfrontend *": "allow",
+      "npm --prefix frontend run lint": "allow",
+      "npm --prefix frontend run type-check": "allow",
+      "npm --prefix frontend run build": "allow",
+      "git status": "allow",
+      "git diff *": "allow",
+      "git log": "allow",
+      "git show": "allow",
+      "git branch": "allow",
+      "git ls-files": "allow",
+      "git blame": "allow",
+      "ls *": "allow",
+      "find *": "allow",
+      "grep *": "allow",
+      "wc *": "allow",
+      "echo *": "allow",
+      "head *": "allow",
+      "tail *": "allow"
+
     },
     "doom_loop": "allow",
     "task": "deny",

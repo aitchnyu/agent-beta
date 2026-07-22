@@ -8,6 +8,7 @@ import type { App as VueApp, DefineComponent } from "vue"
 import { createInertiaApp } from "@inertiajs/vue3"
 import axios from "axios"
 import "bootstrap"
+import "bootstrap/dist/css/bootstrap.min.css"
 import { showErrorToast } from "./utils/showErrorToast"
 
 // CSRF for axios (every call must still be try/catch + toast in the caller).

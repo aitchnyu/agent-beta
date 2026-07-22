@@ -14,6 +14,15 @@ const p = ManagePropsSchema.parse(props.props)
   <Layout>
     <div class="container apps-manage-page">
       <h1>{{ p.app_name }}</h1>
+      <div class="apps-manage-links">
+        <BackToTopLink href="/manage/apps">Back to apps</BackToTopLink>
+        <!-- Plain <a>, not Inertia <Link>: /apps/<app> is a separate Inertia
+             bundle; a client-side visit would fail to resolve the app's
+             component in the host bundle. -->
+        <a class="apps-manage-home" :href="appEndpointUrl(p.app_name)"
+          >Open {{ p.app_name }}</a
+        >
+      </div>
       <table class="table table-sm align-middle apps-manage-table">
         <thead>
           <tr>
@@ -39,12 +48,6 @@ const p = ManagePropsSchema.parse(props.props)
           </tr>
         </tbody>
       </table>
-      <div class="apps-manage-links">
-        <BackToTopLink href="/manage/apps">Back to apps</BackToTopLink>
-        <Link class="apps-manage-home" :href="appEndpointUrl(p.app_name)"
-          >Open {{ p.app_name }}</Link
-        >
-      </div>
     </div>
   </Layout>
 </template>
