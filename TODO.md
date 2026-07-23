@@ -1,17 +1,7 @@
-Install marked, then in RenderRawHtml: sanitizeHtml(marked.parse(text))
+Whats next app? A todo app?
 
-Show source maps?
-
-How to make /prompt endpoint as stateless as possible?
-Poorly typed stuff in opencode.py - `def _is_idle(event: dict[str, Any]) -> bool:`
-
-logger = logging.getLogger(__name__) - agent added
-
-Make a real app
-
-## Give chat to end users?
-Limit file access to specific tree
-Specific tool calls
+os.environ.get("OPENCODE_BASE_URL", f"http://{_OPENCODE_HOST}:{_OPENCODE_PORT}")
+Log them properly
 
 ## Chatting
 Apps is not ignored in vcs
@@ -29,9 +19,25 @@ Responses
     thinking traces
     show raw json?
 
+Install marked, then in RenderRawHtml: sanitizeHtml(marked.parse(text))
+
+Show source maps for main and sub apps? How to read errors from them?
+
+How to make /prompt endpoint as stateless as possible?
+Poorly typed stuff in opencode.py - `def _is_idle(event: dict[str, Any]) -> bool:`
+
+logger = logging.getLogger(__name__) - agent added
+
+Make a real app
+
+## Give chat to end users?
+Limit file access to specific tree
+Specific tool calls
+
 How to test multi step write operations like creating a family tree?
 Does Mypy lint application?
 
+Huey based background and scheduled tasks?
 -----------
 Have better error messages for /opencode
 NinjaAPI consistency - like error handlers etc
@@ -72,3 +78,4 @@ Command to audit all apps at once?
 keep login_for_test?
 Offline workers and notifications
 Error handling for frontend and backend
+Whitelist services for outbound connections

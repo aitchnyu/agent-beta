@@ -31,7 +31,9 @@ dev = [
 exclude-newer = "7 days"
 
 [tool.ruff]
-exclude = [".venv", "djangoapp/migrations", "prevproject"]
+# `apps/` excluded explicitly (not via .gitignore): its `!/apps/.gitignore`
+# re-inclusion forces descent, so the dir-prune no longer hides app source.
+exclude = [".venv", "djangoapp/migrations", "apps", "prevproject"]
 target-version = "py314"
 line-length = 100
 

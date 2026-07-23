@@ -1,6 +1,11 @@
 # Installed apps live at the project root in apps/ at runtime (gitignored);
 # anchored so it does NOT match djangoapp/apps/ or djangoapp/tests/apps/.
-/apps/
+# `**` (not `/apps/`) so the negation below can re-include a file: git won't
+# descend into a fully-excluded directory.
+/apps/**
+# Ship apps/.gitignore with the repo so a fresh deploy has it ready for the
+# apps/ subrepo buildbackend bootstraps (ignores node_modules/__pycache__/...).
+!/apps/.gitignore
 
 .venv
 .env

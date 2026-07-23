@@ -4,9 +4,6 @@ We are making a Django app for users to manage mini apps with backend code, fron
 
 I will request some features which are present in prevproject. Do not use it for any other reason. Ensure its not covered by linters etc.
 
-## Examples
-Maps and complaints
-
 ## Google OAuth (social login)
 
 Credentials live in the database, not in settings or `.env`. After the first

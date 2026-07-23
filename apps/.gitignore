@@ -1,0 +1,11 @@
+# This .gitignore serves apps/ independent repo. The python and TS code will generate files which shouldn't get into this repo.
+
+# Per-app frontend dependencies (installed, not committed)
+node_modules/
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store

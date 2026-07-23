@@ -30,6 +30,8 @@ tests); :class:`Command` is a thin wrapper that styles output.
 
 from __future__ import annotations
 
+import logging
+import subprocess
 import sys
 import traceback
 from typing import TYPE_CHECKING, Any
@@ -43,6 +45,50 @@ from djangoapp.models.dynamic import dynamic_models
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+    from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+
+def _ensure_apps_repo(apps_dir: Path) -> None:
+    """Ensure ``apps/`` is its own git repo, ready to version app source.
+
+    buildbackend runs against ``apps/`` holding the app source under
+    development, so the first build bootstraps it as a standalone repo (the main
+    repo ignores ``/apps/``). Idempotent — a no-op once ``apps/.git`` exists. The
+    repo's ``.gitignore`` ships with the main repo, so it is not (re)created here.
+
+    Fails loud: any git problem (git missing, init error) raises
+    :class:`CommandError` — carrying git's stderr when available — so a build
+    that can't version the app is obvious, not silent.
+    """
+    if (apps_dir / ".git").exists():
+        logger.debug("apps/ already a git repo at %s — skipping init", apps_dir)
+        return
+    logger.info("Bootstrapping apps/ as a git repo at %s", apps_dir)
+    try:
+        # `git init` then rename to `main`; robust across git versions (`-b main`
+        # needs git >= 2.28, the branch rename works everywhere).
+        subprocess.run(
+            ["git", "init"],  # noqa: S607 # git resolved via PATH by design
+            cwd=apps_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "branch", "-M", "main"],  # noqa: S607 # git resolved via PATH by design
+            cwd=apps_dir,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError) as exc:
+        detail = (getattr(exc, "stderr", None) or str(exc)).strip()
+        logger.exception("Could not init apps repo at %s: %s", apps_dir, detail)
+        msg = f"Could not init apps repo at {apps_dir}: {detail}"
+        raise CommandError(msg) from exc
+    logger.info("Initialized apps/ repo at %s", apps_dir)
 
 
 def _stderr_line(msg: str) -> None:
@@ -238,6 +284,10 @@ class Command(BaseCommand):
 
     def handle(self, *_args: Any, **options: Any) -> None:  # noqa: ANN401 # Django options is untyped
         identity: str = options["app"]
+        # Bootstrap apps/ as its own git repo (idempotent) before building, so
+        # app source under development is version-controlled separately from the
+        # main repo (which ignores /apps/). Failure here is logged, not fatal.
+        _ensure_apps_repo(apps_root())
         count = build_backend(
             identity,
             out_write=self.stdout.write,

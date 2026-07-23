@@ -1,16 +1,17 @@
 from __future__ import annotations
 
 import io
+import tempfile
 from pathlib import Path
 from typing import Any, cast
 from unittest.mock import patch
 
 from django.conf import settings
 from django.core.management.base import CommandError
-from django.test import TestCase
+from django.test import SimpleTestCase, TestCase
 
 from djangoapp.apps import dynamic_module
-from djangoapp.management.commands.buildbackend import build_backend
+from djangoapp.management.commands.buildbackend import _ensure_apps_repo, build_backend
 from djangoapp.models import Application, ApplicationTable, AppsGeneration
 from djangoapp.models.dynamic import dynamic_models
 
@@ -278,3 +279,36 @@ class BuildBackendResumeTests(TestCase):
         self.assertIn("['setup1', 'setup2']", msg)
         self.assertIn("['setup1', 'setup_two']", msg)
         self.assertNotIn("fewer @setups", msg)
+
+
+class EnsureAppsRepoTests(SimpleTestCase):
+    """``_ensure_apps_repo`` bootstraps apps/ as a git repo — idempotent + isolated."""
+
+    def test_inits_repo_when_missing(self) -> None:
+        """A dir with no .git becomes a git repo (the .gitignore ships separately)."""
+        with tempfile.TemporaryDirectory() as d:
+            apps = Path(d)
+            _ensure_apps_repo(apps)
+            self.assertTrue((apps / ".git").is_dir())
+
+    def test_noop_when_repo_already_exists(self) -> None:
+        """An existing .git is left alone, and a custom .gitignore is preserved."""
+        with tempfile.TemporaryDirectory() as d:
+            apps = Path(d)
+            (apps / ".git").mkdir()  # pretend a repo already exists
+            (apps / ".gitignore").write_text("custom rules\n")
+            _ensure_apps_repo(apps)
+            self.assertEqual((apps / ".gitignore").read_text(), "custom rules\n")
+
+    def test_git_failure_raises(self) -> None:
+        """A git failure (git missing) raises CommandError — fails loud."""
+        with (
+            tempfile.TemporaryDirectory() as d,
+            patch(
+                "djangoapp.management.commands.buildbackend.subprocess.run",
+                side_effect=OSError("git not found"),
+            ),
+        ):
+            apps = Path(d)
+            with self.assertRaises(CommandError):
+                _ensure_apps_repo(apps)

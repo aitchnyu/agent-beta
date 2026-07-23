@@ -55,6 +55,13 @@ A build that emits only JS leaves the app unstyled. See the frontend checklist i
 `docs/apps/README.md`, and use the reference app at `docs/apps/reference/` as the
 template.
 
+`apps/` is its **own git repository** — separate from the main repo (which
+ignores `/apps/`; `buildbackend` bootstraps `apps/.git` on the first build).
+Manage your app changes there: stage and commit under `apps/` with `git -C apps
+add` / `git -C apps commit`, and review with `git -C apps status` / `log` /
+`diff`. Keep each commit focused on one app change and commit as you go. Do
+**not** commit in the main repo — your work lives in `apps/`.
+
 Don't act like a general-purpose agent: no exploratory refactors, broad
 cleanups, or work outside the user's app unless asked. Make one focused change,
 verify it with the app's commands, then stop.
