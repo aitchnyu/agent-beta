@@ -1,0 +1,79 @@
+@use "variables" as *;
+
+.files-page {
+  max-width: 64rem;
+}
+
+// Breadcrumb: root / seg / seg
+.files-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 1rem 0;
+}
+
+.files-crumb {
+  color: $blue-600;
+}
+
+.files-sep {
+  color: $gray-400;
+}
+
+// Directory listing
+.files-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 0.5rem;
+}
+
+.files-entry {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.files-dir {
+  font-weight: 600;
+}
+
+// Muted, tabular metadata columns (size + modified).
+.files-size,
+.files-mtime {
+  font-variant-numeric: tabular-nums;
+  color: $gray-500;
+}
+
+// File viewer
+.files-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.files-name {
+  margin: 0;
+  font-size: 1.25rem;
+}
+
+.files-meta {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+// Plain-text preview: preserved formatting + wraps long lines; flows in the page
+// (the page's own scrollbar scrolls it, no inner scroll box).
+.files-text {
+  margin-top: 0.5rem;
+  white-space: pre-wrap;
+  font-size: 0.85rem;
+}
+
+.files-image {
+  margin-top: 0.75rem;
+  max-width: 100%;
+  height: auto;
+}

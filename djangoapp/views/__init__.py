@@ -22,6 +22,18 @@ def host_template_data() -> dict[str, str]:
     return {"app_static_base": "/static/djangoapp", "app_asset_version": ""}
 
 
+def require_superuser(request: HttpRequest) -> None:
+    """Gate a view to a superuser, else 404 (never 403).
+
+    Shared by the superuser-only read views (``/manage/apps``, ``/agent/``,
+    ``/files/...``). A 404 (not 403) keeps the page's existence hidden from
+    unauthenticated / non-superuser viewers.
+    """
+    viewer = request.user
+    if not (viewer.is_authenticated and viewer.is_superuser):
+        raise Http404
+
+
 def home(request: HttpRequest) -> HttpResponse:
     """Inertia Home page showing login state.
 

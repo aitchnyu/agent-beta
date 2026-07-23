@@ -1,25 +1,23 @@
+Files
+Render py, Vue, json (pygments)
+Render markdown as html with linked images
+
 Whats next app? A todo app?
 
 os.environ.get("OPENCODE_BASE_URL", f"http://{_OPENCODE_HOST}:{_OPENCODE_PORT}")
 Log them properly
+Playwright tests - `expect(page.get_by_text(_ENTRY_DIR)).to_be_visible()`
 
 ## Chatting
-Apps is not ignored in vcs
-Make a file browser, py, vue, json, images
-Available only to superruser, intended for /apps only
 Diff and blame renderer?
-Render images in md
-Markup with links that open in file browser
+Allow code blocks in html
+Chat links that open in file browser
+Upload files
 
-Responses
-    request command
-        git commit - confirm
-    read file
-    write file
-    thinking traces
-    show raw json?
+Request-response
 
-Install marked, then in RenderRawHtml: sanitizeHtml(marked.parse(text))
+
+Install marked, then in RenderRawHtml: sanitizeHtml(marked.parse(text)) - since model is apparently rendering md in spite of instructions
 
 Show source maps for main and sub apps? How to read errors from them?
 

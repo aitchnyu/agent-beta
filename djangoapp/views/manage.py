@@ -27,19 +27,12 @@ from djangoapp.models import (
     ColumnType,
     UserProfile,
 )
-from djangoapp.views import host_template_data
+from djangoapp.views import host_template_data, require_superuser
 
 if TYPE_CHECKING:
     from datetime import datetime
 
     from djangoapp.models.base import User
-
-
-def _require_superuser(request: HttpRequest) -> None:
-    """Gate the view to a superuser, else 404 (never 403)."""
-    viewer = request.user
-    if not (viewer.is_authenticated and viewer.is_superuser):
-        raise Http404
 
 
 class AppItem(PydanticBaseModel):
@@ -224,7 +217,7 @@ manage_router = Router()
 @manage_router.get("/apps", response=None)
 def apps_page(request: HttpRequest) -> HttpResponse:
     """List every application."""
-    _require_superuser(request)
+    require_superuser(request)
     items = [AppItem(name=a.name) for a in Application.objects.all().order_by("name")]
     props = AppListProps(apps=items)
     return InertiaResponse(
@@ -235,7 +228,7 @@ def apps_page(request: HttpRequest) -> HttpResponse:
 @manage_router.get("/apps/{app_name}", response=None)
 def manage_page(request: HttpRequest, app_name: str) -> HttpResponse:
     """List an app's tables with live row counts (read from dynamic models)."""
-    _require_superuser(request)
+    require_superuser(request)
     app = Application.app_or_404(app_name)
     table_rows: list[TableItem] = []
     for table in app.tables.all().order_by("name"):
@@ -259,7 +252,7 @@ def row_list_page(
     filters: Query[RowListFilters],
 ) -> HttpResponse:
     """List rows of a table's dynamic model, paginated and sorted (newest first)."""
-    _require_superuser(request)
+    require_superuser(request)
     table = _get_application_table_or_404(app_name, table_name)
     columns = table.ordered_columns()
 
@@ -300,7 +293,7 @@ def row_detail_page(
     public_id: str,
 ) -> HttpResponse:
     """Show a single row by its _public_id, with all columns serialised."""
-    _require_superuser(request)
+    require_superuser(request)
     table = _get_application_table_or_404(app_name, table_name)
     columns = table.ordered_columns()
     model = cast("Any", table.as_model())

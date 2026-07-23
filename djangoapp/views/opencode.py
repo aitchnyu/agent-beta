@@ -23,7 +23,6 @@ from urllib.parse import quote
 
 import httpx
 from django.http import (
-    Http404,
     HttpRequest,
     HttpResponse,
     HttpResponseBase,
@@ -34,7 +33,7 @@ from inertia import render
 from ninja import NinjaAPI, Router
 from pydantic import BaseModel
 
-from djangoapp.views import host_template_data
+from djangoapp.views import host_template_data, require_superuser
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -89,13 +88,6 @@ _RELEVANT_TYPES = frozenset(
 _HUMAN_TOUCHPOINTS = frozenset({"permission.asked", "permission.replied"})
 
 
-def _require_superuser(request: HttpRequest) -> None:
-    """Gate the route to a superuser, else 404 (never 403)."""
-    viewer = request.user
-    if not (viewer.is_authenticated and viewer.is_superuser):
-        raise Http404
-
-
 class _PromptBody(BaseModel):
     message: str
     session_id: str | None = None
@@ -114,7 +106,7 @@ opencode_router = Router()
 
 def opencode_page(request: HttpRequest) -> HttpResponse:
     """Render the opencode chat page (superuser-only)."""
-    _require_superuser(request)
+    require_superuser(request)
     return render(request, "OpencodeChat", {}, template_data=host_template_data())
 
 
@@ -125,7 +117,7 @@ def prompt(request: HttpRequest, body: _PromptBody) -> HttpResponseBase:
     ``response=None`` lets the StreamingHttpResponse pass through unchanged
     (ninja otherwise serialises the return into JSON).
     """
-    _require_superuser(request)
+    require_superuser(request)
     response = StreamingHttpResponse(
         _event_stream(request, body.session_id, body.message),
         content_type="text/event-stream",
@@ -140,7 +132,7 @@ def permission(
     request: HttpRequest, session_id: str, permission_id: str, body: _PermissionBody
 ) -> HttpResponse:
     """Forward the user's allow/deny decision to opencode for a tool call."""
-    _require_superuser(request)
+    require_superuser(request)
     return _forward(
         f"/session/{_encode_path_segment(session_id)}/permissions/{_encode_path_segment(permission_id)}",
         json_body={"response": body.response},
@@ -150,7 +142,7 @@ def permission(
 @opencode_router.post("/abort/{session_id}/", response=None)
 def abort(request: HttpRequest, session_id: str) -> HttpResponse:
     """Stop the in-flight opencode turn for a session."""
-    _require_superuser(request)
+    require_superuser(request)
     return _forward(f"/session/{_encode_path_segment(session_id)}/abort")
 
 
@@ -161,7 +153,7 @@ def delete_session(request: HttpRequest, session_id: str) -> HttpResponse:
     The proxy stays POST (CSRF/axios consistency with the other proxies) and
     translates to opencode's ``DELETE /session/:id`` here.
     """
-    _require_superuser(request)
+    require_superuser(request)
     return _forward(f"/session/{_encode_path_segment(session_id)}", method="DELETE")
 
 

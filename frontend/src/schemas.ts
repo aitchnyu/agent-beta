@@ -335,3 +335,37 @@ export type OpencodeEvent = z.infer<typeof OpencodeEventSchema>
 export const OpencodeActionResponseSchema = z.object({
   ok: z.boolean(),
 })
+
+// ---- File browser (/files/...) — superuser-only ----
+
+export const FileCrumbSchema = z.object({
+  label: z.string(),
+  rel: z.string(),
+})
+
+export const FileEntrySchema = z.object({
+  name: z.string(),
+  is_dir: z.boolean(),
+  is_image: z.boolean(),
+  size: z.number(), // bytes — formatted client-side (humanized)
+  mtime: z.number(), // epoch ms — formatted client-side in the local timezone
+})
+
+export const FileBrowserPropsSchema = z.object({
+  rel: z.string(),
+  breadcrumb: z.array(FileCrumbSchema),
+  parent: z.string().nullable(),
+  entries: z.array(FileEntrySchema),
+  contains_hidden_entries: z.boolean(),
+})
+
+export const FileViewerPropsSchema = z.object({
+  rel: z.string(),
+  breadcrumb: z.array(FileCrumbSchema),
+  parent: z.string().nullable(),
+  name: z.string(),
+  size: z.number(),
+  mtime: z.number(),
+  kind: z.enum(["text", "image", "binary"]),
+  text: z.string().default(""),
+})
