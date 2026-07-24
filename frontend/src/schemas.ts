@@ -362,10 +362,10 @@ export const FileBrowserPropsSchema = z.object({
 export const FileViewerPropsSchema = z.object({
   rel: z.string(),
   breadcrumb: z.array(FileCrumbSchema),
-  parent: z.string().nullable(),
+  parent: z.string(),
   name: z.string(),
   size: z.number(),
   mtime: z.number(),
-  kind: z.enum(["text", "image", "binary"]),
+  kind: z.enum(["text", "image", "binary", "markdown"]),
   text: z.string().default(""),
 })

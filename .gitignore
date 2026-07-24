@@ -17,10 +17,9 @@ uploads/
 .idea/
 # Any node_modules (host frontend + per-app/test-app frontends).
 node_modules/
-# js, css, map etc
-djangoapp/static/djangoapp/main*
-# Per-app build artifacts (buildapp output); built, not committed.
-djangoapp/static/djangoapp/apps/
+# Vite build output (main bundle, code-split chunks, source maps, per-app
+# builds); generated, not committed.
+djangoapp/static/
 
 # coverage tool generates this
 .coverage

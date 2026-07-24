@@ -214,3 +214,65 @@ Findings from a multi-dimensional review of the commit, with status.
 
 ### Verify
 - [x] `uv run ruff check` · `uv run mypy .` · `./run test` · frontend `lint`/`type-check`/`build-only` · `./run playwrighttest`
+
+## Next phase: rich previews (syntax highlighting + markdown)
+
+Render supported file types richer than a plain `<pre>`, **lazy-loading** the libs
+so they don't bloat the host bundle.
+
+### Goals
+- **Syntax highlighting** for `.py`, `.vue`, `.json`, `.ts`, `.js`, `.md` (and a
+  sensible default for other code). Library TBD — `highlight.js` (detect by
+  extension) or `shiki`.
+- **Markdown** (`.md`) rendered as HTML via `marked`, then **sanitized** before
+  render (reuse the existing `sanitize-html` allowlist; never `v-html` unsanitized
+  md). **Render images** in the md: rewrite relative `![](path)` / `<img src>` to
+  `/files-raw/<repo-root-relative path>` resolved against the md file's directory
+  (absolute / `http(s)://` URLs left as-is).
+- **Lazy-loaded bundle**: load the highlighter + `marked` via dynamic `import()`
+  only when a file of these types is opened — Vite code-splits dynamic imports into
+  a separate chunk, keeping them out of the host `main.js`.
+
+### Notes / constraints
+- `marked` isn't installed yet — add it (and the chosen highlighter) to
+  `frontend/package.json`.
+- CSP: the enforced `style-src 'self'` blocks inline styles — load any highlighter
+  theme CSS as a static file from `'self'`; avoid approaches needing `unsafe-inline`.
+- Classification: the backend `kind` is `text|markdown|image|binary` only — it
+  carries **no** `language` (detection is frontend-side). `.md` → `markdown`;
+  everything else text-like → `text`; the frontend decides which text files get
+  highlighted.
+- Vite `base: "/static/djangoapp/"` is required only because of the dynamic
+  `import()` chunks. Static imports bundle into the single `main.js` (URL irrelevant
+  — the template loads it explicitly via `{{ app_static_base }}/main.js`). But a lazy
+  `import("../utils/filePreview")` is fetched by the **browser at runtime**, and Vite
+  builds that chunk URL from `base`. With the default `/`, the chunk is requested at
+  `/assets/filePreview-[hash].js` → **404** (Django serves static under
+  `/static/djangoapp/`). Setting `base` to the static mount makes the runtime URL
+  `/static/djangoapp/assets/filePreview-[hash].js`, matching `outDir`. Before these
+  dynamic imports existed, `base` was unneeded.
+
+### Checklist
+- [x] add `marked` + `marked-highlight` + `highlight.js` to `frontend/package.json`
+- [x] lazy `import()` via `utils/filePreview.ts` (separate chunk + theme CSS, code-split out of host)
+- [x] syntax-highlight `.py`/`.vue`/`.json`/`.ts`/`.js` (+ plaintext default); `html.ts` allows `span`+`class`
+- [x] render `.md` via `marked` + sanitize; rewrite image `src` → `/files-raw/<rel>`
+- [x] CSP-safe: theme CSS is a `'self'` asset; set host Vite `base: "/static/djangoapp/"` so chunks resolve
+- [x] Playwright test: an `.md` file containing an image renders the prose and an
+      `<img>` whose `src` is the resolved `/files-raw/...` URL (`test_markdown_renders_with_image`)
+- [x] `npm run lint` / `type-check` / `build-only` · `uv run ruff check` · `uv run mypy .`
+
+## `aihere` markers
+
+Live `# aihere` / `// aihere` TODOs left in this feature's code (each to be
+addressed, then removed):
+
+- [x] `frontend/src/utils/languages.ts` — "why not move these to /utils/files" — moved
+      `detectLanguage` (+ the extension→language map) into `utils/files.ts`; `languages.ts` deleted.
+- [x] `frontend/src/utils/html.ts` — "expand mdRel, rel and other shortened names" — renamed to
+      `markdownRelPath`, `markdownDir`, `resolvedRelPath`.
+- [x] `frontend/src/utils/filePreview.ts` — "no need of sql" — dropped the `sql` registration (it
+      was only reachable from markdown fences; unregistered languages fall back to plaintext).
+- [x] `frontend/src/utils/filePreview.ts` — "remove the line numbers feature" — **removed**:
+      dropped `withLineNumbers` (and the `.hljs-ln-num` styles); `highlightCode` now returns
+      the highlight.js span output directly.

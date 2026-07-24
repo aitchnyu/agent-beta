@@ -1,12 +1,35 @@
 <script setup lang="ts">
+import { onMounted, ref } from "vue"
 import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import Layout from "../components/Layout.vue"
 import { FileViewerPropsSchema } from "../schemas"
-import { fileUrl, downloadUrl, formatSize, rawUrl } from "../utils/files"
+import { detectLanguage, downloadUrl, fileUrl, formatSize, rawUrl } from "../utils/files" 
 
 const props = defineProps<{ props: object }>()
 const p = FileViewerPropsSchema.parse(props.props)
+
+// A text file renders as syntax-highlighted code when its extension maps to a
+// highlight.js language; otherwise it's plain text. Detection is frontend-only.
+const codeLang = p.kind === "text" ? detectLanguage(p.name) : undefined
+
+// Rich previews (markdown / code) are rendered by a lazily-imported module so
+// marked + highlight.js stay out of the host bundle; empty until loaded.
+const rendered = ref("")
+// Markdown source shown below the rendered view (highlighted).
+const raw = ref("")
+
+onMounted(async () => {
+  if (p.kind === "markdown") {
+    const { renderMarkdown, highlightCode } =
+      await import("../utils/filePreview")
+    rendered.value = renderMarkdown(p.text, p.rel)
+    raw.value = highlightCode(p.text, "markdown")
+  } else if (codeLang) {
+    const { highlightCode } = await import("../utils/filePreview")
+    rendered.value = highlightCode(p.text, codeLang)
+  }
+})
 </script>
 
 <template>
@@ -24,16 +47,31 @@ const p = FileViewerPropsSchema.parse(props.props)
           {{ formatSize(p.size) }} · {{ p.kind }} ·
           <HumanizedTime :ms="p.mtime" />
         </p>
-        <!-- Plain anchors (full GETs): downloadUrl → attachment download;
-             rawUrl serves bytes inline (real Content-Type) so <img> can render it. -->
         <a
           class="btn btn-sm btn-outline-secondary files-download"
           :href="downloadUrl(p.rel)"
           >Download</a
         >
       </div>
-      <!-- Vue interpolation escapes the text, so a file's <script> can't run. -->
-      <pre v-if="p.kind === 'text'" class="files-text">{{ p.text }}</pre>
+      <!-- Markdown: a deemphasized link to the raw source, then the rendered HTML,
+           then the raw source (highlighted) as the scroll target. -->
+      <template v-if="p.kind === 'markdown'">
+        <p class="files-raw-link">
+          <a href="#files-raw-source">↓ View raw source</a>
+        </p>
+        <div class="files-markdown" v-html="rendered"></div>
+        <pre
+          id="files-raw-source"
+          class="files-code"
+        ><code class="hljs language-markdown" v-html="raw"></code></pre>
+      </template>
+      <!-- Code: language detected from extension; highlight.js output is escaped. -->
+      <pre
+        v-else-if="codeLang"
+        class="files-code"
+      ><code :class="`hljs language-${codeLang}`" v-html="rendered"></code></pre>
+      <!-- Plain text: Vue interpolation escapes, so a file's <script> can't run. -->
+      <pre v-else-if="p.kind === 'text'" class="files-text">{{ p.text }}</pre>
       <img
         v-else-if="p.kind === 'image'"
         :src="rawUrl(p.rel)"

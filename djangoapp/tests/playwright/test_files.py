@@ -72,23 +72,23 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
     def test_text_preview_is_html_escaped(self) -> None:
         """File markup previews as escaped text, never as live elements.
 
-        Guards against a ``v-html`` regression: previews a tracked source file
-        with markup (``<template>``/``<script>``/``<div>``) and checks Vue's
-        interpolation escaped it (``&lt;template&gt;``) with no parsed elements.
+        Guards against a ``v-html`` regression: previews a tracked ``.vue`` source
+        file (→ kind=code, highlighted) whose markup (``<template>``/``<script>``)
+        appears as escaped text — never parsed into live DOM elements.
         """
         page = self.page
         page.goto(
             self._files("frontend/src/pages/FileBrowser.vue"),
             wait_until="networkidle",
         )
-        preview = page.locator(".files-text")
+        preview = page.locator(".files-code")
         preview.wait_for(state="visible")
-        inner = preview.evaluate("el => el.innerHTML")
-        # Interpolation escapes markup → "<template>" renders as "&lt;template&gt;".
-        self.assertIn("&lt;template&gt;", inner)
+        # The file's markup is shown as text (highlight.js escapes it), not parsed.
+        self.assertIn("<template>", preview.text_content() or "")
         # A v-html regression would parse the file's tags into live elements.
-        self.assertEqual(page.locator(".files-text script").count(), 0)
-        self.assertEqual(page.locator(".files-text template").count(), 0)
+        self.assertEqual(page.locator(".files-code script").count(), 0)
+        self.assertEqual(page.locator(".files-code template").count(), 0)
+        self.assertEqual(page.locator(".files-code div").count(), 0)
 
     def test_humanized_time_toggles_to_absolute(self) -> None:
         """Clicking the time swaps the relative label for the absolute one."""
@@ -100,3 +100,42 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         # The deemphasized time small only exists in the absolute view.
         t.locator("small.humanized-time-time").wait_for(state="visible")
         self.assertNotEqual(relative, t.text_content())
+
+    def test_markdown_renders_with_image(self) -> None:
+        """Markdown shows a raw-source link, then rendered HTML, then raw source.
+
+        Asserts the link precedes the rendered prose + rewritten
+        image, which precede the raw block. The raw block shows the markdown
+        source (not the rendered HTML). Clicking the link scrolls to it (hash nav).
+        """
+        page = self.page
+        page.goto(
+            self._files("djangoapp/tests/filefixtures/sample.md"),
+            wait_until="networkidle",
+        )
+        rendered = page.locator(".files-markdown")
+        rendered.wait_for(state="visible")
+        self.assertIn("Sample markdown", rendered.inner_text())
+        img = rendered.locator("img")
+        img.wait_for(state="visible")
+        self.assertEqual(
+            img.get_attribute("src"),
+            "/files-raw/djangoapp/tests/filefixtures/diagram.svg",
+        )
+
+        # A deemphasized link targets the raw block.
+        link = page.locator(".files-raw-link a")
+        self.assertEqual(link.get_attribute("href"), "#files-raw-source")
+
+        # The raw block shows the markdown source, not the rendered HTML: the
+        # image is the literal `![…](…)` syntax, not an <img> element.
+        raw = page.locator("#files-raw-source")
+        raw.wait_for(state="visible")
+        raw_text = raw.text_content() or ""
+        self.assertIn("# Sample markdown", raw_text)
+        self.assertIn("![A blue square](diagram.svg)", raw_text)
+        self.assertEqual(raw.locator("img").count(), 0)
+
+        # Clicking the link scrolls to the raw block (native hash navigation).
+        link.click()
+        self.assertIn("#files-raw-source", page.url)

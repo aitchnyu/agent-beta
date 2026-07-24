@@ -53,6 +53,7 @@ async function sendPrompt() {
           <RenderRawHtml
             v-else-if="b.kind === 'text'"
             :html="b.text"
+            markdown
             class-name="opencode-text"
           />
           <div v-else-if="b.kind === 'tool'" class="opencode-tool">

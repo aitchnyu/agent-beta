@@ -1,21 +1,21 @@
-Files
-Render py, Vue, json (pygments)
-Render markdown as html with linked images
-
 Whats next app? A todo app?
 
 os.environ.get("OPENCODE_BASE_URL", f"http://{_OPENCODE_HOST}:{_OPENCODE_PORT}")
 Log them properly
 Playwright tests - `expect(page.get_by_text(_ENTRY_DIR)).to_be_visible()`
 
+Shared widgets and components, layout etc
+Tasks center - categories
+
 ## Chatting
 Diff and blame renderer?
-Allow code blocks in html
-Chat links that open in file browser
 Upload files
 
-Request-response
-
+### Request-response
+Plan - gather requirements
+Mention files - link to them
+Mention code - show 
+Mermaid or d2?
 
 Install marked, then in RenderRawHtml: sanitizeHtml(marked.parse(text)) - since model is apparently rendering md in spite of instructions
 
@@ -25,8 +25,6 @@ How to make /prompt endpoint as stateless as possible?
 Poorly typed stuff in opencode.py - `def _is_idle(event: dict[str, Any]) -> bool:`
 
 logger = logging.getLogger(__name__) - agent added
-
-Make a real app
 
 ## Give chat to end users?
 Limit file access to specific tree
@@ -77,3 +75,4 @@ keep login_for_test?
 Offline workers and notifications
 Error handling for frontend and backend
 Whitelist services for outbound connections
+Mermaid or D2 renderer for showing table relationships or other diagrams

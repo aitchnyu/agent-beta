@@ -29,3 +29,22 @@ export function formatSize(bytes: number): string {
   const decimals = value < 10 && value % 1 !== 0 ? 1 : 0
   return `${value.toFixed(decimals)} ${units[unit]}`
 }
+
+// Extension → highlight.js language. The frontend is the sole source of truth for
+// which files get syntax highlighting (the backend only classifies
+// text/markdown/image/binary — it knows nothing of highlight.js languages).
+const EXTENSION_TO_LANGUAGE: Record<string, string> = {
+  py: "python",
+  vue: "xml",
+  json: "json",
+  ts: "typescript",
+  js: "javascript",
+}
+
+/** Returns the highlight.js language for a filename, or undefined when it isn't a
+ *  recognized code file (→ render as plain text). */
+export function detectLanguage(filename: string): string | undefined {
+  const dot = filename.lastIndexOf(".")
+  if (dot < 0) return undefined
+  return EXTENSION_TO_LANGUAGE[filename.slice(dot + 1).toLowerCase()]
+}

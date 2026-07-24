@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 
 _REPO_ROOT = Path(str(settings.BASE_DIR)).resolve()
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico"}
+_MARKDOWN_EXT = ".md"
 # Default-hidden from listings: heavy or generated dirs (toggle with ?hidden=true).
 _HIDDEN_DIRECTORIES = {".venv", "node_modules", ".git", "__pycache__"}
 _TEXT_MAX_SIZE = 1_000_000  # ~1 MB: larger text files aren't previewed inline
@@ -67,7 +68,7 @@ class FileViewerProps(BaseModel):
     name: str
     size: int
     mtime: int
-    kind: str  # "text" | "image" | "binary"
+    kind: str  # "markdown" | "image" | "text" | "binary"
     text: str = ""
 
 
@@ -127,6 +128,9 @@ class PathWrapper:
 
     def is_image(self) -> bool:
         return self.path.suffix.lower() in _IMAGE_EXTENSIONS
+
+    def is_markdown(self) -> bool:
+        return self.path.suffix.lower() == _MARKDOWN_EXT
 
     def looks_like_text(self) -> bool:
         """Treat the file as text when its first chunk has no NUL byte (heuristic).
@@ -210,8 +214,10 @@ def file_browser(request: HttpRequest, rel: str = "") -> HttpResponseBase:
         # The <img> fetches bytes via /files-raw/..., so nothing is inlined here.
         file_viewer.kind = "image"
     elif st.st_size <= _TEXT_MAX_SIZE and target.looks_like_text():
-        file_viewer.kind = "text"
+        # Text-like: markdown renders via marked; everything else is plain text
+        # (the frontend decides which text files get syntax highlighting).
         file_viewer.text = target.read_text()
+        file_viewer.kind = "markdown" if target.is_markdown() else "text"
     return InertiaResponse(
         request,
         "FileViewer",

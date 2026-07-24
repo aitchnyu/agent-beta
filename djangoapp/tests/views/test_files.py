@@ -166,6 +166,23 @@ class FilesViewTests(InertiaTestCase):
             self.client.get("/files-raw/../etc/passwd").status_code, HTTPStatus.NOT_FOUND
         )
 
+    def test_code_file_is_text_kind(self) -> None:
+        """A .py file returns kind=text (language detection is frontend-side)."""
+        self.client.force_login(self.superuser)
+        self.client.get("/files/djangoapp/views/files.py")
+        props = self.props()["props"]
+        self.assertEqual(props["kind"], "text")
+        self.assertNotIn("language", props)
+        self.assertIn("def file_browser", props["text"])
+
+    def test_markdown_file_classified(self) -> None:
+        """A .md file returns kind=markdown with its content inlined."""
+        self.client.force_login(self.superuser)
+        self.client.get("/files/djangoapp/tests/filefixtures/sample.md")
+        props = self.props()["props"]
+        self.assertEqual(props["kind"], "markdown")
+        self.assertIn("linked image", props["text"])
+
 
 class PathWrapperTests(SimpleTestCase):
     """``PathWrapper`` confinement + classification, unit-tested on a tempdir.
