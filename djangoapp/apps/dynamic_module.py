@@ -43,7 +43,8 @@ from __future__ import annotations
 
 import importlib.util
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from json import dumps as json_dumps
 from pathlib import Path
@@ -200,6 +201,44 @@ def a_test_request(
     # RequestFactory's methods are typed ``Any``; the built object is an HttpRequest.
     request.user = user if user is not None else AnonymousUser()
     return cast("HttpRequest", request)
+
+
+_EXPECT_ERROR_NO_RAISE = "expect_error(): the with-block did not raise an exception"
+
+
+@dataclass(slots=True)
+class ExceptionWrapper:
+    """Holds the exception captured by :func:`expect_error` (``.exception``).
+
+    A holder rather than the bare exception because the ``as e`` binding happens at
+    ``yield``, before the with-body runs and raises — so the instance isn't
+    available to bind directly.
+    """
+
+    exception: BaseException | None = None
+
+
+@contextmanager
+def expect_error() -> Iterator[ExceptionWrapper]:
+    """Capture an exception raised in the block — ``pytest.raises`` without pytest.
+
+    Apps run their ``@backend_test``s as plain function calls (buildbackend drives
+    them directly), so ``pytest`` isn't available. Use this to assert a call raises::
+
+        with expect_error() as e:
+            risky_call()
+        assert isinstance(e.exception, ValueError)
+
+    The block must raise; if it doesn't, ``AssertionError`` is raised on exit so a
+    missing failure can't pass silently.
+    """
+    captured = ExceptionWrapper()
+    try:
+        yield captured
+    except Exception as exc:  # noqa: BLE001 -- capturing any app exception is the point
+        captured.exception = exc
+        return
+    raise AssertionError(_EXPECT_ERROR_NO_RAISE)
 
 
 class DynamicModule:

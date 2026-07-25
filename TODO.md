@@ -1,23 +1,42 @@
-Whats next app? A todo app?
+/version_control
+    pending changes - diff link
+    commit list - no pagination?
+    files in commit - /commit_id/filename diff link
+
+Commit logs, diff and blame
+
+Shell command deleting app by itself?
+`./run djangomanage shell -c` - ban this?
+Delete app commands
+Dont mark something as done if network fails
+Add a readme?
+Dont commit before asking
+Dont show full read output
+Dont show full edit output
+Reject overly long commands - like using cat instead of write
+Ensure long commands have newlines
+
+Page title for apps
+
+./run typecheck
+uv run mypy apps/TodoList2App/app.py
+playwright_test - it uses existing db, reverts
 
 os.environ.get("OPENCODE_BASE_URL", f"http://{_OPENCODE_HOST}:{_OPENCODE_PORT}")
 Log them properly
 Playwright tests - `expect(page.get_by_text(_ENTRY_DIR)).to_be_visible()`
 
-Shared widgets and components, layout etc
 Tasks center - categories
+Shared widgets and components, layout etc
+Share error tracking in FE
 
 ## Chatting
-Diff and blame renderer?
 Upload files
 
 ### Request-response
 Plan - gather requirements
 Mention files - link to them
 Mention code - show 
-Mermaid or d2?
-
-Install marked, then in RenderRawHtml: sanitizeHtml(marked.parse(text)) - since model is apparently rendering md in spite of instructions
 
 Show source maps for main and sub apps? How to read errors from them?
 
@@ -61,6 +80,7 @@ Tool to analyse error logs and stacktraces
 Opencode as service
 Whitelist of services
 Serve files in fs, accelerate using Caddy
+Who is committing to git
 
 ## Separate frontends
 Very easy to build individually, can add new libraries etc

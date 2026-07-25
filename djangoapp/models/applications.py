@@ -26,10 +26,9 @@ if TYPE_CHECKING:
 ALPHANUMERIC_RE = r"^[A-Za-z][A-Za-z0-9]*$"
 
 # App names: one flat namespace, so they double as URL
-# segments and on-disk dir names. At least 10 chars: the length floor keeps
-# names descriptive and reserves short literals (e.g. the ``/e`` endpoint
-# path segment) so they can never collide with an app name.
-APP_NAME_RE = r"^[A-Za-z][A-Za-z0-9]{9,}$"
+# segments and on-disk dir names. At least 4 chars: short enough to be ergonomic
+# while staying descriptive. Always start with a letter and be letters+digits only.
+APP_NAME_RE = r"^[A-Za-z][A-Za-z0-9]{3,}$"
 
 # User-defined column names: must start with a letter and contain only
 # letters/digits (no underscore). Built-in BaseTable columns are
@@ -43,7 +42,7 @@ alphanumeric_validator = RegexValidator(
 )
 app_name_validator = RegexValidator(
     APP_NAME_RE,
-    "App names must be at least 10 chars, start with a letter, "
+    "App names must be at least 4 chars, start with a letter, "
     "and contain only letters and digits.",
 )
 column_name_validator = RegexValidator(

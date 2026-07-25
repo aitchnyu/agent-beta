@@ -22,10 +22,12 @@ from django.http import HttpRequest
 from pydantic import BaseModel
 
 from djangoapp.apps.dynamic_module import (
+    ExceptionWrapper,
     InertiaPage,
     a_test_request,
     backend_test,
     delete_endpoint,
+    expect_error,
     get_endpoint,
     playwright_test,
     post_endpoint,
@@ -54,6 +56,7 @@ __all__ = [
     "Column",
     "DateTimeColumn",
     "DecimalColumn",
+    "ExceptionWrapper",
     "ForeignKeyColumn",
     "HttpRequest",
     "InertiaPage",
@@ -64,6 +67,7 @@ __all__ = [
     "backend_test",
     "delete_endpoint",
     "dynamic_models",
+    "expect_error",
     "get_endpoint",
     "playwright_test",
     "post_endpoint",
