@@ -59,13 +59,17 @@ marked.use(
 )
 
 /** Render markdown to sanitized HTML, rewriting relative image src → /files-raw/. */
-export function renderMarkdown(markdownText: string, markdownRelPath: string): string {
+export function renderMarkdown(
+  markdownText: string,
+  markdownRelPath: string,
+): string {
   const html = marked.parse(markdownText, { async: false }) as string
   return sanitizeHtml(html, { rewriteImagesFrom: markdownRelPath })
 }
 
-/** Highlight a whole code file; returns inner HTML (span tokens). */
+/** Highlight a whole code file; returns sanitized inner HTML (span tokens).
+ *  Sanitized for defense-in-depth even though highlight.js escapes its input. */
 export function highlightCode(code: string, language: string): string {
   const lang = hljs.getLanguage(language) ? language : "plaintext"
-  return hljs.highlight(code, { language: lang }).value
+  return sanitizeHtml(hljs.highlight(code, { language: lang }).value)
 }

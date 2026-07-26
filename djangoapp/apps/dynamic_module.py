@@ -47,11 +47,12 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from json import dumps as json_dumps
+from json import loads as json_loads
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Self, TypeVar, cast
 
 from django.conf import settings
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 if TYPE_CHECKING:
     from types import ModuleType
@@ -204,18 +205,36 @@ def a_test_request(
 
 
 _EXPECT_ERROR_NO_RAISE = "expect_error(): the with-block did not raise an exception"
+_EXPECT_NOT_CAPTURED = "expect_error captured no exception"
 
 
-@dataclass(slots=True)
 class ExceptionWrapper:
-    """Holds the exception captured by :func:`expect_error` (``.exception``).
+    """Holds the exception captured by :func:`expect_error` (read via ``.exception``).
 
     A holder rather than the bare exception because the ``as e`` binding happens at
     ``yield``, before the with-body runs and raises — so the instance isn't
-    available to bind directly.
+    available to bind directly. The backing ``_exception`` is ``Exception | None``
+    (``None`` until the block raises), but the ``exception`` property returns only
+    ``Exception``: it raises :class:`AssertionError` if read before capture, which
+    in practice never happens — :func:`expect_error` itself asserts on a non-raising
+    block, so by the time ``.exception`` is read it is always set.
     """
 
-    exception: BaseException | None = None
+    __slots__ = ("_exception",)
+
+    def __init__(self) -> None:
+        self._exception: Exception | None = None
+
+    @property
+    def exception(self) -> Exception:
+        """The captured exception (raises if read before the block raised)."""
+        if self._exception is None:
+            raise AssertionError(_EXPECT_NOT_CAPTURED)
+        return self._exception
+
+    @exception.setter
+    def exception(self, value: Exception) -> None:
+        self._exception = value
 
 
 @contextmanager
@@ -236,9 +255,68 @@ def expect_error() -> Iterator[ExceptionWrapper]:
     try:
         yield captured
     except Exception as exc:  # noqa: BLE001 -- capturing any app exception is the point
-        captured.exception = exc
+        captured.exception = exc  # the property's setter stashes it
         return
     raise AssertionError(_EXPECT_ERROR_NO_RAISE)
+
+
+_REQUEST_BODY_NOT_JSON = "Request body must be valid JSON."
+
+
+class BaseSchema(BaseModel):
+    """Pydantic model that parses + validates a JSON request body, 422-ing on error.
+
+    Subclass it to declare a request shape, then parse an inbound request in a
+    ``@post_endpoint`` / ``@put_endpoint``:
+
+        class CreateItem(BaseSchema):
+            code: str = Field(max_length=10)
+
+        @post_endpoint
+        def add_item(request: HttpRequest) -> ItemOut:
+            item = CreateItem.from_json_request(request)  # 422 if the body is invalid
+            ...
+
+    :meth:`from_json_request` reads ``request.body`` as JSON and validates it
+    against the schema. A non-JSON body or a pydantic :class:`ValidationError`
+    raises :class:`ninja.errors.ValidationError` → an HTTP **422** whose ``detail``
+    is a machine-parseable JSON list of field errors, instead of a 500 from a
+    ``KeyError``/``TypeError`` indexing the body blindly. The rejected ``input``
+    and pydantic ``url`` are stripped so sensitive values aren't echoed. Example
+    bodies:
+
+    ::
+
+        # a missing required field
+        {"detail": [
+          {"type": "missing", "loc": ["code"], "msg": "Field required"}
+        ]}
+        # body isn't JSON (from_json_request's JSON guard; no `type` key)
+        {"detail": [
+          {"loc": ["body"], "msg": "Request body must be valid JSON."}
+        ]}
+    """
+
+    @classmethod
+    def from_json_request(cls, request: HttpRequest) -> Self:
+        from ninja.errors import ValidationError as NinjaValidationError  # noqa: PLC0415
+
+        try:
+            # A missing/empty body (b"") is treated as "{}" → a missing-field 422,
+            # not a JSON-parse error.
+            data = json_loads(request.body or "{}")
+        except ValueError:
+            raise NinjaValidationError(
+                [{"loc": ["body"], "msg": _REQUEST_BODY_NOT_JSON}],
+            ) from None
+        try:
+            return cls.model_validate(data)
+        except ValidationError as exc:
+            # exc.errors() is the structured list → ninja returns {"detail": [...]} (422).
+            # Strip `input` (the rejected value) + `url` so sensitive fields aren't echoed.
+            raise NinjaValidationError(
+                cast("list[dict[str, Any]]", exc.errors(include_url=False, include_input=False)),
+            ) from None
 
 
 class DynamicModule:
@@ -433,8 +511,10 @@ app_modules = AppModuleLoader()
 
 __all__ = [
     "AppModuleLoader",
+    "BaseSchema",
     "DynamicModule",
     "Endpoint",
+    "ExceptionWrapper",
     "InertiaPage",
     "a_test_request",
     "app_modules",
@@ -442,6 +522,7 @@ __all__ = [
     "backend_test",
     "clear_app_caches",
     "delete_endpoint",
+    "expect_error",
     "get_endpoint",
     "playwright_test",
     "post_endpoint",

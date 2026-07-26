@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Any, cast
@@ -10,24 +11,20 @@ from django.conf import settings
 from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TestCase
 
-from djangoapp.apps import dynamic_module
 from djangoapp.management.commands.buildbackend import _ensure_apps_repo, build_backend
 from djangoapp.models import Application, ApplicationTable, AppsGeneration
 from djangoapp.models.dynamic import dynamic_models
+from djangoapp.tests.appfixtures._helpers import APPS_ROOT, patched_app_root
 
 # Point the apps machinery at the fixture tree so <app>/app.py resolves.
-_APPS_ROOT_PATCH = patch.object(
-    dynamic_module,
-    "_APPS_ROOT",
-    Path(str(settings.BASE_DIR)) / "djangoapp" / "tests" / "appfixtures",
-)
+_APPS_ROOT_PATCH = patched_app_root()
 
 
 class BuildBackendTests(TestCase):
     """The ``buildbackend`` command installs + self-tests an app.
 
     Each test installs one of the fixture apps under ``djangoapp/tests/appfixtures/``
-    (laid out as ``<app>/app.py``; apps_root is patched to that tree) and
+    (laid out as ``<app>/app.py``; ``_APPS_ROOT`` is patched to that tree) and
     asserts the outcome. The fixtures:
 
     - ``HappyPathApp`` — the happy-path install: a seeded ``items`` table + a
@@ -155,7 +152,7 @@ class BuildBackendTests(TestCase):
 
 
 # Root of the multistep fixture trees: <root>/<tree>/MultiStepApp/app.py.
-_MULTI_ROOT = Path(str(settings.BASE_DIR)) / "djangoapp" / "tests" / "appfixtures"
+_MULTI_ROOT = APPS_ROOT
 
 
 class BuildBackendResumeTests(TestCase):
@@ -184,14 +181,14 @@ class BuildBackendResumeTests(TestCase):
     def _install(self, tree: str) -> None:
         """Patch ``_APPS_ROOT`` to ``<appfixtures>/<tree>/`` and run build_backend."""
         root = _MULTI_ROOT / tree
-        with patch.object(dynamic_module, "_APPS_ROOT", root):
+        with patched_app_root(root):
             build_backend(self._APP)
 
     def _install_captured(self, tree: str) -> str:
         """Like :meth:`_install` but capture the progress output, returning it."""
         root = _MULTI_ROOT / tree
         captured = io.StringIO()
-        with patch.object(dynamic_module, "_APPS_ROOT", root):
+        with patched_app_root(root):
             build_backend(self._APP, out_write=captured.write)
         return captured.getvalue()
 
@@ -279,6 +276,44 @@ class BuildBackendResumeTests(TestCase):
         self.assertIn("['setup1', 'setup2']", msg)
         self.assertIn("['setup1', 'setup_two']", msg)
         self.assertNotIn("fewer @setups", msg)
+
+
+class ReferenceAppBuildTests(TestCase):
+    """The ``docs/apps/reference`` template builds + its backend self-tests pass.
+
+    Guards the canonical example agents copy from against silent rot: covers the
+    write side (POST ``add_item`` + body validation → 422), the ``default`` root
+    endpoint, and ``expect_error`` (exercised by the reference's rejection test).
+    The reference lives at ``docs/apps/reference/`` with ``APP = "ReferenceDemo"``
+    (dir ≠ APP), so this copies its ``app.py`` into a temp ``ReferenceDemo/`` dir —
+    matching the dir==APP convention ``buildbackend`` resolves — and builds.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        dynamic_models.reset()
+
+    def tearDown(self) -> None:
+        dynamic_models.reset()
+        super().tearDown()
+
+    def test_reference_app_builds(self) -> None:
+        """The reference installs: app + table + physical table + seeded row.
+
+        A failing @backend_test (incl. the validation/expect_error ones) would
+        raise CommandError and fail this test, so success proves they pass.
+        """
+        src = Path(str(settings.BASE_DIR)) / "docs" / "apps" / "reference" / "app.py"
+        with tempfile.TemporaryDirectory() as d:
+            apps_dir = Path(d) / "ReferenceDemo"
+            apps_dir.mkdir()
+            shutil.copy(src, apps_dir / "app.py")
+            with patched_app_root(d):
+                build_backend("ReferenceDemo")
+        app = Application.objects.get(name="ReferenceDemo")
+        table = app.tables.get(name="items")
+        self.assertTrue(table.does_physical_table_exist())
+        self.assertEqual(cast("Any", table.as_model()).objects.count(), 1)  # the seeded "A1"
 
 
 class EnsureAppsRepoTests(SimpleTestCase):

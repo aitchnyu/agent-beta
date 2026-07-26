@@ -8,9 +8,9 @@ has a single import:
 
     from djangoapp.apps.shortcuts import *  # noqa: F403
     # setup, get_endpoint, post_endpoint, put_endpoint, delete_endpoint,
-    # backend_test, playwright_test, a_test_request, InertiaPage, BaseModel,
-    # HttpRequest, Application, CharColumn, TextColumn, IntegerColumn,
-    # BooleanColumn, DecimalColumn, DateTimeColumn, UserColumn,
+    # backend_test, playwright_test, a_test_request, expect_error, InertiaPage,
+    # BaseModel, BaseSchema, HttpRequest, Application, CharColumn, TextColumn,
+    # IntegerColumn, BooleanColumn, DecimalColumn, DateTimeColumn, UserColumn,
     # ForeignKeyColumn, dynamic_models
 
 Re-exports only; this module adds no logic.
@@ -22,6 +22,7 @@ from django.http import HttpRequest
 from pydantic import BaseModel
 
 from djangoapp.apps.dynamic_module import (
+    BaseSchema,
     ExceptionWrapper,
     InertiaPage,
     a_test_request,
@@ -51,6 +52,7 @@ from djangoapp.models.dynamic import dynamic_models
 __all__ = [
     "Application",
     "BaseModel",
+    "BaseSchema",
     "BooleanColumn",
     "CharColumn",
     "Column",

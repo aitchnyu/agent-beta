@@ -1,12 +1,18 @@
-/version_control
-    pending changes - diff link
-    commit list - no pagination?
-    files in commit - /commit_id/filename diff link
+how is users pagination?
+/git
+/git/uncommitted
+/git/commits (paginated, 25)
+/git/commits/cid
+/git/commits/cid/filename
 
-Commit logs, diff and blame
+Test in fakeapps/ dir
+
+Render relationships in fe? Focus on table
+Does readme tell how to render tables?
 
 Shell command deleting app by itself?
 `./run djangomanage shell -c` - ban this?
+How to show networks of tables
 Delete app commands
 Dont mark something as done if network fails
 Add a readme?
@@ -16,6 +22,8 @@ Dont show full edit output
 Reject overly long commands - like using cat instead of write
 Ensure long commands have newlines
 
+Readonly mode for whole system
+
 Page title for apps
 
 ./run typecheck
@@ -23,12 +31,16 @@ uv run mypy apps/TodoList2App/app.py
 playwright_test - it uses existing db, reverts
 
 os.environ.get("OPENCODE_BASE_URL", f"http://{_OPENCODE_HOST}:{_OPENCODE_PORT}")
-Log them properly
-Playwright tests - `expect(page.get_by_text(_ENTRY_DIR)).to_be_visible()`
 
 Tasks center - categories
 Shared widgets and components, layout etc
 Share error tracking in FE
+
+## Notification center
+Have link to correct place
+Group them
+Browser notification/email to send to user
+Which ones to mute?
 
 ## Chatting
 Upload files

@@ -4,7 +4,13 @@ import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import Layout from "../components/Layout.vue"
 import { FileViewerPropsSchema } from "../schemas"
-import { detectLanguage, downloadUrl, fileUrl, formatSize, rawUrl } from "../utils/files" 
+import {
+  detectLanguage,
+  downloadUrl,
+  fileUrl,
+  formatSize,
+  rawUrl,
+} from "../utils/files"
 
 const props = defineProps<{ props: object }>()
 const p = FileViewerPropsSchema.parse(props.props)
@@ -62,7 +68,7 @@ onMounted(async () => {
         <div class="files-markdown" v-html="rendered"></div>
         <pre
           id="files-raw-source"
-          class="files-code"
+          class="files-code files-raw-source"
         ><code class="hljs language-markdown" v-html="raw"></code></pre>
       </template>
       <!-- Code: language detected from extension; highlight.js output is escaped. -->

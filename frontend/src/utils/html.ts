@@ -74,7 +74,10 @@ export function sanitizeHtml(
     config.transformTags = {
       img: (_tag, attribs) => ({
         tagName: "img",
-        attribs: { ...attribs, src: resolveImageSrc(attribs.src ?? "", markdownRelPath) },
+        attribs: {
+          ...attribs,
+          src: resolveImageSrc(attribs.src ?? "", markdownRelPath),
+        },
       }),
     }
   }

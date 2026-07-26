@@ -36,9 +36,16 @@ export function formatSize(bytes: number): string {
 const EXTENSION_TO_LANGUAGE: Record<string, string> = {
   py: "python",
   vue: "xml",
+  html: "xml",
   json: "json",
   ts: "typescript",
   js: "javascript",
+  css: "css",
+  scss: "scss",
+  yml: "yaml",
+  yaml: "yaml",
+  sh: "bash",
+  bash: "bash",
 }
 
 /** Returns the highlight.js language for a filename, or undefined when it isn't a

@@ -3,35 +3,32 @@ from __future__ import annotations
 import types
 from http import HTTPStatus
 from json import loads as json_loads
-from pathlib import Path
 from types import ModuleType, SimpleNamespace
 from typing import TYPE_CHECKING, Any
-from unittest.mock import patch
 
-from django.conf import settings
 from django.test import SimpleTestCase, TestCase
+from ninja.errors import ValidationError as NinjaValidationError
 from pydantic import BaseModel
 
-from djangoapp.apps import dynamic_module
 from djangoapp.apps.dynamic_module import (
+    BaseSchema,
     DynamicModule,
+    ExceptionWrapper,
     InertiaPage,
     a_test_request,
+    expect_error,
     post_endpoint,
 )
 from djangoapp.management.commands.buildbackend import build_backend
 from djangoapp.models.dynamic import dynamic_models
+from djangoapp.tests.appfixtures._helpers import patched_app_root
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from django.http import HttpRequest
 
-_APPS_ROOT_PATCH = patch.object(
-    dynamic_module,
-    "_APPS_ROOT",
-    Path(str(settings.BASE_DIR)) / "djangoapp" / "tests" / "appfixtures",
-)
+_APPS_ROOT_PATCH = patched_app_root()
 
 
 class EndpointViewTests(TestCase):
@@ -39,8 +36,9 @@ class EndpointViewTests(TestCase):
 
     Each test installs the relevant fixture app (inside the test's transaction),
     then hits the endpoint over HTTP and asserts the JSON shape / values / 404s /
-    Inertia page object. ``apps_root`` is patched to the fixture tree so
-    ``<app>`` resolves. A (method, name) mismatch is a 404, not 405.
+    Inertia page object. ``_APPS_ROOT`` is patched to the fixture tree (via
+    ``patched_app_root``) so ``<app>`` resolves. A (method, name) mismatch is a 404,
+    not 405.
 
     - test_demo_random_code_varies, GET returns 200 with a seeded code, and repeats vary
     - test_alltypes_row, GET returns the seed row with every type serialised
@@ -53,6 +51,7 @@ class EndpointViewTests(TestCase):
     - test_post_put_delete_served, POST/PUT/DELETE dispatch to their decorators and return JSON
     - test_method_mismatch_is_404, POST to a get-only name resolves to 404 (not 405)
     - test_non_get_on_app_root_is_404, POST/PUT/DELETE on the app root resolve to 404 (not 405)
+    - test_base_schema_422_over_http, a BaseSchema POST endpoint serves 200 / a structured HTTP 422
     """
 
     def setUp(self) -> None:
@@ -175,6 +174,35 @@ class EndpointViewTests(TestCase):
                 resp = getattr(self.client, method)("/apps/EndpointsApp")
                 self.assertEqual(resp.status_code, HTTPStatus.NOT_FOUND)
 
+    def test_base_schema_422_over_http(self) -> None:
+        """A BaseSchema POST endpoint serves 200 valid / a structured HTTP 422 invalid.
+
+        Verifies the ninja handler seam (the in-process raise is covered by
+        ``BaseSchemaTests``); here a real HTTP request must come back as 422.
+        """
+        self._install("SchemaApp")
+        ok = self.client.post(
+            "/apps/SchemaApp/e/echo", data={"name": "x"}, content_type="application/json"
+        )
+        self.assertEqual(ok.status_code, HTTPStatus.OK)
+        self.assertEqual(ok.json()["name"], "x")
+        bad = self.client.post(
+            "/apps/SchemaApp/e/echo", data={}, content_type="application/json"
+        )
+        # Expected 422 body for a missing required field:
+        #   {"detail": [{"type": "missing", "loc": ["name"], "msg": "Field required"}]}
+        self.assertEqual(bad.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+        detail = bad.json()["detail"]
+        self.assertIsInstance(detail, list)
+        self.assertTrue(any(loc == "name" for err in detail for loc in err.get("loc", [])))
+        # An empty body exercises from_json_request's `request.body or "{}"` fallback
+        # → "{}" → missing `name` (the same missing-field path, not a 500).
+        empty = self.client.post("/apps/SchemaApp/e/echo", data="", content_type="application/json")
+        self.assertEqual(empty.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+        self.assertTrue(
+            any(loc == "name" for err in empty.json()["detail"] for loc in err.get("loc", []))
+        )
+
 
 def _synthetic_module(*fns: Callable[..., object]) -> ModuleType:
     """Build a throwaway module carrying ``fns`` (no ``@setup`` required).
@@ -276,3 +304,120 @@ class ATestRequestTests(SimpleTestCase):
         """Passing both data and json raises ValueError (mutually exclusive)."""
         with self.assertRaises(ValueError):
             a_test_request(method="POST", data={"k": "v"}, json={"x": 1})
+
+
+class ExpectErrorTests(SimpleTestCase):
+    """``expect_error`` captures a raised exception — ``pytest.raises`` without pytest.
+
+    - test_captures_exception, the block's exception is exposed as ``e.exception``
+    - test_asserts_when_nothing_raised, a non-raising block fails loudly (no silent pass)
+    - test_base_exception_propagates, ``KeyboardInterrupt``/``SystemExit`` are not swallowed
+    """
+
+    def test_captures_exception(self) -> None:
+        """The raised exception is exposed on ``e.exception`` (instance + type)."""
+        msg = "boom"
+        with expect_error() as e:
+            raise ValueError(msg)
+        self.assertIsInstance(e.exception, ValueError)
+        self.assertEqual(str(e.exception), msg)
+
+    def test_asserts_when_nothing_raised(self) -> None:
+        """A non-raising block fails the test with the "did not raise" message."""
+        with self.assertRaises(AssertionError) as cm, expect_error():
+            pass  # no exception
+        self.assertIn("did not raise", str(cm.exception))
+
+    def test_base_exception_propagates(self) -> None:
+        """KeyboardInterrupt (a BaseException, not Exception) is NOT captured."""
+        with self.assertRaises(KeyboardInterrupt), expect_error():
+            raise KeyboardInterrupt
+
+    def test_reading_before_capture_raises(self) -> None:
+        """Reading ``.exception`` before the block raised fails with the documented message."""
+        wrapper = ExceptionWrapper()
+        with self.assertRaises(AssertionError) as cm:
+            _ = wrapper.exception  # the property raises before the assignment binds
+        self.assertEqual(str(cm.exception), "expect_error captured no exception")
+
+
+class _ThingSchema(BaseSchema):
+    """A tiny schema for BaseSchemaTests: name (str) + qty (int)."""
+
+    name: str
+    qty: int
+
+
+class BaseSchemaTests(SimpleTestCase):
+    """``BaseSchema.from_json_request`` parses + validates a JSON body (422 on error).
+
+    - test_valid_body_returns_instance, a valid JSON body parses to a typed instance
+    - test_invalid_body_raises_422, a schema violation raises ninja ValidationError
+      (→ 422) naming the field
+    - test_wrong_type_raises_422, a present-but-wrong-type field raises 422
+    - test_non_dict_json_raises_422, a valid-JSON non-dict body raises 422 (not 500)
+    - test_non_json_body_raises_422, a non-JSON body raises ninja ValidationError (→ 422)
+    """
+
+    def test_valid_body_returns_instance(self) -> None:
+        """A valid JSON body parses to a typed, validated instance."""
+        thing = _ThingSchema.from_json_request(
+            a_test_request(method="POST", json={"name": "widget", "qty": 3}),
+        )
+        self.assertEqual(thing.name, "widget")
+        self.assertEqual(thing.qty, 3)
+
+    def test_invalid_body_raises_422(self) -> None:
+        """A schema violation raises ninja ValidationError (→ 422) naming the field.
+
+        The ``detail`` is a machine-parseable list of field errors, not a string.
+        """
+        # Expected 422 body (a missing required field):
+        #   {"detail": [
+        #     {"type": "missing", "loc": ["qty"], "msg": "Field required"}
+        #   ]}
+        with expect_error() as e:  # missing 'qty'
+            _ThingSchema.from_json_request(a_test_request(method="POST", json={"name": "x"}))
+        assert isinstance(e.exception, NinjaValidationError)
+        # The error body names the missing field.
+        locs = [loc for err in e.exception.errors for loc in err.get("loc", [])]
+        self.assertIn("qty", locs)
+
+    def test_wrong_type_raises_422(self) -> None:
+        """A present-but-wrong-type field raises 422 (the common real-world bad input)."""
+        # Expected 422 body (present but the wrong type):
+        #   {"detail": [
+        #     {"type": "int_parsing", "loc": ["qty"],
+        #      "msg": "Input should be a valid integer, unable to parse string as an integer"}
+        #   ]}
+        with expect_error() as e:  # qty is a string, not an int
+            _ThingSchema.from_json_request(
+                a_test_request(method="POST", json={"name": "x", "qty": "not-an-int"}),
+            )
+        assert isinstance(e.exception, NinjaValidationError)
+        locs = [loc for err in e.exception.errors for loc in err.get("loc", [])]
+        self.assertIn("qty", locs)
+
+    def test_non_dict_json_raises_422(self) -> None:
+        """A valid-JSON non-dict body routes through model_validate → 422 (not a 500)."""
+        # Expected 422 body (valid JSON, but not an object):
+        #   {"detail": [
+        #     {"type": "model_type", "loc": [],
+        #      "msg": "Input should be a valid dictionary or instance of _ThingSchema",
+        #      "ctx": {"class_name": "_ThingSchema"}}
+        #   ]}
+        with expect_error() as e:  # a JSON array, not an object
+            _ThingSchema.from_json_request(a_test_request(method="POST", json=[1, 2, 3]))
+        assert isinstance(e.exception, NinjaValidationError)
+
+    def test_non_json_body_raises_422(self) -> None:
+        """A non-JSON body raises ninja ValidationError (→ 422) with a clear message."""
+        # Expected 422 body (body isn't JSON — from_json_request's JSON guard;
+        # no `type` key, since this isn't a pydantic field error):
+        #   {"detail": [
+        #     {"loc": ["body"], "msg": "Request body must be valid JSON."}
+        #   ]}
+        with expect_error() as e:
+            _ThingSchema.from_json_request(a_test_request(method="POST", data={"not": "json"}))
+        assert isinstance(e.exception, NinjaValidationError)
+        self.assertIn("valid JSON", e.exception.errors[0].get("msg", ""))

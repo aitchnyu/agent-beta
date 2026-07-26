@@ -103,3 +103,76 @@ a handler, so `request.user.is_authenticated`, `request.GET`, `request.POST`, an
 `params=`/`data=`/`json=` populate the query string, form body, and JSON body
 respectively. A body (`data`/`json`) is incompatible with GET and the two are
 mutually exclusive — both raise `ValueError`.
+
+## Request validation with `BaseSchema`
+
+A `@post_endpoint`/`@put_endpoint` that takes a JSON body should declare its shape
+as a subclass of `BaseSchema` (a pydantic `BaseModel`, exported from
+`djangoapp.apps.shortcuts`) and parse the request with `from_json_request`, which
+returns a **422** (`ninja.errors.ValidationError`) on any bad input instead of
+500-ing on a `KeyError`/`TypeError`:
+
+```python
+from djangoapp.apps.shortcuts import BaseSchema
+from pydantic import Field, field_validator
+
+class CreateItem(BaseSchema):
+    code: str = Field(max_length=10)
+
+    @field_validator("code")
+    @classmethod
+    def _non_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("code is required")
+        return value
+
+@post_endpoint
+def add_item(request: HttpRequest) -> ItemOut:
+    item = CreateItem.from_json_request(request)  # 422 if the body is invalid
+    ...
+```
+
+`from_json_request` reads `request.body` as JSON and validates it against the
+schema; a non-JSON body or any pydantic validation failure raises
+`ninja.errors.ValidationError` → an HTTP **422** whose `detail` is a
+machine-parseable JSON list of field errors (the rejected `input` and pydantic
+`url` are stripped, so sensitive values aren't echoed). Example 422 bodies:
+
+```json
+{"detail": [
+  {"type": "missing", "loc": ["code"], "msg": "Field required"}
+]}
+```
+
+```json
+{"detail": [
+  {"type": "string_too_long", "loc": ["code"],
+   "msg": "String should have at most 10 characters",
+   "ctx": {"max_length": 10}}
+]}
+```
+
+```json
+{"detail": [
+  {"loc": ["body"], "msg": "Request body must be valid JSON."}
+]}
+```
+
+(The last has no `type` key — it's `from_json_request`'s own guard for a non-JSON
+body, not a pydantic field error.) Use `expect_error` (also from `shortcuts`) to
+assert the 422 in a `@backend_test`:
+
+```python
+from djangoapp.apps.shortcuts import a_test_request, backend_test, expect_error
+from ninja.errors import ValidationError
+
+@backend_test
+def test_add_item_rejects_bad_input() -> None:
+    with expect_error() as e:
+        add_item(a_test_request(method="POST", json={}))  # missing code
+    assert isinstance(e.exception, ValidationError)
+    # the error body names the bad field:
+    err = e.exception.errors[0]
+    assert tuple(err["loc"]) == ("code",)
+```

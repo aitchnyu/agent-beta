@@ -7,8 +7,9 @@ Demonstrates the full contract, including the write side:
 - ``@get_endpoint default`` renders the Inertia landing page at the app root
   ``/apps/<app>`` (GET only);
 - ``@get_endpoint current_count`` returns JSON the page fetches (axios + zod);
-- ``@post_endpoint add_item`` writes a row, validating the body and returning a
-  400 on bad input (django-ninja ``HttpError``) — never indexing the body blindly;
+- ``@post_endpoint add_item`` writes a row, validating the body via ``BaseSchema``
+  and returning a 422 (``ninja.errors.ValidationError``) on bad input — never
+  indexing the body blindly;
 - ``@backend_test`` self-tests the page prop and the POST (happy path + rejection);
 - ``@playwright_test`` drives the built UI (render + Refresh) and asserts a POST's
   response (a mutation is visible only within its own request — see the test).
@@ -18,14 +19,15 @@ See ``docs/apps/README.md`` for the mandatory-shell checklist + commands.
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING, Any
 
-from ninja.errors import HttpError
+from ninja.errors import ValidationError as NinjaValidationError
+from pydantic import Field, field_validator
 
 from djangoapp.apps.shortcuts import (
     Application,
     BaseModel,
+    BaseSchema,
     CharColumn,
     HttpRequest,
     InertiaPage,
@@ -45,9 +47,7 @@ if TYPE_CHECKING:
 APP = "ReferenceDemo"
 TABLE = "items"
 CODE_MAX_LENGTH = 10
-BAD_REQUEST = 400
-CODE_REQUIRED = "'code' is required."
-CODE_TOO_LONG = f"'code' must be {CODE_MAX_LENGTH} chars or fewer."
+CODE_REQUIRED = "code is required"
 
 
 class ReferencePageProps(BaseModel):
@@ -66,6 +66,20 @@ class ItemOut(BaseModel):
     """A created item, returned by the ``add_item`` POST endpoint."""
 
     code: str
+
+
+class CreateItem(BaseSchema):
+    """POST body for ``add_item``: a non-blank ``code`` within the column's max length."""
+
+    code: str = Field(max_length=CODE_MAX_LENGTH)
+
+    @field_validator("code")
+    @classmethod
+    def _code_non_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError(CODE_REQUIRED)
+        return value
 
 
 def _model() -> Any:
@@ -101,19 +115,14 @@ def current_count(request: HttpRequest) -> CountOut:
 def add_item(request: HttpRequest) -> ItemOut:
     """Create a row from a JSON body ``{"code": "..."}``.
 
-    Validate the body and return a 400 on bad input (django-ninja ``HttpError``) —
-    never index the body blindly, since a missing key would raise ``KeyError`` and
-    500. Returns the created item.
+    ``CreateItem.from_json_request`` parses + validates the body and raises
+    ``ninja.errors.ValidationError`` (→ HTTP 422) on bad input — so a
+    missing/blank/over-long code or a non-JSON body is a structured 422, never a
+    ``KeyError``/500. Returns the created item.
     """
-    data = json.loads(request.body or "{}")
-    code = data.get("code")
-    if not isinstance(code, str) or not code.strip():
-        raise HttpError(BAD_REQUEST, CODE_REQUIRED)
-    if len(code) > CODE_MAX_LENGTH:
-        raise HttpError(BAD_REQUEST, CODE_TOO_LONG)
-    code = code.strip()
-    _model().objects.create(code=code)
-    return ItemOut(code=code)
+    item = CreateItem.from_json_request(request)
+    _model().objects.create(code=item.code)
+    return ItemOut(code=item.code)
 
 
 @backend_test
@@ -132,14 +141,49 @@ def test_add_item_creates_and_returns() -> None:
 
 @backend_test
 def test_add_item_rejects_bad_input() -> None:
-    """Bad input raises HttpError (400) instead of 500-ing on a KeyError/DB error."""
+    """Bad input raises ninja ``ValidationError`` (→ 422) with a structured error body.
+
+    ``BaseSchema.from_json_request`` raises ``ninja.errors.ValidationError``, which
+    ninja serialises as ``{"detail": [{"loc": [...], "msg": "...", ...}, …]}`` (422).
+    Asserting that body — not just that *something* raised — is the pattern to copy.
+    """
     with expect_error() as e:  # missing code
         add_item(a_test_request(method="POST", json={}))
-    assert isinstance(e.exception, HttpError)
+    assert isinstance(e.exception, NinjaValidationError)
     with expect_error() as e:  # over the column's max_length
         add_item(a_test_request(method="POST", json={"code": "X" * (CODE_MAX_LENGTH + 1)}))
-    assert isinstance(e.exception, HttpError)
-    assert e.exception.status_code == BAD_REQUEST
+    assert isinstance(e.exception, NinjaValidationError)
+    # Expected 422 body for an over-length `code` (input/url are stripped —
+    # see BaseSchema.from_json_request):
+    #   {"detail": [
+    #     {"type": "string_too_long",
+    #      "loc": ["code"],
+    #      "msg": "String should have at most 10 characters",
+    #      "ctx": {"max_length": 10}}
+    #   ]}
+    # Validate the exact error: one error, on `code`, naming the length rule.
+    err = e.exception.errors[0]
+    assert tuple(err["loc"]) == ("code",)
+    assert str(CODE_MAX_LENGTH) in err["msg"]
+    with expect_error() as e:  # blank/whitespace code → the _code_non_blank validator
+        add_item(a_test_request(method="POST", json={"code": "   "}))
+    assert isinstance(e.exception, NinjaValidationError)
+    # Expected 422 body (a field_validator's ValueError is wrapped):
+    #   {"detail": [
+    #     {"type": "value_error",
+    #      "loc": ["code"],
+    #      "msg": "Value error, code is required",
+    #      "ctx": {"error": "code is required"}}
+    #   ]}
+    assert tuple(e.exception.errors[0]["loc"]) == ("code",)
+    assert CODE_REQUIRED in e.exception.errors[0]["msg"]
+    with expect_error() as e:  # non-JSON body → from_json_request's JSON guard
+        add_item(a_test_request(method="POST", data={"not": "json"}))
+    assert isinstance(e.exception, NinjaValidationError)
+    # Expected 422 body (body isn't JSON; no `type` key — not a pydantic field error):
+    #   {"detail": [
+    #     {"loc": ["body"], "msg": "Request body must be valid JSON."}
+    #   ]}
 
 
 @playwright_test

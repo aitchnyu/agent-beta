@@ -8,7 +8,9 @@
 
     <form class="row g-2 mt-3 align-items-center" @submit.prevent="addItem">
       <div class="col-auto">
+        <label class="visually-hidden" for="ref-new-code">Item code</label>
         <input
+          id="ref-new-code"
           v-model="newCode"
           class="form-control form-control-sm ref-new-code"
           maxlength="10"

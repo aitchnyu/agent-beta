@@ -1,28 +1,22 @@
 from __future__ import annotations
 
 from io import StringIO
-from pathlib import Path
 from types import SimpleNamespace
 from typing import cast
 from unittest.mock import MagicMock, patch
 
-from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import CommandError, OutputWrapper
 from django.test import SimpleTestCase, TestCase, TransactionTestCase, override_settings, tag
 
-from djangoapp.apps import dynamic_module
 from djangoapp.management.commands.buildbackend import build_backend
 from djangoapp.management.commands.buildfrontend import Command
 from djangoapp.models import Application
 from djangoapp.models.dynamic import dynamic_models
+from djangoapp.tests.appfixtures._helpers import patched_app_root
 
 # Point the apps machinery at the fixture tree so <app>/app.py resolves.
-_APPS_ROOT_PATCH = patch.object(
-    dynamic_module,
-    "_APPS_ROOT",
-    Path(str(settings.BASE_DIR)) / "djangoapp" / "tests" / "appfixtures",
-)
+_APPS_ROOT_PATCH = patched_app_root()
 
 
 class BuildFrontendCommandTests(TestCase):
