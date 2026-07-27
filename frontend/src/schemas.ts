@@ -369,3 +369,47 @@ export const FileViewerPropsSchema = z.object({
   kind: z.enum(["text", "image", "binary", "markdown"]),
   text: z.string().default(""),
 })
+
+// --- /git viewer (apps inner repo) ---
+export const GitUncommittedFileSchema = z.object({
+  path: z.string(),
+  status: z.string(),
+})
+
+export const GitCommitSummarySchema = z.object({
+  sha: z.string(),
+  short_sha: z.string(),
+  author: z.string(),
+  date: z.number(), // epoch ms — rendered via HumanizedTime
+  subject: z.string(),
+})
+
+export const GitCommitFileSchema = z.object({
+  path: z.string(),
+  status: z.string(),
+})
+
+export const GitPaginationSchema = z.object({
+  page: z.number(),
+  total_pages: z.number(),
+  total_count: z.number(),
+})
+
+export const GitDiffPropsSchema = z.object({
+  title: z.string(),
+  diff: z.string(),
+})
+
+export const GitUncommittedPropsSchema = z.object({
+  files: z.array(GitUncommittedFileSchema),
+})
+
+export const GitCommitListPropsSchema = z.object({
+  commits: z.array(GitCommitSummarySchema),
+  pagination: GitPaginationSchema,
+})
+
+export const GitCommitPropsSchema = z.object({
+  commit: GitCommitSummarySchema,
+  files: z.array(GitCommitFileSchema),
+})

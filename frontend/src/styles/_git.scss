@@ -1,0 +1,11 @@
+@use "variables" as *;
+
+// Diff block: mirrors .files-code — monospace, long lines scroll (wrapping a
+// unified diff breaks the +/- alignment). highlight.js's github theme styles
+// the .hljs / .hljs-addition / .hljs-deletion token spans.
+.git-diff {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  overflow-x: auto;
+  font-size: 0.85rem;
+}

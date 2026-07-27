@@ -1,12 +1,3 @@
-how is users pagination?
-/git
-/git/uncommitted
-/git/commits (paginated, 25)
-/git/commits/cid
-/git/commits/cid/filename
-
-Test in fakeapps/ dir
-
 Render relationships in fe? Focus on table
 Does readme tell how to render tables?
 
@@ -22,7 +13,7 @@ Dont show full edit output
 Reject overly long commands - like using cat instead of write
 Ensure long commands have newlines
 
-Readonly mode for whole system
+Readonly mode for whole system, disable get requests too if it mutates data.
 
 Page title for apps
 
@@ -41,6 +32,9 @@ Have link to correct place
 Group them
 Browser notification/email to send to user
 Which ones to mute?
+
+## Cron and huey
+Decorator for tasks
 
 ## Chatting
 Upload files

@@ -13,6 +13,7 @@ import javascript from "highlight.js/lib/languages/javascript"
 import typescript from "highlight.js/lib/languages/typescript"
 import bash from "highlight.js/lib/languages/bash"
 import css from "highlight.js/lib/languages/css"
+import diffGrammar from "highlight.js/lib/languages/diff"
 import scss from "highlight.js/lib/languages/scss"
 import yaml from "highlight.js/lib/languages/yaml"
 import markdownGrammar from "highlight.js/lib/languages/markdown"
@@ -41,6 +42,7 @@ for (const [name, def] of [
   ["yml", yaml],
   ["markdown", markdownGrammar],
   ["md", markdownGrammar],
+  ["diff", diffGrammar],
 ] as const) {
   hljs.registerLanguage(name, def)
 }
@@ -72,4 +74,9 @@ export function renderMarkdown(
 export function highlightCode(code: string, language: string): string {
   const lang = hljs.getLanguage(language) ? language : "plaintext"
   return sanitizeHtml(hljs.highlight(code, { language: lang }).value)
+}
+
+/** Highlight a unified diff (the `diff` grammar: + / - / @@ lines). Sanitized. */
+export function highlightDiff(diff: string): string {
+  return sanitizeHtml(hljs.highlight(diff, { language: "diff" }).value)
 }

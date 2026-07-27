@@ -43,6 +43,20 @@ image use `/files-raw/<path>` (its real Content-Type, for `<img>`); for a
 download use `/files-download/<path>`. Paths are repo-root-relative and the
 viewer is superuser-only.
 
+### Linking to git
+To back a claim about a change with evidence, link the most specific git view
+(superuser-only, scoped to the `apps/` inner repo):
+- uncommitted files: `/git`
+- a file's uncommitted diff: `/git/uncommitted/<path>`
+- commit list: `/git/commits` (paginated, `?page=N`)
+- a commit's changed files: `/git/commits/<sha>`
+- a file's diff in a commit: `/git/commits/<sha>/<path>`
+
+Example: "this regressed in
+`<a href='/git/commits/ab12c3'>ab12c3</a>` — see the
+`<a href='/git/commits/ab12c3/app.py'>diff</a>`." Prefer the most specific link
+(a diff over a bare file link, a commit link over the list).
+
 ### Final message
 When the work is done and the suite is green, close with a short HTML summary so
 the user can see what shipped without scrolling back through the transcript:
