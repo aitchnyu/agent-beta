@@ -1,15 +1,6 @@
-from djangoapp.models.applications import (
-    ALPHANUMERIC_RE,
-    APP_NAME_RE,
-    COLUMN_NAME_RE,
-    Application,
-    ApplicationTable,
-    ApplicationTableColumn,
-    AppsGeneration,
-    BaseTable,
-    ColumnType,
-)
 from djangoapp.models.base import (
+    MANAGE_MODELS_URL_PREFIX,
+    BaseModel,
     BoolChange,
     StringChange,
     User,
@@ -23,16 +14,9 @@ from djangoapp.models.base import (
 )
 
 __all__ = [
-    "ALPHANUMERIC_RE",
-    "APP_NAME_RE",
-    "COLUMN_NAME_RE",
-    "Application",
-    "ApplicationTable",
-    "ApplicationTableColumn",
-    "AppsGeneration",
-    "BaseTable",
+    "MANAGE_MODELS_URL_PREFIX",
+    "BaseModel",
     "BoolChange",
-    "ColumnType",
     "StringChange",
     "User",
     "UserHistory",

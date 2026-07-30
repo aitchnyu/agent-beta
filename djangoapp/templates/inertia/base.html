@@ -4,13 +4,13 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>{% block title %}Instant{% endblock %}</title>
-        <link rel="stylesheet" href="{{ app_static_base }}/main.css?cache_buster={{ app_asset_version }}">
+        <link rel="stylesheet" href="{{ app_static_base|default:"/static/djangoapp" }}/main.css?cache_buster={{ app_asset_version }}">
         {% block inertia_head %}{% endblock %}
         {% block head_extra %}{% endblock %}
     </head>
     <body>
         {% csrf_token %}
         {% block inertia %}{% endblock %}
-        <script type="module" src="{{ app_static_base }}/main.js?cache_buster={{ app_asset_version }}"></script>
+        <script type="module" src="{{ app_static_base|default:"/static/djangoapp" }}/main.js?cache_buster={{ app_asset_version }}"></script>
     </body>
 </html>

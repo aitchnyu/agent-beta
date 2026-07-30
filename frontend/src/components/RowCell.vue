@@ -1,17 +1,12 @@
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
-import {
-  FkCellValueSchema,
-  UserSchema,
-  type RowListColumnDef,
-} from "../schemas"
-import { rowDetailUrl } from "../utils/urls"
+import { FkValueSchema, UserSchema, type RowListColumnDef } from "../schemas"
 import { formatDateTime } from "../utils/time"
 
 // Renders a single cell value for the row list/detail pages, keyed off the
 // column's type: user cells link to the profile, foreign_key cells link to the
-// referenced row's detail page, datetime cells render in local time, boolean
-// cells read Yes/No, everything else renders raw.
+// referenced row (via its get_absolute_url() carried in the cell value),
+// datetime cells render in local time, boolean cells read Yes/No, the rest raw.
 defineProps<{ col: RowListColumnDef; value: unknown }>()
 
 function userOf(cell: unknown) {
@@ -19,19 +14,10 @@ function userOf(cell: unknown) {
   return parsed.success ? parsed.data : null
 }
 
-// Resolve a foreign_key cell to its {public_id} (or null when unset).
+// Resolve a foreign_key cell to its {public_id, url, title} (or null when unset).
 function fkOf(cell: unknown) {
-  const parsed = FkCellValueSchema.nullable().safeParse(cell)
+  const parsed = FkValueSchema.nullable().safeParse(cell)
   return parsed.success ? parsed.data : null
-}
-
-// The referenced row's detail URL, using the column's fk_target table (or
-// null when the cell is unset or the target is missing).
-function fkHref(col: RowListColumnDef, cell: unknown): string | null {
-  const fk = fkOf(cell)
-  const target = col.fk_target
-  if (!fk || !target) return null
-  return rowDetailUrl(target.app_name, target.table_name, fk.public_id)
 }
 
 function renderText(col: RowListColumnDef, cell: unknown): string {
@@ -48,9 +34,9 @@ function renderText(col: RowListColumnDef, cell: unknown): string {
     >{{ userOf(value)?.title }}</Link
   >
   <Link
-    v-else-if="col.type === 'foreign_key' && fkHref(col, value)"
-    :href="fkHref(col, value) ?? ''"
-    >{{ fkOf(value)?.public_id }}</Link
+    v-else-if="col.type === 'foreign_key' && fkOf(value)"
+    :href="fkOf(value)?.url ?? ''"
+    >{{ fkOf(value)?.title }}</Link
   >
   <template v-else-if="col.type === 'datetime'">{{
     formatDateTime(value as string | null | undefined)

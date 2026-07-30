@@ -33,7 +33,7 @@ async function sendPrompt() {
       <h2>Agent</h2>
       <p>
         Describe a change and the agent will edit files under
-        <code>apps/</code>, run commands, and ask before doing anything
+        <code>ourapp/</code>, run commands, and ask before doing anything
         destructive.
       </p>
       <div

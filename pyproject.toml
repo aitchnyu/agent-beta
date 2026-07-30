@@ -1,16 +1,15 @@
 [project]
 name = "instant"
 version = "0.1.0"
-description = "Manage mini apps with backend code, frontend code and individual sqlite dbs"
+description = "A Django single-app template with an agent-driven edit/deploy loop"
 requires-python = ">=3.14"
 dependencies = [
     "django>=6.0",
     "django-allauth[socialaccount]>=65.11.2", # OAuth and social login
-    "django-ninja>=1.6.2", # API scaffolding for later prompts
-    "gitpython>=3.1", # /git viewer reads the apps inner repo
+    "django-ninja>=1.6.2", # API scaffolding
+    "gitpython>=3.1", # /git viewer reads the project repo
     "httpx>=0.28", # talks to the local opencode daemon
     "inertia-django>=1.2.0", # Inertia.js backend
-    "networkx>=3.6.1",
     "nh3>=0.2.21", # HTML sanitization
     "psycopg2-binary>=2.9.10", # Postgres driver
     "pydantic>=2.11.10",
@@ -32,9 +31,20 @@ dev = [
 exclude-newer = "7 days"
 
 [tool.ruff]
-# `apps/` excluded explicitly (not via .gitignore): its `!/apps/.gitignore`
-# re-inclusion forces descent, so the dir-prune no longer hides app source.
-exclude = [".venv", "djangoapp/migrations", "apps", "prevproject"]
+# Explicit (not .gitignore-based) so the same config works in a gitless copy/
+# (see ./run createscratch) as in main/ — node_modules/.venv/build output are not source.
+exclude = [
+  ".venv",
+  ".git",
+  "djangoapp/migrations",
+  "ourapp/migrations",
+  "prevproject",
+  "node_modules",
+  "dist",
+  "build",
+  "djangoapp/static",
+  "docs/reference",
+]
 target-version = "py314"
 line-length = 100
 
@@ -76,7 +86,7 @@ ignore = [
 "stubs/**/*.pyi" = [
     "ANN401",  # stubbed return types are Any
     "N802",  # third-party API names cannot be renamed
-    "N818",  # exception names mirror the library (e.g. NetworkXNoCycle)
+    "N818",  # exception names mirror the library
 ]
 
 [tool.ruff.lint.pycodestyle]
@@ -88,7 +98,7 @@ exclude = [".venv"]
 
 [tool.mypy]
 strict = true
-exclude = ["apps/", "prevproject/"]
+exclude = ["prevproject/", "docs/reference/", "node_modules/", "dist/", "build/"]
 warn_unused_ignores = true
 disallow_any_unimported = true
 disallow_any_decorated = true

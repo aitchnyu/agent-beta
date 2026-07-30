@@ -11,21 +11,10 @@ from inertia import render
 from djangoapp.models import User
 
 
-def host_template_data() -> dict[str, str]:
-    """template_data so host Inertia pages load the host bundle.
-
-    App pages override both values via their own ``template_data``; host pages
-    use this so ``base.html`` always has ``app_static_base`` (no default filter).
-    The host bundle has no generation-tied cache-bust, so ``app_asset_version``
-    is empty.
-    """
-    return {"app_static_base": "/static/djangoapp", "app_asset_version": ""}
-
-
 def require_superuser(request: HttpRequest) -> None:
     """Gate a view to a superuser, else 404 (never 403).
 
-    Shared by the superuser-only read views (``/manage/apps``, ``/agent/``,
+    Shared by the superuser-only read views (``/manage/models``, ``/agent/``,
     ``/files/...``). A 404 (not 403) keeps the page's existence hidden from
     unauthenticated / non-superuser viewers.
     """
@@ -47,7 +36,7 @@ def home(request: HttpRequest) -> HttpResponse:
         "display_name": cast(User, user).display_name if is_authed else "",
         "public_id": cast(User, user).public_id if is_authed else "",
     }
-    return render(request, "Home", props, template_data=host_template_data())
+    return render(request, "Home", props)
 
 
 def login_for_test(request: HttpRequest, userid: int) -> HttpResponse:

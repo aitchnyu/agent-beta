@@ -3,10 +3,10 @@ from __future__ import annotations
 from djangoapp.models import User
 from djangoapp.tests.playwright.test_playwright import BasePlaywrightTestCase
 
-# Stable files under apps/ (tracked) used as browse/preview targets.
-_DIR = "apps"
-_TEXT_FILE = "apps/.gitignore"
-_ENTRY_DIR = "TriviaFacts"
+# Stable files under ourapp/ (tracked) used as browse/preview targets.
+_DIR = "ourapp"
+_TEXT_FILE = "ourapp/models.py"
+_ENTRY_DIR = "migrations"
 
 
 class FilesBrowserE2e(BasePlaywrightTestCase):
@@ -14,13 +14,13 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
 
     Re-auths the shared page as a superuser (the base harness logs in a plain
     user; ``/files`` is superuser-only) and drives the real repo tree
-    (``apps/``, ``apps/.gitignore``). ``tearDown`` fails the test on any browser
+    (``ourapp/``, ``ourapp/models.py``). ``tearDown`` fails the test on any browser
     console error. Uses Python assert methods; ``networkidle`` navigation (and
     targeted ``wait_for``) ensure Inertia has hydrated before asserting.
 
-    - test_browse_lists_entries_and_breadcrumb, entries + root/apps breadcrumb
+    - test_browse_lists_entries_and_breadcrumb, entries + root/ourapp breadcrumb
     - test_clicking_directory_entry_navigates, an entry link SPA-navigates into the dir
-    - test_text_file_preview, a text file's content renders (escaped)
+    - test_text_file_preview, a code file's content renders (escaped)
     - test_text_preview_is_html_escaped, file markup is escaped text, not live elements
     - test_humanized_time_toggles_to_absolute, clicking the time swaps relative → absolute
     """
@@ -43,12 +43,12 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         return f"{self.live_server_url}/files/{rel}"
 
     def test_browse_lists_entries_and_breadcrumb(self) -> None:
-        """The apps/ listing renders its entries and a root/apps breadcrumb."""
+        """The ourapp/ listing renders its entries and a root/ourapp breadcrumb."""
         page = self.page
         page.goto(self._files(_DIR), wait_until="networkidle")
         body = page.inner_text("body")
         self.assertIn(_ENTRY_DIR, body)
-        self.assertIn(".gitignore", body)
+        self.assertIn("models.py", body)
         crumb = page.locator(".files-breadcrumb")
         self.assertTrue(crumb.get_by_role("link", name="root").is_visible())
         self.assertTrue(crumb.get_by_role("link", name=_DIR).is_visible())
@@ -62,12 +62,14 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         self.assertIn(f"/files/{_DIR}/{_ENTRY_DIR}", page.url)
 
     def test_text_file_preview(self) -> None:
-        """A text file renders its (escaped) content in the preview."""
+        """A code file renders its (escaped) content in the preview."""
         page = self.page
         page.goto(self._files(_TEXT_FILE), wait_until="networkidle")
-        text = page.locator(".files-text").text_content() or ""
-        self.assertIn("node_modules", text)
-        self.assertIn("__pycache__", text)
+        preview = page.locator(".files-code")
+        preview.wait_for(state="visible")
+        text = preview.text_content() or ""
+        self.assertIn("BaseModel", text)
+        self.assertIn("models-management", text)
 
     def test_text_preview_is_html_escaped(self) -> None:
         """File markup previews as escaped text, never as live elements.

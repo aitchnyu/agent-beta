@@ -342,3 +342,50 @@ class UserHistory(models.Model):
             action="deleted",
             _changes={},
         )
+
+
+# Full URL prefix for the superuser-only models-management pages. The routes in
+# djangoapp/views/manage.py mount under ``manage`` + ``/models/...`` and must
+# match this prefix. Lives in the model layer (not views) so BaseModel owns the
+# URL its rows link to, without models importing views.
+MANAGE_MODELS_URL_PREFIX = "/manage/models"
+
+
+class BaseModel(models.Model):
+    """Abstract base for the concrete models in ourapp/.
+
+    We must intend to address rows by their public ids. Its UUID7 by default, but
+    we can use friendly names etc.
+
+    Rows are addressed in the superuser-only models-management UI by
+    their ``_public_id``; :meth:`get_absolute_url` returns that detail URL.
+    """
+
+    _public_id = models.CharField(
+        max_length=100, db_index=True, editable=False, default=generate_uuid7_id
+    )
+    _created_by = models.ForeignKey(
+        User,
+        null=True,
+        blank=True,
+        on_delete=models.RESTRICT,
+        related_name="+",
+    )
+    _created_at = models.DateTimeField(auto_now_add=True)
+    _edited_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        abstract = True
+
+    def __str__(self) -> str:
+        """Override per-model for a friendlier label."""
+        return self._public_id
+
+    def get_absolute_url(self) -> str:
+        """Superuser-only models-management detail URL for this row.
+
+        Built from the concrete class name + ``_public_id``; must match the
+        route in ``djangoapp/views/manage.py``
+        (``MANAGE_MODELS_URL_PREFIX/<model>/id/<id>``).
+        """
+        return f"{MANAGE_MODELS_URL_PREFIX}/{type(self).__name__}/id/{self._public_id}"

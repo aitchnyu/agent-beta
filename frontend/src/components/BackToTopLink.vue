@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
 
-// "Back to top" = up one level in the app/table route hierarchy
-// (e.g. /manage/apps/<app> -> /manage/apps). A real Inertia <Link>, so it
-// navigates rather than scrolling, and stays keyboard-accessible.
+// "Back to top" = up one level in the model route hierarchy
+// (e.g. /manage/models/<model>/list -> /manage/models). A real Inertia <Link>,
+// so it navigates rather than scrolling, and stays keyboard-accessible.
 defineProps<{ href: string }>()
 </script>
 

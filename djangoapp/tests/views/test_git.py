@@ -3,7 +3,7 @@
 
 Against a throwaway temp repo. No mocks: ``setUp`` builds a known git history
 (3 commits incl. a root commit and a deletion, plus uncommitted changes) and
-patches the apps-root to it. Each test hits the view via ``self.client`` and
+  patches the repo root to it. Each test hits the view via ``self.client`` and
 asserts the Inertia props / 404.
 """
 
@@ -90,7 +90,7 @@ class GitRealTests(InertiaTestCase):
         self.short_b = self.commit_b.hexsha[:7]
         self.short_c = self.commit_c.hexsha[:7]
 
-        self._patch = patch("djangoapp.apps.dynamic_module._APPS_ROOT", root)
+        self._patch = patch("djangoapp.views.git_data._REPO_ROOT", root)
         self._patch.start()
         self.addCleanup(self._patch.stop)
 
@@ -226,11 +226,9 @@ class GitRealTests(InertiaTestCase):
         self.assertEqual(self.client.get("/git").status_code, HTTPStatus.NOT_FOUND)
 
     def test_missing_repo_404(self) -> None:
-        """A missing/non-git apps dir → 404, not a 500 traceback."""
-        with patch("djangoapp.apps.dynamic_module._APPS_ROOT", Path("/nonexistent/git/path")):
-            self.assertEqual(
-                self.client.get("/git").status_code, HTTPStatus.NOT_FOUND
-            )
+        """A missing/non-git repo → 404, not a 500 traceback."""
+        with patch("djangoapp.views.git_data._REPO_ROOT", Path("/nonexistent/git/path")):
+            self.assertEqual(self.client.get("/git").status_code, HTTPStatus.NOT_FOUND)
 
     def test_empty_repo_uncommitted(self) -> None:
         """A repo with no HEAD shows only untracked files."""
@@ -238,7 +236,7 @@ class GitRealTests(InertiaTestCase):
             root = Path(tmp)
             git.Repo.init(root)
             (root / "orphan.py").write_text("x = 1\n")
-            with patch("djangoapp.apps.dynamic_module._APPS_ROOT", root):
+            with patch("djangoapp.views.git_data._REPO_ROOT", root):
                 self.client.get("/git")
             files = self.props()["props"]["files"]
             self.assertEqual([f["path"] for f in files], ["orphan.py"])
@@ -249,7 +247,7 @@ class GitRealTests(InertiaTestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             git.Repo.init(root)
-            with patch("djangoapp.apps.dynamic_module._APPS_ROOT", root):
+            with patch("djangoapp.views.git_data._REPO_ROOT", root):
                 self.client.get("/git/commits")
             props = self.props()["props"]
             self.assertEqual(props["commits"], [])

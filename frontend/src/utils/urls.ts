@@ -1,6 +1,6 @@
-// Builds the list URL for a table's rows with query params, reused by the
-// list page and its pagination Links so prev/next/page navigation keeps
-// per_page and sort in sync.
+// Builds the list URL for a model's rows with query params, reused by the list
+// page and its pagination links so prev/next/page navigation keeps per_page and
+// sort in sync.
 export interface RowListQuery {
   page?: number
   per_page?: number
@@ -8,11 +8,10 @@ export interface RowListQuery {
 }
 
 export function rowListUrl(
-  appName: string,
-  tableName: string,
+  modelName: string,
   query: RowListQuery = {},
 ): string {
-  const base = `/manage/apps/${appName}/${tableName}/list`
+  const base = `/manage/models/${modelName}/list`
   const params = new URLSearchParams()
   if (query.page !== undefined) params.set("page", String(query.page))
   if (query.per_page !== undefined)
@@ -22,15 +21,6 @@ export function rowListUrl(
   return qs ? `${base}?${qs}` : base
 }
 
-export function rowDetailUrl(
-  appName: string,
-  tableName: string,
-  publicId: string,
-): string {
-  return `/manage/apps/${appName}/${tableName}/id/${publicId}`
-}
-
-// The app's main page: the `default` endpoint served at the app root.
-export function appEndpointUrl(appName: string): string {
-  return `/apps/${appName}`
+export function rowDetailUrl(modelName: string, publicId: string): string {
+  return `/manage/models/${modelName}/id/${publicId}`
 }

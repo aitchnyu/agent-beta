@@ -3,7 +3,7 @@
 Directories list their entries (folders first); files preview as text or render
 as images; any file can be downloaded (``/files-download/...``) or served raw
 (``/files-raw/...``, used for ``<img>``). The browse root is ``BASE_DIR``; the "Files"
-nav button lands at ``apps/`` and you can navigate up to the repo root but no
+nav button lands at ``ourapp/`` and you can navigate up to the repo root but no
 above. Path traversal (``..``, absolute paths, symlink escapes) is confined in
 :class:`PathWrapper` (resolve + ``is_relative_to`` → 404).
 """
@@ -20,7 +20,7 @@ from django.http import FileResponse, Http404, HttpRequest, HttpResponseBase
 from inertia import InertiaResponse
 from pydantic import BaseModel
 
-from djangoapp.views import host_template_data, require_superuser
+from djangoapp.views import require_superuser
 
 if TYPE_CHECKING:
     import os
@@ -196,7 +196,6 @@ def file_browser(request: HttpRequest, rel: str = "") -> HttpResponseBase:
             request,
             "FileBrowser",
             {"props": props.model_dump()},
-            template_data=host_template_data(),
         )
 
     # File preview: images render via /files-raw; text is inlined; else binary.
@@ -222,7 +221,6 @@ def file_browser(request: HttpRequest, rel: str = "") -> HttpResponseBase:
         request,
         "FileViewer",
         {"props": file_viewer.model_dump()},
-        template_data=host_template_data(),
     )
 
 

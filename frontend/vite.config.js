@@ -4,7 +4,7 @@ import vue from "@vitejs/plugin-vue"
 export default defineConfig({
   plugins: [vue()],
   // Assets/chunks (incl. dynamic-import chunks) resolve under the host static
-  // URL, where Django serves them (host_template_data app_static_base).
+  // URL /static/djangoapp/, where Django serves them (see base.html).
   base: "/static/djangoapp/",
   build: {
     outDir: "../djangoapp/static/djangoapp",

@@ -1,8 +1,7 @@
-# Instant app gen
+# Instant
 
-We are making a Django app for users to manage mini apps with backend code, frontend code and individual sqlite dbs.
-
-I will request some features which are present in prevproject. Do not use it for any other reason. Ensure its not covered by linters etc.
+A Django **single-app template**: clone it, build your app in `ourapp/`, and drive
+changes through an agent that edits a throwaway.
 
 ## Google OAuth (social login)
 
@@ -31,275 +30,74 @@ email (matched case-insensitively; sets both `is_superuser` and `is_staff` so
 
 Once promoted, that user can reach the management routes below.
 
+## The user app (`ourapp/`)
+
+`ourapp/` is a normal Django app (in `INSTALLED_APPS`). It ships empty — you add
+your code:
+
+- **Models** (`ourapp/models.py`): concrete classes subclassing
+  `djangoapp.models.BaseModel`, which provides `_public_id`, `_created_by`,
+  `_created_at`, `_edited_at` and `get_absolute_url()`. Give each a docstring.
+  Add/change a model → `./run djangomanage makemigrations ourapp`.
+- **API** (`ourapp/views.py`): a django-ninja API — page responses render via
+  Inertia (`InertiaResponse(request, "ours/<Page>", {"props": …})`), data
+  responses are pydantic schemas. (Recommend ninja routers for all ourapp URLs.)
+- **URLs** (`ourapp/urls.py`): mounts the ninja API at the project root, so each
+  route is served at its literal URL.
+- **Frontend**: one Vue+Inertia app. App pages live in
+  `frontend/src/pages/ours/<Name>.vue` (component name `ours/<Name>`); shared
+  components in `frontend/src/components/ours/`.
+
+See `docs/reference/` for a complete copyable example (a `Note` model with a
+`User` foreign key, a ninja list + create API, a page, and a test).
+
+## Models management (superuser)
+
+Mounted under `/manage` (superuser-only; anyone else gets a 404). Lists every
+concrete `BaseModel` subclass in `ourapp/` by class name, with its docstring and
+browseable rows. A foreign-key cell links to the referenced row via that row's
+`get_absolute_url()`.
+
+- `/manage/models` — list of models (name, docstring, row count)
+- `/manage/models/<model>/list` — paginated rows (sortable by created/edited)
+- `/manage/models/<model>/id/<public_id>` — single-row detail
+
+## Edit → test → deploy workflow
+
+The repo is `main/` (with `.git`); `copy/` is a throwaway sibling under the same
+parent. For every change:
+
+1. `main/run createscratch` — copy `main/` (minus `.git`/`node_modules`/`.venv`/caches)
+   into a fresh `copy/`, bootstrap its own env (`uv sync` + `npm install`), and
+   `git init` it.
+2. Edit `copy/`.
+3. `( cd copy && ./run checkall )` — ruff + mypy + tests + frontend lint/type-check
+   + Playwright. Must finish green.
+4. `main/run mergescratch` — deploy `copy/` into `main/` (never overwriting
+   `main/.env`). This does **not** commit.
+
+In dev the server auto-reloads `main/` after a deploy, so the user sees the
+change live. Commit in `main/` as a separate step when ready.
+
 ## User management
 
 Users are managed under `/users/` (`djangoapp/views/users.py`). Every management
-route — list, search, edit, history — requires a superuser; **anyone else gets a
-404** (not 403, so which users exist isn't leaked). A user's **identity in every
-URL and response is `public_id`** (a URL-safe UUID7); the integer `pk` is never
+route requires a superuser; anyone else gets a 404. A user's identity in every
+URL and response is `public_id` (a URL-safe UUID7); the integer `pk` is never
 sent to clients.
 
-- `/users/list` — paginated list of users (25/page). `?q=` does a trigram search
-  across first/last name and username; `?page=N` paginates.
-- `/users/api/search?q=` — top-20 username matches (the list page's
-  jump-to-profile). Superuser-only.
-- `/users/id/<public_id>` — a user's profile. First/last name are always shown;
-  `username` and `description` appear only when the user has `has_public_profile`
-  set. A **superuser viewer** additionally sees the admin panel (email, flags,
-  history count); anonymous viewers never do.
-- `/users/edit/<public_id>` (GET form + POST) — superuser-only edit. `username`
-  is read-only; editable fields are first/last name, email, `description`
-  (HTML-sanitised on save), `has_public_profile`, `is_active`, `is_staff`,
-  `is_superuser`.
-- `/users/history/<public_id>` — superuser-only audit trail. Every edit (and
-  every `makesuperuser` promotion) is recorded into `UserHistory` via
-  `User.update(...)`.
+- `/users/list` — paginated list (25/page); `?q=` trigram search; `?page=N`.
+- `/users/api/search?q=` — top-20 matches across first/last name + username.
+- `/users/id/<public_id>` — profile (superuser sees the admin panel).
+- `/users/edit/<public_id>` — superuser-only edit.
+- `/users/history/<public_id>` — superuser-only audit trail.
 
-**Admin self-lockout guard:** a superuser can't clear their own `is_superuser`
-or `is_active` flag. Because every `/users/*` route gates on an authenticated
-*active* superuser, the active-superuser count can never fall to zero through
-the UI.
+A superuser can't clear their own `is_superuser`/`is_active`, so the active
+superuser count can never fall to zero through the UI.
 
-## Applications and tables
+## Commands
 
-Mini-apps live in a two-level hierarchy: **application → table**, all in one
-flat app namespace. Each table is materialised as a real Postgres table named
-`zz_<physical_name>`, where `physical_name` is an immutable, creation-time
-identifier (`<tablename><unix-seconds>`, generated once). Names start with a
-letter and are alphanumeric; the display **name** is the identity (used
-directly in URLs), so there are no separate slugs. Because the physical table
-is keyed by the immutable `physical_name` and not by the display name,
-renaming an application or table is a plain row update with
-**zero DDL** — no physical table is ever renamed.
-
-Manage everything through the `dynamic_models` registry (`djangoapp/models/dynamic.py`),
-the single home for all app/table mutation. Each method runs in a
-transaction; app renames and table renames are display-name-only
-updates with zero DDL. `delete_application` cascade-drops its tables.
-All arguments are keyword-only. There is no CLI for creating apps or
-tables — creation happens only through the registry, inside a setup script
-(see [App framework](#app-framework) below). Apps live in one flat namespace,
-so `name` is globally unique and must be at least 10 characters.
-
-Columns are declared with typed column classes (positional `name`, everything
-else keyword-only) from `djangoapp.models.columns`. The old `{"name", "type",
-...}` dict spec is gone — column objects are the only spec.
-
-```python
-from djangoapp.models.columns import (
-    BooleanColumn,
-    CharColumn,
-    DateTimeColumn,
-    DecimalColumn,
-    ForeignKeyColumn,
-    IntegerColumn,
-    TextColumn,
-    UserColumn,
-)
-from djangoapp.models.dynamic import dynamic_models
-
-# description is kept (rich text, sanitized on save); tables are created
-# inline when given; script is a file path to the app's entry module.
-dynamic_models.create_application(
-    name="OrdersData",
-    description="...",
-)
-
-# create_application_table takes the same column objects (no duplicate or
-# existing names):
-dynamic_models.create_application_table(
-    application="OrdersData",
-    table="Items",
-    columns=[CharColumn("code", max_length=10), IntegerColumn("qty", nullable=True)],
-)
-
-# add_application_table_columns takes the same column objects too:
-dynamic_models.add_application_table_columns(
-    application="OrdersData",
-    table="Items",
-    columns=[CharColumn("region", max_length=5), DecimalColumn("discount", max_digits=5, decimal_places=2)],
-)
-dynamic_models.delete_application_table_columns(application="OrdersData", table="Items", names=["region"])
-dynamic_models.rename_application_table(table, "Products")
-dynamic_models.delete_application_table(application="OrdersData", table="Products")
-dynamic_models.delete_application(app)            # cascade-drops its tables
-```
-
-### Registry methods
-
-- Applications: `create_application(*, name, description="", tables=None)` / `rename_application(*, old_name, new_name)` / `delete_application(application)` (cascade-drops its tables). The `app.py` path is derived from the apps root + app name (not stored).
-- Tables: `create_application_table(*, application, table, columns)` / `add_application_table_columns(*, application, table, columns)` / `delete_application_table_columns(*, application, table, names)` / `rename_application_table(table, new_name)` / `delete_application_table(*, application, table)`
-
-### Read-only `applications` command
-
-Listing/describe only (mutation is on the registry above; there is no CLI for
-creating apps or tables):
-
-```bash
-./run djangomanage applications list_applications
-./run djangomanage applications describe_application_table --app OrdersData --name Products
-./run djangomanage applications export_fk_graph [--format dot|mermaid]
-```
-
-- `list_applications` — list every app name
-- `describe_application_table --app --name` — print a table's columns (omits physical_name/db_table)
-- `export_fk_graph` — export the table graph (tables = nodes, FK columns = edges) as DOT (default) or Mermaid
-
-### Column classes
-
-All live in `djangoapp.models.columns`; `name` is positional, every other
-field is keyword-only. Column names must start with a letter and contain only
-letters/digits.
-
-- `CharColumn(name, *, default, max_length, min_length, choices, nullable)`
-- `TextColumn(name, *, default, min_length, max_length, nullable)`
-- `IntegerColumn(name, *, default, nullable)`
-- `BooleanColumn(name, *, default, nullable)`
-- `DecimalColumn(name, *, default, max_digits, decimal_places, nullable)`
-- `DateTimeColumn(name, *, nullable)`
-- `UserColumn(name, *, nullable)` — ForeignKey to the project `User`
-- `ForeignKeyColumn(name, *, target, nullable)` — ForeignKey to another table (see [Foreign keys](#foreign-keys-between-tables))
-
-### Foreign keys between tables
-
-A `ForeignKeyColumn` points one table at another via a `(app, table)`
-target. The link is stored against the target's immutable `physical_name`, so
-renaming an app/table never breaks it. A table may reference itself
-(e.g. a tree parent). When a single `create_application(tables={...})` declares
-several tables, they are created in dependency order (targets first).
-
-```python
-dynamic_models.create_application(
-    name="HRApp",
-    tables={
-        "departments": [CharColumn("code", max_length=10)],
-        "employees": [
-            CharColumn("code", max_length=10),
-            ForeignKeyColumn("dept", target=("HRApp", "departments"), nullable=True),
-        ],
-    },
-)
-# A self-referential FK (a node's parent is another node in the same table):
-ForeignKeyColumn("parent", target=("OrgApp", "nodes"), nullable=True)
-```
-
-**Cycles are rejected.** Creating a table (or adding a column) whose foreign keys
-close a cycle raises `ValidationError` naming the loop, e.g.
-`foreign-key cycle: alpha -> beta -> alpha`. Detection runs over the full live
-table graph via the stdlib `graphlib`.
-
-**Referenced tables can't be dropped.** `delete_application_table` refuses a
-table still pointed at by another table's FK (the error names the referencer),
-and the FK uses `on_delete=RESTRICT` so deleting a *row* another row points at
-also raises.
-
-**Export the graph** (tables = nodes, FK columns = edges) as DOT (default) or
-Mermaid:
-
-```bash
-./run djangomanage applications export_fk_graph                       # DOT (default), all tables
-./run djangomanage applications export_fk_graph --format mermaid
-```
-
-DOT opens in any Graphviz viewer (`dot -Tpng`, WebGraphviz, Obsidian); Mermaid
-renders natively in GitHub and VS Code.
-
-### App framework
-
-Apps are Python modules installed via a setup script. An app lives at
-`apps/<app>/app.py` (the install dir is gitignored; committed example apps
-live under `djangoapp/tests/`). The entry module tags functions with
-decorators from `djangoapp.apps`:
-
-```python
-from djangoapp.apps import (
-    HttpRequest, a_test_request, backend_test, get_endpoint, playwright_test, post_endpoint, setup,
-)
-
-@setup
-def setup_app():
-    ...  # create_application(name=..., tables=...)
-
-@get_endpoint
-def facts(request: HttpRequest) -> SomePydanticSchema:
-    model = ...  # get_model()
-    return SomePydanticSchema(facts=[...])
-
-@backend_test
-def test_facts():
-    a = facts(a_test_request())
-    assert len(a.facts) > 0, "We need facts"
-```
-
-`a_test_request()` builds a Django `HttpRequest` for in-process endpoint calls
-inside `@backend_test`s — the same object the HTTP layer hands a handler, so
-`request.user.is_authenticated`, `request.GET`, `request.POST`, and `request.body`
-all work. `user` defaults to `AnonymousUser` (unauthenticated); pass `params=`
-(query string, any method), `data=` (form body), or `json=` (JSON body) to
-populate it. A body (`data`/`json`) is incompatible with GET and the two are
-mutually exclusive — both raise `ValueError`.
-
-Install (and self-test) an app with:
-
-```bash
-./run djangomanage buildbackend appname
-```
-
-This imports the module, runs `@setup`, then runs every `@backend_test`. If
-they all pass the app is installed; if `@setup` raises or any `@backend_test`
-fails, the whole script is rolled back (DB changes + DDL reverted, dynamic-model
-registry cache reset) so a failed install leaves nothing behind.
-
-Build an app's frontend into its derived static folder with:
-
-```bash
-./run djangomanage buildfrontend appname
-```
-
-This resolves the app, locates its `frontend/` dir (`<apps_root>/<app>/frontend/`),
-and runs `npm run build -- --emptyOutDir --outDir <static_folder>` so vite writes
-`main.js`/`main.css` to `djangoapp/static/djangoapp/apps/<app>/`
-(gitignored build artifacts). Constant asset path; cache-busting is via the
-`?cache_buster=<apps-generation>` the inertia view appends (no hashed filenames).
-On success it bumps the apps generation, so a running server picks up the rebuilt
-bundle without a restart.
-
-After building, `buildfrontend` runs the app's `@playwright_test(context, base_url)`
-funcs in a headless browser against a short-lived live server. Every DB change
-they cause — written in-process by the test body or triggered over HTTP by the
-browser — is rolled back (a rolled-back `transaction.atomic()` for in-process
-writes, plus a per-request rolled-back `atomic()` middleware for browser writes),
-whether `buildfrontend` ultimately passes or fails. Only the `@playwright_test` phase
-is covered: the build itself still writes the bundle and bumps the apps
-generation. Pass `--skip-playwright` to build only.
-
-### Endpoints
-
-A `@get_endpoint` function `def name(request: HttpRequest) -> SomePydanticSchema:`
-is served as JSON at:
-
-```
-/apps/<app>/e/<function_name>
-```
-
-All four verbs dispatch by HTTP method at `.../e/<function>` — `@get_endpoint`,
-`@post_endpoint`, `@put_endpoint`, `@delete_endpoint` — and a name is registered
-under exactly one method (a request whose method doesn't match is a 404). A
-`@get_endpoint` may instead return an `InertiaPage` to render an Inertia page
-with the app's own bundle. `GET /apps/<app>` (the app root) serves the function
-named `default`.
-
-### Application management views (superuser)
-
-These list/manage installed apps and their tables, mounted under `/manage`
-(separate from the public `/apps/<app>` app surface so an app name can never
-collide with a path literal). User accounts are managed under `/users/`, see
-[User management](#user-management):
-
-- `/manage/apps` — list every app
-- `/manage/apps/<app_name>` — list an app's tables with live row counts
-- `/manage/apps/<app_name>/<table_name>/list` — list rows in a table, paginated
-- `/manage/apps/<app_name>/<table_name>/id/<public_id>` — single-row detail
-
-All require a superuser; anyone else gets a 404.
-
+All via the `run` script: `init`, `runserver`, `test`, `typecheck`, `lintfix`,
+`playwrighttest`, `checkall`, `createscratch`, `mergescratch`, plus `djangomanage`/`python`
+passthroughs (e.g. `./run djangomanage makemigrations`,
+`./run python manage.py …`).

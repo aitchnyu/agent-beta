@@ -1,12 +1,3 @@
-# Installed apps live at the project root in apps/ at runtime (gitignored);
-# anchored so it does NOT match djangoapp/apps/ or djangoapp/tests/apps/.
-# `**` (not `/apps/`) so the negation below can re-include a file: git won't
-# descend into a fully-excluded directory.
-/apps/**
-# Ship apps/.gitignore with the repo so a fresh deploy has it ready for the
-# apps/ subrepo buildbackend bootstraps (ignores node_modules/__pycache__/...).
-!/apps/.gitignore
-
 .venv
 .env
 *.pyc
@@ -15,23 +6,22 @@ db.sqlite3
 */__pycache__
 uploads/
 .idea/
-# Any node_modules (host frontend + per-app/test-app frontends).
+# Host frontend dependencies.
 node_modules/
-# Vite build output (main bundle, code-split chunks, source maps, per-app
-# builds); generated, not committed.
+# Vite build output (main bundle, code-split chunks, source maps); generated.
 djangoapp/static/
+
+# Python lint/type caches.
+.mypy_cache/
+.ruff_cache/
 
 # coverage tool generates this
 .coverage
 
 # TypeScript incremental compilation cache
 *.tsbuildinfo
-# kilocode stuff
+# kilo stuff
 .kilo/package-lock.json
-.kilocode/package-lock.json
 
 # Playwright MCP (browser tooling) artifacts: snapshots, console logs
 .playwright-mcp/
-
-# Only uv.lock is tracked in this section; nothing else to ignore here.
-

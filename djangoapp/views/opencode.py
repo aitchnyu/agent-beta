@@ -33,7 +33,7 @@ from inertia import render
 from ninja import NinjaAPI, Router
 from pydantic import BaseModel
 
-from djangoapp.views import host_template_data, require_superuser
+from djangoapp.views import require_superuser
 
 if TYPE_CHECKING:
     from collections.abc import Iterator
@@ -107,7 +107,7 @@ opencode_router = Router()
 def opencode_page(request: HttpRequest) -> HttpResponse:
     """Render the opencode chat page (superuser-only)."""
     require_superuser(request)
-    return render(request, "OpencodeChat", {}, template_data=host_template_data())
+    return render(request, "OpencodeChat", {})
 
 
 @opencode_router.post("/prompt/", response=None)
@@ -451,6 +451,6 @@ def _sse(event: _SseEvent) -> bytes:
 # Mount the proxy endpoints under /api/opencode/ — ninja gives auto body
 # validation (422), method dispatch (405), and an OpenAPI schema (served at
 # /api/opencode/docs and /api/opencode/openapi.json). Mounting the API (not just
-# the router) at api/opencode/ keeps those docs URLs distinct from apps_api's.
+# the router) at api/opencode/ keeps those docs URLs distinct from the manage API's.
 opencode_api = NinjaAPI(urls_namespace="opencode-http")
 opencode_api.add_router("", opencode_router)

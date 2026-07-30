@@ -21,14 +21,14 @@ const csrfToken = computed(() => getCsrfToken())
       <Link
         v-if="isSuperuser"
         class="btn btn-outline-secondary btn-sm"
-        href="/manage/apps"
+        href="/manage/models"
       >
-        Apps
+        Models
       </Link>
       <Link
         v-if="isSuperuser"
         class="btn btn-outline-secondary btn-sm"
-        :href="fileUrl('apps')"
+        :href="fileUrl('ourapp')"
       >
         Files
       </Link>

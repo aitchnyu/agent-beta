@@ -15,21 +15,20 @@ const createdByCol: RowListColumnDef = {
   name: "created_by",
   type: "user",
   has_choices: false,
-  fk_target: null,
 }
 
-const listHref = rowListUrl(p.app_name, p.table_name)
+const listHref = rowListUrl(p.model_name)
 </script>
 
 <template>
   <Layout>
-    <div class="container apps-rowdetail-page">
-      <h1>{{ p.table_name }} / {{ p.public_id }}</h1>
+    <div class="container manage-rowdetail-page">
+      <h1>{{ p.model_name }} / {{ p.public_id }}</h1>
       <p class="text-muted">
-        <Link :href="listHref">Back to {{ p.table_name }} list</Link>
+        <Link :href="listHref">Back to {{ p.model_name }} list</Link>
       </p>
 
-      <table class="table table-sm align-middle apps-rowdetail-table">
+      <table class="table table-sm align-middle manage-rowdetail-table">
         <tbody>
           <tr v-for="col in p.columns" :key="col.name">
             <th scope="row">{{ col.name }}</th>
@@ -54,7 +53,7 @@ const listHref = rowListUrl(p.app_name, p.table_name)
         </tbody>
       </table>
 
-      <BackToTopLink :href="listHref">Back to {{ p.table_name }}</BackToTopLink>
+      <BackToTopLink :href="listHref">Back to {{ p.model_name }}</BackToTopLink>
     </div>
   </Layout>
 </template>

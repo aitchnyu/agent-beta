@@ -1,7 +1,7 @@
-"""Superuser-only read-only git viewer at ``/git/...`` over the apps inner repo.
+"""Superuser-only read-only git viewer at ``/git/...`` over the project repo.
 
-Mirrors ``/files``: superuser-only (404 otherwise), path-confined to the apps
-repo. Reads via :mod:`djangoapp.views.git_data` (GitPython); tests patch those
+Mirrors ``/files``: superuser-only (404 otherwise), path-confined to the repo
+root. Reads via :mod:`djangoapp.views.git_data` (GitPython); tests patch those
 functions. Routes in :mod:`djangoapp.urls`.
 """
 
@@ -13,20 +13,20 @@ from django.http import Http404, HttpRequest, HttpResponseBase
 from inertia import InertiaResponse
 from pydantic import BaseModel
 
-from djangoapp.apps.dynamic_module import apps_root
-from djangoapp.views import git_data, host_template_data, require_superuser
+from djangoapp.views import git_data, require_superuser
 
 # Commit ids are full-or-short hex shas (4..40 chars); validated before use.
 _HEX_RE = re.compile(r"^[0-9a-f]{4,40}$", re.IGNORECASE)
 
-def _confined_to_apps_dir(rel: str) -> str:
-    """Return ``rel`` normalized if it stays inside the apps repo, else raise Http404.
+
+def _confined_to_repo(rel: str) -> str:
+    """Return ``rel`` normalized if it stays inside the repo root, else raise Http404.
 
     Unlike :class:`PathWrapper`, existence is *not* required — a diff path may be
     a deleted/added file, so only the escape check (resolve + ``is_relative_to``)
     runs.
     """
-    root = apps_root().resolve()
+    root = git_data._REPO_ROOT.resolve()  # noqa: SLF001 # shared repo-root constant
     normalized = (rel or "").strip().lstrip("/")  # git paths are posix, repo-relative
     resolved = (root / normalized).resolve()
     if resolved != root and not resolved.is_relative_to(root):
@@ -63,26 +63,28 @@ def _parse_page(request: HttpRequest) -> int:
 
 
 def git_uncommitted_list(request: HttpRequest) -> HttpResponseBase:
-    """``GET /git`` — uncommitted files in the apps repo."""
+    """``GET /git`` — uncommitted files in the repo."""
     require_superuser(request)
     props = GitUncommittedProps(files=git_data.uncommitted())
     return InertiaResponse(
-        request, "GitUncommitted", {"props": props.model_dump(mode="json")},
-        template_data=host_template_data(),
+        request,
+        "GitUncommitted",
+        {"props": props.model_dump(mode="json")},
     )
 
 
 def git_uncommitted_diff(request: HttpRequest, rel: str) -> HttpResponseBase:
     """``GET /git/uncommitted/<path>`` — the unified diff of one uncommitted file."""
     require_superuser(request)
-    path = _confined_to_apps_dir(rel)
+    path = _confined_to_repo(rel)
     diff = git_data.diff_uncommitted(path)
     if diff is None:
         raise Http404
     props = GitDiffProps(title=f"Uncommitted: {path}", diff=diff)
     return InertiaResponse(
-        request, "GitDiff", {"props": props.model_dump(mode="json")},
-        template_data=host_template_data(),
+        request,
+        "GitDiff",
+        {"props": props.model_dump(mode="json")},
     )
 
 
@@ -92,9 +94,11 @@ def git_commit_list(request: HttpRequest) -> HttpResponseBase:
     commits, pagination = git_data.commits(_parse_page(request))
     props = GitCommitListProps(commits=commits, pagination=pagination)
     return InertiaResponse(
-        request, "GitCommitList", {"props": props.model_dump(mode="json")},
-        template_data=host_template_data(),
+        request,
+        "GitCommitList",
+        {"props": props.model_dump(mode="json")},
     )
+
 
 def git_commit_file_list(request: HttpRequest, commit_id: str) -> HttpResponseBase:
     """``GET /git/commits/<commit_id>`` — a commit's changed files."""
@@ -103,8 +107,9 @@ def git_commit_file_list(request: HttpRequest, commit_id: str) -> HttpResponseBa
     summary, files = found
     props = GitCommitProps(commit=summary, files=files)
     return InertiaResponse(
-        request, "GitCommit", {"props": props.model_dump(mode="json")},
-        template_data=host_template_data(),
+        request,
+        "GitCommit",
+        {"props": props.model_dump(mode="json")},
     )
 
 
@@ -112,14 +117,15 @@ def git_commit_file_diff(request: HttpRequest, commit_id: str, rel: str) -> Http
     """``GET /git/commits/<commit_id>/<path>`` — a file's diff in a commit."""
     require_superuser(request)
     _commit_or_404(commit_id)  # validate + 404 on unknown commit
-    path = _confined_to_apps_dir(rel)
+    path = _confined_to_repo(rel)
     diff = git_data.diff_commit(commit_id, path)
     if diff is None:
         raise Http404
     props = GitDiffProps(title=f"{commit_id}: {path}", diff=diff)
     return InertiaResponse(
-        request, "GitDiff", {"props": props.model_dump(mode="json")},
-        template_data=host_template_data(),
+        request,
+        "GitDiff",
+        {"props": props.model_dump(mode="json")},
     )
 
 

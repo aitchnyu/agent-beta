@@ -1,24 +1,27 @@
 """Data contract + GitPython-backed read functions for the ``/git`` viewer.
 
 The ``/git`` views (:mod:`djangoapp.views.git`) call these module-level
-functions. The functions read the apps inner repo via ``apps_root()`` — the
-canonical accessor from :mod:`djangoapp.apps.dynamic_module` (also used by
-``buildbackend`` to bootstrap the repo), so the viewer always reads the same
-tree that was created.
+functions. They read the project repo (the single git repo at ``BASE_DIR``) via
+the module-level ``_REPO_ROOT``, so the viewer shows the repo's own commits,
+uncommitted files, and diffs.
 """
 
 from __future__ import annotations
 
 import re
+from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+from django.conf import settings
 from django.http import Http404
 from pydantic import BaseModel
 
-from djangoapp.apps.dynamic_module import apps_root
-
 if TYPE_CHECKING:
     from typing import Any
+
+# The repo the viewer reads: the project's git repo at BASE_DIR. Module-level so
+# tests can point it at a throwaway temp repo (see tests/views/test_git.py).
+_REPO_ROOT = Path(str(settings.BASE_DIR)).resolve()
 
 _PAGE_SIZE = 25
 # Commit ids are full-or-short hex shas (4..40 chars); validated before reaching git.
@@ -61,10 +64,11 @@ def _repo() -> Any:  # noqa: ANN401 -- git.Repo has no first-class stub; Any is 
     import git  # noqa: PLC0415 -- lazy: only the real provider needs GitPython
 
     try:
-        return git.Repo(str(apps_root()))
+        return git.Repo(str(_REPO_ROOT))
     except (git.NoSuchPathError, git.InvalidGitRepositoryError) as exc:
-        # Missing/non-git apps dir → 404, not a 500 traceback.
+        # Missing/non-git repo → 404, not a 500 traceback.
         raise Http404 from exc
+
 
 def _change_status(change_type: str) -> str:
     if change_type == "A":
@@ -89,8 +93,7 @@ def _commit_files(c: Any) -> list[CommitFile]:  # noqa: ANN401 -- git.Commit has
 
     diffs = c.parents[0].diff(c) if c.parents else c.diff(git.NULL_TREE)
     return [
-        CommitFile(path=d.b_path or d.a_path, status=_change_status(d.change_type))
-        for d in diffs
+        CommitFile(path=d.b_path or d.a_path, status=_change_status(d.change_type)) for d in diffs
     ]
 
 
@@ -102,9 +105,7 @@ def uncommitted() -> list[UncommittedFile]:
     ]
     if repo.head.is_valid():  # no HEAD → fresh repo, only untracked
         out.extend(
-            UncommittedFile(
-                path=d.b_path or d.a_path, status=_change_status(d.change_type)
-            )
+            UncommittedFile(path=d.b_path or d.a_path, status=_change_status(d.change_type))
             for d in repo.head.commit.diff(None)  # HEAD vs working tree (all tracked changes)
         )
     return out
@@ -124,10 +125,7 @@ def commits(page: int) -> tuple[list[CommitSummary], GitPagination]:
     total_pages = max(1, (total + _PAGE_SIZE - 1) // _PAGE_SIZE)
     page = min(max(1, page), total_pages)
     skip = (page - 1) * _PAGE_SIZE
-    items = [
-        _commit_summary(c)
-        for c in repo.iter_commits(max_count=_PAGE_SIZE, skip=skip)
-    ]
+    items = [_commit_summary(c) for c in repo.iter_commits(max_count=_PAGE_SIZE, skip=skip)]
     return items, GitPagination(page=page, total_pages=total_pages, total_count=total)
 
 

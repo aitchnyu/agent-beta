@@ -14,16 +14,16 @@ from djangoapp.models import User
 from djangoapp.views import files as files_view
 from djangoapp.views.files import PathWrapper
 
-# A small text file that ships tracked under apps/ — stable target for the
-# preview/download integration tests below.
-_TEXT_FILE = "apps/.gitignore"
+# A tracked text file in the user app — stable target for the preview/download
+# integration tests below.
+_TEXT_FILE = "ourapp/models.py"
 
 
 class FilesViewTests(InertiaTestCase):
     """Superuser-only ``/files/...`` browser — HTTP view (gate, listing, preview, serving).
 
     Uses the Inertia test case (``self.props`` / ``assertComponentUsed``) against
-    the real repo tree (``apps/``, ``apps/.gitignore``). Non-superusers and
+    the real repo tree (``ourapp/``, ``ourapp/models.py``). Non-superusers and
     anonymous viewers get 404 (never 403); byte serving lives on its own
     endpoints (``/files-download`` / ``/files-raw``).
 
@@ -31,7 +31,7 @@ class FilesViewTests(InertiaTestCase):
     - test_root_without_trailing_slash / test_root_with_trailing_slash, rel=None/"" → root
     - test_hidden_dirs_filtered_by_default, .venv/node_modules/.git/__pycache__ excluded
     - test_missing_path_404, unknown path → 404
-    - test_apps_listing_and_breadcrumb, entries + breadcrumb + parent
+    - test_ourapp_listing_and_breadcrumb, entries + breadcrumb + parent
     - test_text_file_preview, text content present (escaped)
     - test_download_returns_attachment, /files-download → attachment, octet-stream
     - test_download_traversal_404 / test_download_non_superuser_404, download gating
@@ -44,19 +44,17 @@ class FilesViewTests(InertiaTestCase):
 
     @classmethod
     def setUpTestData(cls) -> None:
-        cls.superuser = User.objects.create_user(
-            username="admin", is_superuser=True, is_staff=True
-        )
+        cls.superuser = User.objects.create_user(username="admin", is_superuser=True, is_staff=True)
         cls.plain = User.objects.create_user(username="plain")
 
     def test_non_superuser_404(self) -> None:
         """non-superuser gets 404 on /files."""
         self.client.force_login(self.plain)
-        self.assertEqual(self.client.get("/files/apps").status_code, HTTPStatus.NOT_FOUND)
+        self.assertEqual(self.client.get("/files/ourapp").status_code, HTTPStatus.NOT_FOUND)
 
     def test_anonymous_404(self) -> None:
         """Anonymous viewer gets 404 on /files."""
-        self.assertEqual(self.client.get("/files/apps").status_code, HTTPStatus.NOT_FOUND)
+        self.assertEqual(self.client.get("/files/ourapp").status_code, HTTPStatus.NOT_FOUND)
 
     def test_root_without_trailing_slash(self) -> None:
         """/files (rel=None) serves the repo-root listing."""
@@ -66,7 +64,7 @@ class FilesViewTests(InertiaTestCase):
         props = self.props()["props"]
         names = {e["name"] for e in props["entries"]}
         self.assertIn("djangoapp", names)
-        self.assertIn("apps", names)
+        self.assertIn("ourapp", names)
         self.assertIsNone(props["parent"])  # can't go above the repo root
 
     def test_root_with_trailing_slash(self) -> None:
@@ -92,13 +90,13 @@ class FilesViewTests(InertiaTestCase):
             HTTPStatus.NOT_FOUND,
         )
 
-    def test_apps_listing_and_breadcrumb(self) -> None:
-        """apps/ listing carries entries + a root/apps breadcrumb; parent is empty."""
+    def test_ourapp_listing_and_breadcrumb(self) -> None:
+        """ourapp/ listing carries entries + a root/ourapp breadcrumb; parent is empty."""
         self.client.force_login(self.superuser)
-        self.client.get("/files/apps")
+        self.client.get("/files/ourapp")
         props = self.props()["props"]
-        self.assertIn(".gitignore", {e["name"] for e in props["entries"]})
-        self.assertEqual([c["label"] for c in props["breadcrumb"]], ["root", "apps"])
+        self.assertIn("models.py", {e["name"] for e in props["entries"]})
+        self.assertEqual([c["label"] for c in props["breadcrumb"]], ["root", "ourapp"])
         self.assertEqual(props["parent"], "")  # parent is the repo root
 
     def test_text_file_preview(self) -> None:
@@ -108,8 +106,8 @@ class FilesViewTests(InertiaTestCase):
         self.assertComponentUsed("FileViewer")
         props = self.props()["props"]
         self.assertEqual(props["kind"], "text")
-        self.assertIn("node_modules", props["text"])
-        self.assertEqual(props["parent"], "apps")
+        self.assertIn("BaseModel", props["text"])
+        self.assertEqual(props["parent"], "ourapp")
 
     def test_download_returns_attachment(self) -> None:
         """/files-download returns bytes as an attachment (octet-stream)."""
@@ -142,8 +140,9 @@ class FilesViewTests(InertiaTestCase):
         PNG and hit the endpoint through the real route.
         """
         self.client.force_login(self.superuser)
-        with tempfile.TemporaryDirectory() as d, patch.object(
-            files_view, "_REPO_ROOT", Path(d).resolve()
+        with (
+            tempfile.TemporaryDirectory() as d,
+            patch.object(files_view, "_REPO_ROOT", Path(d).resolve()),
         ):
             (Path(d) / "pic.png").write_bytes(b"\x89PNG\r\n\x1a\n")
             resp = self.client.get("/files-raw/pic.png")
@@ -198,8 +197,9 @@ class PathWrapperTests(SimpleTestCase):
 
     def test_confines_traversal(self) -> None:
         """PathWrapper raises Http404 for escaping/missing rel; valid ones resolve under root."""
-        with tempfile.TemporaryDirectory() as d, patch.object(
-            files_view, "_REPO_ROOT", Path(d).resolve()
+        with (
+            tempfile.TemporaryDirectory() as d,
+            patch.object(files_view, "_REPO_ROOT", Path(d).resolve()),
         ):
             for escaping in ("../etc", "/etc/passwd", "../..", "nope/missing"):
                 with self.assertRaises(Http404):
@@ -212,8 +212,9 @@ class PathWrapperTests(SimpleTestCase):
 
     def test_normalizes_rel(self) -> None:
         """PathWrapper normalizes None/"" to the root and strips a trailing slash from rel."""
-        with tempfile.TemporaryDirectory() as d, patch.object(
-            files_view, "_REPO_ROOT", Path(d).resolve()
+        with (
+            tempfile.TemporaryDirectory() as d,
+            patch.object(files_view, "_REPO_ROOT", Path(d).resolve()),
         ):
             PathWrapper("")  # repo root
             (Path(d) / "apps").mkdir()
@@ -222,8 +223,9 @@ class PathWrapperTests(SimpleTestCase):
 
     def test_file_classification(self) -> None:
         """PathWrapper classifies a file as text/image/binary and guesses its MIME."""
-        with tempfile.TemporaryDirectory() as d, patch.object(
-            files_view, "_REPO_ROOT", Path(d).resolve()
+        with (
+            tempfile.TemporaryDirectory() as d,
+            patch.object(files_view, "_REPO_ROOT", Path(d).resolve()),
         ):
             root = Path(d)
             (root / "a.txt").write_text("hello world")
@@ -245,8 +247,9 @@ class PathWrapperTests(SimpleTestCase):
 
     def test_list_entries_sorts_and_hides(self) -> None:
         """list_entries sorts folders first and hides excluded dirs unless include_hidden."""
-        with tempfile.TemporaryDirectory() as d, patch.object(
-            files_view, "_REPO_ROOT", Path(d).resolve()
+        with (
+            tempfile.TemporaryDirectory() as d,
+            patch.object(files_view, "_REPO_ROOT", Path(d).resolve()),
         ):
             root = Path(d)
             (root / "zfile.txt").write_text("x")

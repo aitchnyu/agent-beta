@@ -75,6 +75,7 @@ def _mock_commit(commit_id: str) -> tuple[CommitSummary, list[CommitFile]] | Non
     )
     return (c, list(_COMMIT_FILES.get(c.sha, []))) if c else None
 
+
 def _mock_diff_uncommitted(path: str) -> str | None:
     if not any(f.path == path for f in _UNCOMMITTED):
         return None

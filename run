@@ -139,7 +139,6 @@ playwrighttest() {
   cd frontend
   npm run build
   cd ..
-  # No playwright tests yet; the command stays green.
   uv run manage.py test --tag playwright --noinput
 }
 
@@ -167,6 +166,61 @@ lintfix() {
   uv run ruff check --fix --unsafe-fixes
   cd frontend
   npm run lint:fix
+}
+
+# Shared rsync exclude list for createscratch/mergescratch: skip git, the copy
+# itself, virtualenvs, build output, caches, and machine-local state. ``.env`` is
+# copied INTO copy/ (same machine, same DB) but never synced BACK to main/.
+_COPY_EXCLUDES=(
+  --exclude='.git/'
+  --exclude='copy/'
+  --exclude='node_modules/'
+  --exclude='.venv/'
+  --exclude='__pycache__/'
+  --exclude='.mypy_cache/'
+  --exclude='.ruff_cache/'
+  --exclude='dist/'
+  --exclude='build/'
+  --exclude='djangoapp/static/'
+  --exclude='.DS_Store'
+)
+
+# main/ is this script's dir; copy/ is its sibling (both under parent/). Resolved
+# once at load time so createscratch/mergescratch stay free of path boilerplate.
+_MAIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_COPY_DIR="$(dirname "$_MAIN_DIR")/copy"
+
+createscratch() {
+  # Make a fresh copy/ of main/ (minus .git/node_modules/.venv/caches/build
+  # output) and bootstrap its own env (uv sync + npm install) so ./run checkall
+  # works there. An existing copy/ is wiped, so each feature starts clean.
+  [ -d "$_MAIN_DIR" ] || { echo "Refusing: main/ not found at $_MAIN_DIR" >&2; return 1; }
+  echo "Copying main/ → $_COPY_DIR (excluding .git/node_modules/.venv/caches)…"
+  rm -rf "$_COPY_DIR"
+  rsync -a "${_COPY_EXCLUDES[@]}" "$_MAIN_DIR/" "$_COPY_DIR/"
+  echo "Bootstrapping copy/ environment (uv sync + npm install)…"
+  ( cd "$_COPY_DIR" && uv sync ) || { echo "uv sync failed in $_COPY_DIR" >&2; return 1; }
+  ( cd "$_COPY_DIR/frontend" && npm install ) || { echo "npm install failed in $_COPY_DIR/frontend" >&2; return 1; }
+  # Make copy/ its own throwaway git repo with a baseline commit (main/.git is
+  # never copied in). The baseline lets the agent diff its edits via
+  # `cd copy && git diff` before deploying. .env/node_modules/.venv stay
+  # untracked (gitignored), so the baseline is source-only.
+  git -C "$_COPY_DIR" init -q
+  git -C "$_COPY_DIR" config user.email "scratch@local"
+  git -C "$_COPY_DIR" config user.name "scratch"
+  git -C "$_COPY_DIR" add -A
+  git -C "$_COPY_DIR" commit -q -m "scratch baseline"
+  echo "copy/ ready at $_COPY_DIR. Edit there, then run: ( cd $_COPY_DIR && ./run checkall )"
+}
+
+mergescratch() {
+  # Deploy copy/ into main/ (rsync --delete; same excludes + .env so main's env
+  # is never overwritten). Does NOT commit — committing is a separate step the
+  # user does later. In dev, runserver auto-reloads main/ so the change is live.
+  [ -d "$_COPY_DIR" ] || { echo "Refusing: $_COPY_DIR not found. Run createscratch first." >&2; return 1; }
+  echo "Deploying $_COPY_DIR/ → $_MAIN_DIR/ (--delete, excluding .env + generated dirs)…"
+  rsync -a --delete "${_COPY_EXCLUDES[@]}" --exclude='.env' "$_COPY_DIR/" "$_MAIN_DIR/"
+  echo "Deployed copy/ → main/ (uncommitted). Commit in main/ when ready."
 }
 
 # Check if function exists and call it with all arguments except $1
