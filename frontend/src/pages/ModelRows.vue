@@ -21,8 +21,6 @@ const SORT_OPTIONS = [
 
 const modelsHref = "/manage/models"
 
-//aihere needs model docstring
-
 const createdByCol: RowListColumnDef = {
   name: "created_by",
   type: "user",
@@ -32,6 +30,17 @@ const createdByCol: RowListColumnDef = {
 function applyFilters(perPage: number, sort: string) {
   // Changing the page size or sort order starts from page 1.
   router.visit(rowListUrl(p.model_name, { page: 1, per_page: perPage, sort }))
+}
+
+function onPerPageChange(event: Event) {
+  applyFilters(
+    Number((event.target as HTMLSelectElement).value),
+    p.filters.sort,
+  )
+}
+
+function onSortChange(event: Event) {
+  applyFilters(p.filters.per_page, (event.target as HTMLSelectElement).value)
 }
 
 const prevHref = computed(() => {
@@ -68,12 +77,7 @@ const nextHref = computed(() => {
           <select
             class="form-select form-select-sm d-inline-block w-auto"
             :value="p.filters.per_page"
-            @change="
-              applyFilters(
-                Number(($event.target as HTMLSelectElement).value),
-                p.filters.sort,
-              )
-            "
+            @change="onPerPageChange"
           >
             <option v-for="n in PER_PAGE_OPTIONS" :key="n" :value="n">
               {{ n }}
@@ -85,13 +89,7 @@ const nextHref = computed(() => {
           <select
             class="form-select form-select-sm d-inline-block w-auto"
             :value="p.filters.sort"
-            @change="
-              applyFilters(
-                p.filters.per_page,
-                // aihere dont use $event in this file
-                ($event.target as HTMLSelectElement).value,
-              )
-            "
+            @change="onSortChange"
           >
             <option
               v-for="opt in SORT_OPTIONS"

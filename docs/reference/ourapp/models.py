@@ -34,4 +34,5 @@ class Note(BaseModel):
     )
 
     def __str__(self) -> str:
+        """Return the note's title."""
         return self.title

@@ -158,10 +158,18 @@ for patterns.
 ## Commands, tools & permissions
 You may read any file in the project and edit files under `copy/`. Edits outside
 `copy/` need approval. Permissions are defined in `agentconfig/opencode.json`.
-The allowlisted commands are the tight feedback loop: `main/run createscratch`,
-`main/run mergescratch`, `./run checkall`, `./run typecheck`, `./run test`,
-`./run lintfix`, `./run djangomanage makemigrations`/`migrate`, and `cd copy …`
-(read-only `git status`/`diff`/`log`/`show` run from there), plus `websearch`.
+The allowlisted commands (defined in `agentconfig/opencode.json`):
+- `main/run createscratch` — fresh `copy/` from `main/`
+- `main/run mergescratch` — deploy `copy/` → `main/` (no commit)
+- `main/run checkproject` — full validation (overlays the test/reference apps +
+  runs the project tests via `RUN_PROJECT_TESTS=1`); run before promoting a
+  framework change
+- `./run checkall` — the fast loop (empty `ourapp/`)
+- `./run typecheck`, `./run test`, `./run lintfix`
+- `./run djangomanage makemigrations` / `migrate`
+- `cd copy …` then read-only `git status` / `diff` / `log` / `show`
+- `websearch`
+
 Anything else — including any git on `main/` — needs approval; for
 read/list/search, use the `read`/`glob`/`grep` tools instead of
 shell `ls`/`find`/`grep`. Construct commands (or a short chain) that fit the

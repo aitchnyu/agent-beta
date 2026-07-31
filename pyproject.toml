@@ -44,6 +44,7 @@ exclude = [
   "build",
   "djangoapp/static",
   "docs/reference",
+  "djangoapp/tests/testapp",
 ]
 target-version = "py314"
 line-length = 100
@@ -98,7 +99,8 @@ exclude = [".venv"]
 
 [tool.mypy]
 strict = true
-exclude = ["prevproject/", "docs/reference/", "node_modules/", "dist/", "build/"]
+# aihere explain why excludes are there
+exclude = ["prevproject/", "docs/reference/", "djangoapp/tests/testapp/", "node_modules/", "dist/", "build/"]
 warn_unused_ignores = true
 disallow_any_unimported = true
 disallow_any_decorated = true

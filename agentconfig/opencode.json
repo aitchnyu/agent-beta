@@ -15,6 +15,7 @@
       "pwd": "allow",
       "main/run createscratch": "allow",
       "main/run mergescratch": "allow",
+      "main/run checkproject": "allow",
       "./run checkall": "allow",
       "./run typecheck": "allow",
       "./run test *": "allow",

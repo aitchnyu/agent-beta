@@ -17,7 +17,7 @@ class ManageModelsViewTests(InertiaTestCase):
     ``docs/reference/``).
 
     - test_non_superuser_404 / test_anon_404, access gate → 404
-    - test_model_list_empty, /manage/models renders ModelList with no models
+    - test_model_list_renders, /manage/models renders ModelList with a list
     - test_unknown_model_list_404, unknown model /list → 404
     - test_unknown_model_detail_404, unknown model /id → 404
     """
@@ -39,12 +39,12 @@ class ManageModelsViewTests(InertiaTestCase):
         """Anonymous viewer gets 404 on /manage/models."""
         self.assertEqual(self.client.get("/manage/models").status_code, HTTPStatus.NOT_FOUND)
 
-    def test_model_list_empty(self) -> None:
-        """With no ourapp models, /manage/models renders ModelList (empty)."""
+    def test_model_list_renders(self) -> None:
+        """/manage/models renders ModelList with a list of models (empty in checkall)."""
         self.client.force_login(self.superuser)
         self.client.get("/manage/models")
         self.assertComponentUsed("ModelList")
-        self.assertEqual(self.props()["props"]["models"], [])
+        self.assertIsInstance(self.props()["props"]["models"], list)
 
     def test_unknown_model_list_404(self) -> None:
         """An unknown model's /list → 404."""

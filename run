@@ -190,26 +190,31 @@ _COPY_EXCLUDES=(
 _MAIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _COPY_DIR="$(dirname "$_MAIN_DIR")/copy"
 
-createscratch() {
-  # Make a fresh copy/ of main/ (minus .git/node_modules/.venv/caches/build
-  # output) and bootstrap its own env (uv sync + npm install) so ./run checkall
-  # works there. An existing copy/ is wiped, so each feature starts clean.
-  [ -d "$_MAIN_DIR" ] || { echo "Refusing: main/ not found at $_MAIN_DIR" >&2; return 1; }
-  echo "Copying main/ → $_COPY_DIR (excluding .git/node_modules/.venv/caches)…"
+# Build a fresh copy/ from main/: rsync (shared excludes), own env, own throwaway
+# git repo with a baseline commit. Shared by createscratch and checkproject.
+_new_copy() {
   rm -rf "$_COPY_DIR"
   rsync -a "${_COPY_EXCLUDES[@]}" "$_MAIN_DIR/" "$_COPY_DIR/"
-  echo "Bootstrapping copy/ environment (uv sync + npm install)…"
-  ( cd "$_COPY_DIR" && uv sync ) || { echo "uv sync failed in $_COPY_DIR" >&2; return 1; }
-  ( cd "$_COPY_DIR/frontend" && npm install ) || { echo "npm install failed in $_COPY_DIR/frontend" >&2; return 1; }
-  # Make copy/ its own throwaway git repo with a baseline commit (main/.git is
-  # never copied in). The baseline lets the agent diff its edits via
-  # `cd copy && git diff` before deploying. .env/node_modules/.venv stay
-  # untracked (gitignored), so the baseline is source-only.
+  ( cd "$_COPY_DIR"
+    uv sync
+    cd frontend
+    npm install
+  )
   git -C "$_COPY_DIR" init -q
   git -C "$_COPY_DIR" config user.email "scratch@local"
   git -C "$_COPY_DIR" config user.name "scratch"
   git -C "$_COPY_DIR" add -A
   git -C "$_COPY_DIR" commit -q -m "scratch baseline"
+}
+
+# Overlay an app's ourapp/ onto copy/ourapp/ (full replace).
+_overlay_app() {
+  rsync -a --delete "$1/ourapp/" "$_COPY_DIR/ourapp/"
+}
+
+createscratch() {
+  # Fresh copy/ of main/ (own env + git baseline) for the agent to edit + diff.
+  _new_copy
   echo "copy/ ready at $_COPY_DIR. Edit there, then run: ( cd $_COPY_DIR && ./run checkall )"
 }
 
@@ -221,6 +226,30 @@ mergescratch() {
   echo "Deploying $_COPY_DIR/ → $_MAIN_DIR/ (--delete, excluding .env + generated dirs)…"
   rsync -a --delete "${_COPY_EXCLUDES[@]}" --exclude='.env' "$_COPY_DIR/" "$_MAIN_DIR/"
   echo "Deployed copy/ → main/ (uncommitted). Commit in main/ when ready."
+}
+
+checkproject() {
+  # The project tests need a real app; they self-skip unless RUN_PROJECT_TESTS is
+  # set (so checkall skips them). Relies on set -e: a failure aborts and leaves copy/ for inspection.
+  
+  echo "=== checkproject cycle 1: test app (lint + typecheck + project tests) ==="
+  _new_copy
+  _overlay_app "$_MAIN_DIR/djangoapp/tests/testapp"
+  ( cd "$_COPY_DIR"
+    ./run lintfix
+    ./run typecheck
+    RUN_PROJECT_TESTS=1 uv run manage.py test --exclude-tag playwright --noinput
+  )
+
+  echo "=== checkproject cycle 2: reference app (its own tests) ==="
+  _new_copy
+  _overlay_app "$_MAIN_DIR/docs/reference"
+  ( cd "$_COPY_DIR"
+    uv run manage.py test ourapp --noinput
+  )
+
+  rm -rf "$_COPY_DIR"
+  echo "checkproject green."
 }
 
 # Check if function exists and call it with all arguments except $1

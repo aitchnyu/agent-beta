@@ -98,6 +98,25 @@ superuser count can never fall to zero through the UI.
 ## Commands
 
 All via the `run` script: `init`, `runserver`, `test`, `typecheck`, `lintfix`,
-`playwrighttest`, `checkall`, `createscratch`, `mergescratch`, plus `djangomanage`/`python`
-passthroughs (e.g. `./run djangomanage makemigrations`,
+`playwrighttest`, `checkall`, `checkproject`, `createscratch`, `mergescratch`, plus
+`djangomanage`/`python` passthroughs (e.g. `./run djangomanage makemigrations`,
 `./run python manage.py …`).
+
+## Testing
+
+Two tiers:
+
+- **`checkall`** — the fast loop. Runs against the
+  empty `ourapp/`, so the project tests self-skip (`RUN_PROJECT_TESTS` unset;
+  they need a real app).
+- **`checkproject`** — full validation against a real app. Two `createscratch`
+  cycles:
+  1. Overlays the **test app** (`djangoapp/tests/testapp/`) → runs the full suite
+     with `RUN_PROJECT_TESTS=1` (project tests un-skipped: real models/git/files).
+  2. Overlays the **reference app** (`docs/reference/`) → runs its own tests.
+
+The **test app** (`djangoapp/tests/testapp/`) is a fixture: a complete `ourapp/`
+with models exercising every field kind + both FK types, plus an `ours/` page. The
+**reference app** (`docs/reference/`) is the user-facing example, same format,
+shipping its own tests. Both are excluded from ruff/mypy (they're only valid when
+overlaid onto `ourapp/`).
