@@ -3,6 +3,7 @@ import axios from "axios"
 import { OpencodeEventSchema } from "../../schemas"
 import type { Part, PermissionAsked } from "../../schemas"
 import { postAbort, postDeleteSession, postPermission } from "./api"
+import { parseSsePayloads } from "./parseSse"
 import { parsePermissionBlock } from "./types"
 import type {
   Block,
@@ -35,62 +36,7 @@ function storeSession(id: string | null) {
   }
 }
 
-// Pure stream → parsed SSE payloads. Reads the fetch body, frames on `\n\n`
-// (normalising CRLF/CR → LF so a proxy that rewrites line endings can't hang
-// the spinner), joins multi-`data:` lines, and yields each frame's parsed
-// JSON. Malformed frames are skipped. The reader lock is released in `finally`
-// (also on an early `break` from the consumer). No Vue/state — the caller owns
-// validation + dispatch, so this is unit-testable in isolation.
-async function* parseSsePayloads(
-  body: ReadableStream<Uint8Array>,
-): AsyncGenerator<Record<string, unknown>> {
-  const reader = body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ""
-  const drain = (): Record<string, unknown>[] => {
-    const frames: Record<string, unknown>[] = []
-    let idx: number
-    while ((idx = buffer.indexOf("\n\n")) !== -1) {
-      const frame = buffer.slice(0, idx)
-      buffer = buffer.slice(idx + 2)
-      const dataLines = frame.split("\n").filter((l) => l.startsWith("data:"))
-      if (!dataLines.length) continue
-      // SSE may split JSON across several `data:` lines; join them and skip a
-      // frame that fails to parse so one bad frame can't kill the stream.
-      // Strip exactly one leading space after `data:` (SSE spec; mirrors the
-      // backend's `_iter_sse` in opencode.py).
-      const payload = dataLines
-        .map((l) => l.slice(5).replace(/^ /, ""))
-        .join("\n")
-      try {
-        frames.push(JSON.parse(payload) as Record<string, unknown>)
-      } catch {
-        continue
-      }
-    }
-    return frames
-  }
-  try {
-    let chunk = await reader.read()
-    while (!chunk.done) {
-      buffer += decoder
-        .decode(chunk.value, { stream: true })
-        .replace(/\r\n|\r/g, "\n")
-      for (const payload of drain()) yield payload
-      chunk = await reader.read()
-    }
-    // Flush any final multi-byte sequence split across the last chunk boundary
-    // — without this, a UTF-8 char split exactly on the boundary is dropped and
-    // the containing JSON frame fails to parse.
-    buffer += decoder.decode().replace(/\r\n|\r/g, "\n")
-    for (const payload of drain()) yield payload
-  } finally {
-    // Release the reader's lock so the underlying fetch is torn down even when
-    // the loop throws (abort, network drop). Without this the connection
-    // lingers until GC.
-    await reader.cancel().catch(() => {})
-  }
-}
+// parseSsePayloads is imported from ./parseSse (extracted for testing — fixes point 8).
 
 // The opencode chat engine: owns the transcript + session, drives the SSE
 // stream from /api/opencode/prompt/, and exposes the user actions (answer a
@@ -119,6 +65,11 @@ export function useOpencodeChat() {
   // as `blocks.value`; they're rebuilt only when the list is reset (`clear`).
   const partIndex = new Map<string, PartBlock>()
   const permissionIndex = new Map<string, PermissionBlock>()
+  // Live count of SSE events received in this conversation window (resets on
+  // clear) + an opt-in, machine-readable event log for debugging.
+  const eventCount = ref(0)
+  const debugMode = ref(false)
+  const debugLog = ref<string[]>([])
 
   function scrollToBottom() {
     void nextTick(() => {
@@ -215,6 +166,8 @@ export function useOpencodeChat() {
     partIndex.clear()
     permissionIndex.clear()
     for (const key of Object.keys(partKind)) delete partKind[key]
+    eventCount.value = 0
+    debugLog.value = []
   }
 
   // `clearView` + drop the persisted session id. Used only by `resetSession`,
@@ -272,6 +225,13 @@ export function useOpencodeChat() {
 
   function handleEvent(raw: unknown) {
     if (!isAlive) return
+    eventCount.value++
+    if (debugMode.value) {
+      // Machine-readable dump of the raw frame, one per block, newline-joined.
+      // Capped so a long debug session can't grow the buffer without bound.
+      debugLog.value.push(JSON.stringify(raw, null, 2))
+      if (debugLog.value.length > 1000) debugLog.value.shift()
+    }
     const parsed = OpencodeEventSchema.safeParse(raw)
     if (!parsed.success) return
     const e = parsed.data
@@ -450,15 +410,23 @@ export function useOpencodeChat() {
     return undefined
   }
 
+  function toggleDebug() {
+    debugMode.value = !debugMode.value
+  }
+
   return {
     blocks,
     streaming,
     resetting,
     hasSession,
+    eventCount,
+    debugMode,
+    debugLog,
     send,
     stop,
     clear,
     resetSession,
     answerPermission,
+    toggleDebug,
   }
 }

@@ -15,8 +15,9 @@ from djangoapp.views import files as files_view
 from djangoapp.views.files import PathWrapper
 
 # A tracked text file in the user app — stable target for the preview/download
-# integration tests below.
-_TEXT_FILE = "ourapp/models.py"
+# integration tests below. main/-prefixed because the browse root is the project
+# parent (BASE_DIR.parent), so main/ holds the repo.
+_TEXT_FILE = "main/ourapp/models.py"
 
 
 class FilesViewTests(InertiaTestCase):
@@ -57,22 +58,21 @@ class FilesViewTests(InertiaTestCase):
         self.assertEqual(self.client.get("/files/ourapp").status_code, HTTPStatus.NOT_FOUND)
 
     def test_root_without_trailing_slash(self) -> None:
-        """/files (rel=None) serves the repo-root listing."""
+        """/files (rel=None) serves the browse-root listing (BASE_DIR.parent)."""
         self.client.force_login(self.superuser)
         self.client.get("/files")
         self.assertComponentUsed("FileBrowser")
         props = self.props()["props"]
         names = {e["name"] for e in props["entries"]}
-        self.assertIn("djangoapp", names)
-        self.assertIn("ourapp", names)
-        self.assertIsNone(props["parent"])  # can't go above the repo root
+        self.assertIn("main", names)  # the repo dir (BASE_DIR.name)
+        self.assertIsNone(props["parent"])  # can't go above the browse root
 
     def test_root_with_trailing_slash(self) -> None:
-        """/files/ (rel="") serves the same repo-root listing."""
+        """/files/ (rel="") serves the same browse-root listing."""
         self.client.force_login(self.superuser)
         self.client.get("/files/")
         props = self.props()["props"]
-        self.assertIn("djangoapp", {e["name"] for e in props["entries"]})
+        self.assertIn("main", {e["name"] for e in props["entries"]})
 
     def test_hidden_dirs_filtered_by_default(self) -> None:
         """Default listing excludes .venv/node_modules/.git/__pycache__."""
@@ -91,13 +91,13 @@ class FilesViewTests(InertiaTestCase):
         )
 
     def test_ourapp_listing_and_breadcrumb(self) -> None:
-        """ourapp/ listing carries entries + a root/ourapp breadcrumb; parent is empty."""
+        """main/ourapp/ listing carries entries + a root/main/ourapp breadcrumb."""
         self.client.force_login(self.superuser)
-        self.client.get("/files/ourapp")
+        self.client.get("/files/main/ourapp")
         props = self.props()["props"]
         self.assertIn("models.py", {e["name"] for e in props["entries"]})
-        self.assertEqual([c["label"] for c in props["breadcrumb"]], ["root", "ourapp"])
-        self.assertEqual(props["parent"], "")  # parent is the repo root
+        self.assertEqual([c["label"] for c in props["breadcrumb"]], ["root", "main", "ourapp"])
+        self.assertEqual(props["parent"], "main")  # parent is the repo dir
 
     def test_text_file_preview(self) -> None:
         """Text file returns kind=text with content inlined."""
@@ -107,7 +107,7 @@ class FilesViewTests(InertiaTestCase):
         props = self.props()["props"]
         self.assertEqual(props["kind"], "text")
         self.assertIn("BaseModel", props["text"])
-        self.assertEqual(props["parent"], "ourapp")
+        self.assertEqual(props["parent"], "main/ourapp")
 
     def test_download_returns_attachment(self) -> None:
         """/files-download returns bytes as an attachment (octet-stream)."""
@@ -168,7 +168,7 @@ class FilesViewTests(InertiaTestCase):
     def test_code_file_is_text_kind(self) -> None:
         """A .py file returns kind=text (language detection is frontend-side)."""
         self.client.force_login(self.superuser)
-        self.client.get("/files/djangoapp/views/files.py")
+        self.client.get("/files/main/djangoapp/views/files.py")
         props = self.props()["props"]
         self.assertEqual(props["kind"], "text")
         self.assertNotIn("language", props)
@@ -177,7 +177,7 @@ class FilesViewTests(InertiaTestCase):
     def test_markdown_file_classified(self) -> None:
         """A .md file returns kind=markdown with its content inlined."""
         self.client.force_login(self.superuser)
-        self.client.get("/files/djangoapp/tests/filefixtures/sample.md")
+        self.client.get("/files/main/djangoapp/tests/filefixtures/sample.md")
         props = self.props()["props"]
         self.assertEqual(props["kind"], "markdown")
         self.assertIn("linked image", props["text"])

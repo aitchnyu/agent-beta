@@ -42,9 +42,7 @@ class ManageProjectTests(InertiaTestCase):
     def setUpTestData(cls) -> None:
         cls.Author = apps.get_model("ourapp", "Author")
         cls.Book = apps.get_model("ourapp", "Book")
-        cls.superuser = User.objects.create_user(
-            username="admin", is_superuser=True, is_staff=True
-        )
+        cls.superuser = User.objects.create_user(username="admin", is_superuser=True, is_staff=True)
         cls.author = cls.Author.objects.create(
             name="Ada", bio="Mathematician", rating="4.50", active=True
         )
@@ -125,9 +123,7 @@ class ManageProjectTests(InertiaTestCase):
         # FK→BaseModel cell: linked via get_absolute_url(), pk-free.
         author_cell = cast("dict[str, str]", row["values"]["author"])
         self.assertEqual(author_cell["public_id"], self.author._public_id)
-        self.assertEqual(
-            author_cell["url"], f"/manage/models/Author/id/{self.author._public_id}"
-        )
+        self.assertEqual(author_cell["url"], f"/manage/models/Author/id/{self.author._public_id}")
         self.assertEqual(author_cell["title"], "Ada")
 
         # FK→User cell: a pk-free profile (public_id + title), no url key.

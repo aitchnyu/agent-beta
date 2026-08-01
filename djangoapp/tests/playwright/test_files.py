@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 from djangoapp.models import User
-from djangoapp.tests.playwright.test_playwright import BasePlaywrightTestCase
 
-# Stable files under ourapp/ (tracked) used as browse/preview targets.
-_DIR = "ourapp"
-_TEXT_FILE = "ourapp/models.py"
+from djangoapp.tests.playwright._base import BasePlaywrightTestCase
+
+# Stable files under main/ourapp/ (tracked) used as browse/preview targets.
+# main/-prefixed because the browse root is the project parent (BASE_DIR.parent).
+_DIR = "main/ourapp"
+_TEXT_FILE = "main/ourapp/models.py"
 _ENTRY_DIR = "migrations"
+_LEAF = "ourapp"  # breadcrumb leaf segment (the current dir)
 
 
 class FilesBrowserE2e(BasePlaywrightTestCase):
@@ -51,7 +54,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         self.assertIn("models.py", body)
         crumb = page.locator(".files-breadcrumb")
         self.assertTrue(crumb.get_by_role("link", name="root").is_visible())
-        self.assertTrue(crumb.get_by_role("link", name=_DIR).is_visible())
+        self.assertTrue(crumb.get_by_role("link", name=_LEAF).is_visible())
 
     def test_clicking_directory_entry_navigates(self) -> None:
         """Clicking a directory entry navigates into it (Inertia SPA nav)."""
@@ -80,7 +83,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         """
         page = self.page
         page.goto(
-            self._files("frontend/src/pages/FileBrowser.vue"),
+            self._files("main/frontend/src/pages/FileBrowser.vue"),
             wait_until="networkidle",
         )
         preview = page.locator(".files-code")
@@ -112,7 +115,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         """
         page = self.page
         page.goto(
-            self._files("djangoapp/tests/filefixtures/sample.md"),
+            self._files("main/djangoapp/tests/filefixtures/sample.md"),
             wait_until="networkidle",
         )
         rendered = page.locator(".files-markdown")
@@ -122,7 +125,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         img.wait_for(state="visible")
         self.assertEqual(
             img.get_attribute("src"),
-            "/files-raw/djangoapp/tests/filefixtures/diagram.svg",
+            "/files-raw/main/djangoapp/tests/filefixtures/diagram.svg",
         )
 
         # A deemphasized link targets the raw block.

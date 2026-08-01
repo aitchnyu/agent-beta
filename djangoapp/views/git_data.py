@@ -138,7 +138,7 @@ def commit(commit_id: str) -> tuple[CommitSummary, list[CommitFile]] | None:
     repo = _repo()
     try:
         c = repo.commit(commit_id)
-    except (git.BadName, git.BadObject, git.GitCommandError, ValueError):
+    except git.BadName, git.BadObject, git.GitCommandError, ValueError:
         return None
     return _commit_summary(c), _commit_files(c)
 
@@ -173,7 +173,7 @@ def diff_commit(commit_id: str, path: str) -> str | None:
     repo = _repo()
     try:
         c = repo.commit(commit_id)
-    except (git.BadName, git.BadObject, git.GitCommandError, ValueError):
+    except git.BadName, git.BadObject, git.GitCommandError, ValueError:
         return None
     if not any(f.path == path for f in _commit_files(c)):
         return None

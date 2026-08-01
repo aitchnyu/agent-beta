@@ -1,5 +1,6 @@
 <template>
   <Layout>
+    <GitNav />
     <h1>Commits</h1>
     <p v-if="!data.commits.length" class="text-muted">No commits.</p>
     <ul v-else class="list-group">
@@ -55,6 +56,7 @@
 import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import Layout from "../components/Layout.vue"
+import GitNav from "../components/GitNav.vue"
 import { GitCommitListPropsSchema } from "../schemas"
 
 const { props } = defineProps<{ props: object }>()

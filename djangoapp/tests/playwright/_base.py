@@ -1,3 +1,11 @@
+"""Shared Playwright E2E base for the framework and ``ourapp``.
+
+Lives in the test package (it's test infrastructure). Import it directly:
+``from djangoapp.tests.playwright._base import BasePlaywrightTestCase``. It is
+NOT re-exported from ``djangoapp.shortcuts`` — re-exporting it would pull the
+playwright dependency into production code.
+"""
+
 from __future__ import annotations
 
 import os
@@ -20,6 +28,25 @@ from djangoapp.models import User
 if typing.TYPE_CHECKING:
     from collections.abc import Iterator
 
+# Injected before page scripts: stringify the args of console.error so a logged
+# Error (e.g. a Vue render error caught and logged by the app) reports its
+# stack/message instead of Playwright's opaque "JSHandle@object". Without this a
+# failing render surfaces as a useless string and the test author has to debug
+# blind (see the Instant.html transcript).
+_STRINGIFY_CONSOLE_ERROR = """
+(() => {
+  const orig = console.error.bind(console);
+  console.error = (...args) =>
+    orig(
+      ...args.map((a) =>
+        a && typeof a === "object" && (a.stack || a.message)
+          ? a.stack || a.message
+          : a,
+      ),
+    );
+})();
+"""
+
 
 @tag("playwright")
 @override_settings(DEBUG=True, SECURE_CSP_REPORT_ONLY=None)
@@ -28,9 +55,8 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
 
     Launches a headless firefox browser once per test class and gives each
     test a pre-authenticated page. Authentication bypasses Google OAuth via
-    the DEBUG-only ``/login-for-test/<pk>`` view, mirroring the prevproject
-    harness. ``tearDown`` fails the test on any browser console error so
-    regressions surface loudly.
+    the DEBUG-only ``/login-for-test/<pk>`` view. ``tearDown`` fails the test
+    on any browser console error so regressions surface loudly.
 
     Subclasses set up their own model fixtures in ``setUp``.
     """
@@ -60,7 +86,14 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
         self.logged_in_page: Page = self.context.new_page()
         self.logged_in_page.set_default_timeout(1000)
         self.console_errors: list[str] = []
+        # Attach the console.error-stringifier at the CONTEXT level so every page
+        # in the shared context (incl. logged_in_page) gets it; anon_page wires
+        # its own (separate) context. Capture uncaught page errors too — both
+        # feed console_errors so tearDown reports the real message/stack, not
+        # "JSHandle@object".
+        self.context.add_init_script(script=_STRINGIFY_CONSOLE_ERROR)
         self.logged_in_page.on("console", self._handle_console)
+        self.logged_in_page.on("pageerror", self._handle_pageerror)
         login_url = f"{self.live_server_url}/login-for-test/{self.user.pk}"
         self.logged_in_page.goto(login_url, wait_until="domcontentloaded")
         self.assertEqual(
@@ -72,7 +105,13 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
     def _handle_console(self, msg: object) -> None:
         assert isinstance(msg, ConsoleMessage)
         if msg.type == "error":
+            # Args were already stringified by the init script, so msg.text()
+            # carries the real Error stack/message.
             self.console_errors.append(msg.text)
+
+    def _handle_pageerror(self, err: object) -> None:
+        # Uncaught page errors arrive with their full message + stack as text.
+        self.console_errors.append(f"pageerror: {err}")
 
     def tearDown(self) -> None:
         if self.console_errors:
@@ -87,9 +126,14 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
         The context is closed on exit so anonymous sessions never leak into
         the authenticated class-level context.
         """
+        # Separate context gets its own init script + console/pageerror handlers
+        # so anon e2e also surfaces render errors (not just the logged-in page).
         anon_context = self.browser.new_context()
+        anon_context.add_init_script(script=_STRINGIFY_CONSOLE_ERROR)
         page = anon_context.new_page()
         page.set_default_timeout(1000)
+        page.on("console", self._handle_console)
+        page.on("pageerror", self._handle_pageerror)
         try:
             yield page
         finally:

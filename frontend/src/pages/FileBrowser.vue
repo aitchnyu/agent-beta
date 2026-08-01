@@ -46,6 +46,13 @@ function entryUrl(name: string): string {
           </tr>
         </thead>
         <tbody>
+          <tr v-if="p.parent !== null">
+            <td colspan="3">
+              <Link class="files-entry files-dir" :href="fileUrl(p.parent)"
+                >📁 ..</Link
+              >
+            </td>
+          </tr>
           <tr v-for="e in p.entries" :key="e.name">
             <td>
               <Link

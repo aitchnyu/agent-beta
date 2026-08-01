@@ -19,10 +19,12 @@ Change only:
 ## Layout: parent / main / copy
 The repo is `main/` (it holds `.git`); `copy/` is a throwaway sibling, and both
 sit under `parent/` (any folder name — it's just the dir containing the two).
-opencode's working directory is `parent/`. Always `cd` to an absolute path
-(`cd /abs/path/copy`), never `cd ..`.
+opencode's working directory is `parent/` — `./run opencode` launches the daemon
+from there (and keeps `parent/` a git repo, which opencode uses as its worktree),
+so `copy/` sits inside the workspace and editing it doesn't prompt. Always `cd`
+to an absolute path (`cd /abs/path/copy`), never `cd ..`.
 - Fresh scratch tree: `main/run createscratch` (run from `parent/`).
-- Edit + test in `copy/`: `cd /abs/path/copy` then `./run checkall`.
+- Edit + test in `copy/`: `cd /abs/path/copy` then `./run checkcopy`.
 - Deploy `copy/` → `main/`: `main/run mergescratch` (run from `parent/`).
 
 ## The copy workflow
@@ -34,15 +36,22 @@ You never edit `main/` directly. For every change:
    can see your changes via `/git`. An existing `copy/` is wiped, so each feature
    starts clean.
 2. **Edit `copy/`** — all of it is yours to change.
-3. **Verify:** `( cd copy && ./run checkall )` — ruff + mypy + tests + frontend
-   lint/type-check + Playwright. Iterate on the failing command (see
-   `INSTRUCTIONS.md`); `checkall` must finish green.
+3. **Verify:** `( cd copy && ./run checkcopy )` — ruff + mypy + **ourapp's own
+   tests** + frontend lint/type-check/build. This is the fast loop: it does NOT
+   re-run the framework backend suite (`djangoapp/tests/`, identical to `main/`)
+   or the slow Playwright browser pass — those are unchanged by `ourapp/` edits
+   and belong in `main/`'s `checkall`. Iterate on the failing command (see
+   `INSTRUCTIONS.md`); `checkcopy` must finish green. (If you added `ourapp/`
+   e2e, run `./run playwrighttest` for just those.)
 4. **Deploy:** `main/run mergescratch` — rsyncs `copy/` → `main/` (never
-   overwriting `main/.env`). This does **not** commit. In dev the server
-   auto-reloads `main/`, so the user sees the change live.
-5. **Offer to commit** — after the user has tried it, offer to commit in `main/`;
-   commit only on approval. Committing is a separate step from deploying — do not
-   fold it into `mergescratch`.
+   overwriting `main/.env`). This does **not** commit. Then **run migrations** so
+   the app is runnable: `main/run djangomanage migrate` (any new models/migrations
+   created in `copy/` shipped with the deploy and must be applied to the DB). In
+   dev the server auto-reloads `main/`, so the user sees the change live.
+5. **Send the final message** — the work is done and live. Close with the final
+   message (see "Final message"): state that it's done and **link the running
+   feature** (its URL). Committing is a separate later step — offer it, and commit
+   in `main/` only on approval.
 
 `copy/` is disposable — re-running `createscratch` wipes it. `createscratch` also
 `git init`s `copy/` with a baseline commit (no shared history with `main/`), so
@@ -87,13 +96,18 @@ the list). `/git` shows `main/`'s commits and uncommitted changes — not your
 `copy/` edits (review those with `cd copy && git diff`); they appear in `/git`
 only after `mergescratch` deploys them to `main/`.
 
+### Completion
+A step isn't done until the **network request succeeds** — the actual call runs
+and returns (the endpoint responds, the command exits 0). "The code looks right"
+is not done; verify by executing it.
+
 ### Final message
 When the work is done and the suite is green, close with a short HTML summary:
 - **Requirement** — one line restating what was asked.
 - **What changed** — the feature/behavior added or fixed.
 - **Endpoints** — each new or changed URL (from `ourapp/views.py`) with its path
   and HTTP verb.
-- **Tests** — the test names you added and confirmation that `./run checkall`
+- **Tests** — the test names you added and confirmation that `./run checkcopy`
   passes.
 - **Links** — link the running feature (its URL) and key files via `/files/…`.
 
@@ -117,6 +131,16 @@ Concrete models live in `ourapp/models.py`, subclassing
 the superuser models-management UI at `/manage/models` lists every model here
 with its docstring and browseable rows; a foreign-key cell links to the
 referenced row via that row's `get_absolute_url()`.
+**Fat models, thin views** — put domain logic and queries on the model or its
+manager, not in views. A method is reusable, unit-testable in isolation, and
+keeps views short. Prefer a custom manager/queryset method
+(`Todo.todos.active_for(user)`) over repeating `Todo.objects.filter(owner=user,
+completed=False)` across views, and a model method (`todo.complete()`) over
+inlining state changes in a view. A view should only orchestrate — parse the
+request, call a model/manager method, return a schema — never encode the rules.
+**Feature README** — `ourapp/` ships a `README.md` listing its features (the
+models, endpoints, and pages it adds). It's the app's manifest: self-describing,
+browseable via `/files`, and a quick orientation for reviewers.
 
 ### APIs & pages
 Prefer a django-ninja API (in `ourapp/views.py`, mounted in `ourapp/urls.py`)
@@ -125,6 +149,25 @@ the response), pages return `InertiaResponse(request, "ours/<Page>",
 {"props": …})`. On the frontend, parse every payload with a zod schema. See
 `docs/reference/` for the full pattern. Add/change a model →
 `./run djangomanage makemigrations ourapp`.
+
+For the authenticated user in queries, use `djangoapp.shortcuts`:
+`user_or_404(request)` (raises 404 when anonymous — keep the page's existence
+hidden) or `maybe_user(request)` (returns `User | None`). Never sprinkle
+`# type: ignore` to work around `request.user`'s `User | AnonymousUser` type.
+
+For every **Inertia page**, all four must hold:
+- write a **zod schema** for its props (frontend).
+- **raise 404** when something is not found, or not allowed for that user
+  (ownership/permissions) — never render an empty or broken page.
+- write **unit tests** covering **models and views** (state + endpoint return
+  values, pk-free).
+- write a **Playwright test** covering it **end-to-end** (real browser + live
+  server).
+
+### Docstrings (required)
+- **models** — bullet points of **all** models.
+- **views** — bullet points of **all** endpoints.
+- **tests** — bullet points of **each** test and what it is checking.
 
 ### axios (frontend)
 Every `axios` call is wrapped in `try/catch` + `showErrorToast`, and the response
@@ -147,24 +190,60 @@ One Vue+Inertia app. App pages live in `frontend/src/pages/ours/<Name>.vue`
 wrap every `axios` call in `try/catch` + `showErrorToast`.
 
 ## Writing tests
-ourapp tests are **regular Django tests** (`TestCase` / `SimpleTestCase`), placed
-in `djangoapp/tests/` (alongside the existing tests) or `ourapp/tests.py`. Seed
-inside the test; assert state and endpoint return values. Playwright e2e tests
-(`djangoapp/tests/playwright/`, tagged `playwright`) drive the real browser +
-live server against committed state — assert the response of a mutating request
-or seeded render, not cumulative state across requests. See the existing tests
-for patterns.
+- **Unit tests** cover **models and views**: regular Django tests
+  (`TestCase`/`SimpleTestCase`) in `ourapp/tests.py` or `djangoapp/tests/`. Seed
+  inside the test; assert state and endpoint return values (pk-free).
+- **Playwright e2e tests** cover a feature end-to-end (real browser + live
+  server). The framework's own e2e lives in `djangoapp/tests/playwright/` (tagged
+  `playwright`). **Per-app e2e for `ourapp` lives in `ourapp/test_playwright.py`.**
+  Assert the response of a mutating request or a seeded render, not cumulative
+  state across requests.
+  - **Always subclass `BasePlaywrightTestCase`** (from
+    `djangoapp.tests.playwright._base`).
+    That single base is where the `playwright` tag **and** the browser harness
+    (live server, `self.logged_in_page`, console-error `tearDown`) come from.
+  - **Do NOT** hand-add `@tag("playwright")`, and **do NOT** subclass a plain
+    `TestCase`/`StaticLiveServerTestCase` for e2e — the first double-tags without
+    a harness (no live server/page → the test breaks), the second leaves the test
+    untagged so `./run playwrighttest` skips it silently.
+  - **Verify** it's collected: `uv run manage.py test --tag playwright -v 2` must
+    list your `ourapp.test_playwright.*` tests.
+- **Playwright locators** — query the accessibility tree or a test id, never copy
+  or CSS. Use `page.get_by_role("button", name="Start")`,
+  `page.get_by_label("Title")`, or `page.get_by_test_id("start")` (give volatile
+  elements a `data-testid`). Avoid text engines and CSS selectors — they couple
+  the test to UI copy/style and break on every redesign:
+  - ✗ `button:has-text('Start')` — substring match on any button containing the
+    word; breaks if the copy changes.
+  - ✗ `.ours-todo-form input[placeholder*='need to do']` — couples to a class
+    name + placeholder text; breaks on either change.
 
 ## Commands, tools & permissions
 You may read any file in the project and edit files under `copy/`. Edits outside
 `copy/` need approval. Permissions are defined in `agentconfig/opencode.json`.
+**Prefer the allowlisted commands** — they run with no prompt; anything else
+interrupts the turn to ask. Map your intent onto them (e.g. `./run checkcopy`,
+`./run djangomanage makemigrations`, `main/run createscratch`) rather than
+hand-rolling an equivalent that will prompt.
+**Never pipe or redirect** — don't append `| head`, `2>&1`, or `>`.
+opencode treats `|`/`>` as command-chaining and prompts **regardless of the
+allowlist** (a wildcard can't match them), and it already captures full tool
+output, so the pipe buys nothing.  
 The allowlisted commands (defined in `agentconfig/opencode.json`):
 - `main/run createscratch` — fresh `copy/` from `main/`
 - `main/run mergescratch` — deploy `copy/` → `main/` (no commit)
+- `main/run cleancopy` — remove `copy/` outright. **Prefer this over `rm -rf`.**
+  Never `rm -rf /abs/path/copy` — absolute paths aren't allowlisted and will
+  prompt. (`rm -rf copy`, relative, also works — the daemon runs from the
+  parent.)
 - `main/run checkproject` — full validation (overlays the test/reference apps +
   runs the project tests via `RUN_PROJECT_TESTS=1`); run before promoting a
   framework change
-- `./run checkall` — the fast loop (empty `ourapp/`)
+- `./run checkcopy` — the **copy/ fast loop**: ruff + mypy + `ourapp`'s own tests
+  + frontend lint/type-check/build (no framework backend suite, no browser)
+- `./run checkall` — the **full gate** (framework backend suite + Playwright).
+  NOT allowlisted for the agent — it's a human-run, `main/`-only check; the agent
+  uses `./run checkcopy` in `copy/`.
 - `./run typecheck`, `./run test`, `./run lintfix`
 - `./run djangomanage makemigrations` / `migrate`
 - `cd copy …` then read-only `git status` / `diff` / `log` / `show`
@@ -184,10 +263,17 @@ approved for the whole session and keep working.
 Use the right tool, not a shell reinvention:
 - **List a directory:** `read <dir>` **once**.
 - **Find files by name:** the `glob` tool, never `find`.
+- **Search file contents:** the `grep` tool — never `rg` (the server may not have
+  it) or shell `grep`.
+- **Read in parallel:** issue several `read`/`grep`/`glob` calls in **one turn** —
+  opencode runs them concurrently. Don't read one file per turn.
 - **Write/edit files:** the `write`/`edit` tools. Never `cat >` / heredocs.
 - **Never recurse into** `node_modules`, `dist`, `build`, `.git`, `__pycache__`.
 - **Don't repeat a command more than twice** if it returns the same output.
 - **Reuse recent results;** don't re-read a file that hasn't changed.
+
+When a bash command is long, format it across **newlines** (line continuations)
+so the **permission prompt** that shows it reads clearly — never one long line.
 
 If a tool call fails with `JSON Parse error: Unrecognized token '<'`, the problem
 is a stray closing tag in **your** tool-call JSON, not a `<` in the file. Inspect

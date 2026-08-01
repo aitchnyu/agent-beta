@@ -1,5 +1,6 @@
 <template>
   <Layout>
+    <GitNav />
     <h1>Uncommitted changes</h1>
     <p v-if="!files.length" class="text-muted">No uncommitted files.</p>
     <ul v-else class="list-group">
@@ -19,6 +20,7 @@
 
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
+import GitNav from "../components/GitNav.vue"
 import Layout from "../components/Layout.vue"
 import { GitUncommittedPropsSchema } from "../schemas"
 

@@ -1,5 +1,6 @@
 <template>
   <Layout>
+    <GitNav />
     <h1>{{ data.title }}</h1>
     <p v-if="error" class="text-danger">Failed to render diff.</p>
     <template v-else-if="!data.diff">
@@ -18,6 +19,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue"
 import Layout from "../components/Layout.vue"
+import GitNav from "../components/GitNav.vue"
 import { GitDiffPropsSchema } from "../schemas"
 
 const { props } = defineProps<{ props: object }>()

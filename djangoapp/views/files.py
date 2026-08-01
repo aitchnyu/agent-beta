@@ -1,11 +1,12 @@
-"""Superuser-only read-only file browser over the repo tree at ``/files/...``.
+"""Superuser-only read-only file browser over the project tree at ``/files/...``.
 
 Directories list their entries (folders first); files preview as text or render
 as images; any file can be downloaded (``/files-download/...``) or served raw
-(``/files-raw/...``, used for ``<img>``). The browse root is ``BASE_DIR``; the "Files"
-nav button lands at ``ourapp/`` and you can navigate up to the repo root but no
-above. Path traversal (``..``, absolute paths, symlink escapes) is confined in
-:class:`PathWrapper` (resolve + ``is_relative_to`` → 404).
+(``/files-raw/...``, used for ``<img>``). The browse root is ``BASE_DIR.parent``
+(the folder holding both ``main/`` and ``copy/``); the "Files" nav button lands
+at ``main/ourapp/`` and you can navigate up to that parent (to browse ``copy/``)
+but no further. Path traversal (``..``, absolute paths, symlink escapes) is
+confined in :class:`PathWrapper` (resolve + ``is_relative_to`` → 404).
 """
 
 from __future__ import annotations
@@ -26,7 +27,7 @@ if TYPE_CHECKING:
     import os
     from typing import IO
 
-_REPO_ROOT = Path(str(settings.BASE_DIR)).resolve()
+_REPO_ROOT = Path(str(settings.BASE_DIR)).resolve().parent
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico"}
 _MARKDOWN_EXT = ".md"
 # Default-hidden from listings: heavy or generated dirs (toggle with ?hidden=true).

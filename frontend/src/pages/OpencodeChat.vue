@@ -12,11 +12,15 @@ const {
   streaming,
   resetting,
   hasSession,
+  eventCount,
+  debugMode,
+  debugLog,
   send,
   stop,
   clear,
   resetSession,
   answerPermission,
+  toggleDebug,
 } = useOpencodeChat()
 
 async function sendPrompt() {
@@ -102,6 +106,9 @@ async function sendPrompt() {
         </button>
       </form>
       <div class="opencode-actions">
+        <span class="opencode-event-count text-muted">
+          {{ eventCount }} event{{ eventCount === 1 ? "" : "s" }}
+        </span>
         <button
           class="btn btn-sm btn-outline-secondary opencode-clear"
           type="button"
@@ -118,7 +125,21 @@ async function sendPrompt() {
         >
           {{ resetting ? "Resetting…" : "Reset session" }}
         </button>
+        <button
+          class="btn btn-sm btn-outline-secondary opencode-debug"
+          type="button"
+          :class="{ active: debugMode }"
+          :aria-pressed="debugMode"
+          @click="toggleDebug"
+        >
+          Debug
+        </button>
       </div>
+      <!-- Machine-readable dump of every received event, hidden from the UI but
+           present in the DOM for debugging (toggle on with the Debug button). -->
+      <pre v-if="debugMode" class="opencode-debug-log" aria-hidden="true">{{
+        debugLog.join("\n\n")
+      }}</pre>
     </div>
   </Layout>
 </template>

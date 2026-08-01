@@ -37,12 +37,12 @@ watch(
     role="alertdialog"
     :aria-label="`Permission request: ${block.permission}`"
   >
-    <h3 class="opencode-permission-head">
+    <div class="opencode-permission-head">
       Permission: <strong>{{ block.permission }}</strong>
-      <span v-if="block.command" class="opencode-permission-cmd">{{
-        block.command
-      }}</span>
-    </h3>
+    </div>
+    <pre v-if="block.command" class="opencode-permission-cmd">{{
+      block.command
+    }}</pre>
     <div
       v-if="block.state === 'asked'"
       ref="actionsEl"

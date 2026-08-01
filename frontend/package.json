@@ -22,6 +22,7 @@
     "sass": "^1.99.0",
     "typescript": "~5.9.3",
     "vite": "^7.2.4",
+    "vitest": "^3.2.4",
     "vue-eslint-parser": "^10.2.0",
     "vue-tsc": "^3.2.4"
   },
@@ -32,7 +33,9 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "preview": "vite preview",
-    "type-check": "vue-tsc --noEmit"
+    "type-check": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@inertiajs/vue3": "^2.0.0",

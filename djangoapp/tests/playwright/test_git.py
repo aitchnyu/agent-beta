@@ -4,7 +4,8 @@ from datetime import UTC, datetime
 from unittest.mock import patch
 
 from djangoapp.models import User
-from djangoapp.tests.playwright.test_playwright import BasePlaywrightTestCase
+
+from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 from djangoapp.views.git_data import CommitFile, CommitSummary, GitPagination, UncommittedFile
 
 # ── Inlined mock data ──────────────────────────────────────────────────────

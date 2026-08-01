@@ -21,6 +21,13 @@ const csrfToken = computed(() => getCsrfToken())
       <Link
         v-if="isSuperuser"
         class="btn btn-outline-secondary btn-sm"
+        href="/agent/"
+      >
+        Agent
+      </Link>
+      <Link
+        v-if="isSuperuser"
+        class="btn btn-outline-secondary btn-sm"
         href="/manage/models"
       >
         Models
@@ -28,9 +35,16 @@ const csrfToken = computed(() => getCsrfToken())
       <Link
         v-if="isSuperuser"
         class="btn btn-outline-secondary btn-sm"
-        :href="fileUrl('ourapp')"
+        :href="fileUrl('main/ourapp')"
       >
         Files
+      </Link>
+      <Link
+        v-if="isSuperuser"
+        class="btn btn-outline-secondary btn-sm"
+        href="/git"
+      >
+        Git
       </Link>
       <Link
         v-if="isSuperuser"

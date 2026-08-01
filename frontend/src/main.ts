@@ -19,14 +19,21 @@ document.addEventListener("DOMContentLoaded", () => {
 // Vue-caught errors go to app.config.errorHandler (below) and do NOT reach here,
 // so there is no double-toast.
 window.addEventListener("error", (event: ErrorEvent) => {
-  console.error("window error:", event.error ?? event.message)
-  showErrorToast(event.error ?? event.message, "Something went wrong")
+  const err = event.error
+  // Log the stack explicitly as text — passing the object arg renders it only
+  // in the dev console (Playwright captures object args as "JSHandle@object").
+  console.error("window error:", err?.stack ?? err ?? event.message)
+  showErrorToast(err ?? event.message, "Something went wrong")
 })
 window.addEventListener(
   "unhandledrejection",
   (event: PromiseRejectionEvent) => {
-    console.error("unhandled rejection:", event.reason)
-    showErrorToast(event.reason, "Something went wrong")
+    const reason = event.reason
+    console.error(
+      "unhandled rejection:",
+      reason?.stack ?? reason?.message ?? reason,
+    )
+    showErrorToast(reason, "Something went wrong")
   },
 )
 
@@ -34,12 +41,19 @@ createInertiaApp({
   title: (title) => `Instant - ${title}`,
   resolve: (name) => {
     const pages = import.meta.glob(["./pages/**/*.vue"], { eager: true })
-    return pages[`./pages/${name}.vue`] as DefineComponent
+    const key = `./pages/${name}.vue`
+    const page = pages[key]
+    if (!page) {
+      throw new Error(
+        `Inertia page not found: ${key} — rebuild the frontend (npm run build)`,
+      )
+    }
+    return page as DefineComponent
   },
   setup({ el, App, props, plugin }) {
     const app: VueApp = createApp({ render: () => h(App, props) })
     app.config.errorHandler = (err) => {
-      console.error("Vue error:", err)
+      console.error("Vue error:", err instanceof Error ? err.stack : err)
       showErrorToast(err, "Something went wrong")
     }
     app.use(plugin).mount(el)

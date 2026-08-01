@@ -51,14 +51,33 @@ opencode() {
   # only spawns the daemon, no Python/.env needed.
   local hostname="${OPENCODE_HOSTNAME:-127.0.0.1}"
   local port="${OPENCODE_PORT:-4196}"
-  # Resolve paths from this script's location (the repo root), not $PWD, so
-  # `./run opencode` works no matter which directory it's invoked from — the
-  # opencode.json `instructions` path is CWD-relative to the daemon process.
+  # Resolve paths from this script's location (the repo root = main/), not $PWD,
+  # so `./run opencode` works no matter which directory it's invoked from.
   local repo_root
   repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   # Point opencode at agentconfig/ for the web-chat agent + permission rules.
   local config_dir="${OPENCODE_CONFIG_DIR:-$repo_root/agentconfig}"
   local config_file="${OPENCODE_CONFIG:-$repo_root/agentconfig/opencode.json}"
+
+  # opencode scopes its workspace to the nearest enclosing git worktree, so run
+  # the daemon from the PARENT of repo_root (the dir holding both main/ and
+  # copy/). copy/ is a sibling of main/: when the daemon ran from main/ (its git
+  # worktree), every read/edit of copy/ tripped `external_directory` and the
+  # relative `edit copy/**` rule never matched (copy/ was outside the worktree).
+  # From parent/ as the worktree, copy/ and main/ are both inside it — copy/**
+  # matches the allow rule, and no external_directory prompt fires. A non-git
+  # parent would fall back to opencode's global "/" project, so parent/ is made a
+  # git repo below. Paths above stay repo-root-relative (BASH_SOURCE), so the `cd`
+  # only sets the daemon's cwd; opencode.json's `instructions` path is
+  # parent-relative ("main/agentconfig/steer.md") to match.
+  local parent_dir
+  parent_dir="$(dirname "$repo_root")"
+  cd "$parent_dir"
+  # Ensure parent/ is its own git worktree (idempotent; no commit is needed —
+  # opencode only wants the boundary, verified on opencode 1.18's project model).
+  if [[ "$(git rev-parse --show-toplevel 2>/dev/null)" != "$parent_dir" ]]; then
+    git init -q
+  fi
 
   # Preflight — fail fast before serving, in order:
   #   (1) the agentconfig/ config file exists,
@@ -76,9 +95,45 @@ opencode() {
 
   # (2) No competing config — opencode merges every config it finds, which would
   #     override agentconfig/. Delete the other one so only $config_file is used.
+  #     opencode also auto-creates an empty global ~/.config/opencode/opencode.jsonc
+  #     (just $schema) on first run — that stub merges nothing, so discard it and
+  #     continue; refuse only on a config with real content.
+  # Where opencode stores its global (user-level) config.
   local global_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
-  if [[ -f "$global_config_dir/opencode.json" || -f "$global_config_dir/opencode.jsonc" || -f "$global_config_dir/config.json" || -f "$repo_root/opencode.json" || -n "${OPENCODE_CONFIG_CONTENT:-}" ]]; then
-    echo "Refusing to start: another opencode config exists (global, project, or \$OPENCODE_CONFIG_CONTENT); delete it so only $config_file is used." >&2
+
+  # Walk the two global config names opencode uses. opencode auto-creates an
+  # empty stub (just $schema) on first run — it merges nothing, so discard it;
+  # a config with real content would override agentconfig/, so refuse to start.
+  local global_config_file
+  for global_config_file in \
+    "$global_config_dir/opencode.json" \
+    "$global_config_dir/opencode.jsonc"
+  do
+    [[ -f "$global_config_file" ]] || continue
+    # Key-aware stub check: it's opencode's empty auto-stub only if $schema is
+    # the sole top-level key. A minified one-liner with real keys (e.g.
+    # {"$schema":"…","permission":…}) must NOT be deleted — the old line-based
+    # sed deleted the whole $schema line and mis-classified those as empty.
+    if grep -oE '"[^"]+"\s*:' "$global_config_file" | grep -qvE '"\$schema"\s*:'; then
+      echo "Refusing to start: a real global opencode config exists at" \
+        "$global_config_file; delete it so only $config_file is used." >&2
+      return 1
+    fi
+    rm -f "$global_config_file"   # only $schema (or no keys) — empty stub
+  done
+
+  # Any other real config opencode would also merge — the parent_dir ones
+  # matter because the daemon runs from there.
+  local found_competing=0
+  [[ -f "$global_config_dir/config.json" ]] && found_competing=1
+  [[ -f "$repo_root/opencode.json" ]] && found_competing=1
+  [[ -f "$parent_dir/opencode.json" ]] && found_competing=1
+  [[ -f "$parent_dir/opencode.jsonc" ]] && found_competing=1
+  [[ -n "${OPENCODE_CONFIG_CONTENT:-}" ]] && found_competing=1
+  if (( found_competing )); then
+    echo "Refusing to start: another opencode config exists (global" \
+      "config.json, the daemon's working directory $parent_dir, or" \
+      "\$OPENCODE_CONFIG_CONTENT); delete it so only $config_file is used." >&2
     return 1
   fi
 
@@ -160,6 +215,30 @@ checkall() {
   playwrighttest
 }
 
+# The copy/ fast loop: validate the agent's ourapp/ edits without re-running the
+# unchanged framework suite or the slow browser pass. ruff + mypy (whole codebase
+# — the agent's Python must pass), ourapp's OWN tests only (not djangoapp/tests/,
+# which is identical to main/), and the frontend lint/typecheck/build (the build
+# confirms the agent's frontend compiles; the browser pass is skipped). The full
+# backend suite + Playwright stay in checkall, run in main/.
+checkcopy() {
+  setenv
+  echo "Running ruff for formatting problems"
+  uv run ruff check
+  echo "Running mypy for type checking"
+  uv run mypy .
+  echo "Running ourapp tests (scoped; the framework suite runs in main/)"
+  test ourapp --noinput
+  cd frontend
+  echo "Running frontend linting"
+  npm run lint
+  echo "Running frontend type checking"
+  npm run type-check
+  echo "Running frontend build"
+  npm run build
+  cd ..
+}
+
 lintfix() {
   setenv
   uv run ruff format
@@ -169,7 +248,10 @@ lintfix() {
 }
 
 # Shared rsync exclude list for createscratch/mergescratch: skip git, the copy
-# itself, virtualenvs, build output, caches, and machine-local state. ``.env`` is
+# itself, virtualenvs, build-tool output (dist/build), caches, and machine-local
+# state. NOTE: djangoapp/static/ (the built frontend bundle) is intentionally NOT
+# excluded — it's gitignored, and deploying it carries the agent's fresh build
+# from copy/ to main/ so the live server isn't left on a stale bundle. ``.env`` is
 # copied INTO copy/ (same machine, same DB) but never synced BACK to main/.
 _COPY_EXCLUDES=(
   --exclude='.git/'
@@ -181,7 +263,6 @@ _COPY_EXCLUDES=(
   --exclude='.ruff_cache/'
   --exclude='dist/'
   --exclude='build/'
-  --exclude='djangoapp/static/'
   --exclude='.DS_Store'
 )
 
@@ -215,7 +296,7 @@ _overlay_app() {
 createscratch() {
   # Fresh copy/ of main/ (own env + git baseline) for the agent to edit + diff.
   _new_copy
-  echo "copy/ ready at $_COPY_DIR. Edit there, then run: ( cd $_COPY_DIR && ./run checkall )"
+  echo "copy/ ready at $_COPY_DIR. Edit there, then run: ( cd $_COPY_DIR && ./run checkcopy )"
 }
 
 mergescratch() {
@@ -226,6 +307,18 @@ mergescratch() {
   echo "Deploying $_COPY_DIR/ → $_MAIN_DIR/ (--delete, excluding .env + generated dirs)…"
   rsync -a --delete "${_COPY_EXCLUDES[@]}" --exclude='.env' "$_COPY_DIR/" "$_MAIN_DIR/"
   echo "Deployed copy/ → main/ (uncommitted). Commit in main/ when ready."
+}
+
+cleancopy() {
+  # Remove copy/ outright (discard the scratch tree). Portable: uses _COPY_DIR
+  # (parent/copy), so the agent calls `main/run cleancopy` without computing an
+  # absolute path — an absolute `rm -rf /…/copy` isn't allowlisted and prompts.
+  if [ -d "$_COPY_DIR" ]; then
+    rm -rf "$_COPY_DIR"
+    echo "Removed $_COPY_DIR."
+  else
+    echo "No copy/ at $_COPY_DIR to remove."
+  fi
 }
 
 checkproject() {

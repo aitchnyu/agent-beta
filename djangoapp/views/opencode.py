@@ -64,7 +64,7 @@ logger = logging.getLogger(__name__)
 # Provider/model used for every prompt — env-driven so a deployment can swap
 # without a code change (single-admin dev tool, so no per-request override).
 _PROVIDER = os.environ.get("OPENCODE_PROVIDER", "zai-coding-plan")
-_MODEL_ID = os.environ.get("OPENCODE_MODEL", "glm-5.1")
+_MODEL_ID = os.environ.get("OPENCODE_MODEL", "glm-5.2")
 _MODEL = {"providerID": _PROVIDER, "modelID": _MODEL_ID}
 
 # opencode event types that drive the chat UI; everything else is noise.
