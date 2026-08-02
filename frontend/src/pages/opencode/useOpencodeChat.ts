@@ -3,6 +3,7 @@ import axios from "axios"
 import { OpencodeEventSchema } from "../../schemas"
 import type { Part, PermissionAsked } from "../../schemas"
 import { postAbort, postDeleteSession, postPermission } from "./api"
+import { notify, notifyPermission, requestNotifyPermission } from "./notify"
 import { parseSsePayloads } from "./parseSse"
 import { parsePermissionBlock } from "./types"
 import type {
@@ -57,6 +58,10 @@ export function useOpencodeChat() {
   // Lifecycle flag so events arriving after unmount (the fetch is still
   // resolving) don't mutate state on a dead composable.
   let isAlive = true
+  // Set by stop() so the idle notification doesn't fire on a user-initiated
+  // stop: the server closes the stream, so the loop ends "cleanly" and cleanEnd
+  // alone can't tell a natural finish from a stop. Reset at the start of send().
+  let userStopped = false
   // A part id -> its kind (text/reasoning) so a delta is routed to the right
   // card even when it arrives before the matching message.part.updated.
   const partKind = reactive<Record<string, "text" | "reasoning">>({})
@@ -70,6 +75,12 @@ export function useOpencodeChat() {
   const eventCount = ref(0)
   const debugMode = ref(false)
   const debugLog = ref<string[]>([])
+  // Whether the browser granted (or denied) notification permission. The
+  // browser persists this across refreshes, so it's the source of truth — no
+  // separate preference is stored. Snapshotted at load (Notification.permission
+  // isn't reactive) and refreshed by enableNotifications().
+  const notifyGranted = ref(notifyPermission() === "granted")
+  const notifyDenied = ref(notifyPermission() === "denied")
 
   function scrollToBottom() {
     void nextTick(() => {
@@ -87,6 +98,16 @@ export function useOpencodeChat() {
     for (const b of blocks.value) {
       if (b.kind === "permission" && b.state === "asked") b.state = "cancelled"
     }
+  }
+
+  // True if any permission card is still awaiting an answer — used to suppress
+  // the "turn ended" notification (a pending permission means the agent is
+  // blocked on you, not idle; that case is covered by the prompt notification).
+  function hasAskedPermission(): boolean {
+    for (const b of blocks.value) {
+      if (b.kind === "permission" && b.state === "asked") return true
+    }
+    return false
   }
 
   // Drop partKind entries no longer referenced by a live block so a long
@@ -112,6 +133,8 @@ export function useOpencodeChat() {
     prunePartKind()
     streaming.value = true
     controller = new AbortController()
+    userStopped = false
+    let cleanEnd = false
     try {
       const resp = await axios.post(
         "/api/opencode/prompt/",
@@ -125,6 +148,7 @@ export function useOpencodeChat() {
       const body = resp.data as ReadableStream<Uint8Array> | null
       if (!body) throw new Error("agent returned no stream")
       for await (const payload of parseSsePayloads(body)) handleEvent(payload)
+      cleanEnd = true
     } catch (e: unknown) {
       // A user-initiated stop is not an error to surface.
       if (e instanceof DOMException && e.name === "AbortError") return
@@ -136,8 +160,19 @@ export function useOpencodeChat() {
       storeSession(null)
     } finally {
       streaming.value = false
+      // Snapshot asked-state BEFORE freezePendingCards converts asked→cancelled,
+      // so a turn that ends with a permission still pending suppresses the
+      // "finished" notification (the agent is blocked on you, not idle).
+      const hadPending = hasAskedPermission()
       freezePendingCards()
       scrollToBottom()
+      // Idle notification: only on a natural turn end (not a user Stop, not a
+      // failure), and only if nothing was awaiting an answer — a pending
+      // permission means the agent isn't idle, it's blocked on you (covered by
+      // the permission notification in pushPermission).
+      if (cleanEnd && !userStopped && !hadPending) {
+        notify("Agent finished", "Awaiting your reply")
+      }
     }
   }
 
@@ -147,6 +182,7 @@ export function useOpencodeChat() {
     // fetch resolves naturally — no need for a parallel client-side abort
     // (which would race the stream teardown and could mask a daemon failure).
     if (!sessionId.value || !streaming.value) return
+    userStopped = true
     try {
       await postAbort(sessionId.value)
     } catch (e: unknown) {
@@ -349,14 +385,19 @@ export function useOpencodeChat() {
       existing.permission = block.permission
       existing.command = block.command
       existing.always = block.always
+      const wasAsked = existing.state === "asked"
       existing.state = "asked"
       delete existing.answer
       existing.pending = false
+      if (!wasAsked) {
+        notify("Agent needs approval", existing.command || existing.permission)
+      }
       return
     }
     blocks.value.push(block)
     permissionIndex.set(block.id, block)
     scrollToBottom()
+    notify("Agent needs approval", block.command || block.permission)
   }
 
   function markReplied(requestID: string, reply: PermissionReply) {
@@ -414,6 +455,22 @@ export function useOpencodeChat() {
     debugMode.value = !debugMode.value
   }
 
+  // One-way enable (not a toggle): requests OS permission. The warning at the
+  // bottom of the page is the only entry point. The browser persists the result
+  // across refreshes, so granted stays granted.
+  async function enableNotifications() {
+    if (notifyGranted.value) return
+    // Re-request only from "default" — a denied prompt can't be re-asked
+    // programmatically, so the user must change it in browser site settings
+    // (the warning reflects that via the denied state).
+    const result =
+      notifyPermission() === "default"
+        ? await requestNotifyPermission()
+        : notifyPermission()
+    notifyGranted.value = result === "granted"
+    notifyDenied.value = result === "denied"
+  }
+
   return {
     blocks,
     streaming,
@@ -422,11 +479,14 @@ export function useOpencodeChat() {
     eventCount,
     debugMode,
     debugLog,
+    notifyGranted,
+    notifyDenied,
     send,
     stop,
     clear,
     resetSession,
     answerPermission,
     toggleDebug,
+    enableNotifications,
   }
 }

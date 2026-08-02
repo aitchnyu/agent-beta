@@ -99,8 +99,15 @@ exclude = [".venv"]
 
 [tool.mypy]
 strict = true
-# aihere explain why excludes are there
-exclude = ["prevproject/", "docs/reference/", "djangoapp/tests/testapp/", "node_modules/", "dist/", "build/"]
+# Each exclude is a directory that isn't part of the type-checked app code:
+exclude = [
+  "prevproject/",  # vendored legacy/reference project, not shipped code
+  "docs/reference/",  # reference example apps used only in documentation
+  "djangoapp/tests/testapp/",  # synthetic test-app fixture, not app source
+  "node_modules/",  # frontend deps (only stray .py, never ours)
+  "dist/",  # frontend build output
+  "build/",  # packaging/build artifacts
+]
 warn_unused_ignores = true
 disallow_any_unimported = true
 disallow_any_decorated = true
