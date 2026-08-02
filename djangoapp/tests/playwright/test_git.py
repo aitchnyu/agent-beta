@@ -124,6 +124,7 @@ class GitViewerE2e(BasePlaywrightTestCase):
     - test_uncommitted_renders, the /git list mounts with 2 files → diff links
     - test_commit_list_renders, /git/commits shows 3 subjects + a commit count
     - test_diff_highlighted, a diff renders .hljs-addition/.hljs-deletion spans
+    - test_diff_opens_via_click, a file-diff link clicked (Inertia swap) renders
     - test_commit_navigation, the commits → files → diff link chain works
     - test_non_superuser_404, an anonymous viewer of /git gets 404
     """
@@ -193,13 +194,50 @@ class GitViewerE2e(BasePlaywrightTestCase):
         page = self.page
         page.goto(self._url("uncommitted/TodoApp/app.py"), wait_until="networkidle")
         page.wait_for_function(
-            "() => document.querySelectorAll('.git-diff .hljs-addition').length > 0"
-            " && document.querySelectorAll('.git-diff .hljs-deletion').length > 0"
+            "() => document.querySelectorAll('.code-diff .hljs-addition').length > 0"
+            " && document.querySelectorAll('.code-diff .hljs-deletion').length > 0"
         )
-        diff = page.locator(".git-diff")
+        diff = page.locator(".code-diff")
         self.assertGreater(diff.locator(".hljs-addition").count(), 0)
         self.assertGreater(diff.locator(".hljs-deletion").count(), 0)
         self.assertIn("TodoApp/app.py", diff.text_content() or "")
+
+    def test_diff_opens_via_click(self) -> None:
+        """A file-diff link opened by a click (Inertia client-side swap) renders.
+
+        Context: opening a commit's file-diff page broke twice, both times only
+        on the client-side navigation path (a link click), never on a hard load:
+
+        1. GitDiff highlighted its diff via a dynamic ``import()`` inside
+           ``onMounted``. Firing a dynamic import during an Inertia v2 swap made
+           Inertia silently roll the navigation back — the URL reverted to the
+           commit page and the diff never showed (no console error, so it was
+           invisible to the goto-based tests).
+        2. Making GitDiff a lazy page chunk then caused ``page.props`` to be
+           transiently undefined during Inertia's async component resolution, so
+           Layout's shared-prop parse (and the slot render) threw.
+
+        The other diff tests use ``goto`` (a hard load), which never exercises
+        the swap, so neither regression was caught. This test clicks the link
+        instead: the URL must advance to the diff page (not roll back), the
+        highlighted diff must render, and tearDown's console-error check guards
+        the transient-prop crashes.
+        """
+        page = self.page
+        # Land on the commit's file list (loads the Inertia app + main.js).
+        page.goto(f"{self.live_server_url}/git/commits/b2c3d4e", wait_until="networkidle")
+        page.get_by_role("link", name="TodoApp/endpoints.py").wait_for(state="visible")
+        # Click the file link — a client-side Inertia swap to GitDiff.
+        page.get_by_role("link", name="TodoApp/endpoints.py").click()
+        # A rollback would leave the URL on the commit page; assert it advanced.
+        page.wait_for_url("**/git/commits/b2c3d4e/TodoApp/endpoints.py")
+        # The diff renders highlighted (hljs spans), not raw text.
+        page.wait_for_function(
+            "() => document.querySelectorAll('.code-diff .hljs-addition').length > 0"
+        )
+        diff = page.locator(".code-diff")
+        self.assertGreater(diff.locator(".hljs-addition").count(), 0)
+        self.assertIn("new file mode", diff.text_content() or "")
 
     def test_commit_navigation(self) -> None:
         """The commits → files → diff link chain works end-to-end.
@@ -222,10 +260,10 @@ class GitViewerE2e(BasePlaywrightTestCase):
             wait_until="networkidle",
         )
         page.wait_for_function(
-            "() => (document.querySelector('.git-diff')?.textContent || '')"
+            "() => (document.querySelector('.code-diff')?.textContent || '')"
             ".includes('new file mode')"
         )
-        diff_text = page.locator(".git-diff").text_content() or ""
+        diff_text = page.locator(".code-diff").text_content() or ""
         self.assertIn("new file mode", diff_text)
         self.assertIn("TodoApp/endpoints.py", diff_text)
 

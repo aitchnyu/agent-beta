@@ -90,7 +90,10 @@
 }
 
 // Code: monospace, long lines scroll horizontally (wrapping code is unreadable).
-.files-code {
+// Shared by the file viewer (.files-code) and diff blocks (.code-diff — the git
+// diff page + the opencode edit-diff tool block); the two are the same box.
+.files-code,
+.code-diff {
   margin-top: 0.5rem;
   padding: 0.75rem;
   overflow-x: auto;

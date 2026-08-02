@@ -10,32 +10,31 @@
       <p v-if="!rendered" class="text-muted">Loading…</p>
       <pre
         v-else
-        class="git-diff"
+        class="code-diff"
       ><code class="hljs language-diff" v-html="rendered"></code></pre>
     </template>
   </Layout>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from "vue"
+import { ref } from "vue"
 import Layout from "../components/Layout.vue"
 import GitNav from "../components/GitNav.vue"
 import { GitDiffPropsSchema } from "../schemas"
+import { highlightDiff } from "../utils/filePreview"
 
 const { props } = defineProps<{ props: object }>()
 const data = GitDiffPropsSchema.parse(props)
 
-// highlight.js's `diff` grammar colours + / - / @@ lines. Lazily imported so
-// marked + highlight.js stay out of the host bundle (same chunk as /files).
+// Eager import (NOT a dynamic import in onMounted): firing a dynamic import
+// during an Inertia v2 swap makes Inertia silently roll the navigation back, so
+// the highlighter is imported at module load. highlight.js ships in main.js
+// alongside this page.
 const rendered = ref("")
 const error = ref(false)
-onMounted(async () => {
-  if (!data.diff) return
-  try {
-    const { highlightDiff } = await import("../utils/filePreview")
-    rendered.value = highlightDiff(data.diff)
-  } catch {
-    error.value = true
-  }
-})
+try {
+  if (data.diff) rendered.value = highlightDiff(data.diff)
+} catch {
+  error.value = true
+}
 </script>

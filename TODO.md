@@ -15,27 +15,34 @@ Example:
 
 Have a max height with overflow for both. Scroll to bottom when content is being appended.
 
-Permissions prompt should be rendered just above the text field.
+------------
+Pending and complete in bash should align right
+Dont start building app till I explicitly give permission
 
+Run opencode under async worker?
+ours/ in frontend - even for utils, configure vite
+checkall vs checkours - check which is changed
+
+useOpencodeChat - split into connection management and blocks 
+Vite 8 and Inertia 3 - how to upgrade?
+More tests in frontend?
+
+Wait till explicitly asked
+  Answer those three and I'll implement it in copy/, run ./run checkcopy to green, then deploy via mergescratch.
+
+Base model - just created and updated 
+
+Why do we need BaseModel?
+
+Generate multiline, render as multiline:
 ./run python -c "import inspect; from inertia import InertiaResponse; print(inspect.signature(InertiaResponse))"
-
-Permissions at bottom
 
 Example app should be a todo app
 
-Vite 8 and Inertia 3 - how to upgrade?
-
-Permission: external_directory - cant see dir sometimes
-Permission: edit - cant see file sometimes
-
 Run all tests in checkproject and merge coverage from both stages.
-How to require rsync
-Why do we need BaseModel?
+
 ----------
 
-Dont show full read output
-Dont show full edit output
-Reject overly long commands - like using cat instead of write
 Parallel command prompts problems?
 
 Readonly mode for whole system, disable get requests too if it mutates data. Do it at middleware level.
@@ -57,6 +64,7 @@ Which ones to mute?
 
 ## Cron and huey
 Decorator for tasks
+Screen mux for dev
 
 ## Task center
 Categories and tags
@@ -91,7 +99,9 @@ Tool to analyse error logs and stacktraces
 Opencode as service
 Whitelist of services
 Serve files in fs, accelerate using Caddy
-Who is committing to git
+Who is committing to git'
+Require rsync
+Backup regularly - https://www.pghardstorage.org/examples
 
 ## Future
 keep login_for_test?

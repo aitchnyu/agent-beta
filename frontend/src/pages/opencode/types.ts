@@ -20,7 +20,13 @@ export type Block =
       partID: string
       tool: string
       status: string
-      input: string
+      // Human label for the part (e.g. "Write to …", "Run command"); arrives
+      // via Part passthrough, captured in upsertPart. Optional — some omit it.
+      title?: string | undefined
+      // The raw tool input object (not stringified) so tool components can read
+      // fields directly (write: {filePath, content}; edit: {filePath, oldString,
+      // newString}; bash: {command, …}).
+      input: unknown
       output: string
     }
   | {
@@ -31,6 +37,9 @@ export type Block =
       requestId?: string
       permission: string
       command: string
+      // write/edit target (from metadata.filepath); bash leaves this empty and
+      // uses `command` instead.
+      filepath: string
       always: string
       state: "asked" | "answered" | "cancelled"
       answer?: PermissionReply
@@ -39,6 +48,7 @@ export type Block =
 
 export type PermissionBlock = Extract<Block, { kind: "permission" }>
 export type PartBlock = Extract<Block, { kind: "text" | "reasoning" | "tool" }>
+export type ToolBlock = Extract<Block, { kind: "tool" }>
 
 // Stable v-for key for any block kind. Namespaces are disjoint (uid is a UUID,
 // partID is "par_…", permission ids are "per_…"), so the raw field works as a
@@ -66,11 +76,15 @@ export const PERMISSION_LABELS: Record<PermissionReply, string> = {
 
 // Build a permission block from a parsed `permission.asked` event's properties.
 export function parsePermissionBlock(p: PermissionAsked): PermissionBlock {
+  const meta = p.metadata ?? {}
   return {
     kind: "permission",
     id: p.id,
     permission: p.permission,
-    command: p.metadata?.command ?? "",
+    // bash carries `command`; write/edit carry `filepath`. Show whichever the
+    // tool sent so the marker matches the corresponding tool block's subject.
+    command: meta.command ?? "",
+    filepath: meta.filepath ?? "",
     always: p.always.join(" "),
     state: "asked",
   }

@@ -9,15 +9,21 @@ export default defineConfig({
   build: {
     outDir: "../djangoapp/static/djangoapp",
     sourcemap: true,
+    emptyOutDir: true, // outDir lives outside the frontend root, tell Vite toclean up old artifacts
     rollupOptions: {
       input: {
         main: "src/main.ts",
       },
       output: {
         entryFileNames: "main.js",
+        // Pin the entry CSS to "main.css" (base.html references it by that
+        // name). CSS emitted by async chunks keeps its own name instead of all
+        // collapsing to "main.css" and colliding into "main2.css".
         assetFileNames: (assetInfo) => {
           if (assetInfo.name && assetInfo.name.endsWith(".css")) {
-            return "main.css"
+            return assetInfo.name === "main.css"
+              ? "main.css"
+              : "assets/[name][extname]"
           }
           return "[name].[ext]"
         },

@@ -37,18 +37,25 @@ window.addEventListener(
   },
 )
 
+// All pages bundle eagerly into main.js (one entry, no per-page chunks). Pages
+// must NOT do a dynamic import() in onMounted — that makes Inertia v2 silently
+// roll the navigation back. (Heavy page deps, e.g. GitDiff's highlight.js, are
+// imported at module load and ship in main.js.)
+const pages = import.meta.glob(["./pages/**/*.vue"], {
+  eager: true,
+}) as Record<string, { default: DefineComponent }>
+
 createInertiaApp({
   title: (title) => `Instant - ${title}`,
   resolve: (name) => {
-    const pages = import.meta.glob(["./pages/**/*.vue"], { eager: true })
     const key = `./pages/${name}.vue`
-    const page = pages[key]
-    if (!page) {
+    const mod = pages[key]
+    if (!mod) {
       throw new Error(
         `Inertia page not found: ${key} — rebuild the frontend (npm run build)`,
       )
     }
-    return page as DefineComponent
+    return mod.default
   },
   setup({ el, App, props, plugin }) {
     const app: VueApp = createApp({ render: () => h(App, props) })

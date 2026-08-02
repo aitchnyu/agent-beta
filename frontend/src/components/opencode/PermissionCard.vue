@@ -40,9 +40,11 @@ watch(
     <div class="opencode-permission-head">
       Permission: <strong>{{ block.permission }}</strong>
     </div>
-    <pre v-if="block.command" class="opencode-permission-cmd">{{
-      block.command
-    }}</pre>
+    <pre
+      v-if="block.filepath || block.command"
+      class="opencode-permission-cmd"
+      >{{ block.filepath || block.command }}</pre
+    >
     <div
       v-if="block.state === 'asked'"
       ref="actionsEl"

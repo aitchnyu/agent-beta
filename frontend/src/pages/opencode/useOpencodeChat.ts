@@ -62,6 +62,11 @@ export function useOpencodeChat() {
   // stop: the server closes the stream, so the loop ends "cleanly" and cleanEnd
   // alone can't tell a natural finish from a stop. Reset at the start of send().
   let userStopped = false
+  // Count of permission blocks carried over from PRIOR turns at the moment this
+  // turn started. The i/n queue indicator is per-turn, so the index/total
+  // subtract this count to avoid a lone prompt reading "3 of 3" in a multi-turn
+  // session. Snapshotted in send().
+  let turnPermissionCount = 0
   // A part id -> its kind (text/reasoning) so a delta is routed to the right
   // card even when it arrives before the matching message.part.updated.
   const partKind = reactive<Record<string, "text" | "reasoning">>({})
@@ -81,6 +86,26 @@ export function useOpencodeChat() {
   // isn't reactive) and refreshed by enableNotifications().
   const notifyGranted = ref(notifyPermission() === "granted")
   const notifyDenied = ref(notifyPermission() === "denied")
+
+  // Pinned-permission queue: the first still-asked block is the active prompt
+  // (shown above the input). The i/n indicator is PER-TURN: index/total subtract
+  // turnPermissionCount (permissions carried over from earlier turns) so a lone
+  // prompt in a multi-turn session doesn't read "3 of 3".
+  const permissionBlocks = computed(() =>
+    blocks.value.filter((b): b is PermissionBlock => b.kind === "permission"),
+  )
+  const activePermission = computed(
+    () => permissionBlocks.value.find((b) => b.state === "asked") ?? null,
+  )
+  const activePermissionIndex = computed(() => {
+    const active = activePermission.value
+    return active
+      ? permissionBlocks.value.indexOf(active) + 1 - turnPermissionCount
+      : 1
+  })
+  const permissionTotal = computed(
+    () => permissionBlocks.value.length - turnPermissionCount,
+  )
 
   function scrollToBottom() {
     void nextTick(() => {
@@ -134,6 +159,9 @@ export function useOpencodeChat() {
     streaming.value = true
     controller = new AbortController()
     userStopped = false
+    // Snapshot the permission count carried over from earlier turns so the
+    // queue indicator is per-turn (see activePermissionIndex/permissionTotal).
+    turnPermissionCount = permissionBlocks.value.length
     let cleanEnd = false
     try {
       const resp = await axios.post(
@@ -314,10 +342,11 @@ export function useOpencodeChat() {
       scrollToBottom()
       return
     }
-    const block =
+    const block = reactive(
       kind === "reasoning"
         ? { kind: "reasoning" as const, partID, text: delta }
-        : { kind: "text" as const, partID, text: delta }
+        : { kind: "text" as const, partID, text: delta },
+    )
     blocks.value.push(block)
     partIndex.set(partID, block)
     scrollToBottom()
@@ -342,7 +371,7 @@ export function useOpencodeChat() {
         // so subsequent deltas route to the correct card.
         if (existing.kind !== type) existing.kind = type
       } else {
-        const block = { kind: type, partID, text: part.text ?? "" }
+        const block = reactive({ kind: type, partID, text: part.text ?? "" })
         blocks.value.push(block)
         partIndex.set(partID, block)
         // The answer begins: reasoning traces are done, follow along.
@@ -356,16 +385,24 @@ export function useOpencodeChat() {
       const fields = {
         tool: part.tool ?? "",
         status: state.status ?? "",
-        input: JSON.stringify(state.input ?? {}, null, 2),
+        // `title` is the human tool label (opencode emits it on `state`).
+        title: state.title,
+        // Keep the raw input object (not stringified) so tool components read
+        // fields directly; the generic fallback stringifies for display.
+        input: state.input ?? {},
         output:
-          typeof state.output === "string"
-            ? state.output
-            : JSON.stringify(state.output ?? "", null, 2),
+          state.output == null
+            ? ""
+            : typeof state.output === "string"
+              ? state.output
+              : JSON.stringify(state.output, null, 2),
       }
       if (existing && existing.kind === "tool") {
         Object.assign(existing, fields)
       } else {
-        const block = { kind: "tool" as const, partID, ...fields }
+        // reactive() so later Object.assign updates (status/input/output as the
+        // tool runs) trigger re-renders — partIndex holds this same proxy.
+        const block = reactive({ kind: "tool" as const, partID, ...fields })
         blocks.value.push(block)
         partIndex.set(partID, block)
         scrollToBottom()
@@ -375,7 +412,8 @@ export function useOpencodeChat() {
   }
 
   function pushPermission(p: PermissionAsked) {
-    const block = parsePermissionBlock(p)
+    // reactive() so markReplied/answerPermission state flips trigger re-renders.
+    const block = reactive(parsePermissionBlock(p))
     const existing = permissionIndex.get(block.id)
     if (existing) {
       // opencode re-emits permission.asked (e.g. on a tool retry after reject).
@@ -384,6 +422,7 @@ export function useOpencodeChat() {
       // by the `state === "asked"` gate. Clear any stale answer/pending.
       existing.permission = block.permission
       existing.command = block.command
+      existing.filepath = block.filepath
       existing.always = block.always
       const wasAsked = existing.state === "asked"
       existing.state = "asked"
@@ -481,6 +520,9 @@ export function useOpencodeChat() {
     debugLog,
     notifyGranted,
     notifyDenied,
+    activePermission,
+    activePermissionIndex,
+    permissionTotal,
     send,
     stop,
     clear,

@@ -61,6 +61,22 @@ only after `mergescratch` deploys them to `main/`.
 
 ## User communication
 
+### Don't start without permission
+Don't start building the app — no `createscratch`, no edits, no build, no running
+the server — until I explicitly tell you to begin. Acknowledge the task with a
+plan, then **stop** and wait for a go-ahead. I run the daemon, Django, and the
+dev server myself; your job is to edit `copy/` and deploy via `mergescratch`
+only once I've said to start. Starting early wastes a fresh `copy/` and an env
+bootstrap I didn't ask for.
+
+**Plan format — data models first, then features.** That order is clearest for
+the user to sanity-check before you start; keep it a tight list, not prose.
+- **Models** — each model with its fields and key relationships (foreign keys,
+  ownership), in the order you'd add them. This is the foundation; getting it
+  right makes the rest obvious.
+- **Features** — the endpoints (django-ninja API: HTTP verb + path) and Inertia
+  pages that build on those models, plus any notable model/manager methods.
+
 ### Reply format
 Always reply using safe HTML tags only — p, br, strong, em, code, pre, kbd, samp,
 blockquote, ul, ol, li, a, h1, h2, h3, h4, h5, h6, table, thead, tbody, tr, th,

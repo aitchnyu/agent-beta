@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { ref } from "vue"
 import Layout from "../components/Layout.vue"
-import PermissionCard from "../components/opencode/PermissionCard.vue"
+import PermissionPrompt from "../components/opencode/PermissionPrompt.vue"
+import PermissionInline from "../components/opencode/PermissionInline.vue"
+import ReasoningBlock from "../components/opencode/ReasoningBlock.vue"
 import RenderRawHtml from "../components/RenderRawHtml.vue"
+import ToolBlock from "../components/opencode/ToolBlock.vue"
 import { useOpencodeChat } from "./opencode/useOpencodeChat"
 import { isNotifySupported } from "./opencode/notify"
 import { blockKey } from "./opencode/types"
@@ -19,6 +22,9 @@ const {
   debugLog,
   notifyGranted,
   notifyDenied,
+  activePermission,
+  activePermissionIndex,
+  permissionTotal,
   send,
   stop,
   clear,
@@ -54,34 +60,38 @@ async function sendPrompt() {
         <p v-if="!blocks.length" class="opencode-empty text-muted">
           Send a message to start.
         </p>
-        <template v-for="b in blocks" :key="blockKey(b)">
-          <div v-if="b.kind === 'user'" class="opencode-user">{{ b.text }}</div>
-          <div v-else-if="b.kind === 'reasoning'" class="opencode-reasoning">
-            {{ b.text }}
+        <template v-for="block in blocks" :key="blockKey(block)">
+          <div v-if="block.kind === 'user'" class="opencode-user">
+            {{ block.text }}
           </div>
+          <ReasoningBlock
+            v-else-if="block.kind === 'reasoning'"
+            :text="block.text"
+          />
           <RenderRawHtml
-            v-else-if="b.kind === 'text'"
-            :html="b.text"
+            v-else-if="block.kind === 'text'"
+            :html="block.text"
             markdown
             class-name="opencode-text"
           />
-          <div v-else-if="b.kind === 'tool'" class="opencode-tool">
-            <div class="opencode-tool-head">
-              <span class="opencode-tool-name">{{ b.tool }}</span>
-              <span class="opencode-tool-status">{{ b.status }}</span>
-            </div>
-            <pre v-if="b.input" class="opencode-tool-input">{{ b.input }}</pre>
-            <pre v-if="b.output" class="opencode-tool-output">{{
-              b.output
-            }}</pre>
-          </div>
-          <PermissionCard
-            v-else-if="b.kind === 'permission'"
-            :block="b"
-            @answer="(reply) => answerPermission(b, reply)"
+          <ToolBlock v-else-if="block.kind === 'tool'" :block="block" />
+          <PermissionInline
+            v-else-if="block.kind === 'permission'"
+            :block="block"
           />
         </template>
       </div>
+      <PermissionPrompt
+        v-if="activePermission"
+        class="opencode-permission-pinned"
+        :block="activePermission"
+        :index="activePermissionIndex"
+        :total="permissionTotal"
+        @answer="
+          (reply) =>
+            activePermission && answerPermission(activePermission, reply)
+        "
+      />
       <form class="opencode-input-row" @submit.prevent="sendPrompt">
         <label class="visually-hidden" for="opencode-input"
           >Message agent</label

@@ -96,16 +96,21 @@
 }
 
 .opencode-tool-status {
+  margin-left: auto;
   font-size: 0.75rem;
   padding: 0.1rem 0.4rem;
   border-radius: $radius-sm;
   background-color: $gray-200;
 }
 
-.opencode-tool-input,
-.opencode-tool-output {
+// Shared scroll-box body for tool blocks (write content, edit diff, bash
+// output, generic fallback): monospace, preserved whitespace, capped height
+// with scroll. font-size + padding match .code-diff so a diff (which carries
+// both classes) renders the same size as write/bash bodies. Single source.
+.opencode-tool-body {
   margin: 0.5rem 0 0;
-  font-size: 0.8rem;
+  padding: 0.75rem;
+  font-size: 0.85rem;
   white-space: pre;
   max-height: 600px;
   overflow: auto;
@@ -148,6 +153,49 @@
   color: $gray-500;
   font-size: 0.85em;
   margin-top: 0.25rem;
+}
+
+// Pinned permission prompt (above the input) + compact inline transcript marker.
+.opencode-permission-pinned {
+  margin: 0.5rem 0;
+}
+
+.opencode-permission-queue {
+  margin: 0 0 0.25rem;
+}
+
+// Compact inline record of a permission in the transcript: tool + command +
+// complete/not status, in a subtle box.
+.opencode-permission-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.3rem 0.55rem;
+  border: $border-light;
+  border-radius: $radius-sm;
+  font-size: 0.8rem;
+}
+
+.opencode-permission-type {
+  font-weight: 600;
+  font-family: $font-family-monospace;
+  text-transform: capitalize;
+}
+
+.opencode-permission-cmd {
+  font-family: $font-family-monospace;
+  font-size: 0.78rem;
+  color: $gray-700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.opencode-permission-state {
+  font-size: 0.72rem;
+  font-weight: 500;
 }
 
 .opencode-event-count {

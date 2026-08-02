@@ -223,51 +223,50 @@ export const RowDetailPropsSchema = z.object({
 // opencode daemon: one SSE frame re-emitted by Django from opencode's /event
 // stream (filtered to this session). The client dispatches on `type`.
 //
-// Each branch validates the fields the client actually reads and uses
-// `.passthrough()` so opencode adding fields doesn't break parsing — and a
+// Each branch validates only the fields the client reads; unknown fields are
+// stripped (not kept), so opencode adding fields doesn't break parsing — and a
 // malformed required field fails loudly (the frame is dropped via safeParse in
 // useOpencodeChat) instead of mutating state with `undefined` via an `as` cast.
 
 // A `message.part.updated` part. Variants share one shape; readers route on
 // `type`. `id` is required — a part without it is useless (its deltas would
 // collide on the empty-string key) so such a frame is dropped by the parser.
-const PartStateSchema = z
-  .object({
-    status: z.string().optional(),
-    input: z.unknown().optional(),
-    output: z.unknown().optional(),
-    metadata: z.unknown().optional(),
-  })
-  .passthrough()
+const PartStateSchema = z.object({
+  status: z.string().optional(),
+  input: z.unknown().optional(),
+  output: z.unknown().optional(),
+  metadata: z.unknown().optional(),
+  // opencode emits the human tool label here (e.g. "Write to …", "Run command").
+  title: z.string().optional(),
+})
 
-export const PartSchema = z
-  .object({
-    id: z.string(),
-    type: z
-      .enum(["text", "reasoning", "tool", "step-start", "step-finish"])
-      .default("text"),
-    text: z.string().optional(),
-    tool: z.string().optional(),
-    state: PartStateSchema.optional(),
-  })
-  .passthrough()
+export const PartSchema = z.object({
+  id: z.string(),
+  type: z
+    .enum(["text", "reasoning", "tool", "step-start", "step-finish"])
+    .default("text"),
+  text: z.string().optional(),
+  tool: z.string().optional(),
+  state: PartStateSchema.optional(),
+})
 
 export type Part = z.infer<typeof PartSchema>
 
 // `permission.asked` properties. `metadata` may be null for some permission
 // types (opencode emits it so); `always` is a list of suggested always-allow
 // patterns.
-export const PermissionAskedSchema = z
-  .object({
-    id: z.string(),
-    permission: z.string(),
-    metadata: z
-      .object({ command: z.string().optional() })
-      .passthrough()
-      .nullish(),
-    always: z.array(z.string()).default([]),
-  })
-  .passthrough()
+export const PermissionAskedSchema = z.object({
+  id: z.string(),
+  permission: z.string(),
+  metadata: z
+    .object({
+      command: z.string().optional(),
+      // write/edit carry the target path here (bash carries `command`).
+      filepath: z.string().optional(),
+    })
+    .nullish(),
+  always: z.array(z.string()).default([]),
+})
 
 export type PermissionAsked = z.infer<typeof PermissionAskedSchema>
 
@@ -276,21 +275,19 @@ export const OpencodeEventSchema = z.discriminatedUnion("type", [
     type: z.literal("session"),
     // Snake_case `session_id` because Django synthesizes this event (opencode's
     // own events use camelCase `sessionID` — filtered server-side).
-    properties: z.object({ session_id: z.string() }).passthrough(),
+    properties: z.object({ session_id: z.string() }),
   }),
   z.object({
     type: z.literal("error"),
-    properties: z.object({ message: z.string() }).passthrough(),
+    properties: z.object({ message: z.string() }),
   }),
   z.object({
     type: z.literal("message.part.delta"),
-    properties: z
-      .object({ partID: z.string(), delta: z.string().default("") })
-      .passthrough(),
+    properties: z.object({ partID: z.string(), delta: z.string().default("") }),
   }),
   z.object({
     type: z.literal("message.part.updated"),
-    properties: z.object({ part: PartSchema }).passthrough(),
+    properties: z.object({ part: PartSchema }),
   }),
   z.object({
     type: z.literal("permission.asked"),
@@ -298,12 +295,10 @@ export const OpencodeEventSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("permission.replied"),
-    properties: z
-      .object({
-        requestID: z.string(),
-        reply: z.enum(["once", "always", "reject"]),
-      })
-      .passthrough(),
+    properties: z.object({
+      requestID: z.string(),
+      reply: z.enum(["once", "always", "reject"]),
+    }),
   }),
   z.object({
     type: z.literal("session.status"),
