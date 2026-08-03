@@ -1,9 +1,8 @@
+@use "styles/bootstrap";
 @use "styles/users";
 @use "styles/opencode";
 @use "styles/files";
 @use "styles/variables" as *;
-
-@import "bootstrap/dist/css/bootstrap.min.css";
 
 body {
   font-family: system-ui, -apple-system, sans-serif;

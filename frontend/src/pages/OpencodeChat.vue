@@ -45,8 +45,8 @@ const conn = useOpencodeConnection()
 const tr = useOpencodeTranscript()
 
 const { streaming, resetting, hasSession, eventCount, debugMode, debugLog } =
-  useOpencodeConnection()
-const { blocks, activePermission, activePermissionIndex, permissionTotal } = useOpencodeTranscript()
+  conn
+const { blocks, activePermission, activePermissionIndex, permissionTotal } = tr
 
 async function send(message: string) {
   const text = message.trim()

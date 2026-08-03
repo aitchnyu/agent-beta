@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import axios from "axios"
-import { reactive, ref } from "vue"
+import { defineAsyncComponent, reactive, ref } from "vue"
 import { router } from "@inertiajs/vue3"
 import Layout from "../components/Layout.vue"
-import RichTextEditor from "../components/RichTextEditor.vue"
 import { showErrorToast } from "../utils/sweetalert"
 import { MessageResponseSchema, UserEditPropsSchema } from "../schemas.ts"
+
+// Quill ships in its own lazy chunk (RichTextEditor + quill). It's pre-warmed
+// at boot in main.ts so a swap to this page resolves the async component from
+// cache (a cold mount during an Inertia v2 swap rolls the navigation back).
+const RichTextEditor = defineAsyncComponent(
+  () => import("../components/RichTextEditor.vue"),
+)
 
 const props = defineProps<{
   props: object

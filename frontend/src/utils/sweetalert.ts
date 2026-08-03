@@ -1,21 +1,41 @@
-import Swal from "sweetalert2"
 import type { AxiosError } from "axios"
 
 type ToastIcon = "success" | "error" | "warning" | "info" | "question"
 
-const Toast = Swal.mixin({
-  toast: true,
-  position: "bottom",
-  showConfirmButton: false,
-  timer: 3000,
-  timerProgressBar: true,
-})
+// Lazy-load sweetalert2 on first use (one-time, cached) so it stays a separate
+// chunk and out of the host bundle. Each helper fire-and-forgets after load.
+type SwalDefault = (typeof import("sweetalert2"))["default"]
+type SweetAlertToast = ReturnType<SwalDefault["mixin"]>
+let toastPromise: Promise<SweetAlertToast> | null = null
 
-export const showToast = (icon: ToastIcon, title: string): void => {
-  Toast.fire({ icon, title })
+async function loadToast(): Promise<SweetAlertToast> {
+  if (!toastPromise) {
+    toastPromise = (async () => {
+      const mod = await import("sweetalert2")
+      return mod.default.mixin({
+        toast: true,
+        position: "bottom",
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+      })
+    })()
+  }
+  return toastPromise
 }
 
-export const showErrorToast = (e: unknown, fallback: string): void => {
+export const showToast = async (
+  icon: ToastIcon,
+  title: string,
+): Promise<void> => {
+  const toast = await loadToast()
+  await toast.fire({ icon, title })
+}
+
+export const showErrorToast = async (
+  e: unknown,
+  fallback: string,
+): Promise<void> => {
   let title = fallback
   let detail = e instanceof Error ? e.constructor.name : ""
   if (e && typeof e === "object" && "isAxiosError" in e) {
@@ -29,7 +49,8 @@ export const showErrorToast = (e: unknown, fallback: string): void => {
       detail = "Check your internet connection and try again."
     }
   }
-  Toast.fire({ icon: "error", title, text: detail || undefined })
+  const toast = await loadToast()
+  await toast.fire({ icon: "error", title, text: detail || undefined })
 }
 
 /**

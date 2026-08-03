@@ -1,6 +1,7 @@
-// Lazy-loaded rich preview: markdown (via marked) + syntax highlighting (highlight.js).
-// This module is dynamically imported by FileViewer only when a file needs it, so
-// Vite code-splits it (+ the theme CSS) out of the host bundle.
+// Rich preview: markdown (via marked) + syntax highlighting (highlight.js).
+// This module is only ever dynamically imported (GitDiff, FileViewer, DiffBody)
+// and pre-warmed at boot in main.ts, so Vite keeps it (+ its deps and theme CSS)
+// as a separate lazy chunk out of the host bundle.
 //
 // Only specific languages are registered (not the full `highlight.js`, which bundles
 // ~190 languages ≈ 1 MB): the extensions classified by `detectLanguage` (in
@@ -19,8 +20,6 @@ import yaml from "highlight.js/lib/languages/yaml"
 import markdownGrammar from "highlight.js/lib/languages/markdown"
 import { marked } from "marked"
 import { markedHighlight } from "marked-highlight"
-
-import "highlight.js/styles/github.css"
 
 import { sanitizeHtml } from "./html"
 

@@ -19,20 +19,18 @@ const p = FileViewerPropsSchema.parse(props.props)
 // highlight.js language; otherwise it's plain text. Detection is frontend-only.
 const codeLang = p.kind === "text" ? detectLanguage(p.name) : undefined
 
-// Rich previews (markdown / code) are rendered by a lazily-imported module so
-// marked + highlight.js stay out of the host bundle; empty until loaded.
 const rendered = ref("")
 // Markdown source shown below the rendered view (highlighted).
 const raw = ref("")
 
 onMounted(async () => {
+  // filePreview (hljs/marked) is a lazy chunk pre-warmed at boot in main.ts, so
+  // this resolves from cache (a cold import during an Inertia v2 swap rolls back).
+  const { highlightCode, renderMarkdown } = await import("../utils/filePreview")
   if (p.kind === "markdown") {
-    const { renderMarkdown, highlightCode } =
-      await import("../utils/filePreview")
     rendered.value = renderMarkdown(p.text, p.rel)
     raw.value = highlightCode(p.text, "markdown")
   } else if (codeLang) {
-    const { highlightCode } = await import("../utils/filePreview")
     rendered.value = highlightCode(p.text, codeLang)
   }
 })

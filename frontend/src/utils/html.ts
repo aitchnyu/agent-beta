@@ -1,4 +1,4 @@
-import sanitizeHtmlLib from "sanitize-html"
+import DOMPurify from "dompurify"
 
 const ALLOWED_TAGS: string[] = [
   "p",
@@ -31,14 +31,40 @@ const ALLOWED_TAGS: string[] = [
   "img",
 ]
 
-// `class` is allowed on code/pre/span so highlight.js token spans keep their colour.
-const ALLOWED_ATTRIBUTES: Record<string, string[]> = {
+// `class` is allowed so highlight.js token spans keep their colour. ALLOWED_ATTR
+// is a global pre-filter (the union of what any tag may carry); the hook below
+// then enforces the per-tag mapping.
+const ALLOWED_ATTR: string[] = ["href", "src", "class"]
+const ATTRS_BY_TAG: Record<string, string[]> = {
   a: ["href"],
   img: ["src"],
   code: ["class"],
   pre: ["class"],
   span: ["class"],
 }
+
+// Enforce the per-tag attribute allow-list, then block protocol-relative URLs
+// (//host) — the old allowProtocolRelative:false. DOMPurify's defaults already
+// drop javascript:/data: schemes; this hook adds per-tag precision + the
+// protocol-relative block. Stateless, so one global hook covers every call.
+DOMPurify.addHook("uponSanitizeAttribute", (node, data) => {
+  const allowed = ATTRS_BY_TAG[node.nodeName.toLowerCase()]
+  if (!allowed || !allowed.includes(data.attrName)) {
+    data.keepAttr = false
+    return
+  }
+  // Only URL-bearing attributes (href/src) can be protocol-relative; `class`
+  // (the only other attr that survives the per-tag check above) never carries a
+  // URL, so gate the // check to these two.
+  const value = data.attrValue
+  if (
+    (data.attrName === "href" || data.attrName === "src") &&
+    typeof value === "string" &&
+    value.startsWith("//")
+  ) {
+    data.keepAttr = false
+  }
+})
 
 export interface SanitizeOptions {
   /** When set, relative image src in the HTML is rewritten to /files-raw/<rel>
@@ -63,23 +89,21 @@ export function sanitizeHtml(
   options: SanitizeOptions = {},
 ): string {
   if (!html) return ""
-
-  const config: Parameters<typeof sanitizeHtmlLib>[1] = {
-    allowedTags: ALLOWED_TAGS,
-    allowedAttributes: ALLOWED_ATTRIBUTES,
-    allowProtocolRelative: false,
+  const clean = DOMPurify.sanitize(html, {
+    ALLOWED_TAGS,
+    ALLOWED_ATTR,
+    ALLOW_DATA_ATTR: false,
+  })
+  if (options.rewriteImagesFrom === undefined) return clean
+  // Rewrite relative image src after sanitizing (only the markdown path opts
+  // in). DOMParser is browser-native (no dep); DOMPurify kept <img src> intact
+  // (relative srcs aren't protocol-relative, so the hook above leaves them).
+  const doc = new DOMParser().parseFromString(clean, "text/html")
+  for (const img of doc.querySelectorAll("img")) {
+    img.setAttribute(
+      "src",
+      resolveImageSrc(img.getAttribute("src") ?? "", options.rewriteImagesFrom),
+    )
   }
-  if (options.rewriteImagesFrom !== undefined) {
-    const markdownRelPath = options.rewriteImagesFrom
-    config.transformTags = {
-      img: (_tag, attribs) => ({
-        tagName: "img",
-        attribs: {
-          ...attribs,
-          src: resolveImageSrc(attribs.src ?? "", markdownRelPath),
-        },
-      }),
-    }
-  }
-  return sanitizeHtmlLib(html, config)
+  return doc.body.innerHTML
 }

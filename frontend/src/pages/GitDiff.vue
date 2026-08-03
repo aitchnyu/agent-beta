@@ -17,24 +17,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue"
+import { onMounted, ref } from "vue"
 import Layout from "../components/Layout.vue"
 import GitNav from "../components/GitNav.vue"
 import { GitDiffPropsSchema } from "../schemas"
-import { highlightDiff } from "../utils/filePreview"
 
 const props = defineProps<{ props: object }>()
 const data = GitDiffPropsSchema.parse(props.props)
 
-// Eager import (NOT a dynamic import in onMounted): firing a dynamic import
-// during an Inertia v2 swap makes Inertia silently roll the navigation back, so
-// the highlighter is imported at module load. highlight.js ships in main.js
-// alongside this page.
+// The highlighter (hljs, via utils/filePreview) is a lazy chunk kept OUT of
+// main.js. It's imported here in onMounted (not in setup) after pre-warm has
+// cached the chunk in main.ts — a cold dynamic import during an Inertia v2 swap
+// rolls the navigation back, but a cache-hit resolves in a microtask, no gap.
 const rendered = ref("")
 const error = ref(false)
-try {
-  if (data.diff) rendered.value = highlightDiff(data.diff)
-} catch {
-  error.value = true
-}
+onMounted(async () => {
+  try {
+    if (data.diff) {
+      const { highlightDiff } = await import("../utils/filePreview")
+      rendered.value = highlightDiff(data.diff)
+    }
+  } catch {
+    error.value = true
+  }
+})
 </script>
