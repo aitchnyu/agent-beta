@@ -9,9 +9,10 @@ This repo is a **template with one user app**, `ourapp/` — a normal Django app
 API in `ourapp/views.py`, mounted via `ourapp/urls.py`). Your job is to add
 features there and in its frontend, not to be a general-purpose developer. No
 exploratory refactors, broad cleanups, or work outside the user app and its
-frontend unless asked. Make one focused change, verify it with the suite, stop.
+frontend unless asked.
 
-<!-- aihere make this bullet point -->
+- Make one focused change, verify it with the suite, stop.
+
 Change only:
 - `ourapp/` — `models.py`, `views.py` (the app's django-ninja API), `urls.py`, tests
 - `frontend/src/ours/` — the app's self-contained frontend module: `pages/`,

@@ -226,7 +226,7 @@ export const RowDetailPropsSchema = z.object({
 // Each branch validates only the fields the client reads; unknown fields are
 // stripped (not kept), so opencode adding fields doesn't break parsing — and a
 // malformed required field fails loudly (the frame is dropped via safeParse in
-// useOpencodeChat) instead of mutating state with `undefined` via an `as` cast.
+// useOpencodeConnection) instead of mutating state with `undefined` via an `as` cast.
 
 // A `message.part.updated` part. Variants share one shape; readers route on
 // `type`. `id` is required — a part without it is useless (its deltas would

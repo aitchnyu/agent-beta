@@ -5,7 +5,8 @@ import { parseSsePayloads } from "./parseSse"
 function stream(chunks: string[]): ReadableStream<Uint8Array> {
   return new ReadableStream({
     start(controller) {
-      for (const c of chunks) controller.enqueue(new TextEncoder().encode(c))
+      for (const chunk of chunks)
+        controller.enqueue(new TextEncoder().encode(chunk))
       controller.close()
     },
   })
@@ -13,7 +14,7 @@ function stream(chunks: string[]): ReadableStream<Uint8Array> {
 
 async function collect(body: ReadableStream<Uint8Array>) {
   const out: Record<string, unknown>[] = []
-  for await (const p of parseSsePayloads(body)) out.push(p)
+  for await (const payload of parseSsePayloads(body)) out.push(payload)
   return out
 }
 

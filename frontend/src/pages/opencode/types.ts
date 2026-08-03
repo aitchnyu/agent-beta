@@ -53,16 +53,16 @@ export type ToolBlock = Extract<Block, { kind: "tool" }>
 // Stable v-for key for any block kind. Namespaces are disjoint (uid is a UUID,
 // partID is "par_…", permission ids are "per_…"), so the raw field works as a
 // key without a kind prefix.
-export function blockKey(b: Block): string {
-  switch (b.kind) {
+export function blockKey(block: Block): string {
+  switch (block.kind) {
     case "user":
-      return b.uid
+      return block.uid
     case "text":
     case "reasoning":
     case "tool":
-      return b.partID
+      return block.partID
     case "permission":
-      return b.id
+      return block.id
   }
 }
 
@@ -75,17 +75,17 @@ export const PERMISSION_LABELS: Record<PermissionReply, string> = {
 }
 
 // Build a permission block from a parsed `permission.asked` event's properties.
-export function parsePermissionBlock(p: PermissionAsked): PermissionBlock {
-  const meta = p.metadata ?? {}
+export function parsePermissionBlock(asked: PermissionAsked): PermissionBlock {
+  const meta = asked.metadata ?? {}
   return {
     kind: "permission",
-    id: p.id,
-    permission: p.permission,
+    id: asked.id,
+    permission: asked.permission,
     // bash carries `command`; write/edit carry `filepath`. Show whichever the
     // tool sent so the marker matches the corresponding tool block's subject.
     command: meta.command ?? "",
     filepath: meta.filepath ?? "",
-    always: p.always.join(" "),
+    always: asked.always.join(" "),
     state: "asked",
   }
 }

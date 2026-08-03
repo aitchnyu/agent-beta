@@ -6,9 +6,12 @@ import PermissionInline from "../components/opencode/PermissionInline.vue"
 import ReasoningBlock from "../components/opencode/ReasoningBlock.vue"
 import RenderRawHtml from "../components/RenderRawHtml.vue"
 import ToolBlock from "../components/opencode/ToolBlock.vue"
-import { useOpencodeChat } from "./opencode/useOpencodeChat"
-import { isNotifySupported } from "./opencode/notify"
+import { useOpencodeConnection } from "./opencode/useOpencodeConnection"
+import { useOpencodeTranscript } from "./opencode/useOpencodeTranscript"
+import { useOpencodeNotifications } from "./opencode/useOpencodeNotifications"
 import { blockKey } from "./opencode/types"
+import type { PermissionBlock, PermissionReply } from "./opencode/types"
+import { showErrorToast } from "../utils/sweetalert"
 
 const input = ref("")
 const inputEl = ref<HTMLTextAreaElement | null>(null)
@@ -24,38 +27,33 @@ function autoresize() {
 
 // Enter inserts a newline (multi-line editing); Enter on a blank line sends.
 // Shift+Enter always inserts a newline. The Send button still submits too.
-function onKeydown(e: KeyboardEvent) {
-  if (e.key !== "Enter" || e.shiftKey) return
-  const el = e.target as HTMLTextAreaElement
+function onKeydown(event: KeyboardEvent) {
+  if (event.key !== "Enter" || event.shiftKey) return
+  const el = event.target as HTMLTextAreaElement
   const pos = el.selectionStart
   const lineStart = input.value.lastIndexOf("\n", pos - 1) + 1
   if (input.value.slice(lineStart, pos).trim() === "") {
-    e.preventDefault()
+    event.preventDefault()
     void sendPrompt()
   }
 }
-const canNotify = isNotifySupported()
-const {
-  blocks,
-  streaming,
-  resetting,
-  hasSession,
-  eventCount,
-  debugMode,
-  debugLog,
-  notifyGranted,
-  notifyDenied,
-  activePermission,
-  activePermissionIndex,
-  permissionTotal,
-  send,
-  stop,
-  clear,
-  resetSession,
-  answerPermission,
-  toggleDebug,
-  enableNotifications,
-} = useOpencodeChat()
+
+// Compose the two layers directly (no facade): the transport owns the stream +
+// HTTP + session; the transcript owns the blocks. The actions below cross both
+// (send pushes a user block then streams; answer/clear/reset touch HTTP + state).
+const conn = useOpencodeConnection()
+const tr = useOpencodeTranscript()
+
+const { streaming, resetting, hasSession, eventCount, debugMode, debugLog } =
+  useOpencodeConnection()
+const { blocks, activePermission, activePermissionIndex, permissionTotal } = useOpencodeTranscript()
+
+async function send(message: string) {
+  const text = message.trim()
+  if (!text || streaming.value) return
+  tr.pushUser(text)
+  await conn.send(text, tr.turnHooks)
+}
 
 async function sendPrompt() {
   const message = input.value.trim()
@@ -65,6 +63,62 @@ async function sendPrompt() {
   autoresize()
   await send(message)
 }
+
+// Drop the transcript but KEEP the session id, so the next prompt continues the
+// same daemon session. Best-effort abort the in-flight turn first so the wiped
+// view isn't repopulated by its deltas.
+function clear() {
+  conn.clearWindow()
+  tr.clear()
+}
+
+// Kill the daemon session entirely and reset the view. Client teardown first so
+// the UI stops spinning during the daemon round-trip; abort precedes delete
+// (deleting a running session is undefined). Best-effort: a failure still
+// resets the client and surfaces a toast.
+async function resetSession() {
+  if (resetting.value || !conn.sessionId.value) return
+  resetting.value = true
+  const wasStreaming = streaming.value
+  conn.abortStream()
+  try {
+    if (wasStreaming) await conn.abortTurn()
+    await conn.deleteSession()
+  } catch (err: unknown) {
+    showErrorToast(err, "Failed to reset session")
+  } finally {
+    conn.resetLocal()
+    tr.clear()
+    resetting.value = false
+  }
+}
+
+// POST the reply (transport), then flip the block state (transcript) only on
+// success. `pending` gates double-clicks and is cleared in finally.
+async function answerPermission(
+  block: PermissionBlock,
+  reply: PermissionReply,
+) {
+  if (!conn.sessionId.value || block.pending || block.state !== "asked") return
+  block.pending = true
+  try {
+    await conn.postPermission(block.id, reply)
+    tr.markAnswered(block, reply)
+  } catch (err: unknown) {
+    showErrorToast(err, "Failed to answer permission")
+  } finally {
+    block.pending = false
+  }
+}
+
+const stop = conn.stop
+const toggleDebug = conn.toggleDebug
+
+// OS-notification permission lives in its own module (orthogonal to transport/
+// transcript); the browser persists it across refreshes, so it's the source of
+// truth.
+const { canNotify, notifyGranted, notifyDenied, enableNotifications } =
+  useOpencodeNotifications()
 </script>
 
 <template>

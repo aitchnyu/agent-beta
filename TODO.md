@@ -8,17 +8,16 @@ useOpencodeChat - split into connection management and blocks
 Vite 8 and Inertia 3 - how to upgrade?
 More tests in frontend?
 
-Wait till explicitly asked
-  Answer those three and I'll implement it in copy/, run ./run checkcopy to green, then deploy via mergescratch.
-
 Base model - just created and updated 
-
-Why do we need BaseModel?
+How to test it?
+Test git and file manager too
 
 Generate multiline, render as multiline:
 ./run python -c "import inspect; from inertia import InertiaResponse; print(inspect.signature(InertiaResponse))"
 
-Example app should be a todo app
+Example app should be bigger
+Include logging
+Page title for apps
 
 Run all tests in checkproject and merge coverage from both stages.
 
@@ -28,8 +27,6 @@ Parallel command prompts problems?
 
 Readonly mode for whole system, disable get requests too if it mutates data. Do it at middleware level.
 
-Page title for apps
-
 os.environ.get("OPENCODE_BASE_URL", f"http://{_OPENCODE_HOST}:{_OPENCODE_PORT}")
 
 ## Error tracking
@@ -38,6 +35,7 @@ Which analysis tool?
 Send frontend errors to backend, make it easy to search/filter by line
 
 ## Notification center
+Service worker and PWA?
 Have link to correct place
 Group them
 Browser notification/email to send to user
