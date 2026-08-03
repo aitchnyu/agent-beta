@@ -30,6 +30,6 @@ import Layout from "../components/Layout.vue"
 import GitNav from "../components/GitNav.vue"
 import { GitCommitPropsSchema } from "../schemas"
 
-const { props } = defineProps<{ props: object }>()
-const data = GitCommitPropsSchema.parse(props)
+const props = defineProps<{ props: object }>()
+const data = GitCommitPropsSchema.parse(props.props)
 </script>

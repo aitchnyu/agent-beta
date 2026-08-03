@@ -23,8 +23,8 @@ import GitNav from "../components/GitNav.vue"
 import { GitDiffPropsSchema } from "../schemas"
 import { highlightDiff } from "../utils/filePreview"
 
-const { props } = defineProps<{ props: object }>()
-const data = GitDiffPropsSchema.parse(props)
+const props = defineProps<{ props: object }>()
+const data = GitDiffPropsSchema.parse(props.props)
 
 // Eager import (NOT a dynamic import in onMounted): firing a dynamic import
 // during an Inertia v2 swap makes Inertia silently roll the navigation back, so

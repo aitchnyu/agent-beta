@@ -59,8 +59,8 @@ import Layout from "../components/Layout.vue"
 import GitNav from "../components/GitNav.vue"
 import { GitCommitListPropsSchema } from "../schemas"
 
-const { props } = defineProps<{ props: object }>()
-const data = GitCommitListPropsSchema.parse(props)
+const props = defineProps<{ props: object }>()
+const data = GitCommitListPropsSchema.parse(props.props)
 const currentPage = data.pagination.page
 
 function buildUrl(page: number) {

@@ -1,7 +1,7 @@
 # Web chat steering
 
 You are the assistant behind a web chat for this app. You build and edit the
-**single user app** (`ourapp/`) and its frontend (`frontend/src/…/ours/`).
+**single user app** (`ourapp/`) and its frontend (`frontend/src/ours/`).
 
 ## Role & scope
 This repo is a **template with one user app**, `ourapp/` — a normal Django app
@@ -11,10 +11,11 @@ features there and in its frontend, not to be a general-purpose developer. No
 exploratory refactors, broad cleanups, or work outside the user app and its
 frontend unless asked. Make one focused change, verify it with the suite, stop.
 
+<!-- aihere make this bullet point -->
 Change only:
 - `ourapp/` — `models.py`, `views.py` (the app's django-ninja API), `urls.py`, tests
-- `frontend/src/pages/ours/` — app pages (Inertia component name `ours/<Name>`)
-- `frontend/src/components/ours/` — shared app components
+- `frontend/src/ours/` — the app's self-contained frontend module: `pages/`,
+  `components/`, `utils/`, `schemas.ts`, `style.scss`
 
 ## Layout: parent / main / copy
 The repo is `main/` (it holds `.git`); `copy/` is a throwaway sibling, and both
@@ -133,7 +134,7 @@ Keep it tight. For a trivial change a single sentence is enough; don't pad.
 Read code in this priority order:
 
 1. **The user app first** — `ourapp/` (models, the ninja API in `views.py`,
-   `urls.py`) and `frontend/src/{pages,components}/ours/` are the source of truth
+   `urls.py`) and `frontend/src/ours/` are the source of truth
    and the only thing you normally change.
 2. **The reference next** — `docs/reference/` as a complete, copyable example
    (model + ninja API + urls + Inertia page + test).
@@ -163,8 +164,13 @@ Prefer a django-ninja API (in `ourapp/views.py`, mounted in `ourapp/urls.py`)
 for both data and pages: data endpoints return pydantic schemas (ninja validates
 the response), pages return `InertiaResponse(request, "ours/<Page>",
 {"props": …})`. On the frontend, parse every payload with a zod schema. See
-`docs/reference/` for the full pattern. Add/change a model →
-`./run djangomanage makemigrations ourapp`.
+`docs/reference/` for the full pattern. Page data is nested under a `props` key
+(views pass `{"props": …}`) while `SharedPropsMiddleware` adds the viewer
+(`user`, `viewer_is_superuser`) at the top level — so a page reads its own data
+as `props.props`, e.g. `const props = defineProps<{ props: object }>(); const p =
+Schema.parse(props.props)`, never flat. The exact JSON shapes (page vs data
+responses) are in `docs/reference/README.md` ("Response shapes"). Add/change a
+model → `./run djangomanage makemigrations ourapp`.
 
 For the authenticated user in queries, use `djangoapp.shortcuts`:
 `user_or_404(request)` (raises 404 when anonymous — keep the page's existence
@@ -200,10 +206,16 @@ is parsed with a zod schema. POST a JSON body to a ninja Schema endpoint:
 ```
 
 ### Frontend
-One Vue+Inertia app. App pages live in `frontend/src/pages/ours/<Name>.vue`
-(component name `ours/<Name>`) and shared components in
-`frontend/src/components/ours/`. Parse every server payload with a zod schema;
-wrap every `axios` call in `try/catch` + `showErrorToast`.
+One Vue+Inertia app. The user app's frontend is a self-contained module at
+`frontend/src/ours/`: pages in `ours/pages/<Name>.vue` (Inertia component name
+`ours/<Name>`), components in `ours/components/`, helpers in `ours/utils/`, zod
+sub-schemas in `ours/schemas.ts`, and styles in `ours/style.scss` (imported as a
+side-effect by the page component, so the feature is self-contained). Parse
+every server payload with a zod schema;
+wrap every `axios` call in `try/catch` + `showErrorToast`. **Edit only `ours/`
+where possible** — keep the app out of the framework's `pages/`, `components/`,
+shared `schemas.ts`, and `styles/` (those hold framework code; the app's own
+schemas/styles live inside `ours/`).
 
 ## Writing tests
 - **Unit tests** cover **models and views**: regular Django tests
@@ -231,7 +243,7 @@ wrap every `axios` call in `try/catch` + `showErrorToast`.
   the test to UI copy/style and break on every redesign:
   - ✗ `button:has-text('Start')` — substring match on any button containing the
     word; breaks if the copy changes.
-  - ✗ `.ours-todo-form input[placeholder*='need to do']` — couples to a class
+  - ✗ `.ours-note-form input[placeholder*='title']` — couples to a class
     name + placeholder text; breaks on either change.
 
 ## Commands, tools & permissions
@@ -261,9 +273,22 @@ The allowlisted commands (defined in `agentconfig/opencode.json`):
   NOT allowlisted for the agent — it's a human-run, `main/`-only check; the agent
   uses `./run checkcopy` in `copy/`.
 - `./run typecheck`, `./run test`, `./run lintfix`
-- `./run djangomanage makemigrations` / `migrate`
+- `./run djangomanage makemigrations` / `migrate` / `findstatic` (`findstatic`
+  is read-only — prints the on-disk file a static URL resolves to)
+- `npm run build` (from `frontend/`) — rebuild the frontend bundle
 - `cd copy …` then read-only `git status` / `diff` / `log` / `show`
 - `websearch`
+
+### Debugging build / serve issues
+When a page 404s client-side ("Inertia page not found: … — rebuild the
+frontend") or the dev server seems to serve a stale bundle, **act, don't
+theorize**: run `npm run build` and have the user hard-refresh **before**
+speculating about static-file serving, caching, or shadow paths — the error
+message names the fix. To confirm which file a static URL actually resolves to,
+`./run djangomanage findstatic <name>` (e.g. `findstatic djangoapp/main.js`)
+prints the exact on-disk path. `prevproject/` is vendored legacy (reference
+only): it is **not** in `INSTALLED_APPS` and the dev server never serves its
+`static/` — don't chase shadow-path theories involving it.
 
 Anything else — including any git on `main/` — needs approval; for
 read/list/search, use the `read`/`glob`/`grep` tools instead of

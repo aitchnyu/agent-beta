@@ -16,12 +16,11 @@ Example:
 Have a max height with overflow for both. Scroll to bottom when content is being appended.
 
 ------------
-Pending and complete in bash should align right
-Dont start building app till I explicitly give permission
+When agent is cut off, download latest message.
 
 Run opencode under async worker?
 ours/ in frontend - even for utils, configure vite
-checkall vs checkours - check which is changed
+checkall vs checkcopy - run if anything outside of ours/ and ourapp/ is changed
 
 useOpencodeChat - split into connection management and blocks 
 Vite 8 and Inertia 3 - how to upgrade?

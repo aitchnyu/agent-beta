@@ -22,9 +22,11 @@ class HomeViewTests(InertiaTestCase):
         self.assertComponentUsed("Home")
         self.assertHasExactProps(
             {
-                "is_authenticated": False,
-                "display_name": "",
-                "public_id": "",
+                "props": {
+                    "is_authenticated": False,
+                    "display_name": "",
+                    "public_id": "",
+                },
                 # Shared viewer props (SharedPropsMiddleware) are anonymous here.
                 "user": None,
                 "viewer_is_superuser": False,
@@ -42,9 +44,11 @@ class HomeViewTests(InertiaTestCase):
         self.inertia.get("/")
         self.assertHasExactProps(
             {
-                "is_authenticated": True,
-                "display_name": "Alice Smith",
-                "public_id": user.public_id,
+                "props": {
+                    "is_authenticated": True,
+                    "display_name": "Alice Smith",
+                    "public_id": user.public_id,
+                },
                 "user": {"public_id": user.public_id, "title": "Alice Smith"},
                 "viewer_is_superuser": False,
             },
@@ -72,6 +76,7 @@ class NoPkLeakTests(InertiaTestCase):
         self.inertia.force_login(user)
         self.inertia.get("/")
         props = self.props()
-        self.assertEqual(props["public_id"], user.public_id)
-        self.assertNotIn("id", props)
-        self.assertNotIn("pk", props)
+        page = props["props"]
+        self.assertEqual(page["public_id"], user.public_id)
+        self.assertNotIn("id", page)
+        self.assertNotIn("pk", page)

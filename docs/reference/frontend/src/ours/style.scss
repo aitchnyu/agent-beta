@@ -1,0 +1,21 @@
+// App-specific styles for the Notes feature, kept with the app under ours/.
+// Imported as a side-effect by the page component (`import "../style.scss"` in
+// ours/pages/NotesPage.vue), so the feature is self-contained and needs no edit
+// to the framework's main.scss.
+.ours-notes-page {
+  max-width: 48rem;
+}
+
+.ours-notes-list {
+  list-style: none;
+  padding: 0;
+}
+
+.ours-notes-list li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.ours-note-form {
+  margin-bottom: 1rem;
+}

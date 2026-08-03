@@ -4,14 +4,10 @@ import Layout from "../components/Layout.vue"
 import { getCsrfToken } from "../utils/csrf"
 import { HomePropsSchema } from "../schemas"
 
-const props = defineProps<{
-  is_authenticated: boolean
-  display_name: string
-  public_id: string
-}>()
+const props = defineProps<{ props: object }>()
 
-// Validate the server payload shape; parse() throws loudly if it drifts.
-const p = computed(() => HomePropsSchema.parse(props))
+// Inertia wraps the page data under a `props` key (page.props.props); parse it.
+const p = computed(() => HomePropsSchema.parse(props.props))
 const csrfToken = computed(() => getCsrfToken())
 </script>
 

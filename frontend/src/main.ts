@@ -37,18 +37,23 @@ window.addEventListener(
   },
 )
 
-// All pages bundle eagerly into main.js (one entry, no per-page chunks). Pages
-// must NOT do a dynamic import() in onMounted — that makes Inertia v2 silently
-// roll the navigation back. (Heavy page deps, e.g. GitDiff's highlight.js, are
-// imported at module load and ship in main.js.)
-const pages = import.meta.glob(["./pages/**/*.vue"], {
-  eager: true,
-}) as Record<string, { default: DefineComponent }>
+// Framework pages bundle from ./pages/; the user app's pages bundle from
+// ./ours/pages/ (Inertia component name "ours/<Name>"). Both eager into main.js
+// (one entry, no per-page chunks). Pages must NOT do a dynamic import() in
+// onMounted — that makes Inertia v2 silently roll the navigation back. (Heavy
+// page deps, e.g. GitDiff's highlight.js, are imported at module load.)
+const pages = import.meta.glob(
+  ["./pages/**/*.vue", "./ours/pages/**/*.vue"],
+  { eager: true },
+) as Record<string, { default: DefineComponent }>
 
 createInertiaApp({
   title: (title) => `Instant - ${title}`,
   resolve: (name) => {
-    const key = `./pages/${name}.vue`
+    // "ours/<Name>" → ./ours/pages/<Name>.vue; everything else → ./pages/<name>.vue
+    const key = name.startsWith("ours/")
+      ? `./ours/pages/${name.slice("ours/".length)}.vue`
+      : `./pages/${name}.vue`
     const mod = pages[key]
     if (!mod) {
       throw new Error(

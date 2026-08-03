@@ -36,7 +36,7 @@ def home(request: HttpRequest) -> HttpResponse:
         "display_name": cast(User, user).display_name if is_authed else "",
         "public_id": cast(User, user).public_id if is_authed else "",
     }
-    return render(request, "Home", props)
+    return render(request, "Home", {"props": props})
 
 
 def login_for_test(request: HttpRequest, userid: int) -> HttpResponse:

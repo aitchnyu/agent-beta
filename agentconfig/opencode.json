@@ -29,6 +29,8 @@
       "./run playwrighttest *": "allow",
       "./run djangomanage makemigrations *": "allow",
       "./run djangomanage migrate *": "allow",
+      "./run djangomanage findstatic *": "allow",
+      "npm run build": "allow",
       "cd copy *": "allow",
       "rm -rf copy": "allow",
       "rm -rf copy/*": "allow",
@@ -40,7 +42,8 @@
       "git show *": "allow",
       "git ls-files": "allow",
       "git blame *": "allow",
-      "rg *": "deny"
+      "rg *": "deny",
+      "perl *": "deny"
     },
     "doom_loop": "allow",
     "task": "deny",

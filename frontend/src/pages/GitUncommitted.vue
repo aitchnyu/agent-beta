@@ -24,6 +24,6 @@ import GitNav from "../components/GitNav.vue"
 import Layout from "../components/Layout.vue"
 import { GitUncommittedPropsSchema } from "../schemas"
 
-const { props } = defineProps<{ props: object }>()
-const files = GitUncommittedPropsSchema.parse(props).files
+const props = defineProps<{ props: object }>()
+const files = GitUncommittedPropsSchema.parse(props.props).files
 </script>

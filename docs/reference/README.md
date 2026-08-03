@@ -13,8 +13,11 @@ consults this when adding a feature.
 | `ourapp/views.py` | `ourapp/views.py` (the app's django-ninja API) |
 | `ourapp/urls.py` | `ourapp/urls.py` (mounts the API) |
 | `ourapp/tests.py` | `ourapp/tests.py` or `djangoapp/tests/` |
-| `frontend/pages/ours/NotesPage.vue` | `frontend/src/pages/ours/NotesPage.vue` |
-| `frontend/components/ours/NoteForm.vue` | `frontend/src/components/ours/NoteForm.vue` |
+| `frontend/src/ours/pages/NotesPage.vue` | `frontend/src/ours/pages/NotesPage.vue` |
+| `frontend/src/ours/components/NoteForm.vue` | `frontend/src/ours/components/NoteForm.vue` |
+| `frontend/src/ours/schemas.ts` | `frontend/src/ours/schemas.ts` (app zod sub-schemas) |
+| `frontend/src/ours/style.scss` | `frontend/src/ours/style.scss` (side-effect-imported by the page) |
+| `frontend/src/ours/utils/format.ts` | `frontend/src/ours/utils/` (app helpers) |
 
 ## The pattern
 
@@ -28,11 +31,53 @@ consults this when adding a feature.
   Page responses use `InertiaResponse(request, "ours/<Page>", {"props": …})`;
   data responses are pydantic schemas (ninja validates them). CSRF is handled by
   the host (`X-CSRFTOKEN` set globally in `main.ts`).
-- **Frontend**: pages in `frontend/src/pages/ours/<Name>.vue` (Inertia component
-  name `ours/<Name>`), components in `frontend/src/components/ours/`. Parse every
-  server payload with a zod schema; wrap every `axios` call in `try/catch` +
-  `showErrorToast`.
+- **Frontend**: a self-contained `frontend/src/ours/` module — pages in
+  `ours/pages/<Name>.vue` (Inertia component name `ours/<Name>`), components in
+  `ours/components/`, helpers in `ours/utils/`, zod sub-schemas in
+  `ours/schemas.ts`, and styles in `ours/style.scss` (side-effect-imported by the
+  page component, so the feature is self-contained). Parse every server payload with a zod schema; wrap every
+  `axios` call in `try/catch` + `showErrorToast`. Keep app code inside `ours/`
+  and edit only there where possible.
 - **Public ids only**: never send the integer `pk`/`id`; send `_public_id`.
+
+## Response shapes
+
+The API has two response kinds — don't confuse them.
+
+**Page response (Inertia)** — a `GET` that renders a page. The view wraps its
+data under a literal `props` key:
+
+```python
+InertiaResponse(request, "ours/NotesPage", {"props": {"notes": [...]}})
+```
+
+`SharedPropsMiddleware` merges the viewer in, so the client's `page.props` is:
+
+```jsonc
+{
+  "user": { "public_id": "…", "title": "…" },     // shared — every page
+  "viewer_is_superuser": true,                    // shared — every page
+  "props": { "notes": [ /* NoteOutSchema[] */ ] } // THIS page's data
+}
+```
+
+Read the page data from the nested `props` key, not the top level:
+
+```ts
+const props = defineProps<{ props: object }>()
+const notes = NotesPagePropsSchema.parse(props.props).notes
+```
+
+**Data response (JSON)** — a `POST`/`PUT`/`DELETE` returns a flat pydantic
+schema as JSON (ninja validates it). No `props` wrapper, no shared props:
+
+```jsonc
+// POST /notes/create → NoteOutSchema
+{ "public_id": "…", "title": "…", "body": "…",
+  "owner_public_id": "…", "owner_title": "…" }
+```
+
+Public ids only in both kinds (never the integer `pk`).
 
 ## Workflow
 
