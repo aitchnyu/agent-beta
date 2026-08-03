@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue"
+import { nextTick, ref } from "vue"
 import Layout from "../components/Layout.vue"
 import PermissionPrompt from "../components/opencode/PermissionPrompt.vue"
 import PermissionInline from "../components/opencode/PermissionInline.vue"
@@ -11,6 +11,29 @@ import { isNotifySupported } from "./opencode/notify"
 import { blockKey } from "./opencode/types"
 
 const input = ref("")
+const inputEl = ref<HTMLTextAreaElement | null>(null)
+
+// Auto-grow the textarea with its content (capped), so it stays a single line
+// until the message wraps. resize: none in CSS — growth is driven from here.
+function autoresize() {
+  const el = inputEl.value
+  if (!el) return
+  el.style.height = "auto"
+  el.style.height = Math.min(el.scrollHeight, 200) + "px"
+}
+
+// Enter inserts a newline (multi-line editing); Enter on a blank line sends.
+// Shift+Enter always inserts a newline. The Send button still submits too.
+function onKeydown(e: KeyboardEvent) {
+  if (e.key !== "Enter" || e.shiftKey) return
+  const el = e.target as HTMLTextAreaElement
+  const pos = el.selectionStart
+  const lineStart = input.value.lastIndexOf("\n", pos - 1) + 1
+  if (input.value.slice(lineStart, pos).trim() === "") {
+    e.preventDefault()
+    void sendPrompt()
+  }
+}
 const canNotify = isNotifySupported()
 const {
   blocks,
@@ -38,6 +61,8 @@ async function sendPrompt() {
   const message = input.value.trim()
   if (!message || streaming.value) return
   input.value = ""
+  await nextTick()
+  autoresize()
   await send(message)
 }
 </script>
@@ -96,13 +121,16 @@ async function sendPrompt() {
         <label class="visually-hidden" for="opencode-input"
           >Message agent</label
         >
-        <input
+        <textarea
           id="opencode-input"
+          ref="inputEl"
           v-model="input"
           class="form-control opencode-input"
+          rows="1"
           :placeholder="streaming ? 'Waiting for server…' : 'Message agent…'"
-          :disabled="streaming"
-        />
+          @input="autoresize"
+          @keydown="onKeydown"
+        ></textarea>
         <button
           v-if="streaming"
           type="button"

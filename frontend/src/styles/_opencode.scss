@@ -103,10 +103,10 @@
   background-color: $gray-200;
 }
 
-// Shared scroll-box body for tool blocks (write content, edit diff, bash
-// output, generic fallback): monospace, preserved whitespace, capped height
-// with scroll. font-size + padding match .code-diff so a diff (which carries
-// both classes) renders the same size as write/bash bodies. Single source.
+// Shared scroll-box body for tool blocks (read/write content, bash output,
+// generic fallback): a white card, monospace, preserved whitespace, capped
+// height with scroll. font-size + padding match .code-diff so a diff (which
+// carries both classes) renders the same size as the tool bodies. Single source.
 .opencode-tool-body {
   margin: 0.5rem 0 0;
   padding: 0.75rem;
@@ -114,6 +114,37 @@
   white-space: pre;
   max-height: 600px;
   overflow: auto;
+  background-color: #fff;
+  border: $border-light;
+  border-radius: $radius-md;
+}
+
+// Read output arrives as "<num>: <code>"; the leading "<num>:" is deemphasized
+// so the code reads primary. Not user-selectable (it's a render aid).
+.opencode-lineno {
+  color: $gray-400;
+  user-select: none;
+}
+
+// Deemphasized target path / line-range in a tool's header (read filePath, write
+// filePath). The path truncates so a long path doesn't blow out the row.
+.opencode-tool-path {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-left: 0.4rem;
+  font-family: $font-family-monospace;
+  font-size: 0.8rem;
+  color: $gray-500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.opencode-tool-range {
+  margin-left: 0.4rem;
+  font-size: 0.75rem;
+  color: $gray-500;
+  white-space: nowrap;
 }
 
 .opencode-permission {
@@ -218,4 +249,5 @@
 
 .opencode-input {
   flex: 1;
+  resize: none;
 }

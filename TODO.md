@@ -1,21 +1,3 @@
-For write blocks, dont render it as json, include `filePath` in title. If content, render them as newlines. If oldString and newString, render as single column diff.
-Try to make it a new component.
-Here is an example response for write
-"filePath": "/Users/jesvin/dev/ourinstant/copy/frontend/src/main.scss",
-  "oldString": "@use \"styles/users\";\n@use \"styles/opencode\";\n@use \"styles/files\";\n@use \"styles/git\";\n@use \"styles/variables\" as *;",
-  "newString": "@use \"styles/users\";\n@use \"styles/opencode\";\n@use \"styles/files\";\n@use \"styles/git\";\n@use \"styles/todos\";\n@use \"styles/variables\" as *;"
-}
-
-For bash, show command and title in title
-Example:
-{
-  "command": "main/run mergescratch",
-  "workdir": "/Users/jesvin/dev/ourinstant"
-}
-
-Have a max height with overflow for both. Scroll to bottom when content is being appended.
-
-------------
 When agent is cut off, download latest message.
 
 Run opencode under async worker?

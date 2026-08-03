@@ -26,12 +26,6 @@ useScrollBottom(body, () => props.block.output)
         block.status
       }}</span>
     </div>
-    <p
-      v-if="command && block.title && block.title !== command"
-      class="text-muted small"
-    >
-      {{ block.title }}
-    </p>
     <pre v-if="block.output" ref="body" class="opencode-tool-body">{{
       block.output
     }}</pre>

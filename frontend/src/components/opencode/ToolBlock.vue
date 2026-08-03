@@ -3,6 +3,7 @@ import { computed } from "vue"
 import type { ToolBlock } from "../../pages/opencode/types"
 import WriteBlock from "./WriteBlock.vue"
 import BashBlock from "./BashBlock.vue"
+import ReadBlock from "./ReadBlock.vue"
 
 // Thin dispatcher: branches on the tool name and delegates to a focused child.
 // The page stays a flat <ToolBlock :block="b" />; each tool gets its own
@@ -23,6 +24,7 @@ const inputText = computed(() => {
     :block="block"
   />
   <BashBlock v-else-if="block.tool === 'bash'" :block="block" />
+  <ReadBlock v-else-if="block.tool === 'read'" :block="block" />
   <div v-else class="opencode-tool">
     <div class="opencode-tool-head">
       <span class="opencode-tool-name">{{ block.title || block.tool }}</span>

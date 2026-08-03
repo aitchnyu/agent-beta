@@ -42,10 +42,9 @@ window.addEventListener(
 // (one entry, no per-page chunks). Pages must NOT do a dynamic import() in
 // onMounted — that makes Inertia v2 silently roll the navigation back. (Heavy
 // page deps, e.g. GitDiff's highlight.js, are imported at module load.)
-const pages = import.meta.glob(
-  ["./pages/**/*.vue", "./ours/pages/**/*.vue"],
-  { eager: true },
-) as Record<string, { default: DefineComponent }>
+const pages = import.meta.glob(["./pages/**/*.vue", "./ours/pages/**/*.vue"], {
+  eager: true,
+}) as Record<string, { default: DefineComponent }>
 
 createInertiaApp({
   title: (title) => `Instant - ${title}`,

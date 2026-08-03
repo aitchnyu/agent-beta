@@ -2,6 +2,7 @@
 import { computed } from "vue"
 import type { ToolBlock } from "../../pages/opencode/types"
 import DiffBody from "./DiffBody.vue"
+import ToolBody from "./ToolBody.vue"
 
 // A write (full-file `content`) renders as plain text; an edit
 // (`oldString`/`newString`) renders as a unified diff. The filePath leads the
@@ -27,14 +28,13 @@ const label = computed(() => (isEdit.value ? "Edit" : "Write"))
 <template>
   <div class="opencode-tool">
     <div class="opencode-tool-head">
-      <span class="opencode-tool-name">{{ label }}: {{ filePath }}</span>
+      <span class="opencode-tool-name">{{ label }}</span>
+      <span class="opencode-tool-path" :title="filePath">{{ filePath }}</span>
       <span v-if="block.status" class="opencode-tool-status">{{
         block.status
       }}</span>
     </div>
-    <pre v-if="!isEdit" class="opencode-tool-body">{{
-      input.content ?? ""
-    }}</pre>
+    <ToolBody v-if="!isEdit" :text="input.content ?? ''" />
     <DiffBody
       v-else
       :old="input.oldString ?? ''"
