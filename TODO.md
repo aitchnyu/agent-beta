@@ -1,15 +1,13 @@
+Page title for apps - as component
+Rename copy to scratch
+
 Base model - just created and updated 
 Just log stuff. .save_with_logs(user, updated=True) and .delete_with_logs
 How to test it?
-Test git and file manager too without mocks
+Test file manager without mocks
 Avoid some linting errors
 
-Split models and views as separate files. Same for tests.
-Git page for copy
-
 Inertia 3 - https://github.com/inertiajs/inertia-django/issues/99
-
-Page title for apps - as component
 
 Have better error messages for /opencode
 NinjaAPI consistency - like error handlers etc
@@ -22,6 +20,7 @@ docs/ for llm. Have feature catalog.
 Models and views are multi-file modules.
 ours/ in frontend - even for utils, configure vite
 checkall vs checkcopy - run if anything outside of ours/ and ourapp/ is changed
+Split models and views as separate files. Same for tests.
 
 Generate multiline, render as multiline:
 ./run python -c "import inspect; from inertia import InertiaResponse; print(inspect.signature(InertiaResponse))"
@@ -50,6 +49,7 @@ Browser notification/email to send to user
 Which ones to mute?
 
 ## Cron and huey
+Require redis
 Huey based background and scheduled tasks?
 Decorator for tasks
 Screen mux for dev
@@ -63,6 +63,8 @@ Specific tool calls
 
 Poorly typed stuff in opencode.py - `def _is_idle(event: dict[str, Any]) -> bool:`
 
+Add type stubs for GitPython — `import git` has no py.typed, so git_data.py uses `Any`/`# noqa: ANN401`
+
 logger = logging.getLogger(__name__) - agent added
 
 ## Deployment
@@ -71,7 +73,7 @@ Opencode as service
 Whitelist of services
 Serve files in fs, accelerate using Caddy
 Who is committing to git
-Require rsync
+Require rsync, redis
 Backup regularly - https://www.pghardstorage.org/examples
 Whitelist services for outbound connections
 

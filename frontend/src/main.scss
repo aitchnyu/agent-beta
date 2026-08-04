@@ -18,7 +18,11 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
   margin-bottom: 0.5rem;
+  background-color: $gray-100;
+  border: $border-light;
+  border-radius: $radius-md;
 }
 
 .home-container {
@@ -85,4 +89,12 @@ body {
   margin-left: 0.3em;
   font-size: 0.8em;
   color: $gray-400;
+}
+
+// /git uncommitted list: the U/M/A/D status letter left of each filename.
+.git-letter {
+  display: inline-block;
+  width: 1.25em;
+  margin-right: 0.5rem;
+  font-weight: 600;
 }

@@ -35,8 +35,8 @@ You never edit `main/` directly. For every change:
 1. **Start fresh:** `main/run createscratch` — copies `main/` (minus `.git`,
    `node_modules`, `.venv`, caches, build output) into a fresh `copy/`,
    bootstraps its own env (`uv sync` + `npm install`), and `git init`s it so you
-   can see your changes via `/git`. An existing `copy/` is wiped, so each feature
-   starts clean.
+   can see your changes via `/git/uncommitted/`. An existing `copy/` is
+   wiped, so each feature starts clean.
 2. **Edit `copy/`** — all of it is yours to change.
 3. **Verify:** `( cd copy && ./run checkcopy )` — ruff + mypy + **ourapp's own
    tests** + frontend lint/type-check/build. This is the fast loop: it does NOT
@@ -57,9 +57,10 @@ You never edit `main/` directly. For every change:
 
 `copy/` is disposable — re-running `createscratch` wipes it. `createscratch` also
 `git init`s `copy/` with a baseline commit (no shared history with `main/`), so
-review your in-progress edits with `cd copy && git diff`. The `/git` web viewer
-reflects `main/` (the dev server runs there), so your `copy/` edits show up there
-only after `mergescratch` deploys them to `main/`.
+review your in-progress edits with `cd copy && git diff` or the web viewer at
+`/git/uncommitted/` (one page: `main/`'s pending files, then `copy/`'s — your
+`copy/` edits show **live**, no deploy needed). They reach `main/`'s commit views only after
+`mergescratch` deploys them.
 
 ## User communication
 
@@ -101,18 +102,21 @@ use `/files-raw/<path>` (real Content-Type, for `<img>`); for a download use
 superuser-only.
 
 ### Linking to git
-To back a claim with evidence, link the most specific git view (superuser-only,
-over `main/`'s repo — the repo the dev server runs in):
-- uncommitted files: `/git`
-- a file's uncommitted diff: `/git/uncommitted/<path>`
-- commit list: `/git/commits` (paginated, `?page=N`)
-- a commit's changed files: `/git/commits/<sha>`
-- a file's diff in a commit: `/git/commits/<sha>/<path>`
+Superuser-only; link the most specific view to back a claim with evidence. URL patterns:
+- `/git/uncommitted/` — uncommitted files for both worktrees (main, then copy)
+- `/git/uncommitted/main/<path>` — a `main` file's uncommitted diff
+- `/git/uncommitted/copy/<path>` — a `copy` file's uncommitted diff
+- `/git/commits` — commit list, paginated (`?page=N`); `main` only
+- `/git/commits/<sha>` — a commit's changed files; `main` only
+- `/git/commits/<sha>/<path>` — a file's diff in a commit; `main` only
 
-Prefer the most specific link (a diff over a bare file link, a commit link over
-the list). `/git` shows `main/`'s commits and uncommitted changes — not your
-`copy/` edits (review those with `cd copy && git diff`); they appear in `/git`
-only after `mergescratch` deploys them to `main/`.
+`<path>` is repo-relative; `<sha>` is a full or short (≥4 hex) commit id. Prefer
+the most specific link (a diff over the list, a commit link over the list).
+`/git/uncommitted/` shows both worktrees' pending files on one page (`copy/`'s
+edits are visible live, no `mergescratch` needed). Commits read `main` only —
+`copy/`'s own history is just its throwaway baseline, so link `copy/` edits via
+`/git/uncommitted/copy/<path>`; they reach `main/`'s commit views only after
+`mergescratch` deploys them.
 
 ### Completion
 A step isn't done until the **network request succeeds** — the actual call runs

@@ -26,9 +26,14 @@ urlpatterns = [
     re_path(r"^files-raw/(?P<rel>.*)$", file_raw, name="files-raw"),
     re_path(r"^files-download/(?P<rel>.*)$", file_download, name="files-download"),
     re_path(r"^files(?:/(?P<rel>.*))?$", file_browser, name="files"),
-    # Superuser-only git viewer over the project repo:
-    #  commit_id is a hex sha, rel is repo-relative paths.
-    re_path(r"^git$", git_uncommitted_list, name="git-uncommitted"),
+    # Superuser-only git viewer over the project worktrees:
+    re_path(r"^git/uncommitted/?$", git_uncommitted_list, name="git-uncommitted"),
+    re_path(
+        r"^git/uncommitted/(?P<worktree>[A-Za-z0-9_-]+)/(?P<rel>.+)$",
+        git_uncommitted_diff,
+        name="git-uncommitted-diff",
+    ),
+    # commit_id is a hex sha, rel is repo-relative paths (commits read main only).
     re_path(r"^git/commits$", git_commit_list, name="git-commits"),
     re_path(
         r"^git/commits/(?P<commit_id>[0-9a-fA-F]{4,40})$",
@@ -40,7 +45,6 @@ urlpatterns = [
         git_commit_file_diff,
         name="git-commit-file-diff",
     ),
-    re_path(r"^git/uncommitted/(?P<rel>.*)$", git_uncommitted_diff, name="git-uncommitted-diff"),
     # The user app's regular Django views, included LAST
     path("", include("ourapp.urls")),
 ]

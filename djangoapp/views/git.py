@@ -1,13 +1,17 @@
-"""Superuser-only read-only git viewer at ``/git/...`` over the project repo.
+"""Superuser-only read-only git viewer at ``/git/...`` over the project worktrees.
 
-Mirrors ``/files``: superuser-only (404 otherwise), path-confined to the repo
-root. Reads via :mod:`djangoapp.views.git_data` (GitPython); tests patch those
-functions. Routes in :mod:`djangoapp.urls`.
+Mirrors ``/files``: superuser-only (404 otherwise), path-confined to the
+worktree root. Reads via :mod:`djangoapp.views.git_data` (GitPython); tests
+patch the repo root. The uncommitted *list* (``/git/uncommitted/``) shows every
+worktree's pending files together (main, then copy); an uncommitted *diff*
+takes a ``worktree`` segment (``main``/``copy``). Commit views read ``main``
+only. Routes in :mod:`djangoapp.urls`.
 """
 
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
 
 from django.http import Http404, HttpRequest, HttpResponseBase
 from inertia import InertiaResponse
@@ -15,18 +19,33 @@ from pydantic import BaseModel
 
 from djangoapp.views import git_data, require_superuser
 
+if TYPE_CHECKING:
+    from pathlib import Path
+
 # Commit ids are full-or-short hex shas (4..40 chars); validated before use.
 _HEX_RE = re.compile(r"^[0-9a-f]{4,40}$", re.IGNORECASE)
 
+# Worktree names the uncommitted routes accept (the <worktree> URL segment).
+# "main" = the dev-server repo (BASE_DIR); "copy" = the scratch sibling
+# `./run createscratch` builds. git_data.worktree_root() resolves each to its
+# on-disk repo; unknown names → 404 (see _worktree_or_404).
+WORKTREES = ("main", "copy")
 
-def _confined_to_repo(rel: str) -> str:
-    """Return ``rel`` normalized if it stays inside the repo root, else raise Http404.
+
+def _worktree_or_404(worktree: str) -> str:
+    """Return ``worktree`` if it's one the viewer knows, else raise Http404."""
+    if worktree not in WORKTREES:
+        raise Http404
+    return worktree
+
+
+def _confined_to_repo(rel: str, root: Path) -> str:
+    """Return ``rel`` normalized if it stays inside ``root``, else raise Http404.
 
     Unlike :class:`PathWrapper`, existence is *not* required — a diff path may be
     a deleted/added file, so only the escape check (resolve + ``is_relative_to``)
     runs.
     """
-    root = git_data._REPO_ROOT.resolve()  # noqa: SLF001 # shared repo-root constant
     normalized = (rel or "").strip().lstrip("/")  # git paths are posix, repo-relative
     resolved = (root / normalized).resolve()
     if resolved != root and not resolved.is_relative_to(root):
@@ -35,7 +54,8 @@ def _confined_to_repo(rel: str) -> str:
 
 
 class GitUncommittedProps(BaseModel):
-    files: list[git_data.UncommittedFile]
+    main_files: list[git_data.UncommittedFile]
+    copy_files: list[git_data.UncommittedFile] | None  # None when copy/ isn't on disk yet
 
 
 class GitDiffProps(BaseModel):
@@ -63,9 +83,16 @@ def _parse_page(request: HttpRequest) -> int:
 
 
 def git_uncommitted_list(request: HttpRequest) -> HttpResponseBase:
-    """``GET /git`` — uncommitted files in the repo."""
+    """``GET /git/uncommitted/`` — uncommitted files for ``main`` and ``copy``.
+
+    ``main`` always exists; ``copy`` is ``None`` when its repo isn't on disk yet
+    (no ``createscratch``), so the page omits that section rather than 404-ing.
+    """
     require_superuser(request)
-    props = GitUncommittedProps(files=git_data.uncommitted())
+    props = GitUncommittedProps(
+        main_files=git_data.uncommitted("main"),
+        copy_files=git_data.uncommitted("copy") if git_data.worktree_exists("copy") else None,
+    )
     return InertiaResponse(
         request,
         "GitUncommitted",
@@ -73,14 +100,18 @@ def git_uncommitted_list(request: HttpRequest) -> HttpResponseBase:
     )
 
 
-def git_uncommitted_diff(request: HttpRequest, rel: str) -> HttpResponseBase:
-    """``GET /git/uncommitted/<path>`` — the unified diff of one uncommitted file."""
+def git_uncommitted_diff(request: HttpRequest, worktree: str, rel: str) -> HttpResponseBase:
+    """``GET /git/uncommitted/<worktree>/<path>`` — one uncommitted file's diff."""
     require_superuser(request)
-    path = _confined_to_repo(rel)
-    diff = git_data.diff_uncommitted(path)
+    worktree = _worktree_or_404(worktree)
+    root = git_data.worktree_root(worktree)
+    if not root.is_dir():
+        raise Http404  # worktree repo missing (e.g. no copy/ yet)
+    path = _confined_to_repo(rel, root)
+    diff = git_data.diff_uncommitted(path, worktree)
     if diff is None:
         raise Http404
-    props = GitDiffProps(title=f"Uncommitted: {path}", diff=diff)
+    props = GitDiffProps(title=f"Uncommitted ({worktree}): {path}", diff=diff)
     return InertiaResponse(
         request,
         "GitDiff",
@@ -117,7 +148,7 @@ def git_commit_file_diff(request: HttpRequest, commit_id: str, rel: str) -> Http
     """``GET /git/commits/<commit_id>/<path>`` — a file's diff in a commit."""
     require_superuser(request)
     _commit_or_404(commit_id)  # validate + 404 on unknown commit
-    path = _confined_to_repo(rel)
+    path = _confined_to_repo(rel, git_data.worktree_root("main"))
     diff = git_data.diff_commit(commit_id, path)
     if diff is None:
         raise Http404

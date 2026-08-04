@@ -18,43 +18,21 @@ const csrfToken = computed(() => getCsrfToken())
 <template>
   <div>
     <div class="layout-navbar">
-      <Link
-        v-if="isSuperuser"
-        class="btn btn-outline-secondary btn-sm"
-        href="/agent/"
-      >
-        Agent
-      </Link>
-      <Link
-        v-if="isSuperuser"
-        class="btn btn-outline-secondary btn-sm"
-        href="/manage/models"
-      >
+      <Link v-if="isSuperuser" class="nav-link" href="/agent/"> Agent </Link>
+      <Link v-if="isSuperuser" class="nav-link" href="/manage/models">
         Models
       </Link>
-      <Link
-        v-if="isSuperuser"
-        class="btn btn-outline-secondary btn-sm"
-        :href="fileUrl('main/ourapp')"
-      >
+      <Link v-if="isSuperuser" class="nav-link" :href="fileUrl('main/ourapp')">
         Files
       </Link>
-      <Link
-        v-if="isSuperuser"
-        class="btn btn-outline-secondary btn-sm"
-        href="/git"
-      >
+      <Link v-if="isSuperuser" class="nav-link" href="/git/uncommitted/">
         Git
       </Link>
-      <Link
-        v-if="isSuperuser"
-        class="btn btn-outline-secondary btn-sm"
-        href="/users/list"
-      >
+      <Link v-if="isSuperuser" class="nav-link" href="/users/list">
         Users
       </Link>
       <template v-if="user">
-        <span class="layout-user">
+        <span class="layout-user ms-auto">
           Hello,
           <Link :href="`/users/id/${user.public_id}`">{{ user.title }}</Link
           >!
@@ -72,7 +50,7 @@ const csrfToken = computed(() => getCsrfToken())
       </template>
       <a
         v-else
-        class="btn btn-sm btn-outline-primary"
+        class="btn btn-sm btn-outline-primary ms-auto"
         href="/accounts/google/login/"
       >
         Login with Google

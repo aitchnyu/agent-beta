@@ -381,7 +381,8 @@ export const GitDiffPropsSchema = z.object({
 })
 
 export const GitUncommittedPropsSchema = z.object({
-  files: z.array(GitUncommittedFileSchema),
+  main_files: z.array(GitUncommittedFileSchema),
+  copy_files: z.array(GitUncommittedFileSchema).nullable(),
 })
 
 export const GitCommitListPropsSchema = z.object({

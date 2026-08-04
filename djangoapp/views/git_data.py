@@ -1,9 +1,10 @@
 """Data contract + GitPython-backed read functions for the ``/git`` viewer.
 
 The ``/git`` views (:mod:`djangoapp.views.git`) call these module-level
-functions. They read the project repo (the single git repo at ``BASE_DIR``) via
-the module-level ``_REPO_ROOT``, so the viewer shows the repo's own commits,
-uncommitted files, and diffs.
+functions. They read a named **worktree** — ``main`` (the repo at ``BASE_DIR``,
+which the dev server runs in) or ``copy`` (the throwaway scratch sibling that
+``./run createscratch`` builds) — so the viewer can show pending files in both
+places. Commits/commit diffs read ``main`` only (``copy`` has no shared history).
 """
 
 from __future__ import annotations
@@ -13,7 +14,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 from django.conf import settings
-from django.http import Http404
 from pydantic import BaseModel
 
 if TYPE_CHECKING:
@@ -60,14 +60,38 @@ class GitPagination(BaseModel):
     total_count: int
 
 
-def _repo() -> Any:  # noqa: ANN401 -- git.Repo has no first-class stub; Any is the honest type
+def worktree_root(name: str) -> Path:
+    """Root of a named worktree — ``main`` → ``_REPO_ROOT``, ``copy`` → its sibling.
+
+    ``copy`` lives at ``<parent>/copy`` (same layout ``./run createscratch``
+    uses), so it resolves from ``_REPO_ROOT``'s parent. The view validates
+    ``name`` against the URL-accepted set (git.py's ``WORKTREES``) first; an
+    unknown name here raises ``ValueError`` as a backstop.
+    """
+    root = _REPO_ROOT.resolve()
+    if name == "main":
+        return root
+    if name == "copy":
+        return root.parent / "copy"
+    msg = f"unknown worktree: {name}"
+    raise ValueError(msg)
+
+
+def worktree_exists(name: str) -> bool:
+    """Return whether the named worktree's repo is on disk.
+
+    E.g. ``copy/`` only after ``createscratch``. Views check this before reading,
+    so ``_repo``/``uncommitted`` follow the happy path (no missing-repo handling).
+    """
+    return worktree_root(name).is_dir()
+
+
+def _repo(name: str = "main") -> Any:  # noqa: ANN401 -- git.Repo has no first-class stub; Any is the honest type
     import git  # noqa: PLC0415 -- lazy: only the real provider needs GitPython
 
-    try:
-        return git.Repo(str(_REPO_ROOT))
-    except (git.NoSuchPathError, git.InvalidGitRepositoryError) as exc:
-        # Missing/non-git repo → 404, not a 500 traceback.
-        raise Http404 from exc
+    # Raises git.NoSuchPathError / git.InvalidGitRepositoryError if the worktree's
+    # repo is missing — left for the caller (views map to 404, the list skips).
+    return git.Repo(str(worktree_root(name)))
 
 
 def _change_status(change_type: str) -> str:
@@ -97,9 +121,9 @@ def _commit_files(c: Any) -> list[CommitFile]:  # noqa: ANN401 -- git.Commit has
     ]
 
 
-def uncommitted() -> list[UncommittedFile]:
-    """Return working-tree files not yet committed (untracked + tracked changes)."""
-    repo = _repo()
+def uncommitted(name: str = "main") -> list[UncommittedFile]:
+    """Return a worktree's files not yet committed (untracked + tracked changes)."""
+    repo = _repo(name)
     out: list[UncommittedFile] = [
         UncommittedFile(path=p, status="untracked") for p in repo.untracked_files
     ]
@@ -143,11 +167,11 @@ def commit(commit_id: str) -> tuple[CommitSummary, list[CommitFile]] | None:
     return _commit_summary(c), _commit_files(c)
 
 
-def diff_uncommitted(path: str) -> str | None:
-    """Unified diff of an uncommitted file (None if ``path`` isn't uncommitted)."""
-    if not any(f.path == path for f in uncommitted()):
+def diff_uncommitted(path: str, name: str = "main") -> str | None:
+    """Unified diff of a worktree file (None if ``path`` isn't uncommitted)."""
+    if not any(f.path == path for f in uncommitted(name)):
         return None
-    repo = _repo()
+    repo = _repo(name)
     if path in repo.untracked_files:
         # Untracked has no HEAD entry: diff against /dev/null (rc=1 is normal → no raise).
         return cast(
