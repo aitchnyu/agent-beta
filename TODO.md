@@ -1,4 +1,5 @@
 Base model - just created and updated 
+Just log stuff. .save_with_logs(user, updated=True) and .delete_with_logs
 How to test it?
 Test git and file manager too without mocks
 Avoid some linting errors
@@ -7,8 +8,6 @@ Split models and views as separate files. Same for tests.
 Git page for copy
 
 Inertia 3 - https://github.com/inertiajs/inertia-django/issues/99
-
-os.environ.get("OPENCODE_BASE_URL", f"http://{_OPENCODE_HOST}:{_OPENCODE_PORT}")
 
 Page title for apps - as component
 
@@ -21,7 +20,6 @@ How to configure provider and model for Opencode?
 
 docs/ for llm. Have feature catalog.
 Models and views are multi-file modules.
-
 ours/ in frontend - even for utils, configure vite
 checkall vs checkcopy - run if anything outside of ours/ and ourapp/ is changed
 

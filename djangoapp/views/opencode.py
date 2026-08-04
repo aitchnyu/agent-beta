@@ -38,15 +38,10 @@ from djangoapp.views import require_superuser
 if TYPE_CHECKING:
     from collections.abc import Iterator
 
-# Same host/port the `./run opencode` launcher binds; an explicit
-# OPENCODE_BASE_URL still wins for advanced setups.
-_OPENCODE_HOST = os.environ.get("OPENCODE_HOSTNAME", "127.0.0.1")
-_OPENCODE_PORT = os.environ.get("OPENCODE_PORT", "4196")
-# HOST/PORT are read (not inlined into the default) so Django's base URL tracks
-# the daemon's bind address when OPENCODE_PORT is customised — without needing
-# a separate OPENCODE_BASE_URL. (OPENCODE_BASE_URL still overrides for setups
-# where Django and the daemon aren't on the same host:port.)
-_OPENCODE_BASE = os.environ.get("OPENCODE_BASE_URL", f"http://{_OPENCODE_HOST}:{_OPENCODE_PORT}")
+# Base URL of the opencode daemon. Default matches the address `./run opencode`
+# binds (`opencode serve --hostname 127.0.0.1 --port 4196`). Override for setups
+# where Django and the daemon aren't on the same host:port.
+_OPENCODE_BASE = os.environ.get("OPENCODE_BASE_URL", "http://127.0.0.1:4196")
 _OPENCODE_TIMEOUT = 30.0
 # Wall-clock cap on agent compute within one turn. Measures time *between*
 # human touchpoints (a permission asked/replied resets it — see _HUMAN_TOUCHPOINTS),

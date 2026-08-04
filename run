@@ -47,10 +47,14 @@ runserver() {
 opencode() {
   # Bind address for the daemon. 4196, not opencode's default 4096: 4096
   # collides with the Kilo extension's random `kilo serve` server in this
-  # session. Override via OPENCODE_* env vars. No `setenv` here: this command
-  # only spawns the daemon, no Python/.env needed.
-  local hostname="${OPENCODE_HOSTNAME:-127.0.0.1}"
-  local port="${OPENCODE_PORT:-4196}"
+  # session. A single knob — OPENCODE_BASE_URL (default below) — drives both
+  # this launcher and Django's /api/opencode/* proxy (djangoapp/views/
+  # opencode.py)
+  local base_url="${OPENCODE_BASE_URL:-http://127.0.0.1:4196}"
+  local stripped="${base_url#http://}"; stripped="${stripped#https://}"
+  stripped="${stripped%%/*}"
+  local hostname="${stripped%%:*}"
+  local port="${stripped##*:}"
   # Resolve paths from this script's location (the repo root = main/), not $PWD,
   # so `./run opencode` works no matter which directory it's invoked from.
   local repo_root
@@ -160,7 +164,7 @@ opencode() {
   #     opencode's bind-time failure (which can leave a half-started process).
   #     `lsof` is present on macOS.
   if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
-    echo "Refusing to start: port $port is already in use (set OPENCODE_PORT to override)." >&2
+    echo "Refusing to start: port $port is already in use (change OPENCODE_BASE_URL to override)." >&2
     return 1
   fi
 
