@@ -2,9 +2,10 @@
 
 The ``/git`` views (:mod:`djangoapp.views.git`) call these module-level
 functions. They read a named **worktree** — ``main`` (the repo at ``BASE_DIR``,
-which the dev server runs in) or ``copy`` (the throwaway scratch sibling that
+which the dev server runs in) or ``scratch`` (the throwaway scratch sibling that
 ``./run createscratch`` builds) — so the viewer can show pending files in both
-places. Commits/commit diffs read ``main`` only (``copy`` has no shared history).
+places. Commits/commit diffs read ``main`` only (``scratch`` has no shared
+history).
 """
 
 from __future__ import annotations
@@ -61,9 +62,9 @@ class GitPagination(BaseModel):
 
 
 def worktree_root(name: str) -> Path:
-    """Root of a named worktree — ``main`` → ``_REPO_ROOT``, ``copy`` → its sibling.
+    """Root of a named worktree — ``main`` → ``_REPO_ROOT``, ``scratch`` → its sibling.
 
-    ``copy`` lives at ``<parent>/copy`` (same layout ``./run createscratch``
+    ``scratch`` lives at ``<parent>/scratch`` (same layout ``./run createscratch``
     uses), so it resolves from ``_REPO_ROOT``'s parent. The view validates
     ``name`` against the URL-accepted set (git.py's ``WORKTREES``) first; an
     unknown name here raises ``ValueError`` as a backstop.
@@ -71,8 +72,8 @@ def worktree_root(name: str) -> Path:
     root = _REPO_ROOT.resolve()
     if name == "main":
         return root
-    if name == "copy":
-        return root.parent / "copy"
+    if name == "scratch":
+        return root.parent / "scratch"
     msg = f"unknown worktree: {name}"
     raise ValueError(msg)
 
@@ -80,7 +81,7 @@ def worktree_root(name: str) -> Path:
 def worktree_exists(name: str) -> bool:
     """Return whether the named worktree's repo is on disk.
 
-    E.g. ``copy/`` only after ``createscratch``. Views check this before reading,
+    E.g. ``scratch/`` only after ``createscratch``. Views check this before reading,
     so ``_repo``/``uncommitted`` follow the happy path (no missing-repo handling).
     """
     return worktree_root(name).is_dir()
@@ -162,7 +163,7 @@ def commit(commit_id: str) -> tuple[CommitSummary, list[CommitFile]] | None:
     repo = _repo()
     try:
         c = repo.commit(commit_id)
-    except git.BadName, git.BadObject, git.GitCommandError, ValueError:
+    except (git.BadName, git.BadObject, git.GitCommandError, ValueError):
         return None
     return _commit_summary(c), _commit_files(c)
 
@@ -197,7 +198,7 @@ def diff_commit(commit_id: str, path: str) -> str | None:
     repo = _repo()
     try:
         c = repo.commit(commit_id)
-    except git.BadName, git.BadObject, git.GitCommandError, ValueError:
+    except (git.BadName, git.BadObject, git.GitCommandError, ValueError):
         return None
     if not any(f.path == path for f in _commit_files(c)):
         return None

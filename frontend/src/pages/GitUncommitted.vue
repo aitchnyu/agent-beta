@@ -34,12 +34,13 @@ import { GitUncommittedPropsSchema } from "../schemas"
 const props = defineProps<{ props: object }>()
 const data = GitUncommittedPropsSchema.parse(props.props)
 
-// main is mandatory; copy is optional (null when copy/ isn't on disk yet).
+// main is mandatory; scratch is optional (null when scratch/ isn't on disk yet).
 const sections = computed(() => {
   const list: { name: string; files: typeof data.main_files }[] = [
     { name: "main", files: data.main_files },
   ]
-  if (data.copy_files) list.push({ name: "copy", files: data.copy_files })
+  if (data.scratch_files)
+    list.push({ name: "scratch", files: data.scratch_files })
   return list
 })
 

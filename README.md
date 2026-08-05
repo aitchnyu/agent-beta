@@ -64,16 +64,16 @@ browseable rows. A foreign-key cell links to the referenced row via that row's
 
 ## Edit → test → deploy workflow
 
-The repo is `main/` (with `.git`); `copy/` is a throwaway sibling under the same
+The repo is `main/` (with `.git`); `scratch/` is a throwaway sibling under the same
 parent. For every change:
 
 1. `main/run createscratch` — copy `main/` (minus `.git`/`node_modules`/`.venv`/caches)
-   into a fresh `copy/`, bootstrap its own env (`uv sync` + `npm install`), and
+   into a fresh `scratch/`, bootstrap its own env (`uv sync` + `npm install`), and
    `git init` it.
-2. Edit `copy/`.
-3. `( cd copy && ./run checkall )` — ruff + mypy + tests + frontend lint/type-check
+2. Edit `scratch/`.
+3. `( cd scratch && ./run checkall )` — ruff + mypy + tests + frontend lint/type-check
    + Playwright. Must finish green.
-4. `main/run mergescratch` — deploy `copy/` into `main/` (never overwriting
+4. `main/run mergescratch` — deploy `scratch/` into `main/` (never overwriting
    `main/.env`). This does **not** commit.
 
 In dev the server auto-reloads `main/` after a deploy, so the user sees the

@@ -65,14 +65,14 @@ opencode() {
 
   # opencode scopes its workspace to the nearest enclosing git worktree, so run
   # the daemon from the PARENT of repo_root (the dir holding both main/ and
-  # copy/). copy/ is a sibling of main/: when the daemon ran from main/ (its git
-  # worktree), every read/edit of copy/ tripped `external_directory` and the
-  # relative `edit copy/**` rule never matched (copy/ was outside the worktree).
-  # From parent/ as the worktree, copy/ and main/ are both inside it — copy/**
-  # matches the allow rule, and no external_directory prompt fires. A non-git
-  # parent would fall back to opencode's global "/" project, so parent/ is made a
-  # git repo below. Paths above stay repo-root-relative (BASH_SOURCE), so the `cd`
-  # only sets the daemon's cwd; opencode.json's `instructions` path is
+  # scratch/). scratch/ is a sibling of main/: when the daemon ran from main/ (its
+  # git worktree), every read/edit of scratch/ tripped `external_directory` and
+  # the relative `edit scratch/**` rule never matched (scratch/ was outside the
+  # worktree). From parent/ as the worktree, scratch/ and main/ are both inside it
+  # — scratch/** matches the allow rule, and no external_directory prompt fires. A
+  # non-git parent would fall back to opencode's global "/" project, so parent/ is
+  # made a git repo below. Paths above stay repo-root-relative (BASH_SOURCE), so
+  # the `cd` only sets the daemon's cwd; opencode.json's `instructions` path is
   # parent-relative ("main/agentconfig/steer.md") to match.
   local parent_dir
   parent_dir="$(dirname "$repo_root")"
@@ -219,13 +219,13 @@ checkall() {
   playwrighttest
 }
 
-# The copy/ fast loop: validate the agent's ourapp/ edits without re-running the
+# The scratch/ fast loop: validate the agent's ourapp/ edits without re-running the
 # unchanged framework suite or the slow browser pass. ruff + mypy (whole codebase
 # — the agent's Python must pass), ourapp's OWN tests only (not djangoapp/tests/,
 # which is identical to main/), and the frontend lint/typecheck/build (the build
 # confirms the agent's frontend compiles; the browser pass is skipped). The full
 # backend suite + Playwright stay in checkall, run in main/.
-checkcopy() {
+checkscratch() {
   setenv
   echo "Running ruff for formatting problems"
   uv run ruff check
@@ -251,15 +251,16 @@ lintfix() {
   npm run lint:fix
 }
 
-# Shared rsync exclude list for createscratch/mergescratch: skip git, the copy
-# itself, virtualenvs, build-tool output (dist/build), caches, and machine-local
-# state. NOTE: djangoapp/static/ (the built frontend bundle) is intentionally NOT
-# excluded — it's gitignored, and deploying it carries the agent's fresh build
-# from copy/ to main/ so the live server isn't left on a stale bundle. ``.env`` is
-# copied INTO copy/ (same machine, same DB) but never synced BACK to main/.
-_COPY_EXCLUDES=(
+# Shared rsync exclude list for createscratch/mergescratch: skip git, the scratch
+# tree itself, virtualenvs, build-tool output (dist/build), caches, and
+# machine-local state. NOTE: djangoapp/static/ (the built frontend bundle) is
+# intentionally NOT excluded — it's gitignored, and deploying it carries the
+# agent's fresh build from scratch/ to main/ so the live server isn't left on a
+# stale bundle. ``.env`` is copied INTO scratch/ (same machine, same DB) but
+# never synced BACK to main/.
+_SCRATCH_EXCLUDES=(
   --exclude='.git/'
-  --exclude='copy/'
+  --exclude='scratch/'
   --exclude='node_modules/'
   --exclude='.venv/'
   --exclude='__pycache__/'
@@ -270,82 +271,85 @@ _COPY_EXCLUDES=(
   --exclude='.DS_Store'
 )
 
-# main/ is this script's dir; copy/ is its sibling (both under parent/). Resolved
-# once at load time so createscratch/mergescratch stay free of path boilerplate.
+# main/ is this script's dir; scratch/ is its sibling (both under parent/).
+# Resolved once at load time so createscratch/mergescratch stay free of path
+# boilerplate.
 _MAIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_COPY_DIR="$(dirname "$_MAIN_DIR")/copy"
+_SCRATCH_DIR="$(dirname "$_MAIN_DIR")/scratch"
 
-# Build a fresh copy/ from main/: rsync (shared excludes), own env, own throwaway
-# git repo with a baseline commit. Shared by createscratch and checkproject.
-_new_copy() {
-  rm -rf "$_COPY_DIR"
-  rsync -a "${_COPY_EXCLUDES[@]}" "$_MAIN_DIR/" "$_COPY_DIR/"
-  ( cd "$_COPY_DIR"
+# Build a fresh scratch/ from main/: rsync (shared excludes), own env, own
+# throwaway git repo with a baseline commit. Shared by createscratch and
+# checkproject.
+_new_scratch() {
+  rm -rf "$_SCRATCH_DIR"
+  rsync -a "${_SCRATCH_EXCLUDES[@]}" "$_MAIN_DIR/" "$_SCRATCH_DIR/"
+  ( cd "$_SCRATCH_DIR"
     uv sync
     cd frontend
     npm install
   )
-  git -C "$_COPY_DIR" init -q
-  git -C "$_COPY_DIR" config user.email "scratch@local"
-  git -C "$_COPY_DIR" config user.name "scratch"
-  git -C "$_COPY_DIR" add -A
-  git -C "$_COPY_DIR" commit -q -m "scratch baseline"
+  git -C "$_SCRATCH_DIR" init -q
+  git -C "$_SCRATCH_DIR" config user.email "scratch@local"
+  git -C "$_SCRATCH_DIR" config user.name "scratch"
+  git -C "$_SCRATCH_DIR" add -A
+  git -C "$_SCRATCH_DIR" commit -q -m "scratch baseline"
 }
 
-# Overlay an app's ourapp/ onto copy/ourapp/ (full replace).
+# Overlay an app's ourapp/ onto scratch/ourapp/ (full replace).
 _overlay_app() {
-  rsync -a --delete "$1/ourapp/" "$_COPY_DIR/ourapp/"
+  rsync -a --delete "$1/ourapp/" "$_SCRATCH_DIR/ourapp/"
 }
 
 createscratch() {
-  # Fresh copy/ of main/ (own env + git baseline) for the agent to edit + diff.
-  _new_copy
-  echo "copy/ ready at $_COPY_DIR. Edit there, then run: ( cd $_COPY_DIR && ./run checkcopy )"
+  # Fresh scratch/ of main/ (own env + git baseline) for the agent to edit + diff.
+  _new_scratch
+  echo "scratch/ ready at $_SCRATCH_DIR. Edit there, then run: ( cd $_SCRATCH_DIR && ./run checkscratch )"
 }
 
 mergescratch() {
-  # Deploy copy/ into main/ (rsync --delete; same excludes + .env so main's env
+  # Deploy scratch/ into main/ (rsync --delete; same excludes + .env so main's env
   # is never overwritten). Does NOT commit — committing is a separate step the
   # user does later. In dev, runserver auto-reloads main/ so the change is live.
-  [ -d "$_COPY_DIR" ] || { echo "Refusing: $_COPY_DIR not found. Run createscratch first." >&2; return 1; }
-  echo "Deploying $_COPY_DIR/ → $_MAIN_DIR/ (--delete, excluding .env + generated dirs)…"
-  rsync -a --delete "${_COPY_EXCLUDES[@]}" --exclude='.env' "$_COPY_DIR/" "$_MAIN_DIR/"
-  echo "Deployed copy/ → main/ (uncommitted). Commit in main/ when ready."
+  [ -d "$_SCRATCH_DIR" ] || { echo "Refusing: $_SCRATCH_DIR not found. Run createscratch first." >&2; return 1; }
+  echo "Deploying $_SCRATCH_DIR/ → $_MAIN_DIR/ (--delete, excluding .env + generated dirs)…"
+  rsync -a --delete "${_SCRATCH_EXCLUDES[@]}" --exclude='.env' "$_SCRATCH_DIR/" "$_MAIN_DIR/"
+  echo "Deployed scratch/ → main/ (uncommitted). Commit in main/ when ready."
 }
 
-cleancopy() {
-  # Remove copy/ outright (discard the scratch tree). Portable: uses _COPY_DIR
-  # (parent/copy), so the agent calls `main/run cleancopy` without computing an
-  # absolute path — an absolute `rm -rf /…/copy` isn't allowlisted and prompts.
-  if [ -d "$_COPY_DIR" ]; then
-    rm -rf "$_COPY_DIR"
-    echo "Removed $_COPY_DIR."
+cleanscratch() {
+  # Remove scratch/ outright (discard the scratch tree). Portable: uses
+  # _SCRATCH_DIR (parent/scratch), so the agent calls `main/run cleanscratch`
+  # without computing an absolute path — an absolute `rm -rf /…/scratch` isn't
+  # allowlisted and prompts.
+  if [ -d "$_SCRATCH_DIR" ]; then
+    rm -rf "$_SCRATCH_DIR"
+    echo "Removed $_SCRATCH_DIR."
   else
-    echo "No copy/ at $_COPY_DIR to remove."
+    echo "No scratch/ at $_SCRATCH_DIR to remove."
   fi
 }
 
 checkproject() {
   # The project tests need a real app; they self-skip unless RUN_PROJECT_TESTS is
-  # set (so checkall skips them). Relies on set -e: a failure aborts and leaves copy/ for inspection.
+  # set (so checkall skips them). Relies on set -e: a failure aborts and leaves scratch/ for inspection.
   
   echo "=== checkproject cycle 1: test app (lint + typecheck + project tests) ==="
-  _new_copy
+  _new_scratch
   _overlay_app "$_MAIN_DIR/djangoapp/tests/testapp"
-  ( cd "$_COPY_DIR"
+  ( cd "$_SCRATCH_DIR"
     ./run lintfix
     ./run typecheck
     RUN_PROJECT_TESTS=1 uv run manage.py test --exclude-tag playwright --noinput
   )
 
   echo "=== checkproject cycle 2: reference app (its own tests) ==="
-  _new_copy
+  _new_scratch
   _overlay_app "$_MAIN_DIR/docs/reference"
-  ( cd "$_COPY_DIR"
+  ( cd "$_SCRATCH_DIR"
     uv run manage.py test ourapp --noinput
   )
 
-  rm -rf "$_COPY_DIR"
+  rm -rf "$_SCRATCH_DIR"
   echo "checkproject green."
 }
 

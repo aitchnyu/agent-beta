@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from django.test import override_settings
 
 from djangoapp.models import User
-
 from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 
 if TYPE_CHECKING:

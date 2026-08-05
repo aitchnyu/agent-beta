@@ -10,13 +10,13 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
 
     No function mocks: the class mixes in ``GitRepoMixin`` (the same real repo
     fixture the views suite uses) — ``main`` (3 commits + uncommitted changes) +
-    a sibling ``copy`` (baseline commit + uncommitted changes), mirroring the
-    real ``parent/main`` + ``parent/copy`` layout, and patches
+    a sibling ``scratch`` (baseline commit + uncommitted changes), mirroring the
+    real ``parent/main`` + ``parent/scratch`` layout, and patches
     ``git_data._REPO_ROOT`` to ``main`` (the in-process live server sees the
     patch). ``tearDown`` fails on any browser console error.
 
     - test_uncommitted_renders — /git/uncommitted/ lists both worktrees' files
-      (main then copy) with U/M status letters; each file links to its worktree diff
+      (main then scratch) with U/M status letters; each file links to its worktree diff
     - test_commit_list_renders — /git/commits shows 3 subjects + a commit count
     - test_diff_highlighted — an uncommitted diff renders .hljs-add/del spans
     - test_diff_opens_via_click — a commit file-diff link clicked (Inertia swap) renders
@@ -40,21 +40,21 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         page = self.page
         page.goto(f"{self.live_server_url}/git/uncommitted/", wait_until="networkidle")
         page.get_by_role("link", name="TodoApp/app.py").wait_for(state="visible")
-        page.get_by_role("link", name="TodoApp/copy_only.py").wait_for(state="visible")
+        page.get_by_role("link", name="TodoApp/scratch_only.py").wait_for(state="visible")
         body = page.inner_text("body")
-        # main then copy, shown together on one page.
+        # main then scratch, shown together on one page.
         self.assertIn("TodoApp/app.py", body)
         self.assertIn("TodoApp/notes.md", body)
-        self.assertIn("TodoApp/copy_only.py", body)
-        self.assertIn("TodoApp/copy_notes.md", body)
+        self.assertIn("TodoApp/scratch_only.py", body)
+        self.assertIn("TodoApp/scratch_notes.md", body)
         # File (diff) links keep the worktree in the path.
         self.assertEqual(
             page.get_by_role("link", name="TodoApp/app.py").get_attribute("href"),
             "/git/uncommitted/main/TodoApp/app.py",
         )
         self.assertEqual(
-            page.get_by_role("link", name="TodoApp/copy_only.py").get_attribute("href"),
-            "/git/uncommitted/copy/TodoApp/copy_only.py",
+            page.get_by_role("link", name="TodoApp/scratch_only.py").get_attribute("href"),
+            "/git/uncommitted/scratch/TodoApp/scratch_only.py",
         )
         # Status letters U/M, and untracked rows greyed (2 untracked files).
         letters = page.locator(".git-letter").all_inner_texts()

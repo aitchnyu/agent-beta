@@ -31,7 +31,7 @@ dev = [
 exclude-newer = "7 days"
 
 [tool.ruff]
-# Explicit (not .gitignore-based) so the same config works in a gitless copy/
+# Explicit (not .gitignore-based) so the same config works in a gitless scratch/
 # (see ./run createscratch) as in main/ — node_modules/.venv/build output are not source.
 exclude = [
   ".venv",

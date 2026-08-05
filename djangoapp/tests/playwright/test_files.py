@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from djangoapp.models import User
-
 from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 
 # Stable files under main/ourapp/ (tracked) used as browse/preview targets.

@@ -81,7 +81,7 @@ Public ids only in both kinds (never the integer `pk`).
 
 ## Workflow
 
-Edit in `copy/`, then `./run checkall`; on approval, `main/run mergescratch`
+Edit in `scratch/`, then `./run checkall`; on approval, `main/run mergescratch`
 (deploys to `main/`; commit is a separate step). See `agentconfig/steer.md`.
 
 These files are illustrative and excluded from ruff/mypy/eslint — they are not

@@ -5,9 +5,9 @@ Against throwaway temp repos. No mocks: the class mixes in ``GitRepoMixin``
 (``djangoapp/tests/_git_fixtures.py``, shared with the Playwright suite), whose
 ``setUp`` builds a known git history (3 commits incl. a root commit and a
 deletion, plus uncommitted changes) in a ``main`` worktree and a baseline +
-uncommitted changes in a sibling ``copy`` worktree, and patches the repo root to
-``main``. Each test hits the view via ``self.client`` and asserts the Inertia
-props / 404.
+uncommitted changes in a sibling ``scratch`` worktree, and patches the repo
+root to ``main``. Each test hits the view via ``self.client`` and asserts the
+Inertia props / 404.
 """
 
 from __future__ import annotations
@@ -28,16 +28,16 @@ class GitRealTests(GitRepoMixin, InertiaTestCase):
     """``/git`` views against real temp inner repos (no mocks).
 
     ``GitRepoMixin.setUp`` (also the Playwright suite's base) builds the
-    ``parent/main`` + ``parent/copy`` fixture and its commit history — see the
+    ``parent/main`` + ``parent/scratch`` fixture and its commit history — see the
     mixin's docstring for that history; this class adds superuser auth and
     asserts the Inertia props / 404s over ``self.client``.
 
-    test_uncommitted_list — /git/uncommitted/ lists every worktree (main, copy)
+    test_uncommitted_list — /git/uncommitted/ lists every worktree (main, scratch)
     test_uncommitted_unknown_worktree — unknown worktree → 404 (list + diff)
     test_uncommitted_diff_tracked — diff of a modified file shows the new line
     test_uncommitted_diff_untracked — diff of an untracked file shows all-added
     test_uncommitted_diff_unknown — unknown path → 404
-    test_uncommitted_copy_diff — a diff resolves against the copy worktree
+    test_uncommitted_scratch_diff — a diff resolves against the scratch worktree
     test_commit_list — /git/commits lists 3 commits with pagination
     test_commit_list_fields — commit summary fields (sha, author, date type)
     test_commit_list_page_clamped — ?page=999 clamps to last page
@@ -50,11 +50,11 @@ class GitRealTests(GitRepoMixin, InertiaTestCase):
     test_commit_file_diff_deleted — diff of a deleted file shows the deletion
     test_commit_file_diff_unknown_path — unknown path → 404
     test_uncommitted_path_confinement — .. escape on the main worktree → 404
-    test_uncommitted_copy_confinement — .. escape on the copy worktree → 404
+    test_uncommitted_scratch_confinement — .. escape on the scratch worktree → 404
     test_commit_file_diff_confinement — .. escape on commit route → 404
     test_anon_404 — anonymous → 404
     test_missing_repo_diff_404 — a diff in a missing repo → 404
-    test_uncommitted_missing_copy — a missing worktree is omitted from the list
+    test_uncommitted_missing_scratch — a missing worktree is omitted from the list
     test_empty_repo_uncommitted — no HEAD → only untracked
     test_empty_repo_commits — no HEAD → empty list + zero pager
     """
@@ -67,17 +67,17 @@ class GitRealTests(GitRepoMixin, InertiaTestCase):
         self.client.force_login(self.user)
 
     def test_uncommitted_list(self) -> None:
-        """``/git/uncommitted/`` lists main's + copy's pending files."""
+        """``/git/uncommitted/`` lists main's + scratch's pending files."""
         self.client.get("/git/uncommitted/")
         self.assertComponentUsed("GitUncommitted")
         props = self.props()["props"]
         main = {f["path"]: f["status"] for f in props["main_files"]}
-        copy = {f["path"]: f["status"] for f in props["copy_files"]}
+        scratch = {f["path"]: f["status"] for f in props["scratch_files"]}
         self.assertEqual(main.get("TodoApp/app.py"), "modified")
         self.assertEqual(main.get("TodoApp/notes.md"), "untracked")
-        self.assertEqual(copy.get("TodoApp/copy_only.py"), "modified")
-        self.assertEqual(copy.get("TodoApp/copy_notes.md"), "untracked")
-        self.assertNotIn("TodoApp/app.py", copy)
+        self.assertEqual(scratch.get("TodoApp/scratch_only.py"), "modified")
+        self.assertEqual(scratch.get("TodoApp/scratch_notes.md"), "untracked")
+        self.assertNotIn("TodoApp/app.py", scratch)
 
     def test_uncommitted_unknown_worktree(self) -> None:
         """An unknown worktree name → 404 (list + diff routes)."""
@@ -111,13 +111,13 @@ class GitRealTests(GitRepoMixin, InertiaTestCase):
             HTTPStatus.NOT_FOUND,
         )
 
-    def test_uncommitted_copy_diff(self) -> None:
-        """``/git/uncommitted/copy/TodoApp/copy_only.py`` resolves against the copy repo."""
-        self.client.get("/git/uncommitted/copy/TodoApp/copy_only.py")
+    def test_uncommitted_scratch_diff(self) -> None:
+        """``/git/uncommitted/scratch/TodoApp/scratch_only.py`` serves the scratch-repo diff."""
+        self.client.get("/git/uncommitted/scratch/TodoApp/scratch_only.py")
         self.assertComponentUsed("GitDiff")
         props = self.props()["props"]
         self.assertIn("+x = 1", props["diff"])
-        self.assertEqual(props["title"], "Uncommitted (copy): TodoApp/copy_only.py")
+        self.assertEqual(props["title"], "Uncommitted (scratch): TodoApp/scratch_only.py")
 
     def test_commit_list(self) -> None:
         """``/git/commits`` lists 3 commits newest-first with pagination."""
@@ -211,10 +211,10 @@ class GitRealTests(GitRepoMixin, InertiaTestCase):
             HTTPStatus.NOT_FOUND,
         )
 
-    def test_uncommitted_copy_confinement(self) -> None:
-        """A ``..`` escape from the copy worktree root (into main/) → 404."""
+    def test_uncommitted_scratch_confinement(self) -> None:
+        """A ``..`` escape from the scratch worktree root (into main/) → 404."""
         self.assertEqual(
-            self.client.get("/git/uncommitted/copy/../main/TodoApp/app.py").status_code,
+            self.client.get("/git/uncommitted/scratch/../main/TodoApp/app.py").status_code,
             HTTPStatus.NOT_FOUND,
         )
 
@@ -245,8 +245,8 @@ class GitRealTests(GitRepoMixin, InertiaTestCase):
                 HTTPStatus.NOT_FOUND,
             )
 
-    def test_uncommitted_missing_copy(self) -> None:
-        """A missing ``copy/`` → ``copy`` is None (its section is omitted)."""
+    def test_uncommitted_missing_scratch(self) -> None:
+        """A missing ``scratch/`` → ``scratch_files`` is None (its section is omitted)."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "main"
             repo = git.Repo.init(root)
@@ -256,7 +256,7 @@ class GitRealTests(GitRepoMixin, InertiaTestCase):
             with patch("djangoapp.views.git_data._REPO_ROOT", root):
                 self.client.get("/git/uncommitted/")
             props = self.props()["props"]
-            self.assertIsNone(props["copy_files"])  # copy/ not on disk → omitted
+            self.assertIsNone(props["scratch_files"])  # scratch/ not on disk → omitted
             self.assertEqual([f["path"] for f in props["main_files"]], ["a.py"])
 
     def test_empty_repo_uncommitted(self) -> None:
@@ -268,7 +268,7 @@ class GitRealTests(GitRepoMixin, InertiaTestCase):
             with patch("djangoapp.views.git_data._REPO_ROOT", root):
                 self.client.get("/git/uncommitted/")
             props = self.props()["props"]
-            self.assertIsNone(props["copy_files"])  # no copy/ sibling
+            self.assertIsNone(props["scratch_files"])  # no scratch/ sibling
             files = props["main_files"]
             self.assertEqual([f["path"] for f in files], ["orphan.py"])
             self.assertEqual(files[0]["status"], "untracked")

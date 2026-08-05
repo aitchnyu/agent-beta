@@ -3,8 +3,8 @@
 Directories list their entries (folders first); files preview as text or render
 as images; any file can be downloaded (``/files-download/...``) or served raw
 (``/files-raw/...``, used for ``<img>``). The browse root is ``BASE_DIR.parent``
-(the folder holding both ``main/`` and ``copy/``); the "Files" nav button lands
-at ``main/ourapp/`` and you can navigate up to that parent (to browse ``copy/``)
+(the folder holding both ``main/`` and ``scratch/``); the "Files" nav button lands
+at ``main/ourapp/`` and you can navigate up to that parent (to browse ``scratch/``)
 but no further. Path traversal (``..``, absolute paths, symlink escapes) is
 confined in :class:`PathWrapper` (resolve + ``is_relative_to`` → 404).
 """

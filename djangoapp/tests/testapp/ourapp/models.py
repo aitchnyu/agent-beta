@@ -5,7 +5,7 @@ types: ``Book.author`` → ``Author`` (FK to a BaseModel → links via
 ``get_absolute_url``) and ``Book.reviewer`` → ``User`` (FK to User → links to the
 profile). Seeded by the project tests with enough rows for pagination/sort.
 
-Overlaid onto ``copy/ourapp/`` by ``checkproject``; not installed in ``main/``.
+Overlaid onto ``scratch/ourapp/`` by ``checkproject``; not installed in ``main/``.
 """
 
 from django.conf import settings

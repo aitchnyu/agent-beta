@@ -3,8 +3,8 @@
 Mirrors ``/files``: superuser-only (404 otherwise), path-confined to the
 worktree root. Reads via :mod:`djangoapp.views.git_data` (GitPython); tests
 patch the repo root. The uncommitted *list* (``/git/uncommitted/``) shows every
-worktree's pending files together (main, then copy); an uncommitted *diff*
-takes a ``worktree`` segment (``main``/``copy``). Commit views read ``main``
+worktree's pending files together (main, then scratch); an uncommitted *diff*
+takes a ``worktree`` segment (``main``/``scratch``). Commit views read ``main``
 only. Routes in :mod:`djangoapp.urls`.
 """
 
@@ -26,10 +26,10 @@ if TYPE_CHECKING:
 _HEX_RE = re.compile(r"^[0-9a-f]{4,40}$", re.IGNORECASE)
 
 # Worktree names the uncommitted routes accept (the <worktree> URL segment).
-# "main" = the dev-server repo (BASE_DIR); "copy" = the scratch sibling
+# "main" = the dev-server repo (BASE_DIR); "scratch" = the scratch sibling
 # `./run createscratch` builds. git_data.worktree_root() resolves each to its
 # on-disk repo; unknown names → 404 (see _worktree_or_404).
-WORKTREES = ("main", "copy")
+WORKTREES = ("main", "scratch")
 
 
 def _worktree_or_404(worktree: str) -> str:
@@ -55,7 +55,7 @@ def _confined_to_repo(rel: str, root: Path) -> str:
 
 class GitUncommittedProps(BaseModel):
     main_files: list[git_data.UncommittedFile]
-    copy_files: list[git_data.UncommittedFile] | None  # None when copy/ isn't on disk yet
+    scratch_files: list[git_data.UncommittedFile] | None  # None when scratch/ isn't on disk yet
 
 
 class GitDiffProps(BaseModel):
@@ -78,20 +78,23 @@ def _parse_page(request: HttpRequest) -> int:
     raw = request.GET.get("page", "1")
     try:
         return max(1, int(raw))
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return 1
 
 
 def git_uncommitted_list(request: HttpRequest) -> HttpResponseBase:
-    """``GET /git/uncommitted/`` — uncommitted files for ``main`` and ``copy``.
+    """``GET /git/uncommitted/`` — uncommitted files for ``main`` and ``scratch``.
 
-    ``main`` always exists; ``copy`` is ``None`` when its repo isn't on disk yet
-    (no ``createscratch``), so the page omits that section rather than 404-ing.
+    ``main`` always exists; ``scratch`` is ``None`` when its repo isn't on disk
+    yet (no ``createscratch``), so the page omits that section rather than
+    404-ing.
     """
     require_superuser(request)
     props = GitUncommittedProps(
         main_files=git_data.uncommitted("main"),
-        copy_files=git_data.uncommitted("copy") if git_data.worktree_exists("copy") else None,
+        scratch_files=(
+            git_data.uncommitted("scratch") if git_data.worktree_exists("scratch") else None
+        ),
     )
     return InertiaResponse(
         request,
@@ -106,7 +109,7 @@ def git_uncommitted_diff(request: HttpRequest, worktree: str, rel: str) -> HttpR
     worktree = _worktree_or_404(worktree)
     root = git_data.worktree_root(worktree)
     if not root.is_dir():
-        raise Http404  # worktree repo missing (e.g. no copy/ yet)
+        raise Http404  # worktree repo missing (e.g. no scratch/ yet)
     path = _confined_to_repo(rel, root)
     diff = git_data.diff_uncommitted(path, worktree)
     if diff is None:
