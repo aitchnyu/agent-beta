@@ -1,72 +1,52 @@
-class BaseModel(models.Model):
-    """Abstract base for the concrete models in ourapp/.
+Our app may have separate features. Lets not stuff everything into one file. 
+Models are multi file modules, we use multiple modules to separate them. 
+views are multi-file modules, use ninja to combine to a whole.
+Same for views and playwright tests
+Have README.md and docs/ in our app. README.md describes all features in brief. There are individual md files for each feature linked from README. Catalog features in each individual file.
 
-    We must intend to address rows by their public ids. Its UUID7 by default, but
-    we can use friendly names etc.
+Have a checklist in steer.md to maintain desirable structure when adding or changing feature:
+  update readme, mostly to describe feature, not internal implementation
+  add individual feature md files in docs and link from readme
+  add model module for feature
+  add view module for feature and wire all api endpoints
+  add tests for models, views, tasks, commands etc
 
-    Rows are addressed in the superuser-only models-management UI by
-    their ``_public_id``; :meth:`get_absolute_url` returns that detail URL.
-    """
+Checklist for views:
+  db things that must happen together must happen in a transaction
 
-    _public_id = models.CharField(
-        max_length=100, db_index=True, editable=False, default=generate_uuid7_id
-    )
-    _created_by = models.ForeignKey(
-        User,
-        null=True,
-        blank=True,
-        on_delete=models.RESTRICT,
-        related_name="+",
-    )
-    _created_at = models.DateTimeField(auto_now_add=True)
-    _edited_at = models.DateTimeField(auto_now=True)
+Add as checklist, we can describe them in detail under a heading or have sub checklists.
 
-    class Meta:
-        abstract = True
+Have a facts and todo feature in example app.
+Facts have 
+  - command - seed db with 20 facts each about cars, science, animals, geography
+  -
 
-    def __str__(self) -> str:
-        """Override per-model for a friendlier label."""
-        return self._public_id
+Homepage should be served by ourapp only, adjust urls.py for that.
 
-    def get_absolute_url(self) -> str:
-        """Superuser-only models-management detail URL for this row.
+-----------
 
-        Built from the concrete class name + ``_public_id``; must match the
-        route in ``djangoapp/views/manage.py``
-        (``MANAGE_MODELS_URL_PREFIX/<model>/id/<id>``).
-        """
-        return f"{MANAGE_MODELS_URL_PREFIX}/{type(self).__name__}/id/{self._public_id}"
+except git.BadName, git.BadObject, git.GitCommandError, ValueError:
 
-BaseModel will now have public_id, created_by (nullable user), created_at, last_updated_at, last_updated_by (nullable user)
+checkall vs checkscratch - run if anything outside of ours/ and ourapp/ is changed
+
 
 Page title for apps - as component
 
-Base model - just created and updated 
-Just log stuff. .save_with_logs(user, updated=True) and .delete_with_logs
-How to test it?
-Test file manager without mocks
-Avoid some linting errors
-
 Inertia 3 - https://github.com/inertiajs/inertia-django/issues/99
 
+Check the various url modules. Think of git urls not being under a ninja. Look at the error messages and how it could be confusing. Think of consistency of error handlers. Dont ask questions or write files yet.
 Have better error messages for /opencode
 NinjaAPI consistency - like error handlers etc
+Move git urls to Ninja - be consistent
 
 When agent is cut off due to redeployment, download latest message to show to user?
 
 How to configure provider and model for Opencode?
 
-docs/ for llm. Have feature catalog.
-Models and views are multi-file modules.
-ours/ in frontend - even for utils, configure vite
-checkall vs checkscratch - run if anything outside of ours/ and ourapp/ is changed
-Split models and views as separate files. Same for tests.
-
 Generate multiline, render as multiline:
 ./run python -c "import inspect; from inertia import InertiaResponse; print(inspect.signature(InertiaResponse))"
 
-Example app should be bigger
-Include logging, including storing in db
+Include logging, including storing in db in example app
 
 Run all tests in checkproject and merge coverage from both stages.
 

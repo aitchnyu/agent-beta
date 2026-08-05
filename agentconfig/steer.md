@@ -148,11 +148,27 @@ Read code in this priority order:
 
 ### Models
 Concrete models live in `ourapp/models.py`, subclassing
-`djangoapp.models.BaseModel` (which provides `_public_id`, `_created_by`,
-`_created_at`, `_edited_at` and `get_absolute_url()`). Give each a docstring —
-the superuser models-management UI at `/manage/models` lists every model here
-with its docstring and browseable rows; a foreign-key cell links to the
-referenced row via that row's `get_absolute_url()`.
+`djangoapp.models.BaseModel`. Give each a docstring — the superuser
+models-management UI at `/manage/models` lists every model here with its
+docstring and browseable rows; a foreign-key cell links to the referenced row
+via that row's `get_absolute_url()`.
+
+**Prefer `BaseModel` and its save methods.** Every concrete model subclasses
+`BaseModel`, which gives each row a URL-safe `public_id`, audit fields
+(`created_by`, `created_at`, `last_updated_at`, `last_updated_by`), and
+`get_absolute_url()`. **Persist and delete through the audit-aware methods, not
+bare `.save()`/`.delete()`**, so every change is logged to `BaseModelUpdateLog`:
+- `instance.save_with_logs(user=…)` — create or update. On create it stamps
+  `created_by`/`last_updated_by`/`last_updated_at` and writes one `created` log
+  (old values empty, new values = the full row). On update it diffs against the
+  pre-edit row and writes one `updated` log holding only the changed columns; a
+  no-op edit writes no log.
+- `instance.delete_with_logs(user=…)` — writes a `deleted` log (old/new values
+  both empty — a delete only records that the row was removed, not a snapshot)
+  then deletes; the log outlives the row.
+The actor is the request user (see `user_or_404`/`maybe_user` below). The logs
+show on the row's detail page at `/manage/models/<Model>/id/<public_id>`. Bare
+`.save()`/`.delete()` skip the audit — use them only for tests/fixtures.
 **Fat models, thin views** — put domain logic and queries on the model or its
 manager, not in views. A method is reusable, unit-testable in isolation, and
 keeps views short. Prefer a custom manager/queryset method
@@ -341,7 +357,7 @@ data-exfiltration surface:
 - Edits are scoped to `scratch/`; anything else needs approval. Don't route around
   that by writing files via shell.
 - Never send the integer `pk`/`id` to the client — only the designated public id
-  (`_public_id` / `public_id`).
+  (`public_id`).
 
 ## Authoritative docs
 For the full pattern, read `docs/reference/` (a complete copyable example),

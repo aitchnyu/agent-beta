@@ -183,11 +183,9 @@ export const RowListColumnDefSchema = z.object({
 export type RowListColumnDef = z.infer<typeof RowListColumnDefSchema>
 
 export const RowListItemSchema = z.object({
-  public_id: z.string(),
+  // null for non-BaseModel rows (no detail link).
+  public_id: z.string().nullable(),
   values: RowValuesSchema,
-  created_by: UserSchema.nullable(),
-  created_at: z.string(),
-  edited_at: z.string(),
 })
 
 export const RowListPaginationSchema = z.object({
@@ -210,14 +208,24 @@ export const ModelRowsPropsSchema = z.object({
   filters: RowListFiltersSchema,
 })
 
+// An audit-log entry (one per create/update/delete). FK values inside
+// old_values/new_values are {id, url, name}; numbers are strings; datetimes ISO.
+export const UpdateLogEntryItemSchema = z.object({
+  id: z.string(),
+  action: z.enum(["created", "updated", "deleted"]),
+  performed_by: UserSchema.nullable(),
+  performed_at: z.string(),
+  old_values: RowValuesSchema,
+  new_values: RowValuesSchema,
+})
+
+export type UpdateLogEntryItem = z.infer<typeof UpdateLogEntryItemSchema>
+
 export const RowDetailPropsSchema = z.object({
   model_name: z.string(),
   public_id: z.string(),
   columns: z.array(RowListColumnDefSchema),
   values: RowValuesSchema,
-  created_by: UserSchema.nullable(),
-  created_at: z.string(),
-  edited_at: z.string(),
 })
 
 // opencode daemon: one SSE frame re-emitted by Django from opencode's /event

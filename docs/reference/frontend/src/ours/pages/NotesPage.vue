@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { router } from "@inertiajs/vue3"
+import { Link, router } from "@inertiajs/vue3"
 // Framework layout sits at frontend/src/components/Layout.vue; from
 // src/ours/pages/ that is two levels up to src/ then into components/.
 import Layout from "../../components/Layout.vue"
@@ -28,7 +28,8 @@ function onCreated() {
       <NoteForm @created="onCreated" />
       <ul class="ours-notes-list">
         <li v-for="note in notes" :key="note.public_id">
-          <strong>{{ note.title }}</strong> — {{ note.owner_title }}
+          <Link :href="`/notes/${note.public_id}`"><strong>{{ note.title }}</strong></Link>
+          — {{ note.owner_title }}
           <p v-if="note.body">{{ noteSummary(note.body) }}</p>
         </li>
       </ul>

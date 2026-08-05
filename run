@@ -345,7 +345,13 @@ checkproject() {
   echo "=== checkproject cycle 2: reference app (its own tests) ==="
   _new_scratch
   _overlay_app "$_MAIN_DIR/docs/reference"
+  # The reference app ships its own Vue pages under
+  # docs/reference/frontend/src/ours/; overlay them into scratch/frontend/src/ours/
+  # (main.ts already globs ./ours/pages/**/*.vue) and build, so its /notes page
+  # (Inertia component "ours/NotesPage") is in the bundle the live server serves.
+  rsync -a "$_MAIN_DIR/docs/reference/frontend/src/ours/" "$_SCRATCH_DIR/frontend/src/ours/"
   ( cd "$_SCRATCH_DIR"
+    ( cd frontend && npm run build )
     uv run manage.py test ourapp --noinput
   )
 

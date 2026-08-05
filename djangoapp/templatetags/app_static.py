@@ -26,7 +26,7 @@ def with_cache_buster(url: str) -> str:
     name = url.lstrip("/")
     prefix = (settings.STATIC_URL or "").lstrip("/")
     if prefix and name.startswith(prefix):
-        name = name[len(prefix):]
+        name = name[len(prefix) :]
     path = finders.find(name)
     if path is None:
         return f"{url}?cache_buster=0"

@@ -24,7 +24,7 @@ class ManageProjectTests(InertiaTestCase):
 
     - test_model_list_lists_testapp_models, /manage/models lists Author + Book
     - test_book_list, /manage/models/Book/list columns + both FK cell kinds
-    - test_book_list_pagination_and_sort, per_page paging + created_at/edited_at sort
+    - test_book_list_pagination_and_sort, per_page paging + id/last_updated_at sort
     - test_book_detail, /manage/models/Book/id/<pid> renders RowDetail
     - test_author_list_renders, /manage/models/Author/list renders rows
     """
@@ -57,10 +57,13 @@ class ManageProjectTests(InertiaTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.client.force_login(self.superuser)
+        # self.inertia is a separate Client (X-Inertia defaults on); log it in
+        # too so partial-reload tests pass require_superuser.
+        self.inertia.force_login(self.superuser)
 
     # --- helpers -----------------------------------------------------------
-    # Both reach into private timestamp fields (auto_now/_add) that save() would
-    # overwrite, so they use queryset.update() to set them directly.
+    # created_at is auto_now_add (save() would override it), so the helpers use
+    # queryset.update() to set the timestamps directly.
 
     def _rows_props(self, model: str, query: str = "") -> dict[str, Any]:
         """GET a model's /list (+ optional query string) → parsed ModelRows props."""
@@ -71,10 +74,10 @@ class ManageProjectTests(InertiaTestCase):
         return cast("dict[str, Any]", self.props()["props"])
 
     def _stamp_book(self, book: Model, *, created_at: datetime, edited_at: datetime) -> None:
-        """Force a book's _created_at/_edited_at via update() (save() would reset them)."""
+        """Force a book's created_at/last_updated_at via update() (save() would reset them)."""
         self.Book.objects.filter(pk=book.pk).update(
-            _created_at=created_at,
-            _edited_at=edited_at,
+            created_at=created_at,
+            last_updated_at=edited_at,
         )
 
     # --- model index -------------------------------------------------------
@@ -122,8 +125,8 @@ class ManageProjectTests(InertiaTestCase):
 
         # FK→BaseModel cell: linked via get_absolute_url(), pk-free.
         author_cell = cast("dict[str, str]", row["values"]["author"])
-        self.assertEqual(author_cell["public_id"], self.author._public_id)
-        self.assertEqual(author_cell["url"], f"/manage/models/Author/id/{self.author._public_id}")
+        self.assertEqual(author_cell["public_id"], self.author.public_id)
+        self.assertEqual(author_cell["url"], f"/manage/models/Author/id/{self.author.public_id}")
         self.assertEqual(author_cell["title"], "Ada")
 
         # FK→User cell: a pk-free profile (public_id + title), no url key.
@@ -132,7 +135,7 @@ class ManageProjectTests(InertiaTestCase):
         self.assertNotIn("url", reviewer_cell)
 
     def test_book_list_pagination_and_sort(self) -> None:
-        """List supports per_page pagination + created_at/edited_at sort (Book)."""
+        """List supports per_page pagination + id/last_updated_at sort (Book)."""
         # Seed 31 books with staggered timestamps, plus the "Notes" fixture → 32
         # total. With per_page=25 and orphans=5 that's 25 on page 1, 7 on page 2
         # (7 > 5, so no merge). created_at ascends with i; edited_at descends, so
@@ -165,12 +168,12 @@ class ManageProjectTests(InertiaTestCase):
         self.assertEqual(page2["pagination"]["page"], 2)
         self.assertEqual(len(page2["rows"]), 7)
 
-        # Sort by created_at (default), newest-first: "Bulk 30" leads.
-        newest_created = self._rows_props("Book", "sort=created_at")["rows"][0]
+        # Sort by -id (default), newest-first: "Bulk 30" leads.
+        newest_created = self._rows_props("Book", "sort=-id")["rows"][0]
         self.assertEqual(newest_created["values"]["title"], "Bulk 30")
 
-        # Sort by edited_at, newest-first: reverse order, "Bulk 00" leads.
-        newest_edited = self._rows_props("Book", "sort=edited_at")["rows"][0]
+        # Sort by -last_updated_at, newest-first: reverse order, "Bulk 00" leads.
+        newest_edited = self._rows_props("Book", "sort=-last_updated_at")["rows"][0]
         self.assertEqual(newest_edited["values"]["title"], "Bulk 00")
 
     # --- detail view (Book) ------------------------------------------------
@@ -183,20 +186,53 @@ class ManageProjectTests(InertiaTestCase):
         #    "values": {"title": "Notes", "pages": 200, ...},
         #    "created_by": {"public_id": "...", "title": "admin"},
         #    "created_at": "...", "edited_at": "..."}
-        self.client.get(f"/manage/models/Book/id/{self.book._public_id}")
+        self.client.get(f"/manage/models/Book/id/{self.book.public_id}")
         self.assertComponentUsed("RowDetail")
         props = self.props()["props"]
 
-        # Every user-defined column is present, in declaration order.
+        # Builtins (public_id/created_by/created_at/last_updated_at/last_updated_by)
+        # are columns like any other, so they lead before Book's own fields.
         self.assertEqual(
             [c["name"] for c in props["columns"]],
-            ["title", "description", "pages", "published", "author", "reviewer"],
+            [
+                "public_id",
+                "created_by",
+                "created_at",
+                "last_updated_at",
+                "last_updated_by",
+                "title",
+                "description",
+                "pages",
+                "published",
+                "author",
+                "reviewer",
+            ],
         )
 
         # Values are serialised by column kind (char passes through raw).
         self.assertEqual(props["model_name"], "Book")
-        self.assertEqual(props["public_id"], self.book._public_id)
+        self.assertEqual(props["public_id"], self.book.public_id)
         self.assertEqual(props["values"]["title"], "Notes")
+
+        # Logs are a lazy Inertia prop: absent from the top-level page props on the full page load 
+        self.assertNotIn("logs", self.props())
+
+    def test_book_detail_logs_load_on_partial_reload(self) -> None:
+        """The lazy ``logs`` prop is evaluated only on a partial reload."""
+        url = f"/manage/models/Book/id/{self.book.public_id}"
+
+        # Partial reload: inertia client + only:["logs"] + matching component.
+        self.inertia.get(
+            url,
+            HTTP_X_INERTIA_PARTIAL_DATA="logs",
+            HTTP_X_INERTIA_PARTIAL_COMPONENT="RowDetail",
+        )
+        props = self.props()
+        # The callable ran (otherwise the key would be absent). The list is empty
+        # because setUpTestData seeds the book via plain objects.create() (not
+        # save_with_logs), so no BaseModelUpdateLog row exists for it.
+        self.assertIn("logs", props)
+        self.assertEqual(props["logs"], [])
 
     # --- list view (Author) ------------------------------------------------
 

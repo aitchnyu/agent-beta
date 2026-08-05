@@ -13,3 +13,12 @@ export type NoteOut = z.infer<typeof NoteSchema>
 
 // The Inertia page data is nested under `props` (page.props.props).
 export const NotesPagePropsSchema = z.object({ notes: NoteSchema.array() })
+
+// One note + how many audit-log rows it has (created + each edit).
+export const NoteDetailPagePropsSchema = z.object({
+  note: NoteSchema,
+  revisions: z.number(),
+})
+
+// The edit form is prefilled from the note.
+export const NoteEditPagePropsSchema = z.object({ note: NoteSchema })

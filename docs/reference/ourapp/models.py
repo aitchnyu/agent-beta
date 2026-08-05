@@ -1,8 +1,9 @@
 """Example models for the reference app — copy into ``ourapp/models.py``.
 
 Each concrete model subclasses ``djangoapp.models.BaseModel`` (which adds
-``_public_id``, ``_created_by``, ``_created_at``, ``_edited_at`` and
-``get_absolute_url()``). The class docstring shows up in the superuser
+``public_id``, ``created_by``, ``created_at``, ``last_updated_at``,
+``last_updated_by``, ``get_absolute_url()``, and the ``save_with_logs``/
+``delete_with_logs`` audit hooks). The class docstring shows up in the superuser
 models-management UI at ``/manage/models``; a foreign-key cell links to the
 referenced row via that row's ``get_absolute_url()``.
 

@@ -21,6 +21,7 @@ from django.core.paginator import Paginator
 from django.db import models
 from django.http import Http404, HttpRequest, HttpResponse
 from inertia import InertiaResponse
+from inertia.utils import optional
 from ninja import (
     NinjaAPI,
     Query,
@@ -29,7 +30,7 @@ from ninja import (
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Field, field_validator
 
-from djangoapp.models import BaseModel, UserProfile
+from djangoapp.models import BaseModel, BaseModelUpdateLog, user_profile
 from djangoapp.models.base import User
 from djangoapp.views import require_superuser
 
@@ -81,15 +82,15 @@ class FkValue(PydanticBaseModel):
 
 
 class RowItem(PydanticBaseModel):
-    public_id: str
-    # Cell values keyed by column name. The frontend looks up each column's
-    # kind via ``columns`` to render; ``user`` cells are a {public_id, title}
-    # profile (pk-free), ``foreign_key`` cells are an FkValue, decimal/datetime
-    # cells are strings, others are raw.
+    # The manage detail link is keyed on public_id (never the integer pk — the
+    # pk-leak rule). Non-BaseModel rows have no public id, so they get no link
+    # (None here) and the /id/<public_id> route 404s for them.
+    public_id: str | None
+    # Cell values keyed by column name (builtins + user fields treated alike).
+    # The frontend looks up each column's kind via ``columns`` to render: ``user``
+    # cells are a {public_id, title} profile (pk-free), ``foreign_key`` cells are
+    # an FkValue, decimal/datetime cells are strings, others are raw.
     values: dict[str, Any]
-    created_by: UserProfile | None
-    created_at: str
-    edited_at: str
 
 
 class RowListPagination(PydanticBaseModel):
@@ -107,8 +108,8 @@ class RowListFilters(PydanticBaseModel):
     per_page: int = 25
     page: int = Field(default=1, ge=1)
     # str (not Literal) so an unknown sort falls back to the default instead
-    # of producing a 422; the view clamps to one of _ALLOWED_SORTS.
-    sort: str = "created_at"
+    # of producing a 422; the view clamps via _resolve_sort().
+    sort: str = "-id"
 
     @field_validator("per_page", mode="after")
     @classmethod
@@ -133,29 +134,37 @@ class RowDetailProps(PydanticBaseModel):
     public_id: str
     columns: list[ColumnDef]
     values: dict[str, Any]
-    created_by: UserProfile | None
-    created_at: str
-    edited_at: str
 
 
-# Only the BaseModel built-in timestamps are sortable (newest first).
-_ALLOWED_SORTS = {"created_at", "edited_at"}
+# Sort options. id/-id work for every model; last_updated_at/-last_updated_at
+# only for BaseModel subclasses (others have no such column).
+_BASEMODEL_SORTS = {"id", "-id", "last_updated_at", "-last_updated_at"}
+_GENERIC_SORTS = {"id", "-id"}
+
+
+def _allowed_sorts(model_cls: type[models.Model]) -> set[str]:
+    return _BASEMODEL_SORTS if issubclass(model_cls, BaseModel) else _GENERIC_SORTS
+
+
+def _resolve_sort(model_cls: type[models.Model], sort: str) -> str:
+    return sort if sort in _allowed_sorts(model_cls) else "-id"
+
 
 manage_router = Router()
 
 
-def _ourapp_models() -> list[type[BaseModel]]:
-    """Concrete BaseModel subclasses declared in the ourapp app, by name.
+def _ourapp_models() -> list[type[models.Model]]:
+    """Concrete models declared in the ourapp app, by name (BaseModel or not).
 
     Uses the Django app registry (not import scanning) so only installed,
-    migrated models appear, in a stable alphabetical order.
+    migrated models appear, in a stable alphabetical order. Sort/column logic
+    branches on ``issubclass(m, BaseModel)`` per model.
     """
     cfg = apps.get_app_config("ourapp")
-    models_list = [m for m in cfg.get_models() if issubclass(m, BaseModel)]
-    return sorted(models_list, key=lambda m: m.__name__)
+    return sorted(cfg.get_models(), key=lambda m: m.__name__)
 
 
-def _model_or_404(model_name: str) -> type[BaseModel]:
+def _model_or_404(model_name: str) -> type[models.Model]:
     """Resolve a URL segment to a ourapp model class, 404 on any miss."""
     for model_cls in _ourapp_models():
         if model_cls.__name__ == model_name:
@@ -163,17 +172,18 @@ def _model_or_404(model_name: str) -> type[BaseModel]:
     raise Http404
 
 
-def _user_fields(model_cls: type[BaseModel]) -> list[models.Field[Any, Any]]:
-    """Return a model's own columns (its declared fields).
+def _columns(model_cls: type[models.Model]) -> list[models.Field[Any, Any]]:
+    """Return a model's displayable columns: every concrete field except the auto ``id`` pk.
 
-    BaseModel's built-ins are underscore-prefixed (``_public_id`` etc.) and the
-    auto ``id`` pk is the primary key — both excluded so only the fields the
-    model declares for itself show as columns.
+    BaseModel's built-ins (``public_id``/``created_by``/``created_at``/
+    ``last_updated_at``/``last_updated_by``) are treated like any user-declared
+    field and shown as columns; only the integer pk is hidden (and it must never
+    reach the client).
     """
     return [
         f
         for f in model_cls._meta.fields  # noqa: SLF001 # _meta.fields is the stable field list
-        if not f.name.startswith("_") and not f.primary_key
+        if not f.primary_key
     ]
 
 
@@ -214,13 +224,6 @@ def _column_def(field: models.Field[Any, Any]) -> ColumnDef:
     )
 
 
-def _user_profile(user: User | None) -> UserProfile | None:
-    """Build a pk-free profile for a row's _created_by, or None."""
-    if user is None:
-        return None
-    return UserProfile(public_id=user.public_id, title=user.display_name)
-
-
 def _fk_value(related: BaseModel | None) -> FkValue | None:
     """Build the linked cell for a foreign-key column, or None when unset.
 
@@ -231,10 +234,10 @@ def _fk_value(related: BaseModel | None) -> FkValue | None:
     """
     if related is None or not isinstance(related, BaseModel):
         return None
-    return FkValue(public_id=related._public_id, url=related.get_absolute_url(), title=str(related))  # noqa: SLF001 # BaseModel built-in column; __str__ is pk-free
+    return FkValue(public_id=related.public_id, url=related.get_absolute_url(), title=str(related))
 
 
-def _cell_value(kind: FieldKind, instance: BaseModel, field_name: str) -> object:
+def _cell_value(kind: FieldKind, instance: models.Model, field_name: str) -> object:
     """Return the client-facing value for one cell.
 
     ``user`` cells become a pk-free profile (or None); ``foreign_key`` cells
@@ -258,7 +261,7 @@ def _cell_value(kind: FieldKind, instance: BaseModel, field_name: str) -> object
         raw = getattr(instance, field_name)
         return cast("datetime", raw).isoformat() if raw is not None else None
     if kind == FieldKind.USER:
-        return _user_profile(cast("User | None", getattr(instance, field_name)))
+        return user_profile(cast("User | None", getattr(instance, field_name)))
     if kind == FieldKind.FOREIGN_KEY:
         return _fk_value(cast("BaseModel | None", getattr(instance, field_name)))
     msg = f"Unknown field kind: {kind}"
@@ -267,21 +270,25 @@ def _cell_value(kind: FieldKind, instance: BaseModel, field_name: str) -> object
 
 def _row_item(
     fields_with_kind: list[tuple[models.Field[Any, Any], FieldKind]],
-    instance: BaseModel,
+    instance: models.Model,
 ) -> RowItem:
-    """Build the pk-free serialised view of one row (shared by list + detail)."""
+    """Build the pk-free serialised view of one row (shared by list + detail).
+
+    Builtins are columns like any other, so they flow through ``values``; the
+    separate ``public_id`` is only for the row-detail link (None for non-BaseModel
+    rows, which have no public id and thus no detail page).
+    """
     return RowItem(
-        public_id=instance._public_id,  # noqa: SLF001 # BaseModel built-in column
+        public_id=instance.public_id if isinstance(instance, BaseModel) else None,
         values={f.name: _cell_value(kind, instance, f.name) for f, kind in fields_with_kind},
-        created_by=_user_profile(instance._created_by),  # noqa: SLF001 # BaseModel built-in column
-        created_at=instance._created_at.isoformat(),  # noqa: SLF001 # BaseModel built-in column
-        edited_at=instance._edited_at.isoformat(),  # noqa: SLF001 # BaseModel built-in column
     )
 
 
-def _fields_with_kind(model_cls: type[BaseModel]) -> list[tuple[models.Field[Any, Any], FieldKind]]:
-    """Pair each user field with its kind (computed once, reused per row)."""
-    return [(f, _field_kind(f)) for f in _user_fields(model_cls)]
+def _fields_with_kind(
+    model_cls: type[models.Model],
+) -> list[tuple[models.Field[Any, Any], FieldKind]]:
+    """Pair each column with its kind (computed once, reused per row)."""
+    return [(f, _field_kind(f)) for f in _columns(model_cls)]
 
 
 def _select_related_fields(
@@ -290,6 +297,23 @@ def _select_related_fields(
     """FK field names to select_related (avoids an N+1 per cell)."""
     return [
         f.name for f, kind in fields_with_kind if kind in {FieldKind.USER, FieldKind.FOREIGN_KEY}
+    ]
+
+
+def _row_logs(model_cls: type[BaseModel], pk: int) -> list[dict[str, Any]]:
+    """Return one row's audit entries as JSON-safe dicts (newest-first via -performed_at).
+
+    Takes the integer pk, not the instance — that's all the audit query needs, and
+    capturing the pk (not the whole row) in the lazy prop's lambda is all that
+    must outlive the request. Called from inside a lazy Inertia prop
+    (``optional(lambda: …)``), so it only runs on the ``only:["logs"]`` partial
+    reload — never on first page load.
+    """
+    return [
+        log.to_entry_item().model_dump(mode="json")
+        for log in BaseModelUpdateLog.objects.select_related("performed_by").filter(
+            model=model_cls.log_model_name(), model_pk=pk
+        )
     ]
 
 
@@ -320,24 +344,17 @@ def model_rows_page(
     model_cls = _model_or_404(model_name)
     fields_with_kind = _fields_with_kind(model_cls)
 
-    sort = filters.sort if filters.sort in _ALLOWED_SORTS else "created_at"
-    order_field = "_created_at" if sort == "created_at" else "_edited_at"
+    sort = _resolve_sort(model_cls, filters.sort)
     qs = (
         cast("Any", model_cls)
-        .objects.select_related(
-            "_created_by",
-            *_select_related_fields(fields_with_kind),
-        )
-        .order_by(f"-{order_field}", "-_public_id")
+        .objects.select_related(*_select_related_fields(fields_with_kind))
+        .order_by(sort, "-id")
     )
     paginator = Paginator(qs, filters.per_page, orphans=5)
     page_obj = paginator.get_page(filters.page)
 
     column_defs = [_column_def(f) for f, _ in fields_with_kind]
-    rows = [
-        _row_item(fields_with_kind, cast("BaseModel", instance))
-        for instance in page_obj.object_list
-    ]
+    rows = [_row_item(fields_with_kind, instance) for instance in page_obj.object_list]
 
     props = ModelRowsProps(
         model_name=model_cls.__name__,
@@ -359,31 +376,47 @@ def row_detail_page(
     model_name: str,
     public_id: str,
 ) -> HttpResponse:
-    """Show a single row by its _public_id, with all columns serialised."""
+    """Show a single row by its public_id (BaseModel only); logs load lazily.
+
+    ``logs`` is an Inertia lazy prop: on a full page load it is dropped entirely.
+    """
     require_superuser(request)
     model_cls = _model_or_404(model_name)
+    if not issubclass(model_cls, BaseModel):
+        # Non-BaseModel rows have no public_id, so no detail page.
+        raise Http404
     fields_with_kind = _fields_with_kind(model_cls)
     model = cast("Any", model_cls)
     try:
-        instance = model.objects.select_related(
-            "_created_by",
-            *_select_related_fields(fields_with_kind),
-        ).get(_public_id=public_id)
+        instance = model.objects.select_related(*_select_related_fields(fields_with_kind)).get(
+            public_id=public_id
+        )
     except model.DoesNotExist as exc:
         raise Http404 from exc
 
     column_defs = [_column_def(f) for f, _ in fields_with_kind]
     row = _row_item(fields_with_kind, instance)
-    props = RowDetailProps(
+    core = RowDetailProps(
         model_name=model_cls.__name__,
-        public_id=row.public_id,
+        public_id=cast("str", row.public_id),
         columns=column_defs,
         values=row.values,
-        created_by=row.created_by,
-        created_at=row.created_at,
-        edited_at=row.edited_at,
+    ).model_dump()
+
+    # ``logs`` is a sibling top-level prop, deliberately NOT nested inside the
+    # "props" wrapper: inertia's lazy machinery (IgnoreOnFirstLoadProp deletion,
+    # and the only:["logs"] partial filter) keys off top-level prop names, so a
+    # nested logs would be invisible to it (evaluated on every load, and the
+    # partial would return empty). ``optional()`` drops it on first load (no
+    # audit query); the client requests it on mount via router.reload(only:["logs"]).
+    return InertiaResponse(
+        request,
+        "RowDetail",
+        {
+            "props": core,
+            "logs": optional(lambda: _row_logs(model_cls, instance.pk)),
+        },
     )
-    return InertiaResponse(request, "RowDetail", {"props": props.model_dump()})
 
 
 manage_api = NinjaAPI(urls_namespace="manage-http")

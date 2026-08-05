@@ -24,7 +24,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    "_public_id",
+                    "public_id",
                     models.CharField(
                         db_index=True,
                         default=djangoapp.models.base.generate_uuid7_id,
@@ -32,8 +32,8 @@ class Migration(migrations.Migration):
                         max_length=100,
                     ),
                 ),
-                ("_created_at", models.DateTimeField(auto_now_add=True)),
-                ("_edited_at", models.DateTimeField(auto_now=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("last_updated_at", models.DateTimeField(blank=True, null=True)),
                 ("name", models.CharField(max_length=200)),
                 ("bio", models.TextField(blank=True, default="")),
                 (
@@ -44,7 +44,17 @@ class Migration(migrations.Migration):
                 ),
                 ("active", models.BooleanField(default=True)),
                 (
-                    "_created_by",
+                    "created_by",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=models.deletion.RESTRICT,
+                        related_name="+",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "last_updated_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,
@@ -68,7 +78,7 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 (
-                    "_public_id",
+                    "public_id",
                     models.CharField(
                         db_index=True,
                         default=djangoapp.models.base.generate_uuid7_id,
@@ -76,14 +86,24 @@ class Migration(migrations.Migration):
                         max_length=100,
                     ),
                 ),
-                ("_created_at", models.DateTimeField(auto_now_add=True)),
-                ("_edited_at", models.DateTimeField(auto_now=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("last_updated_at", models.DateTimeField(blank=True, null=True)),
                 ("title", models.CharField(max_length=200)),
                 ("description", models.TextField(blank=True, default="")),
                 ("pages", models.IntegerField(blank=True, null=True)),
                 ("published", models.DateTimeField(blank=True, null=True)),
                 (
-                    "_created_by",
+                    "created_by",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=models.deletion.RESTRICT,
+                        related_name="+",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "last_updated_by",
                     models.ForeignKey(
                         blank=True,
                         null=True,

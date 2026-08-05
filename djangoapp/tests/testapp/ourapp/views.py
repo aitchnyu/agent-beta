@@ -16,10 +16,10 @@ def books_page(request: HttpRequest) -> InertiaResponse:
     """Render the books list as an Inertia page (component ``ours/BooksPage``)."""
     books = [
         {
-            "public_id": b._public_id,  # noqa: SLF001 # BaseModel built-in column
+            "public_id": b.public_id,
             "title": b.title,
             "author": b.author.name,
         }
-        for b in Book.objects.select_related("author").order_by("-_created_at")
+        for b in Book.objects.select_related("author").order_by("-created_at")
     ]
     return InertiaResponse(request, "ours/BooksPage", {"props": {"books": books}})

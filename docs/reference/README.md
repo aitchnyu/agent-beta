@@ -38,7 +38,7 @@ consults this when adding a feature.
   page component, so the feature is self-contained). Parse every server payload with a zod schema; wrap every
   `axios` call in `try/catch` + `showErrorToast`. Keep app code inside `ours/`
   and edit only there where possible.
-- **Public ids only**: never send the integer `pk`/`id`; send `_public_id`.
+- **Public ids only**: never send the integer `pk`/`id`; send `public_id`.
 
 ## Response shapes
 

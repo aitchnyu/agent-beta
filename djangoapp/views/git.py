@@ -78,7 +78,7 @@ def _parse_page(request: HttpRequest) -> int:
     raw = request.GET.get("page", "1")
     try:
         return max(1, int(raw))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 1
 
 
