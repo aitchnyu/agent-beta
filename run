@@ -48,7 +48,7 @@ opencode() {
   # Bind address for the daemon. 4196, not opencode's default 4096: 4096
   # collides with the Kilo extension's random `kilo serve` server in this
   # session. A single knob — OPENCODE_BASE_URL (default below) — drives both
-  # this launcher and Django's /api/opencode/* proxy (djangoapp/views/
+  # this launcher and Django's /agent/api/* proxy (djangoapp/views/
   # opencode.py)
   local base_url="${OPENCODE_BASE_URL:-http://127.0.0.1:4196}"
   local stripped="${base_url#http://}"; stripped="${stripped#https://}"

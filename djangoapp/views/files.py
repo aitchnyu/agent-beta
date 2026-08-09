@@ -1,12 +1,17 @@
 """Superuser-only read-only file browser over the project tree at ``/files/...``.
 
 Directories list their entries (folders first); files preview as text or render
-as images; any file can be downloaded (``/files-download/...``) or served raw
-(``/files-raw/...``, used for ``<img>``). The browse root is ``BASE_DIR.parent``
+as images; any file can be downloaded (``/files/download/...``) or served raw
+(``/files/raw/...``, used for ``<img>``). The browse root is ``BASE_DIR.parent``
 (the folder holding both ``main/`` and ``scratch/``); the "Files" nav button lands
 at ``main/ourapp/`` and you can navigate up to that parent (to browse ``scratch/``)
 but no further. Path traversal (``..``, absolute paths, symlink escapes) is
 confined in :class:`PathWrapper` (resolve + ``is_relative_to`` → 404).
+
+Served by a django-ninja ``NinjaAPI`` (the same shape as ``/git`` and
+``/manage``): each op returns an Inertia page or a ``FileResponse`` with
+``response=None``, and raises ``Http404`` for misses (mapped to a consistent
+JSON body by the registered error handlers). Mounted in :mod:`djangoapp.urls`.
 """
 
 from __future__ import annotations
@@ -18,9 +23,12 @@ from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.http import FileResponse, Http404, HttpRequest, HttpResponseBase
+from django.urls import register_converter
 from inertia import InertiaResponse
+from ninja import Router
 from pydantic import BaseModel
 
+from djangoapp.ninja_api import make_ninja_api
 from djangoapp.views import require_superuser
 
 if TYPE_CHECKING:
@@ -173,13 +181,74 @@ class PathWrapper:
         return entries
 
 
-def file_browser(request: HttpRequest, rel: str = "") -> HttpResponseBase:
-    """Render a directory listing or a file preview (``/files/...``).
+class _RelPathConverter:
+    """Django path converter matching zero or more segments (``.*``).
 
-    Byte serving lives on its own endpoints (:func:`file_download`,
-    :func:`file_raw`) — this view only renders Inertia pages. ``rel`` is
-    repo-root-relative; ``/files`` (no trailing slash) arrives as ``rel=None``
-    from the route's optional group, so :class:`PathWrapper` normalizes it.
+    The built-in ``path`` converter requires ≥1 char (``.+``), so it can't serve
+    the browse root (``/files/``, ``rel=""``). Matching ``.*`` lets one
+    ``/{relpath:rel}`` route serve both the root and subpaths — no dedicated
+    trailing-slash route. Registered globally below (Django converters are
+    process-wide by design); this module is imported by the URLconf.
+    """
+
+    regex = r".*"
+
+    def to_python(self, value: str) -> str:
+        return value
+
+    def to_url(self, value: str) -> str:
+        return value
+
+
+# "relpath" — a path that may be empty (repo root). See _RelPathConverter.
+register_converter(_RelPathConverter, "relpath")
+
+files_router = Router()
+
+
+def _serve(target: PathWrapper, *, attachment: bool, content_type: str) -> FileResponse:
+    """Stream a file's bytes — as a download (attachment) or inline (raw)."""
+    if not target.is_file:
+        raise Http404
+    return FileResponse(
+        target.open_bytes(),
+        as_attachment=attachment,
+        filename=target.name,
+        content_type=content_type,
+    )
+
+
+# Byte-serving routes are registered before the browse catch-all so /files/raw/...
+# and /files/download/... win over /files/{path:rel} (which would otherwise grab
+# "raw/<rest>" / "download/<rest>" as a browse path).
+@files_router.get("/raw/{path:rel}", response=None)
+def file_raw(request: HttpRequest, rel: str) -> FileResponse:
+    """Serve a file's bytes inline with its real Content-Type (``/files/raw/...``).
+
+    Used by ``<img>`` (and other media). Inline, not an attachment. Restricted to
+    images: this endpoint serves bytes in the app's authenticated origin, so a
+    non-image (e.g. ``evil.html`` → ``text/html``) would be a same-origin
+    stored-XSS sink. The image-only gate — not CSP — is the boundary.
+    """
+    require_superuser(request)
+    target = PathWrapper(rel)
+    if not target.is_image():
+        raise Http404
+    return _serve(target, attachment=False, content_type=target.mime())
+
+
+@files_router.get("/download/{path:rel}", response=None)
+def file_download(request: HttpRequest, rel: str) -> FileResponse:
+    """Serve a file's bytes as a download attachment (``/files/download/...``)."""
+    require_superuser(request)
+    return _serve(PathWrapper(rel), attachment=True, content_type=_UNKNOWN_MIME)
+
+
+def _browse(request: HttpRequest, rel: str) -> HttpResponseBase:
+    """Render a directory listing or a file preview (shared by the /files routes).
+
+    Byte serving lives on its own endpoints (:func:`file_raw`, :func:`file_download`)
+    — this only renders Inertia pages.
     """
     require_superuser(request)
     target = PathWrapper(rel)
@@ -199,7 +268,7 @@ def file_browser(request: HttpRequest, rel: str = "") -> HttpResponseBase:
             {"props": props.model_dump()},
         )
 
-    # File preview: images render via /files-raw; text is inlined; else binary.
+    # File preview: images render via /files/raw; text is inlined; else binary.
     st = target.stat()
     file_viewer = FileViewerProps(
         rel=target.rel,
@@ -211,7 +280,7 @@ def file_browser(request: HttpRequest, rel: str = "") -> HttpResponseBase:
         kind="binary",
     )
     if target.is_image():
-        # The <img> fetches bytes via /files-raw/..., so nothing is inlined here.
+        # The <img> fetches bytes via /files/raw/..., so nothing is inlined here.
         file_viewer.kind = "image"
     elif st.st_size <= _TEXT_MAX_SIZE and target.looks_like_text():
         # Text-like: markdown renders via marked; everything else is plain text
@@ -225,34 +294,20 @@ def file_browser(request: HttpRequest, rel: str = "") -> HttpResponseBase:
     )
 
 
-def _serve(target: PathWrapper, *, attachment: bool, content_type: str) -> FileResponse:
-    """Stream a file's bytes — as a download (attachment) or inline (raw)."""
-    if not target.is_file:
-        raise Http404
-    return FileResponse(
-        target.open_bytes(),
-        as_attachment=attachment,
-        filename=target.name,
-        content_type=content_type,
-    )
+# ``/files`` (no slash) needs its own route — a Django pattern can't make the
+# leading slash optional. ``/files/`` (the root, rel="") and every subpath share
+# the one catch-all below: ``{relpath:rel}`` uses _RelPathConverter (matches
+# zero-or-more segments), so the empty-root case lands on the same route.
+@files_router.get("", response=None)
+def file_browser(request: HttpRequest) -> HttpResponseBase:
+    """``GET /files`` — browse the repo root (BASE_DIR.parent)."""
+    return _browse(request, "")
 
 
-def file_download(request: HttpRequest, rel: str) -> FileResponse:
-    """Serve a file's bytes as a download attachment (``/files-download/...``)."""
-    require_superuser(request)
-    return _serve(PathWrapper(rel), attachment=True, content_type=_UNKNOWN_MIME)
+@files_router.get("/{relpath:rel}", response=None)
+def file_browser_path(request: HttpRequest, rel: str) -> HttpResponseBase:
+    """``GET /files/`` (root) and ``GET /files/<path>`` — browse a dir or preview a file."""
+    return _browse(request, rel)
 
 
-def file_raw(request: HttpRequest, rel: str) -> FileResponse:
-    """Serve a file's bytes inline with its real Content-Type (``/files-raw/...``).
-
-    Used by ``<img>`` (and other media). Inline, not an attachment. Restricted to
-    images: this endpoint serves bytes in the app's authenticated origin, so a
-    non-image (e.g. ``evil.html`` → ``text/html``) would be a same-origin
-    stored-XSS sink. The image-only gate — not CSP — is the boundary.
-    """
-    require_superuser(request)
-    target = PathWrapper(rel)
-    if not target.is_image():
-        raise Http404
-    return _serve(target, attachment=False, content_type=target.mime())
+files_api = make_ninja_api("files", files_router)

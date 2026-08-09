@@ -5,25 +5,28 @@ worktree root. Reads via :mod:`djangoapp.views.git_data` (GitPython); tests
 patch the repo root. The uncommitted *list* (``/git/uncommitted/``) shows every
 worktree's pending files together (main, then scratch); an uncommitted *diff*
 takes a ``worktree`` segment (``main``/``scratch``). Commit views read ``main``
-only. Routes in :mod:`djangoapp.urls`.
+only.
+
+Served by a django-ninja ``NinjaAPI`` (the same shape as ``/manage``): each op
+renders an Inertia page with ``response=None``, and raises :class:`ApiError` /
+:class:`django.http.Http404` for misses (mapped to a consistent JSON body by the
+registered error handlers). Mounted in :mod:`djangoapp.urls`.
 """
 
 from __future__ import annotations
 
-import re
 from typing import TYPE_CHECKING
 
 from django.http import Http404, HttpRequest, HttpResponseBase
 from inertia import InertiaResponse
+from ninja import Router
 from pydantic import BaseModel
 
+from djangoapp.ninja_api import ApiError, make_ninja_api
 from djangoapp.views import git_data, require_superuser
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-# Commit ids are full-or-short hex shas (4..40 chars); validated before use.
-_HEX_RE = re.compile(r"^[0-9a-f]{4,40}$", re.IGNORECASE)
 
 # Worktree names the uncommitted routes accept (the <worktree> URL segment).
 # "main" = the dev-server repo (BASE_DIR); "scratch" = the scratch sibling
@@ -33,9 +36,10 @@ WORKTREES = ("main", "scratch")
 
 
 def _worktree_or_404(worktree: str) -> str:
-    """Return ``worktree`` if it's one the viewer knows, else raise Http404."""
+    """Return ``worktree`` if it's one the viewer knows, else raise ApiError(404)."""
     if worktree not in WORKTREES:
-        raise Http404
+        msg = f"Unknown worktree: {worktree}"
+        raise ApiError(404, msg)
     return worktree
 
 
@@ -73,17 +77,25 @@ class GitCommitProps(BaseModel):
     files: list[git_data.CommitFile]
 
 
+git_router = Router()
+
+
 def _parse_page(request: HttpRequest) -> int:
     """``?page=`` as an int ≥ 1 (invalid/missing → 1)."""
     raw = request.GET.get("page", "1")
     try:
         return max(1, int(raw))
-    except TypeError, ValueError:
+    except ValueError:
         return 1
 
 
+# The list routes keep the URL contract the old re_paths had: ``/uncommitted``
+# accepted an optional trailing slash (so the nav link lands on
+# ``/git/uncommitted/``) while ``/commits`` did not. ninja routes are anchored,
+# so the trailing slash is expressed in the path itself.
+@git_router.get("/uncommitted", response=None)
 def git_uncommitted_list(request: HttpRequest) -> HttpResponseBase:
-    """``GET /git/uncommitted/`` — uncommitted files for ``main`` and ``scratch``.
+    """``GET /git/uncommitted`` — uncommitted files for ``main`` and ``scratch``.
 
     ``main`` always exists; ``scratch`` is ``None`` when its repo isn't on disk
     yet (no ``createscratch``), so the page omits that section rather than
@@ -103,6 +115,14 @@ def git_uncommitted_list(request: HttpRequest) -> HttpResponseBase:
     )
 
 
+# Trailing-slash twin of the route above (see the comment on git_uncommitted_list).
+@git_router.get("/uncommitted/", response=None)
+def git_uncommitted_list_slash(request: HttpRequest) -> HttpResponseBase:
+    """``GET /git/uncommitted/`` — same as :func:`git_uncommitted_list`."""
+    return git_uncommitted_list(request)
+
+
+@git_router.get("/uncommitted/{worktree}/{path:rel}", response=None)
 def git_uncommitted_diff(request: HttpRequest, worktree: str, rel: str) -> HttpResponseBase:
     """``GET /git/uncommitted/<worktree>/<path>`` — one uncommitted file's diff."""
     require_superuser(request)
@@ -122,6 +142,7 @@ def git_uncommitted_diff(request: HttpRequest, worktree: str, rel: str) -> HttpR
     )
 
 
+@git_router.get("/commits", response=None)
 def git_commit_list(request: HttpRequest) -> HttpResponseBase:
     """``GET /git/commits?page=N`` — paginated commit list (25/page, newest first)."""
     require_superuser(request)
@@ -134,11 +155,11 @@ def git_commit_list(request: HttpRequest) -> HttpResponseBase:
     )
 
 
+@git_router.get("/commits/{commit_id}", response=None)
 def git_commit_file_list(request: HttpRequest, commit_id: str) -> HttpResponseBase:
     """``GET /git/commits/<commit_id>`` — a commit's changed files."""
     require_superuser(request)
-    found = _commit_or_404(commit_id)
-    summary, files = found
+    summary, files = _commit_or_404(commit_id)
     props = GitCommitProps(commit=summary, files=files)
     return InertiaResponse(
         request,
@@ -147,6 +168,7 @@ def git_commit_file_list(request: HttpRequest, commit_id: str) -> HttpResponseBa
     )
 
 
+@git_router.get("/commits/{commit_id}/{path:rel}", response=None)
 def git_commit_file_diff(request: HttpRequest, commit_id: str, rel: str) -> HttpResponseBase:
     """``GET /git/commits/<commit_id>/<path>`` — a file's diff in a commit."""
     require_superuser(request)
@@ -164,10 +186,12 @@ def git_commit_file_diff(request: HttpRequest, commit_id: str, rel: str) -> Http
 
 
 def _commit_or_404(commit_id: str) -> tuple[git_data.CommitSummary, list[git_data.CommitFile]]:
-    """Validate + resolve a commit id, 404 on a bad/unknown id."""
-    if not _HEX_RE.match(commit_id):
-        raise Http404
+    """Resolve a commit id, 404 on a bad/unknown id (hex validated in git_data)."""
     found = git_data.commit(commit_id)
     if found is None:
-        raise Http404
+        msg = f"Unknown commit: {commit_id}"
+        raise ApiError(404, msg)
     return found
+
+
+git_api = make_ninja_api("git", git_router)

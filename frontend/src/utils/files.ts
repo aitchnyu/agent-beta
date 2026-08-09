@@ -8,11 +8,11 @@ export function fileUrl(rel: string): string {
 
 // Byte-serving endpoints (kept separate from the browse/view route).
 export function rawUrl(rel: string): string {
-  return `/files-raw/${rel}`
+  return `/files/raw/${rel}`
 }
 
 export function downloadUrl(rel: string): string {
-  return `/files-download/${rel}`
+  return `/files/download/${rel}`
 }
 
 // Humanized byte size: 512 → "512 B", 1500 → "1.5 KB", 1024 → "1 KB".

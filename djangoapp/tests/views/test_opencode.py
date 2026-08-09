@@ -106,7 +106,7 @@ class OpencodePageTests(InertiaTestCase):
 
 
 class OpencodePromptTests(TestCase):
-    """Streaming prompt endpoint POST /api/opencode/prompt/.
+    """Streaming prompt endpoint POST /agent/api/prompt/.
 
     No Inertia features are exercised (the streaming response isn't an Inertia
     response), so this uses plain ``TestCase`` to skip the Inertia/DB overhead.
@@ -132,19 +132,19 @@ class OpencodePromptTests(TestCase):
         to reach the auth gate — an invalid body would 422 first.
         """
         response = self.client.post(
-            "/api/opencode/prompt/", {"message": "hi"}, content_type="application/json"
+            "/agent/api/prompt/", {"message": "hi"}, content_type="application/json"
         )
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
     def test_anonymous_get_405(self) -> None:
         """Unauthenticated GET is 405 — ninja checks the method before the op runs."""
-        response = self.client.get("/api/opencode/prompt/")
+        response = self.client.get("/agent/api/prompt/")
         self.assertEqual(response.status_code, HTTPStatus.METHOD_NOT_ALLOWED)
 
     def test_invalid_body_422(self) -> None:
         """A body without ``message`` fails pydantic validation with 422."""
         self.client.force_login(self.superuser)
-        response = self.client.post("/api/opencode/prompt/", {}, content_type="application/json")
+        response = self.client.post("/agent/api/prompt/", {}, content_type="application/json")
         self.assertEqual(response.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
 
     def test_streams_for_superuser(self) -> None:
@@ -152,7 +152,7 @@ class OpencodePromptTests(TestCase):
         self.client.force_login(self.superuser)
         with patch.object(opencode, "_event_stream", _fake_stream):
             response = self.client.post(
-                "/api/opencode/prompt/",
+                "/agent/api/prompt/",
                 {"message": "hi", "session_id": "ses_x"},
                 content_type="application/json",
             )
@@ -210,7 +210,7 @@ class _OpencodeProxyMixin:
 
 
 class OpencodePermissionTests(_OpencodeProxyMixin, TestCase):
-    """Permission proxy POST /api/opencode/permission/<sid>/<permid>/.
+    """Permission proxy POST /agent/api/permission/<sid>/<permid>/.
 
     No Inertia features are exercised; uses plain ``TestCase``.
 
@@ -221,7 +221,7 @@ class OpencodePermissionTests(_OpencodeProxyMixin, TestCase):
     - inherited: non-superuser-404, wrong-method-405, transport-error-502
     """
 
-    endpoint = "/api/opencode/permission/ses_x/per_x/"
+    endpoint = "/agent/api/permission/ses_x/per_x/"
     body: ClassVar[dict[str, Any]] = {"response": "once"}
     superuser: ClassVar[User]
     plain: ClassVar[User]
@@ -234,7 +234,7 @@ class OpencodePermissionTests(_OpencodeProxyMixin, TestCase):
     def test_anonymous_404(self) -> None:
         """Unauthenticated POST never reaches the opencode permission endpoint."""
         response = self.client.post(
-            "/api/opencode/permission/ses_x/per_x/",
+            "/agent/api/permission/ses_x/per_x/",
             {"response": "once"},
             content_type="application/json",
         )
@@ -244,7 +244,7 @@ class OpencodePermissionTests(_OpencodeProxyMixin, TestCase):
         """A response other than once/always/reject is rejected with 422."""
         self.client.force_login(self.superuser)
         response = self.client.post(
-            "/api/opencode/permission/ses_x/per_x/",
+            "/agent/api/permission/ses_x/per_x/",
             {"response": "maybe"},
             content_type="application/json",
         )
@@ -257,7 +257,7 @@ class OpencodePermissionTests(_OpencodeProxyMixin, TestCase):
             "djangoapp.views.opencode.httpx.request", return_value=Mock(is_success=True)
         ) as posted:
             response = self.client.post(
-                "/api/opencode/permission/ses_x/per_x/",
+                "/agent/api/permission/ses_x/per_x/",
                 {"response": "always"},
                 content_type="application/json",
             )
@@ -277,7 +277,7 @@ class OpencodePermissionTests(_OpencodeProxyMixin, TestCase):
             return_value=Mock(is_success=False, text="no such permission"),
         ) as posted:
             response = self.client.post(
-                "/api/opencode/permission/ses_x/per_x/",
+                "/agent/api/permission/ses_x/per_x/",
                 {"response": "once"},
                 content_type="application/json",
             )
@@ -295,14 +295,14 @@ class OpencodePermissionTests(_OpencodeProxyMixin, TestCase):
 
 
 class OpencodeAbortTests(_OpencodeProxyMixin, TestCase):
-    """Abort endpoint POST /api/opencode/abort/<sid>/.
+    """Abort endpoint POST /agent/api/abort/<sid>/.
 
     - test_anonymous_404, unauthenticated POST is 404
     - test_proxies_to_opencode, superuser POST forwards to opencode's session abort
     - inherited: non-superuser-404, wrong-method-405, transport-error-502
     """
 
-    endpoint = "/api/opencode/abort/ses_x/"
+    endpoint = "/agent/api/abort/ses_x/"
     body: ClassVar[dict[str, Any]] = {}
     superuser: ClassVar[User]
     plain: ClassVar[User]
@@ -314,7 +314,7 @@ class OpencodeAbortTests(_OpencodeProxyMixin, TestCase):
 
     def test_anonymous_404(self) -> None:
         """Unauthenticated POST never reaches the opencode abort endpoint."""
-        response = self.client.post("/api/opencode/abort/ses_x/")
+        response = self.client.post("/agent/api/abort/ses_x/")
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
     def test_proxies_to_opencode(self) -> None:
@@ -323,7 +323,7 @@ class OpencodeAbortTests(_OpencodeProxyMixin, TestCase):
         with patch(
             "djangoapp.views.opencode.httpx.request", return_value=Mock(is_success=True)
         ) as posted:
-            response = self.client.post("/api/opencode/abort/ses_x/")
+            response = self.client.post("/agent/api/abort/ses_x/")
         self.assertEqual(response.status_code, HTTPStatus.OK)
         posted.assert_called_once_with(
             "POST",
@@ -333,7 +333,7 @@ class OpencodeAbortTests(_OpencodeProxyMixin, TestCase):
 
 
 class OpencodeDeleteSessionTests(_OpencodeProxyMixin, TestCase):
-    """Session-delete endpoint POST /api/opencode/delete/<sid>/.
+    """Session-delete endpoint POST /agent/api/delete/<sid>/.
 
     The proxy stays POST (CSRF/axios consistency) and translates to opencode's
     ``DELETE /session/:id``. Inherits non-superuser-404, wrong-method-405,
@@ -344,7 +344,7 @@ class OpencodeDeleteSessionTests(_OpencodeProxyMixin, TestCase):
     - test_proxies_opencode_failure_returns_502, opencode rejection -> 502
     """
 
-    endpoint = "/api/opencode/delete/ses_x/"
+    endpoint = "/agent/api/delete/ses_x/"
     body: ClassVar[dict[str, Any]] = {}
     superuser: ClassVar[User]
     plain: ClassVar[User]
@@ -356,7 +356,7 @@ class OpencodeDeleteSessionTests(_OpencodeProxyMixin, TestCase):
 
     def test_anonymous_404(self) -> None:
         """Unauthenticated POST never reaches the opencode delete endpoint."""
-        response = self.client.post("/api/opencode/delete/ses_x/")
+        response = self.client.post("/agent/api/delete/ses_x/")
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
 
     def test_proxies_to_opencode_as_delete(self) -> None:
@@ -365,7 +365,7 @@ class OpencodeDeleteSessionTests(_OpencodeProxyMixin, TestCase):
         with patch(
             "djangoapp.views.opencode.httpx.request", return_value=Mock(is_success=True)
         ) as posted:
-            response = self.client.post("/api/opencode/delete/ses_x/")
+            response = self.client.post("/agent/api/delete/ses_x/")
         self.assertEqual(response.status_code, HTTPStatus.OK)
         posted.assert_called_once_with(
             "DELETE",
@@ -380,7 +380,7 @@ class OpencodeDeleteSessionTests(_OpencodeProxyMixin, TestCase):
             "djangoapp.views.opencode.httpx.request",
             return_value=Mock(is_success=False, text="no such session"),
         ):
-            response = self.client.post("/api/opencode/delete/ses_x/")
+            response = self.client.post("/agent/api/delete/ses_x/")
         self.assertEqual(response.status_code, HTTPStatus.BAD_GATEWAY)
         self.assertEqual(response.json()["ok"], False)
 

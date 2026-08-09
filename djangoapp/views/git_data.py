@@ -14,6 +14,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
+import git
 from django.conf import settings
 from pydantic import BaseModel
 
@@ -27,6 +28,15 @@ _REPO_ROOT = Path(str(settings.BASE_DIR)).resolve()
 _PAGE_SIZE = 25
 # Commit ids are full-or-short hex shas (4..40 chars); validated before reaching git.
 _HEX_RE = re.compile(r"^[0-9a-f]{4,40}$", re.IGNORECASE)
+# Exceptions ``repo.commit(<id>)`` can raise for a malformed/unknown commit id —
+# caught uniformly and mapped to "not found". Module-level so ``commit`` and
+# ``diff_commit`` share one source of truth (GitPython is imported eagerly above).
+_COMMIT_LOOKUP_ERRORS: tuple[type[Exception], ...] = (
+    git.BadName,
+    git.BadObject,
+    git.GitCommandError,
+    ValueError,
+)
 
 
 class UncommittedFile(BaseModel):
@@ -88,8 +98,6 @@ def worktree_exists(name: str) -> bool:
 
 
 def _repo(name: str = "main") -> Any:  # noqa: ANN401 -- git.Repo has no first-class stub; Any is the honest type
-    import git  # noqa: PLC0415 -- lazy: only the real provider needs GitPython
-
     # Raises git.NoSuchPathError / git.InvalidGitRepositoryError if the worktree's
     # repo is missing — left for the caller (views map to 404, the list skips).
     return git.Repo(str(worktree_root(name)))
@@ -114,8 +122,6 @@ def _commit_summary(c: Any) -> CommitSummary:  # noqa: ANN401 -- git.Commit has 
 
 
 def _commit_files(c: Any) -> list[CommitFile]:  # noqa: ANN401 -- git.Commit has no stubs
-    import git  # noqa: PLC0415
-
     diffs = c.parents[0].diff(c) if c.parents else c.diff(git.NULL_TREE)
     return [
         CommitFile(path=d.b_path or d.a_path, status=_change_status(d.change_type)) for d in diffs
@@ -156,14 +162,12 @@ def commits(page: int) -> tuple[list[CommitSummary], GitPagination]:
 
 def commit(commit_id: str) -> tuple[CommitSummary, list[CommitFile]] | None:
     """Return a commit's summary + its changed files (None if ``commit_id`` is unknown)."""
-    import git  # noqa: PLC0415
-
     if not _HEX_RE.match(commit_id):
         return None
     repo = _repo()
     try:
         c = repo.commit(commit_id)
-    except git.BadName, git.BadObject, git.GitCommandError, ValueError:
+    except _COMMIT_LOOKUP_ERRORS:
         return None
     return _commit_summary(c), _commit_files(c)
 
@@ -191,14 +195,12 @@ def diff_commit(commit_id: str, path: str) -> str | None:
     message header entirely (so a message containing ``diff --git`` can't
     corrupt the slice). Root commits diff against the empty tree.
     """
-    import git  # noqa: PLC0415
-
     if not _HEX_RE.match(commit_id):
         return None
     repo = _repo()
     try:
         c = repo.commit(commit_id)
-    except git.BadName, git.BadObject, git.GitCommandError, ValueError:
+    except _COMMIT_LOOKUP_ERRORS:
         return None
     if not any(f.path == path for f in _commit_files(c)):
         return None

@@ -59,7 +59,7 @@ marked.use(
   }),
 )
 
-/** Render markdown to sanitized HTML, rewriting relative image src → /files-raw/. */
+/** Render markdown to sanitized HTML, rewriting relative image src → /files/raw/. */
 export function renderMarkdown(
   markdownText: string,
   markdownRelPath: string,

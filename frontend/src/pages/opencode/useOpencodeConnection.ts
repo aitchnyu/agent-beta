@@ -83,7 +83,7 @@ export function useOpencodeConnection() {
     let cleanEnd = false
     try {
       const resp = await axios.post(
-        "/api/opencode/prompt/",
+        "/agent/api/prompt/",
         { message: text, session_id: sessionId.value },
         {
           adapter: "fetch",

@@ -126,7 +126,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         img.wait_for(state="visible")
         self.assertEqual(
             img.get_attribute("src"),
-            "/files-raw/main/djangoapp/tests/filefixtures/diagram.svg",
+            "/files/raw/main/djangoapp/tests/filefixtures/diagram.svg",
         )
 
         # A deemphasized link targets the raw block.

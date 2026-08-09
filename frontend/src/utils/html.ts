@@ -67,12 +67,12 @@ DOMPurify.addHook("uponSanitizeAttribute", (node, data) => {
 })
 
 export interface SanitizeOptions {
-  /** When set, relative image src in the HTML is rewritten to /files-raw/<rel>
+  /** When set, relative image src in the HTML is rewritten to /files/raw/<rel>
    * resolved against this markdown file's repo-root-relative path. */
   rewriteImagesFrom?: string
 }
 function resolveImageSrc(src: string, markdownRelPath: string): string {
-  if (!src || /^(https?:|data:|\/files-raw\/)/i.test(src)) return src
+  if (!src || /^(https?:|data:|\/files\/raw\/)/i.test(src)) return src
   const markdownDir = markdownRelPath.includes("/")
     ? markdownRelPath.slice(0, markdownRelPath.lastIndexOf("/"))
     : ""
@@ -81,7 +81,7 @@ function resolveImageSrc(src: string, markdownRelPath: string): string {
     : markdownDir
       ? `${markdownDir}/${src}`
       : src
-  return `/files-raw/${resolvedRelPath}`
+  return `/files/raw/${resolvedRelPath}`
 }
 
 export function sanitizeHtml(

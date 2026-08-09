@@ -7,14 +7,13 @@ from django.http import (  # noqa: TC002 # ninja inspects view signatures at run
 )
 from inertia import InertiaResponse
 from ninja import (
-    NinjaAPI,
     Query,
     Router,
 )
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Field, field_validator
 
-from djangoapp.errors import ApiError, register_api_error_handlers
+from djangoapp.ninja_api import ApiError, make_ninja_api
 from djangoapp.models import (
     User,
     UserHistory,
@@ -332,6 +331,4 @@ def history_page(request: HttpRequest, public_id: str) -> HttpResponse:
     return InertiaResponse(request, "UserHistory", {"props": props.model_dump()})
 
 
-users_api = NinjaAPI(urls_namespace="users-http")
-register_api_error_handlers(users_api)
-users_api.add_router(USERS_PATH_PREFIX.strip("/"), users_router)
+users_api = make_ninja_api("users", users_router, prefix=USERS_PATH_PREFIX.strip("/"))

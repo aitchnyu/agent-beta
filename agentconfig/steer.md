@@ -106,8 +106,8 @@ and stop; don't proceed on assumptions. If an answer is ambiguous, re-ask.
 Point at the superuser-only file viewer at `/files/<repo-root-relative path>` —
 e.g. `<a href="/files/ourapp/urls.py">urls.py</a>` or
 <a href="/files/djangoapp/views/manage.py">manage.py</a>. For an inline image
-use `/files-raw/<path>` (real Content-Type, for `<img>`); for a download use
-`/files-download/<path>`. Paths are repo-root-relative; the viewer is
+use `/files/raw/<path>` (real Content-Type, for `<img>`); for a download use
+`/files/download/<path>`. Paths are repo-root-relative; the viewer is
 superuser-only.
 
 ### Linking to git

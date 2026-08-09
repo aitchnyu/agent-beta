@@ -27,7 +27,7 @@ class FilesViewTests(InertiaTestCase):
     Uses the Inertia test case (``self.props`` / ``assertComponentUsed``) against
     the real repo tree (``ourapp/`` and its ``models/`` package). Non-superusers
     and anonymous viewers get 404 (never 403); byte serving lives on its own
-    endpoints (``/files-download`` / ``/files-raw``).
+    endpoints (``/files/download`` / ``/files/raw``).
 
     - test_non_superuser_404 / test_anonymous_404, access gate → 404
     - test_root_without_trailing_slash / test_root_with_trailing_slash, rel=None/"" → root
@@ -35,9 +35,9 @@ class FilesViewTests(InertiaTestCase):
     - test_missing_path_404, unknown path → 404
     - test_ourapp_listing_and_breadcrumb, entries + breadcrumb + parent
     - test_text_file_preview, text content present (escaped)
-    - test_download_returns_attachment, /files-download → attachment, octet-stream
+    - test_download_returns_attachment, /files/download → attachment, octet-stream
     - test_download_traversal_404 / test_download_non_superuser_404, download gating
-    - test_raw_serves_image_inline_with_content_type, /files-raw → inline, image Content-Type
+    - test_raw_serves_image_inline_with_content_type, /files/raw → inline, image Content-Type
     - test_raw_non_image_404 / test_raw_traversal_404, raw is <img>-only (non-image/escape → 404)
     """
 
@@ -114,31 +114,31 @@ class FilesViewTests(InertiaTestCase):
         self.assertEqual(props["parent"], "main/ourapp/models")
 
     def test_download_returns_attachment(self) -> None:
-        """/files-download returns bytes as an attachment (octet-stream)."""
+        """/files/download returns bytes as an attachment (octet-stream)."""
         self.client.force_login(self.superuser)
-        resp = self.client.get(f"/files-download/{_TEXT_FILE}")
+        resp = self.client.get(f"/files/download/{_TEXT_FILE}")
         self.assertEqual(resp.status_code, HTTPStatus.OK)
         self.assertIn("attachment", resp.headers.get("Content-Disposition", ""))
         self.assertEqual(resp.headers.get("Content-Type"), "application/octet-stream")
 
     def test_download_traversal_404(self) -> None:
-        """Traversal on /files-download resolves to 404."""
+        """Traversal on /files/download resolves to 404."""
         self.client.force_login(self.superuser)
         self.assertEqual(
-            self.client.get("/files-download/../etc/passwd").status_code,
+            self.client.get("/files/download/../etc/passwd").status_code,
             HTTPStatus.NOT_FOUND,
         )
 
     def test_download_non_superuser_404(self) -> None:
-        """non-superuser gets 404 on /files-download."""
+        """non-superuser gets 404 on /files/download."""
         self.client.force_login(self.plain)
         self.assertEqual(
-            self.client.get(f"/files-download/{_TEXT_FILE}").status_code,
+            self.client.get(f"/files/download/{_TEXT_FILE}").status_code,
             HTTPStatus.NOT_FOUND,
         )
 
     def test_raw_serves_image_inline_with_content_type(self) -> None:
-        """/files-raw serves an image inline with its real Content-Type.
+        """/files/raw serves an image inline with its real Content-Type.
 
         No image is tracked in the repo, so patch _REPO_ROOT to a tempdir with a
         PNG and hit the endpoint through the real route.
@@ -149,24 +149,24 @@ class FilesViewTests(InertiaTestCase):
             patch.object(files_view, "_REPO_ROOT", Path(d).resolve()),
         ):
             (Path(d) / "pic.png").write_bytes(b"\x89PNG\r\n\x1a\n")
-            resp = self.client.get("/files-raw/pic.png")
+            resp = self.client.get("/files/raw/pic.png")
             self.assertEqual(resp.status_code, HTTPStatus.OK)
             self.assertNotIn("attachment", resp.headers.get("Content-Disposition", ""))
             self.assertEqual(resp.headers.get("Content-Type"), "image/png")
 
     def test_raw_non_image_404(self) -> None:
-        """/files-raw 404s for non-image files (raw is <img>-only)."""
+        """/files/raw 404s for non-image files (raw is <img>-only)."""
         self.client.force_login(self.superuser)
         self.assertEqual(
-            self.client.get(f"/files-raw/{_TEXT_FILE}").status_code,
+            self.client.get(f"/files/raw/{_TEXT_FILE}").status_code,
             HTTPStatus.NOT_FOUND,
         )
 
     def test_raw_traversal_404(self) -> None:
-        """Traversal on /files-raw resolves to 404."""
+        """Traversal on /files/raw resolves to 404."""
         self.client.force_login(self.superuser)
         self.assertEqual(
-            self.client.get("/files-raw/../etc/passwd").status_code, HTTPStatus.NOT_FOUND
+            self.client.get("/files/raw/../etc/passwd").status_code, HTTPStatus.NOT_FOUND
         )
 
     def test_code_file_is_text_kind(self) -> None:

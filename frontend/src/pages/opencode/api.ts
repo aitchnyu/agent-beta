@@ -17,7 +17,7 @@ export async function postPermission(
 ): Promise<void> {
   OpencodeActionResponseSchema.parse(
     (
-      await axios.post(`/api/opencode/permission/${sessionId}/${requestId}/`, {
+      await axios.post(`/agent/api/permission/${sessionId}/${requestId}/`, {
         response: reply,
       })
     ).data,
@@ -26,7 +26,7 @@ export async function postPermission(
 
 export async function postAbort(sessionId: string): Promise<void> {
   OpencodeActionResponseSchema.parse(
-    (await axios.post(`/api/opencode/abort/${sessionId}/`)).data,
+    (await axios.post(`/agent/api/abort/${sessionId}/`)).data,
   )
 }
 
@@ -35,6 +35,6 @@ export async function postAbort(sessionId: string): Promise<void> {
 // history/context, not just drop the client's handle.
 export async function postDeleteSession(sessionId: string): Promise<void> {
   OpencodeActionResponseSchema.parse(
-    (await axios.post(`/api/opencode/delete/${sessionId}/`)).data,
+    (await axios.post(`/agent/api/delete/${sessionId}/`)).data,
   )
 }

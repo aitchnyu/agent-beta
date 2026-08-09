@@ -23,13 +23,13 @@ from django.http import Http404, HttpRequest, HttpResponse
 from inertia import InertiaResponse
 from inertia.utils import optional
 from ninja import (
-    NinjaAPI,
     Query,
     Router,
 )
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Field, field_validator
 
+from djangoapp.ninja_api import make_ninja_api
 from djangoapp.models import BaseModel, BaseModelUpdateLog, user_profile
 from djangoapp.models.base import User
 from djangoapp.views import require_superuser
@@ -419,8 +419,7 @@ def row_detail_page(
     )
 
 
-manage_api = NinjaAPI(urls_namespace="manage-http")
-manage_api.add_router("manage", manage_router)
+manage_api = make_ninja_api("manage", manage_router)
 
 
 # Re-export for type-checkers that scan module members.

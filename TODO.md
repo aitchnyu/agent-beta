@@ -1,6 +1,6 @@
-Page title for apps - as component
-
 Every Inertia page should include `<PageTitle :value="something"/>`. When its mounted or value changed, it will change document.title. Inertia pages should supply the value. Either they can be descriptive like "Projects" or derived from data like name "John Smith's portfolio" etc.
+
+Update steer.md with the instructions. Hope we have a checklist for inertia pages.
 
 -------
 
@@ -23,29 +23,29 @@ Find all instances of this and make it consistent
 except git.BadName, git.BadObject, git.GitCommandError, ValueError:
 
 --------
+Include logging, including storing in db in example app
+Log backend in json, log stack on api error
+Send frontend errors to backend, make it easy to search/filter by line
+logger = logging.getLogger(__name__) - agent added
+
+--------
+Add type stubs for GitPython — `import git` has no py.typed, so git_data.py uses `Any`/`# noqa: ANN401`
+Poorly typed stuff in opencode.py - `def _is_idle(event: dict[str, Any]) -> bool:`
+
+--------
+Does the chore tracker thing need Huey anyway?
 
 checkall vs checkscratch - run if anything outside of ours/ and ourapp/ is changed
-
-Inertia 3 - https://github.com/inertiajs/inertia-django/issues/99
-
+Run all tests in checkproject and merge coverage from both stages.
 When agent is cut off due to redeployment, download latest message to show to user?
-
 How to configure provider and model for Opencode?
 
 Generate multiline, render as multiline:
 ./run python -c "import inspect; from inertia import InertiaResponse; print(inspect.signature(InertiaResponse))"
 
-Include logging, including storing in db in example app
-
-Run all tests in checkproject and merge coverage from both stages.
+Inertia 3 - https://github.com/inertiajs/inertia-django/issues/99
 
 Readonly mode for whole system, disable get requests too if it mutates data. Send toast. Do it at middleware level.
-
-## Error tracking
-Log backend in json
-Which analysis tool?
-Send frontend errors to backend, make it easy to search/filter by line
-Show source maps for main and sub apps? How to read errors from them?
 
 ## Task center
 Categories and tags
@@ -66,25 +66,14 @@ Screen mux for dev
 ## Chatting
 Upload files
 
-## Give chat to end users?
-Limit file access to specific tree
-Specific tool calls
-
-Poorly typed stuff in opencode.py - `def _is_idle(event: dict[str, Any]) -> bool:`
-
-Add type stubs for GitPython — `import git` has no py.typed, so git_data.py uses `Any`/`# noqa: ANN401`
-
-logger = logging.getLogger(__name__) - agent added
-
 ## Deployment
-Tool to analyse error logs and stacktraces
+Tool to analyse error logs and stacktraces, both backend and map stacktraces
 Opencode as service
 Serve files in fs, accelerate using Caddy
 Who is committing to git
-Require rsync, redis
+Require rsync, redis, log analysis, sourcemap tool
 Backup regularly - https://www.pghardstorage.org/examples
 Whitelist services for outbound connections
 
 ## Future
-keep login_for_test?
 Mermaid or D2 renderer for showing table relationships or other diagrams

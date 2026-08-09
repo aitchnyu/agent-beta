@@ -30,9 +30,10 @@ from django.http import (
     StreamingHttpResponse,
 )
 from inertia import render
-from ninja import NinjaAPI, Router
+from ninja import Router
 from pydantic import BaseModel
 
+from djangoapp.ninja_api import make_ninja_api
 from djangoapp.views import require_superuser
 
 if TYPE_CHECKING:
@@ -160,6 +161,20 @@ def _encode_path_segment(value: str) -> str:
     return quote(value, safe="")
 
 
+def _transport_error_message(exc: Exception) -> str:
+    """Return a friendly, classified message for a daemon transport failure.
+
+    Raw ``str(httpx.HTTPError)`` (e.g. ``"ConnectError: [Errno 61] Connection
+    refused"``) is cryptic in a toast — classify it so the user gets an
+    actionable hint. The full exception is still logged server-side by callers.
+    """
+    if isinstance(exc, httpx.TimeoutException):
+        return "Agent daemon timed out — it may be busy or stuck. Try again."
+    if isinstance(exc, httpx.ConnectError):
+        return "Agent daemon is not reachable. Make sure `./run opencode` is running."
+    return f"Could not reach the agent daemon ({type(exc).__name__})."
+
+
 def _forward(
     path: str, *, json_body: dict[str, Any] | None = None, method: str = "POST"
 ) -> HttpResponse:
@@ -179,9 +194,8 @@ def _forward(
     try:
         opencode_resp = httpx.request(method, f"{_OPENCODE_BASE}{path}", **kwargs)
     except httpx.HTTPError as exc:
-        detail = str(exc)
-        logger.warning("opencode transport error for %s: %s", path, detail)
-        return JsonResponse({"ok": False, "detail": detail[:_MAX_DETAIL_CHARS]}, status=502)
+        logger.warning("opencode transport error for %s: %s", path, exc)
+        return JsonResponse({"ok": False, "detail": _transport_error_message(exc)}, status=502)
     if not opencode_resp.is_success:
         detail = opencode_resp.text
         logger.warning("opencode rejected %s: %s %s", path, opencode_resp.status_code, detail)
@@ -251,9 +265,12 @@ def _resolve_session(session_id: str | None) -> tuple[str, bytes | None]:
     try:
         return _create_session().id, None
     except httpx.HTTPError as exc:
-        detail = str(exc)[:_MAX_DETAIL_CHARS]
         return "", _sse(
-            _SseError(properties=_SseErrorProps(message=f"failed to create session: {detail}"))
+            _SseError(
+                properties=_SseErrorProps(
+                    message=f"failed to create session: {_transport_error_message(exc)}"
+                )
+            )
         )
 
 
@@ -346,10 +363,12 @@ def _event_stream(
         # Broaden past httpx.HTTPError: _iter_sse/iter_lines() can raise
         # non-httpx exceptions (e.g. UnicodeDecodeError) which would otherwise
         # bubble up as a 500 with a stack trace. Emit a synthetic error instead.
-        if not isinstance(exc, httpx.HTTPError):
+        if isinstance(exc, httpx.HTTPError):
+            msg = _transport_error_message(exc)
+        else:
             logger.warning("opencode stream error", exc_info=True)
-        detail = str(exc)[:_MAX_DETAIL_CHARS]
-        yield _sse(_SseError(properties=_SseErrorProps(message=detail)))
+            msg = f"Agent stream failed unexpectedly ({type(exc).__name__})."
+        yield _sse(_SseError(properties=_SseErrorProps(message=msg)))
     finally:
         client.close()
 
@@ -443,9 +462,8 @@ def _sse(event: _SseEvent) -> bytes:
     return b"data: " + json.dumps(event.model_dump()).encode() + b"\n\n"
 
 
-# Mount the proxy endpoints under /api/opencode/ — ninja gives auto body
+# Mount the proxy endpoints under /agent/api/ — ninja gives auto body
 # validation (422), method dispatch (405), and an OpenAPI schema (served at
-# /api/opencode/docs and /api/opencode/openapi.json). Mounting the API (not just
-# the router) at api/opencode/ keeps those docs URLs distinct from the manage API's.
-opencode_api = NinjaAPI(urls_namespace="opencode-http")
-opencode_api.add_router("", opencode_router)
+# /agent/api/docs and /agent/api/openapi.json). Mounting the API (not just
+# the router) at agent/api/ keeps those docs URLs distinct from the manage API's.
+opencode_api = make_ninja_api("opencode", opencode_router, prefix="")
