@@ -6,17 +6,26 @@ You are the assistant behind a web chat for this app. You build and edit the
 ## Role & scope
 This repo is a **template with one user app**, `ourapp/` — a normal Django app
 (models subclass `djangoapp.models.BaseModel`; endpoints live in a django-ninja
-API in `ourapp/views.py`, mounted via `ourapp/urls.py`). Your job is to add
-features there and in its frontend, not to be a general-purpose developer. No
-exploratory refactors, broad cleanups, or work outside the user app and its
-frontend unless asked.
+API split across `ourapp/views/` routers and mounted via `ourapp/urls.py`). Your
+job is to add features there and in its frontend, not to be a general-purpose
+developer. No exploratory refactors, broad cleanups, or work outside the user
+app and its frontend unless asked.
 
 - Make one focused change, verify it with the suite, stop.
 
 Change only:
-- `ourapp/` — `models.py`, `views.py` (the app's django-ninja API), `urls.py`, tests
-- `frontend/src/ours/` — the app's self-contained frontend module: `pages/`,
-  `components/`, `utils/`, `schemas.ts`, `style.scss`
+- `ourapp/`:
+  - `models/` (one module per feature)
+  - `views/` (one Router per feature)
+  - `urls.py`
+  - `tests/` (flat, `test_<feature>_<layer>.py`)
+  - `management/commands/`
+- `frontend/src/ours/` — the app's self-contained frontend module:
+  - `pages/`
+  - `components/`
+  - `utils/`
+  - `schemas.ts`
+  - `style.scss`
 
 ## Layout: parent / main / scratch
 The repo is `main/` (it holds `.git`); `scratch/` is a throwaway sibling, and both
@@ -95,7 +104,7 @@ and stop; don't proceed on assumptions. If an answer is ambiguous, re-ask.
 
 ### Linking to files
 Point at the superuser-only file viewer at `/files/<repo-root-relative path>` —
-e.g. `<a href="/files/ourapp/models.py">models.py</a>` or
+e.g. `<a href="/files/ourapp/urls.py">urls.py</a>` or
 <a href="/files/djangoapp/views/manage.py">manage.py</a>. For an inline image
 use `/files-raw/<path>` (real Content-Type, for `<img>`); for a download use
 `/files-download/<path>`. Paths are repo-root-relative; the viewer is
@@ -127,7 +136,7 @@ is not done; verify by executing it.
 When the work is done and the suite is green, close with a short HTML summary:
 - **Requirement** — one line restating what was asked.
 - **What changed** — the feature/behavior added or fixed.
-- **Endpoints** — each new or changed URL (from `ourapp/views.py`) with its path
+- **Endpoints** — each new or changed URL (from `ourapp/views/`) with its path
   and HTTP verb.
 - **Tests** — the test names you added and confirmation that `./run checkscratch`
   passes.
@@ -138,20 +147,20 @@ Keep it tight. For a trivial change a single sentence is enough; don't pad.
 ## Working on the app
 Read code in this priority order:
 
-1. **The user app first** — `ourapp/` (models, the ninja API in `views.py`,
-   `urls.py`) and `frontend/src/ours/` are the source of truth
-   and the only thing you normally change.
+1. **The user app first** — `ourapp/` (the `models/`, `views/`, `urls.py`,
+   `tests/` packages) and `frontend/src/ours/` are the source of truth and the
+   only thing you normally change.
 2. **The reference next** — `docs/reference/` as a complete, copyable example
    (model + ninja API + urls + Inertia page + test).
 3. **The framework only as reference** — `djangoapp/` is there to understand
    behaviour, not to rework. Change it only when the user explicitly asks.
 
 ### Models
-Concrete models live in `ourapp/models.py`, subclassing
-`djangoapp.models.BaseModel`. Give each a docstring — the superuser
-models-management UI at `/manage/models` lists every model here with its
-docstring and browseable rows; a foreign-key cell links to the referenced row
-via that row's `get_absolute_url()`.
+Concrete models live in `ourapp/models/<feature>.py` (imported in
+`ourapp/models/__init__.py`), subclassing `djangoapp.models.BaseModel`. Give each
+a docstring — the superuser models-management UI at `/manage/models` lists every
+model here with its docstring and browseable rows; a foreign-key cell links to
+the referenced row via that row's `get_absolute_url()`.
 
 **Prefer `BaseModel` and its save methods.** Every concrete model subclasses
 `BaseModel`, which gives each row a URL-safe `public_id`, audit fields
@@ -176,16 +185,54 @@ keeps views short. Prefer a custom manager/queryset method
 completed=False)` across views, and a model method (`todo.complete()`) over
 inlining state changes in a view. A view should only orchestrate — parse the
 request, call a model/manager method, return a schema — never encode the rules.
-**Feature README** — `ourapp/` ships a `README.md` listing its features (the
-models, endpoints, and pages it adds). It's the app's manifest: self-describing,
-browseable via `/files`, and a quick orientation for reviewers.
+**Multi-file layout** —  `ourapp/` is split into packages, one module per feature, combined into a whole:
+- **Models** live in the `ourapp/models/` package: one module per feature
+  (e.g. `models/facts.py`, `models/todos.py`), each imported into
+  `models/__init__.py` so Django discovers them. The home feature has no model,
+  so it adds nothing to `models/`.
+- **Views** live in the `ourapp/views/` package: each feature exposes a
+  `Router` (`views/facts.py`, `views/todos.py`, `views/home.py`); `views/__init__.py`
+  owns the single `NinjaAPI` and registers every router with `api.add_router(...)`.
+- **Tests** are flat under `ourapp/tests/`: one file per feature + layer, named
+  `test_<feature>_<layer>.py` (`models`, `views`, `commands`, `playwright`).
+  Playwright files subclass `BasePlaywrightTestCase` (tagged `playwright`), so
+  `./run test` skips them and `./run playwrighttest` runs them.
+
+### Checklist — adding or changing a feature
+Run through every box; the order is the order you build in.
+
+- [ ] **README** — update `ourapp/README.md` to describe the feature (what it
+      does, its URLs/pages), not its internal implementation. One or two lines.
+- [ ] **Feature doc** — add `ourapp/docs/<feature>.md` cataloguing the feature
+      (models, endpoints, pages, command, data shape) and link it from the README.
+- [ ] **Model module** — add `ourapp/models/<feature>.py` (subclass
+      `BaseModel`, give it a docstring) and import it in `ourapp/models/__init__.py`.
+      Then `./run djangomanage makemigrations ourapp`.
+- [ ] **View module** — add `ourapp/views/<feature>.py` with a `Router`, wire
+      **every** API endpoint (pages + data) there, and register it in
+      `ourapp/views/__init__.py` via `api.add_router("/", <feature>.router)`.
+- [ ] **Tests** — one file per layer, flat under `ourapp/tests/`:
+    - [ ] model/manager behaviour in `ourapp/tests/test_<feature>_models.py`
+    - [ ] every endpoint in `ourapp/tests/test_<feature>_views.py` (state + return
+          value, pk-free, 404 on missing/forbidden)
+    - [ ] each command in `ourapp/tests/test_<feature>_commands.py`
+    - [ ] every Inertia page end-to-end in `ourapp/tests/test_<feature>_playwright.py`
+- [ ] **Frontend** — page in `frontend/src/ours/pages/<Name>.vue`, a zod schema
+      in `ours/schemas.ts`, side-effect styles in `ours/style.scss`.
+- [ ] **Home navigation** — add a link to the feature from the landing page
+      (`frontend/src/ours/pages/Home.vue`), shown only when this viewer can use
+      it (e.g. hide an auth-required feature from an anonymous visitor). The link
+      is the user's way in, so a feature that's reachable but unlinked is as good
+      as missing.
 
 ### APIs & pages
-Prefer a django-ninja API (in `ourapp/views.py`, mounted in `ourapp/urls.py`)
-for both data and pages: data endpoints return pydantic schemas (ninja validates
-the response), pages return `InertiaResponse(request, "ours/<Page>",
-{"props": …})`. On the frontend, parse every payload with a zod schema. See
-`docs/reference/` for the full pattern. Page data is nested under a `props` key
+Prefer a django-ninja API: each feature exposes a `Router` in
+`ourapp/views/<feature>.py`, and `ourapp/views/__init__.py` owns the single
+`NinjaAPI` and registers every router (`api.add_router("/", <feature>.router)`);
+it is mounted in `ourapp/urls.py`. Use it for both data and pages: data
+endpoints return pydantic schemas (ninja validates the response), pages return
+`InertiaResponse(request, "ours/<Page>", {"props": …})`. On the frontend, parse
+every payload with a zod schema. See `docs/reference/` for the full pattern. Page data is nested under a `props` key
 (views pass `{"props": …}`) while `SharedPropsMiddleware` adds the viewer
 (`user`, `viewer_is_superuser`) at the top level — so a page reads its own data
 as `props.props`, e.g. `const props = defineProps<{ props: object }>(); const p =
@@ -197,6 +244,21 @@ For the authenticated user in queries, use `djangoapp.shortcuts`:
 `user_or_404(request)` (raises 404 when anonymous — keep the page's existence
 hidden) or `maybe_user(request)` (returns `User | None`). Never sprinkle
 `# type: ignore` to work around `request.user`'s `User | AnonymousUser` type.
+
+### Checklist — every view (writes & transactions)
+- [ ] DB operations that must happen together are wrapped in one
+      `transaction.atomic()` block (e.g. a create that also writes an audit log,
+      or two rows that are meaningless apart). A partial commit leaves the data
+      model in an inconsistent state — the transaction makes it all-or-nothing.
+      `BaseModel.save_with_logs` already does this internally; do it yourself
+      only when a view composes several writes.
+- [ ] Mutating writes go through `save_with_logs`/`delete_with_logs` (audited),
+      not bare `.save()`/`.delete()`.
+- [ ] Returns a pydantic schema (data) or `InertiaResponse` (page) — never a raw
+      dict or the ORM row.
+- [ ] Raises 404 on a missing row or an ownership/permission failure — never
+      renders an empty or broken page.
+- [ ] Sends only `public_id`, never the integer `pk`/`id`.
 
 For every **Inertia page**, all four must hold:
 - write a **zod schema** for its props (frontend).
@@ -240,11 +302,14 @@ schemas/styles live inside `ours/`).
 
 ## Writing tests
 - **Unit tests** cover **models and views**: regular Django tests
-  (`TestCase`/`SimpleTestCase`) in `ourapp/tests.py` or `djangoapp/tests/`. Seed
-  inside the test; assert state and endpoint return values (pk-free).
+  (`TestCase`/`SimpleTestCase`) in `ourapp/tests/`, one file per feature + layer
+  (`test_<feature>_models.py`, `test_<feature>_views.py`,
+  `test_<feature>_commands.py`). Seed inside the test; assert state and endpoint
+  return values (pk-free).
 - **Playwright e2e tests** cover a feature end-to-end (real browser + live
   server). The framework's own e2e lives in `djangoapp/tests/playwright/` (tagged
-  `playwright`). **Per-app e2e for `ourapp` lives in `ourapp/test_playwright.py`.**
+  `playwright`). **Per-app e2e for `ourapp` lives in
+  `ourapp/tests/test_<feature>_playwright.py`.**
   Assert the response of a mutating request or a seeded render, not cumulative
   state across requests.
   - **Always subclass `BasePlaywrightTestCase`** (from
@@ -255,8 +320,8 @@ schemas/styles live inside `ours/`).
     `TestCase`/`StaticLiveServerTestCase` for e2e — the first double-tags without
     a harness (no live server/page → the test breaks), the second leaves the test
     untagged so `./run playwrighttest` skips it silently.
-  - **Verify** it's collected: `uv run manage.py test --tag playwright -v 2` must
-    list your `ourapp.test_playwright.*` tests.
+    - **Verify** it's collected: `uv run manage.py test --tag playwright -v 2` must
+      list your `ourapp.tests.test_*_playwright` tests.
 - **Playwright locators** — query the accessibility tree or a test id, never copy
   or CSS. Use `page.get_by_role("button", name="Start")`,
   `page.get_by_label("Title")`, or `page.get_by_test_id("start")` (give volatile
@@ -266,6 +331,30 @@ schemas/styles live inside `ours/`).
     word; breaks if the copy changes.
   - ✗ `.ours-note-form input[placeholder*='title']` — couples to a class
     name + placeholder text; breaks on either change.
+
+### Checklist — every test class
+Every test class documents itself in its **class docstring**: a brief one-line
+description of what the class covers, then a bullet per test method naming it
+and the single thing it asserts (so the suite reads like a spec). Keep the
+module docstring to a one-line label; the detail lives on the class.
+
+```python
+class FactsViewTests(TestCase):
+    """The /facts pages: random fact + topic list, plus per-topic random fact.
+
+    - test_facts_page_renders_with_fact, GET /facts renders FactsPage with one fact + topics
+    - test_facts_page_empty_fact_none, GET /facts with no facts has fact null
+    - test_facts_page_lists_topics, GET /facts props carry every topic (pk-free)
+    - test_fact_topic_page_renders, GET /facts/<slug> renders FactTopicPage scoped to the topic
+    - test_fact_topic_page_missing_is_404, GET /facts/<bad-slug> is 404
+    """
+```
+- [ ] **Class docstring** — first line: one brief sentence naming what the class
+      tests; no body repeat of the file/module.
+- [ ] **Test-method bullets** — one `- test_<name>, <what it asserts>` per
+      method, in declaration order; `<what it asserts>` is the single assertion
+      in plain English (e.g. "anon GET /todos is 404 (private)"), not a restate
+      of the method name.
 
 ## Commands, tools & permissions
 You may read any file in the project and edit files under `scratch/`. Edits
@@ -361,5 +450,5 @@ data-exfiltration surface:
 
 ## Authoritative docs
 For the full pattern, read `docs/reference/` (a complete copyable example),
-`ourapp/models.py` (its docstring documents the model convention), and
+`ourapp/` (its `README.md` + `docs/` document the app's features), and
 `INSTRUCTIONS.md`.

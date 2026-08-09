@@ -1,3 +1,5 @@
+"""Tests for the home view (``GET /``)."""
+
 from http import HTTPStatus
 
 from inertia.test import InertiaTestCase
@@ -6,20 +8,18 @@ from djangoapp.models import User
 
 
 class HomeViewTests(InertiaTestCase):
-    """Inertia Home page renders for anonymous and authenticated users.
+    """The landing page renders for anonymous and authenticated viewers (pk-free).
 
-    The Home page is the single public-facing route in the foundation
-    scaffold; it must show login state without leaking the integer pk.
-
-    - test_anonymous_home, anon GET / has Home component, is_authenticated False
+    - test_anonymous_home, anon GET / has ours/Home component, is_authenticated False
     - test_authenticated_home, authed GET / has display_name and public_id set
     - test_home_issues_csrftoken_cookie, GET / sets a csrftoken cookie so logout can POST
+    - test_no_integer_pk_in_props, public_id present but no integer id/pk leaks
     """
 
     def test_anonymous_home(self) -> None:
-        """Anon GET / has Home component with is_authenticated False and empty display_name."""
+        """Anon GET / has ours/Home with is_authenticated False and empty display_name."""
         self.inertia.get("/")
-        self.assertComponentUsed("Home")
+        self.assertComponentUsed("ours/Home")
         self.assertHasExactProps(
             {
                 "props": {
@@ -42,6 +42,7 @@ class HomeViewTests(InertiaTestCase):
         )
         self.inertia.force_login(user)
         self.inertia.get("/")
+        self.assertComponentUsed("ours/Home")
         self.assertHasExactProps(
             {
                 "props": {
@@ -63,20 +64,12 @@ class HomeViewTests(InertiaTestCase):
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertIn("csrftoken", response.cookies)
 
-
-class NoPkLeakTests(InertiaTestCase):
-    """The home response must never expose the integer pk.
-
-    - test_no_integer_pk_in_props, public_id is present but no integer id/pk leaks through props
-    """
-
     def test_no_integer_pk_in_props(self) -> None:
-        """public_id is present but no integer id/pk leaks through props."""
+        """public_id present but no integer id/pk leaks through props."""
         user = User.objects.create_user(username="alice")
         self.inertia.force_login(user)
         self.inertia.get("/")
-        props = self.props()
-        page = props["props"]
+        page = self.props()["props"]
         self.assertEqual(page["public_id"], user.public_id)
         self.assertNotIn("id", page)
         self.assertNotIn("pk", page)

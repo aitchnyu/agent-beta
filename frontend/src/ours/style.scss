@@ -1,0 +1,25 @@
+// App-specific styles, kept with the app under ours/.
+// Imported as a side-effect by the page components (`import "../style.scss"`),
+// so the features are self-contained and need no edit to the framework's main.scss.
+
+.home-container {
+  max-width: 32rem;
+}
+
+.home-login-link,
+.home-logout-btn {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--bs-blue, #2563eb);
+  color: #ffffff;
+  border: none;
+  border-radius: 0.375rem;
+  text-decoration: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+.home-logout-btn {
+  background-color: var(--bs-gray-500, #6b7280);
+}

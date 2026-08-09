@@ -214,7 +214,7 @@ class ManageProjectTests(InertiaTestCase):
         self.assertEqual(props["public_id"], self.book.public_id)
         self.assertEqual(props["values"]["title"], "Notes")
 
-        # Logs are a lazy Inertia prop: absent from the top-level page props on the full page load 
+        # Logs are a lazy Inertia prop: absent from the top-level page props on the full page load
         self.assertNotIn("logs", self.props())
 
     def test_book_detail_logs_load_on_partial_reload(self) -> None:

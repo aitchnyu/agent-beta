@@ -36,7 +36,7 @@ const p = ModelListPropsSchema.parse(props.props)
           <tr v-if="p.models.length === 0">
             <td colspan="3" class="text-center text-muted py-4">
               No models. Define a concrete model subclassing
-              <code>BaseModel</code> in <code>ourapp/models.py</code>.
+              <code>BaseModel</code> in <code>ourapp/models/</code>.
             </td>
           </tr>
         </tbody>

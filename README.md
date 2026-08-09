@@ -32,24 +32,41 @@ Once promoted, that user can reach the management routes below.
 
 ## The user app (`ourapp/`)
 
-`ourapp/` is a normal Django app (in `INSTALLED_APPS`). It ships empty — you add
-your code:
+`ourapp/` is a normal Django app (in `INSTALLED_APPS`). It ships with only the
+landing page — you add your features there and in its frontend. Features are
+split into modules (one per feature), never stuffed into one file:
 
-- **Models** (`ourapp/models.py`): concrete classes subclassing
-  `djangoapp.models.BaseModel`, which provides `_public_id`, `_created_by`,
-  `_created_at`, `_edited_at` and `get_absolute_url()`. Give each a docstring.
-  Add/change a model → `./run djangomanage makemigrations ourapp`.
-- **API** (`ourapp/views.py`): a django-ninja API — page responses render via
-  Inertia (`InertiaResponse(request, "ours/<Page>", {"props": …})`), data
-  responses are pydantic schemas. (Recommend ninja routers for all ourapp URLs.)
+- **Models** (`ourapp/models/`): one module per feature (`models/<feature>.py`),
+  imported in `models/__init__.py` so Django finds them. Each concrete class
+  subclasses `djangoapp.models.BaseModel`, which provides `public_id`, audit
+  fields (`created_by`, `created_at`, `last_updated_at`, `last_updated_by`) and
+  `get_absolute_url()`. Give each a docstring. Add/change a model →
+  `./run djangomanage makemigrations ourapp`.
+- **API** (`ourapp/views/`): one django-ninja `Router` per feature
+  (`views/<feature>.py`); `views/__init__.py` owns the single `NinjaAPI` and
+  registers every router. Page responses render via Inertia
+  (`InertiaResponse(request, "ours/<Page>", {"props": …})`), data responses are
+  pydantic schemas.
 - **URLs** (`ourapp/urls.py`): mounts the ninja API at the project root, so each
-  route is served at its literal URL.
+  route is served at its literal URL — **including the landing page `/`**, which
+  the app owns (the framework serves no home route).
+- **Commands** (`ourapp/management/commands/`): seed/setup commands, one module
+  per command.
+- **Tests**: `ourapp/tests/` — flat, one file per feature + layer
+  (`test_<feature>_<layer>.py`; layer = `models`/`views`/`commands`/`playwright`).
+  Playwright files are tagged so `./run test` skips them and `./run playwrighttest`
+  runs them.
 - **Frontend**: one Vue+Inertia app. App pages live in
-  `frontend/src/pages/ours/<Name>.vue` (component name `ours/<Name>`); shared
-  components in `frontend/src/components/ours/`.
+  `frontend/src/ours/pages/<Name>.vue` (component name `ours/<Name>`); shared
+  components in `frontend/src/ours/components/`.
 
-See `docs/reference/` for a complete copyable example (a `Note` model with a
-`User` foreign key, a ninja list + create API, a page, and a test).
+The app also has its own `README.md` (a brief feature catalog) and `docs/`
+(one markdown file per feature, linked from the README). See
+`agentconfig/steer.md` for the "Checklist — adding or changing a feature".
+
+See `docs/reference/` for a complete copyable example (the **facts** feature —
+a `Topic` + `Fact`, a seed command, two pages — and the **todos** feature — a
+`Todo` owned by a `User`, one page).
 
 ## Models management (superuser)
 
@@ -71,8 +88,9 @@ parent. For every change:
    into a fresh `scratch/`, bootstrap its own env (`uv sync` + `npm install`), and
    `git init` it.
 2. Edit `scratch/`.
-3. `( cd scratch && ./run checkall )` — ruff + mypy + tests + frontend lint/type-check
-   + Playwright. Must finish green.
+3. `( cd scratch && ./run checkscratch )` — ruff + mypy + `ourapp` tests + frontend
+   lint/type-check/build (the fast loop: the framework suite and Playwright stay
+   in `main/`). Must finish green. Run `checkall` in `main/` for the full gate.
 4. `main/run mergescratch` — deploy `scratch/` into `main/` (never overwriting
    `main/.env`). This does **not** commit.
 
@@ -98,18 +116,21 @@ superuser count can never fall to zero through the UI.
 ## Commands
 
 All via the `run` script: `init`, `runserver`, `test`, `typecheck`, `lintfix`,
-`playwrighttest`, `checkall`, `checkproject`, `createscratch`, `mergescratch`, plus
-`djangomanage`/`python` passthroughs (e.g. `./run djangomanage makemigrations`,
-`./run python manage.py …`).
+`playwrighttest`, `checkscratch`, `checkall`, `checkproject`, `createscratch`,
+`mergescratch`, `cleanscratch`, plus `djangomanage`/`python` passthroughs (e.g.
+`./run djangomanage makemigrations`, `./run python manage.py …`).
 
 ## Testing
 
-Two tiers:
+Three tiers:
 
-- **`checkall`** — the fast loop. Runs against the
-  empty `ourapp/`, so the project tests self-skip (`RUN_PROJECT_TESTS` unset;
-  they need a real app).
-- **`checkproject`** — full validation against a real app. Two `createscratch`
+- **`checkscratch`** — the fast loop, run in `scratch/` while editing. ruff +
+  mypy (whole codebase), `ourapp`'s own tests only, and the frontend
+  lint/type-check/build. Skips the framework suite and Playwright (those run in
+  `main/`).
+- **`checkall`** — the full gate, run in `main/`. ruff + mypy + the whole backend
+  suite + frontend lint/type-check + Playwright.
+- **`checkproject`** — overlay validation against a real app. Two `createscratch`
   cycles:
   1. Overlays the **test app** (`djangoapp/tests/testapp/`) → runs the full suite
      with `RUN_PROJECT_TESTS=1` (project tests un-skipped: real models/git/files).

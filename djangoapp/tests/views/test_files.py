@@ -16,16 +16,17 @@ from djangoapp.views.files import PathWrapper
 
 # A tracked text file in the user app — stable target for the preview/download
 # integration tests below. main/-prefixed because the browse root is the project
-# parent (BASE_DIR.parent), so main/ holds the repo.
-_TEXT_FILE = "main/ourapp/models.py"
+# parent (BASE_DIR.parent), so main/ holds the repo. The user app splits models
+# into a package, so point at the package's __init__ (which documents BaseModel).
+_TEXT_FILE = "main/ourapp/models/__init__.py"
 
 
 class FilesViewTests(InertiaTestCase):
     """Superuser-only ``/files/...`` browser — HTTP view (gate, listing, preview, serving).
 
     Uses the Inertia test case (``self.props`` / ``assertComponentUsed``) against
-    the real repo tree (``ourapp/``, ``ourapp/models.py``). Non-superusers and
-    anonymous viewers get 404 (never 403); byte serving lives on its own
+    the real repo tree (``ourapp/`` and its ``models/`` package). Non-superusers
+    and anonymous viewers get 404 (never 403); byte serving lives on its own
     endpoints (``/files-download`` / ``/files-raw``).
 
     - test_non_superuser_404 / test_anonymous_404, access gate → 404
@@ -95,7 +96,10 @@ class FilesViewTests(InertiaTestCase):
         self.client.force_login(self.superuser)
         self.client.get("/files/main/ourapp")
         props = self.props()["props"]
-        self.assertIn("models.py", {e["name"] for e in props["entries"]})
+        # The user app splits models/views into packages (one module per feature).
+        names = {e["name"] for e in props["entries"]}
+        self.assertIn("models", names)
+        self.assertIn("views", names)
         self.assertEqual([c["label"] for c in props["breadcrumb"]], ["root", "main", "ourapp"])
         self.assertEqual(props["parent"], "main")  # parent is the repo dir
 
@@ -107,7 +111,7 @@ class FilesViewTests(InertiaTestCase):
         props = self.props()["props"]
         self.assertEqual(props["kind"], "text")
         self.assertIn("BaseModel", props["text"])
-        self.assertEqual(props["parent"], "main/ourapp")
+        self.assertEqual(props["parent"], "main/ourapp/models")
 
     def test_download_returns_attachment(self) -> None:
         """/files-download returns bytes as an attachment (octet-stream)."""

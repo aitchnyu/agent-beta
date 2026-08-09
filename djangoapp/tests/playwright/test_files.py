@@ -5,8 +5,10 @@ from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 
 # Stable files under main/ourapp/ (tracked) used as browse/preview targets.
 # main/-prefixed because the browse root is the project parent (BASE_DIR.parent).
+# The user app splits models into a package, so point at the package's __init__
+# (which documents BaseModel + the models-management UI) for the preview tests.
 _DIR = "main/ourapp"
-_TEXT_FILE = "main/ourapp/models.py"
+_TEXT_FILE = "main/ourapp/models/__init__.py"
 _ENTRY_DIR = "migrations"
 _LEAF = "ourapp"  # breadcrumb leaf segment (the current dir)
 
@@ -16,9 +18,9 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
 
     Re-auths the shared page as a superuser (the base harness logs in a plain
     user; ``/files`` is superuser-only) and drives the real repo tree
-    (``ourapp/``, ``ourapp/models.py``). ``tearDown`` fails the test on any browser
-    console error. Uses Python assert methods; ``networkidle`` navigation (and
-    targeted ``wait_for``) ensure Inertia has hydrated before asserting.
+    (``ourapp/`` and its ``models/`` package). ``tearDown`` fails the test on any
+    browser console error. Uses Python assert methods; ``networkidle`` navigation
+    (and targeted ``wait_for``) ensure Inertia has hydrated before asserting.
 
     - test_browse_lists_entries_and_breadcrumb, entries + root/ourapp breadcrumb
     - test_clicking_directory_entry_navigates, an entry link SPA-navigates into the dir
@@ -50,7 +52,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         page.goto(self._files(_DIR), wait_until="networkidle")
         body = page.inner_text("body")
         self.assertIn(_ENTRY_DIR, body)
-        self.assertIn("models.py", body)
+        self.assertIn("urls.py", body)
         crumb = page.locator(".files-breadcrumb")
         self.assertTrue(crumb.get_by_role("link", name="root").is_visible())
         self.assertTrue(crumb.get_by_role("link", name=_LEAF).is_visible())

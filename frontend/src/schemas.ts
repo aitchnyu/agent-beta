@@ -1,13 +1,5 @@
 import { z } from "zod"
 
-export const HomePropsSchema = z.object({
-  is_authenticated: z.boolean(),
-  display_name: z.string(),
-  public_id: z.string(),
-})
-
-export type HomeProps = z.infer<typeof HomePropsSchema>
-
 // Profile user (shared prop + list/detail rows). pk-free: only public_id.
 export const UserSchema = z.object({
   public_id: z.string(),

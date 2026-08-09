@@ -25,28 +25,6 @@ body {
   border-radius: $radius-md;
 }
 
-.home-container {
-  max-width: 32rem;
-}
-
-.login-link,
-.logout-btn {
-  display: inline-block;
-  margin-top: 1rem;
-  padding: 0.5rem 1rem;
-  background-color: $blue-600;
-  color: #ffffff;
-  border: none;
-  border-radius: $radius-md;
-  text-decoration: none;
-  cursor: pointer;
-  font: inherit;
-}
-
-.logout-btn {
-  background-color: $gray-500;
-}
-
 .apps-back-to-top {
   display: inline-flex;
   align-items: center;

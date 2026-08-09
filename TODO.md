@@ -1,43 +1,32 @@
-Our app may have separate features. Lets not stuff everything into one file. 
-Models are multi file modules, we use multiple modules to separate them. 
-views are multi-file modules, use ninja to combine to a whole.
-Same for views and playwright tests
-Have README.md and docs/ in our app. README.md describes all features in brief. There are individual md files for each feature linked from README. Catalog features in each individual file.
-
-Have a checklist in steer.md to maintain desirable structure when adding or changing feature:
-  update readme, mostly to describe feature, not internal implementation
-  add individual feature md files in docs and link from readme
-  add model module for feature
-  add view module for feature and wire all api endpoints
-  add tests for models, views, tasks, commands etc
-
-Checklist for views:
-  db things that must happen together must happen in a transaction
-
-Add as checklist, we can describe them in detail under a heading or have sub checklists.
-
-Have a facts and todo feature in example app.
-Facts have 
-  - command - seed db with 20 facts each about cars, science, animals, geography
-  -
-
-Homepage should be served by ourapp only, adjust urls.py for that.
-
------------
-
-except git.BadName, git.BadObject, git.GitCommandError, ValueError:
-
-checkall vs checkscratch - run if anything outside of ours/ and ourapp/ is changed
-
-
 Page title for apps - as component
 
-Inertia 3 - https://github.com/inertiajs/inertia-django/issues/99
+Every Inertia page should include `<PageTitle :value="something"/>`. When its mounted or value changed, it will change document.title. Inertia pages should supply the value. Either they can be descriptive like "Projects" or derived from data like name "John Smith's portfolio" etc.
+
+-------
 
 Check the various url modules. Think of git urls not being under a ninja. Look at the error messages and how it could be confusing. Think of consistency of error handlers. Dont ask questions or write files yet.
 Have better error messages for /opencode
 NinjaAPI consistency - like error handlers etc
 Move git urls to Ninja - be consistent
+
+I see
+from djangoapp.views.git import (
+    git_commit_file_diff,
+    git_commit_file_list,
+    git_commit_list,
+    git_uncommitted_diff,
+    git_uncommitted_list,
+)
+Import the git and use git.fn1, git.fn2 etc
+
+Find all instances of this and make it consistent
+except git.BadName, git.BadObject, git.GitCommandError, ValueError:
+
+--------
+
+checkall vs checkscratch - run if anything outside of ours/ and ourapp/ is changed
+
+Inertia 3 - https://github.com/inertiajs/inertia-django/issues/99
 
 When agent is cut off due to redeployment, download latest message to show to user?
 
@@ -50,7 +39,7 @@ Include logging, including storing in db in example app
 
 Run all tests in checkproject and merge coverage from both stages.
 
-Readonly mode for whole system, disable get requests too if it mutates data. Do it at middleware level.
+Readonly mode for whole system, disable get requests too if it mutates data. Send toast. Do it at middleware level.
 
 ## Error tracking
 Log backend in json
@@ -90,7 +79,6 @@ logger = logging.getLogger(__name__) - agent added
 ## Deployment
 Tool to analyse error logs and stacktraces
 Opencode as service
-Whitelist of services
 Serve files in fs, accelerate using Caddy
 Who is committing to git
 Require rsync, redis

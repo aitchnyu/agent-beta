@@ -1,6 +1,6 @@
 from django.urls import include, path, re_path
 
-from djangoapp.views import home, login_for_test
+from djangoapp.views import login_for_test
 from djangoapp.views.files import file_browser, file_download, file_raw
 from djangoapp.views.git import (
     git_commit_file_diff,
@@ -14,7 +14,12 @@ from djangoapp.views.opencode import opencode_api, opencode_page
 from djangoapp.views.users import users_api
 
 urlpatterns = [
-    path("", home, name="home"),
+    # The user app is included FIRST so it owns the landing page at "/" — every
+    # django-ninja API also registers a `default_home` at "" that raises 404, so
+    # the app's home route must be tried before the framework NinjaAPIs. The app
+    # has no framework-prefixed routes, so it never shadows /users, /manage,
+    # /agent, /files, /git, /api/opencode (those fall through past it).
+    path("", include("ourapp.urls")),
     path("", users_api.urls),
     path("", manage_api.urls),
     path("api/opencode/", opencode_api.urls),
@@ -43,8 +48,6 @@ urlpatterns = [
     re_path(
         r"^git/commits/(?P<commit_id>[0-9a-fA-F]{4,40})/(?P<rel>.*)$",
         git_commit_file_diff,
-        name="git-commit-file-diff",
+        name="git-commit-diff",
     ),
-    # The user app's regular Django views, included LAST
-    path("", include("ourapp.urls")),
 ]

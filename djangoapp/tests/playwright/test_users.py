@@ -12,45 +12,6 @@ if TYPE_CHECKING:
     from playwright.sync_api import Page
 
 
-class HomeAuthE2eTestCase(BasePlaywrightTestCase):
-    """E2E tests for the Home auth state and logout flow.
-
-    Drives a real browser through the signed-out / signed-in states and
-    the full logout round-trip on the foundation Home page.
-
-    - test_anon_home_shows_signed_out, anon / shows signed-out + Google login link, no logout button
-    - test_authenticated_home_shows_user, authed / shows display name + logout button, no login link
-    - test_logout_flow_returns_to_signed_out, Sign out logs out and lands on signed-out home
-    """
-
-    def test_anon_home_shows_signed_out(self) -> None:
-        """Anon / shows signed-out status and a Google login link, no logout button."""
-        with self.anon_page() as page:
-            page.goto(f"{self.live_server_url}/")
-            page.wait_for_selector(".home-status-signed-out")
-            self.assertEqual(page.locator(".home-login-link").count(), 1)
-            self.assertEqual(page.locator(".home-logout-btn").count(), 0)
-
-    def test_authenticated_home_shows_user(self) -> None:
-        """Authed / shows the user's display name and a logout button, no login link."""
-        page = self.logged_in_page
-        page.goto(f"{self.live_server_url}/")
-        page.wait_for_selector(".home-status-signed-in")
-        self.assertEqual(page.text_content(".home-display-name"), self.user.display_name)
-        self.assertEqual(page.locator(".home-logout-btn").count(), 1)
-        self.assertEqual(page.locator(".home-login-link").count(), 0)
-
-    def test_logout_flow_returns_to_signed_out(self) -> None:
-        """Clicking Sign out logs out and lands back on the signed-out home."""
-        page = self.logged_in_page
-        page.goto(f"{self.live_server_url}/")
-        page.wait_for_selector(".home-logout-btn")
-        page.click(".home-logout-btn")
-        # allauth logout POST redirects to LOGOUT_REDIRECT_URL ("/")
-        page.wait_for_url(f"{self.live_server_url}/")
-        page.wait_for_selector(".home-status-signed-out")
-
-
 class LoginForTestGateE2eTestCase(BasePlaywrightTestCase):
     """The test login bypass must be disabled outside DEBUG.
 
