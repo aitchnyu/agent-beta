@@ -128,9 +128,7 @@ def submit(request: HttpRequest, body: ClientErrorBody) -> HttpResponse:
         # context (LoggingContextMiddleware); echoed here as a flat object
         # so a client error record is self-describing.
         user=(
-            {"public_id": user.public_id, "username": user.username}
-            if user is not None
-            else None
+            {"public_id": user.public_id, "username": user.username} if user is not None else None
         ),
     )
     return HttpResponse(status=204)

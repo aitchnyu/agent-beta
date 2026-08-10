@@ -86,8 +86,6 @@ class ClientErrorReportingE2e(BasePlaywrightTestCase):
             with page.expect_request(
                 lambda req: req.method == "POST" and "/client-errors" in req.url
             ) as req_info:
-                page.evaluate(
-                    "() => setTimeout(() => { throw new Error('anon boom') }, 0)"
-                )
+                page.evaluate("() => setTimeout(() => { throw new Error('anon boom') }, 0)")
             body = json.loads(req_info.value.post_data or "{}")
             self.assertIsNone(body["public_id"])

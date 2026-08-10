@@ -17,7 +17,7 @@ import contextlib
 import json
 import os
 import time
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast
 from urllib.parse import quote
 
 import httpx
@@ -82,6 +82,26 @@ _RELEVANT_TYPES = frozenset(
 # answered). Each one resets the _STREAM_MAX_SECS clock so the cap measures
 # agent compute time, not the wait for the user's decision.
 _HUMAN_TOUCHPOINTS = frozenset({"permission.asked", "permission.replied"})
+
+
+# Shape of a forwarded opencode SSE event (the daemon's wire format; validated
+# client-side by OpencodeEventSchema). Only the fields this proxy reads are
+# modelled — `total=False` because the daemon omits keys per event type. This
+# replaces the earlier `dict[str, Any]` that hid the `.get("properties", …)`
+# access behind Any and let `_is_idle`/`_is_relevant` drift untyped.
+class _SseStatus(TypedDict, total=False):
+    type: str
+
+
+class _EventProperties(TypedDict, total=False):
+    sessionID: str
+    status: _SseStatus
+    message: str  # daemon `error` events carry a human-readable message
+
+
+class _OpencodeEvent(TypedDict, total=False):
+    type: str
+    properties: _EventProperties
 
 
 class _PromptBody(BaseModel):
@@ -378,7 +398,7 @@ def _event_stream(
         client.close()
 
 
-def _iter_sse(resp: httpx.Response) -> Iterator[dict[str, Any]]:
+def _iter_sse(resp: httpx.Response) -> Iterator[_OpencodeEvent]:
     r"""Yield parsed JSON events from an SSE ``data:`` stream.
 
     Mirrors the SSE spec: a frame is one or more ``data:`` lines terminated by
@@ -394,13 +414,15 @@ def _iter_sse(resp: httpx.Response) -> Iterator[dict[str, Any]]:
     """
     data_lines: list[str] = []
 
-    def _emit() -> Iterator[dict[str, Any]]:
+    def _emit() -> Iterator[_OpencodeEvent]:
         if not data_lines:
             return
         payload = "\n".join(data_lines)
         data_lines.clear()
         try:
-            yield json.loads(payload)
+            # json.loads returns Any; the daemon's event shape is validated
+            # client-side (OpencodeEventSchema), so cast to the envelope here.
+            yield cast("_OpencodeEvent", json.loads(payload))
         except json.JSONDecodeError:
             return
 
@@ -416,25 +438,33 @@ def _iter_sse(resp: httpx.Response) -> Iterator[dict[str, Any]]:
     yield from _emit()
 
 
-def _is_relevant(event: dict[str, Any], session_id: str) -> bool:
+def _is_relevant(event: _OpencodeEvent, session_id: str) -> bool:
     etype = event.get("type")
     if etype not in _RELEVANT_TYPES:
         return False
-    sid = event.get("properties", {}).get("sessionID")
-    if sid is None:
-        # An unscoped event (no sessionID) — only `error` is worth surfacing
+    props = event.get("properties")
+    if props is None:
+        # An unscoped event (no properties) — only `error` is worth surfacing
         # without a session match (e.g. an auth/rate-limit error the daemon
         # emits without tagging). Every other type is session-scoped data and
         # is dropped if we can't match it. An error tagged to another session
         # is still dropped (the sessionID is present but differs).
         return bool(etype == "error")
-    return bool(sid == session_id)
+    sid = props.get("sessionID")
+    if sid is None:
+        return bool(etype == "error")
+    return sid == session_id
 
 
-def _is_idle(event: dict[str, Any]) -> bool:
+def _is_idle(event: _OpencodeEvent) -> bool:
     if event.get("type") != "session.status":
         return False
-    status = event.get("properties", {}).get("status", {})
+    props = event.get("properties")
+    if props is None:
+        return False
+    # Defensive: the daemon's JSON is trusted only up to the wire — `status`
+    # could be absent or malformed, so guard with isinstance before reading.
+    status = props.get("status")
     return bool(isinstance(status, dict) and status.get("type") == "idle")
 
 

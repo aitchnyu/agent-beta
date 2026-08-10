@@ -3,6 +3,17 @@ Poorly typed stuff in opencode.py - `def _is_idle(event: dict[str, Any]) -> bool
 Upgrade ruff. Ensure our lint commands catch any problem. Ensure ruff is tighter.
 How will you tighten mypy
 
+Look at using Huey to run background tasks and cron.
+Example app should have a cron task that chooses a fact of the day at random. Yes, visiting fact will show one fixed fact of the day.
+We need a screen multiplexer which will run runserver, npm run dev, opencode, huey in one terminal. One ./run command for this.
+Add this command to near the top of readme. Mention which programs like node, opencode is needed to run the project.
+
+We have to list features in readme in bullet points
+  huey for async tasks and 
+  can inspect data within models
+  agent
+
+
 ## Cron and huey
 Require redis
 Huey based background and scheduled tasks?
@@ -22,7 +33,7 @@ Generate multiline, render as multiline:
 Review using agents?
 
 Inertia 3 - https://github.com/inertiajs/inertia-django/issues/99
-Django 6.1 fetch modes? New Mypy.
+Django 6.1 fetch modes? New Mypy. https://github.com/typeddjango/django-stubs
 
 Readonly mode for whole system, disable get requests too if it mutates data. Send toast. Do it at middleware level.
 

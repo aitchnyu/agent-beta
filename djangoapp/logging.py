@@ -38,9 +38,7 @@ __all__ = [
 ]
 
 
-def _default_source(
-    _logger: WrappedLogger, _name: str, event_dict: EventDict
-) -> EventDict:
+def _default_source(_logger: WrappedLogger, _name: str, event_dict: EventDict) -> EventDict:
     """Tag every record with a ``source`` so server vs. client logs are jq-able.
 
     Defaults to ``"server"``; ``client``-reported errors set ``source="client"``

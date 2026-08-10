@@ -12,14 +12,11 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
 import git
 from django.conf import settings
 from pydantic import BaseModel
-
-if TYPE_CHECKING:
-    from typing import Any
 
 # The repo the viewer reads: the project's git repo at BASE_DIR. Module-level so
 # tests can point it at a throwaway temp repo (see tests/views/test_git.py).
@@ -97,13 +94,13 @@ def worktree_exists(name: str) -> bool:
     return worktree_root(name).is_dir()
 
 
-def _repo(name: str = "main") -> Any:  # noqa: ANN401 -- git.Repo has no first-class stub; Any is the honest type
+def _repo(name: str = "main") -> git.Repo:
     # Raises git.NoSuchPathError / git.InvalidGitRepositoryError if the worktree's
     # repo is missing — left for the caller (views map to 404, the list skips).
     return git.Repo(str(worktree_root(name)))
 
 
-def _change_status(change_type: str) -> str:
+def _change_status(change_type: str | None) -> str:
     if change_type == "A":
         return "added"
     if change_type == "D":
@@ -111,21 +108,37 @@ def _change_status(change_type: str) -> str:
     return "modified"
 
 
-def _commit_summary(c: Any) -> CommitSummary:  # noqa: ANN401 -- git.Commit has no stubs
+def _diff_path(diff: git.Diff) -> str:
+    # A Diff always carries at least one side's path (added → b_path, deleted →
+    # a_path). Explicit raise (not assert) so the guard survives `python -O`.
+    path = diff.b_path or diff.a_path
+    if path is None:
+        msg = "git Diff has neither a_path nor b_path"
+        raise RuntimeError(msg)
+    return path
+
+
+def _commit_summary(c: git.Commit) -> CommitSummary:
+    # Commit.message is str | bytes | None (GitPython decodes lazily); normalise
+    # so .strip()/splitlines() are type-safe regardless of the declared union.
+    raw_message = c.message
+    message = (
+        raw_message.decode(c.encoding or "utf-8", "replace")
+        if isinstance(raw_message, bytes)
+        else (raw_message or "")
+    )
     return CommitSummary(
         sha=c.hexsha,
         short_sha=c.hexsha[:7],
         author=f"{c.author.name} <{c.author.email}>",
         date=int(c.committed_datetime.timestamp() * 1000),
-        subject=(c.message.strip().splitlines()[:1] or [""])[0],
+        subject=(message.strip().splitlines()[:1] or [""])[0],
     )
 
 
-def _commit_files(c: Any) -> list[CommitFile]:  # noqa: ANN401 -- git.Commit has no stubs
+def _commit_files(c: git.Commit) -> list[CommitFile]:
     diffs = c.parents[0].diff(c) if c.parents else c.diff(git.NULL_TREE)
-    return [
-        CommitFile(path=d.b_path or d.a_path, status=_change_status(d.change_type)) for d in diffs
-    ]
+    return [CommitFile(path=_diff_path(d), status=_change_status(d.change_type)) for d in diffs]
 
 
 def uncommitted(name: str = "main") -> list[UncommittedFile]:
@@ -136,7 +149,7 @@ def uncommitted(name: str = "main") -> list[UncommittedFile]:
     ]
     if repo.head.is_valid():  # no HEAD → fresh repo, only untracked
         out.extend(
-            UncommittedFile(path=d.b_path or d.a_path, status=_change_status(d.change_type))
+            UncommittedFile(path=_diff_path(d), status=_change_status(d.change_type))
             for d in repo.head.commit.diff(None)  # HEAD vs working tree (all tracked changes)
         )
     return out

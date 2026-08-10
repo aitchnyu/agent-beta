@@ -15,7 +15,7 @@ urlpatterns = [
     # has no framework-prefixed routes, so it never shadows /users, /manage,
     # /agent, /files, /git (those fall through past it).
     path("", include("ourapp.urls")),
-    path("", client_errors_api.urls), # Frontend error capture sink
+    path("", client_errors_api.urls),  # Frontend error capture sink
     path("", users_api.urls),
     path("", manage_api.urls),
     path("", git_api.urls),

@@ -32,6 +32,6 @@ def with_cache_buster(url: str) -> str:
         return f"{url}?cache_buster=0"
     try:
         version = str(int(Path(path).stat().st_mtime))
-    except (OSError, TypeError):
+    except OSError, TypeError:
         version = "0"
     return f"{url}?cache_buster={version}"

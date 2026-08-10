@@ -203,7 +203,9 @@ playwrighttest() {
 
 checkall() {
   setenv
-  echo "Running ruff for formatting problems"
+  echo "Running ruff format --check (formatting drift)"
+  uv run ruff format --check
+  echo "Running ruff check (lint)"
   uv run ruff check
   echo "Running mypy for type checking"
   uv run mypy .
@@ -227,7 +229,9 @@ checkall() {
 # backend suite + Playwright stay in checkall, run in main/.
 checkscratch() {
   setenv
-  echo "Running ruff for formatting problems"
+  echo "Running ruff format --check (formatting drift)"
+  uv run ruff format --check
+  echo "Running ruff check (lint)"
   uv run ruff check
   echo "Running mypy for type checking"
   uv run mypy .

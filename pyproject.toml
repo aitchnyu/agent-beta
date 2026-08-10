@@ -26,7 +26,7 @@ dev = [
     "django-stubs[compatible-mypy]>=6.0.2",
     "mypy>=1.20",
     "playwright>=1.40",
-    "ruff>=0.13.2",
+    "ruff>=0.15.0",
 ]
 
 [tool.uv]
@@ -101,6 +101,8 @@ exclude = [".venv"]
 
 [tool.mypy]
 strict = true
+# Local PEP 561 stub overlays (stubs/inertia, …).
+mypy_path = "stubs"
 # Each exclude is a directory that isn't part of the type-checked app code:
 exclude = [
   "prevproject/",  # vendored legacy/reference project, not shipped code
@@ -111,11 +113,18 @@ exclude = [
   "build/",  # packaging/build artifacts
 ]
 warn_unused_ignores = true
+warn_unreachable = true  # flag dead branches strict mode doesn't cover
 disallow_any_unimported = true
 disallow_any_decorated = true
 disallow_any_generics = true
 plugins = ["mypy_django_plugin.main"]
-disable_error_code = ["import-untyped"]
+
+# Per-module typing policy. Importing a third-party package that ships no
+# py.typed is an *error* by default (so a new untyped dep can't sneak in
+# unnoticed); packages that legitimately lack stubs are allow-listed here.
+[[tool.mypy.overrides]]
+module = ["allauth.*"]
+ignore_missing_imports = true
 
 [tool.django-stubs]
 django_settings_module = "djangoproject.settings"

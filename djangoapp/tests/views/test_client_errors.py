@@ -119,9 +119,7 @@ class ClientErrorViewTests(TestCase):
         original_limit = client_errors._RATE_LIMIT
         client_errors._RATE_LIMIT = 2
         try:
-            self.client.force_login(
-                User.objects.create_user(username="alice", password="x")
-            )
+            self.client.force_login(User.objects.create_user(username="alice", password="x"))
             statuses = [
                 self.client.post(
                     "/client-errors", data=_payload(), content_type="application/json"
@@ -142,9 +140,7 @@ class ClientErrorViewTests(TestCase):
         handler. Points redis-py at a dead port so ``execute()`` raises a real
         ``ConnectionError`` — no fake needed.
         """
-        dead = redis.Redis.from_url(
-            "redis://127.0.0.1:1/0", socket_connect_timeout=0.25
-        )
+        dead = redis.Redis.from_url("redis://127.0.0.1:1/0", socket_connect_timeout=0.25)
         original = client_errors._redis_client
         client_errors._redis_client = dead
         try:
@@ -161,12 +157,8 @@ class ClientErrorViewTests(TestCase):
         source/user_public_id/level/logger sent in the body → 422
         (extra=forbid), so a client can't forge log fields.
         """
-        forged = _payload(
-            source="server", user_public_id="forged", level="error", logger="x"
-        )
-        response = self.client.post(
-            "/client-errors", data=forged, content_type="application/json"
-        )
+        forged = _payload(source="server", user_public_id="forged", level="error", logger="x")
+        response = self.client.post("/client-errors", data=forged, content_type="application/json")
         self.assertEqual(response.status_code, 422)
 
     def test_stack_truncated_to_cap(self) -> None:

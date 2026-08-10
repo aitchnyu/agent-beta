@@ -204,3 +204,4 @@ with models exercising every field kind + both FK types, plus an `ours/` page. T
 **reference app** (`docs/reference/`) is the user-facing example, same format,
 shipping its own tests. Both are excluded from ruff/mypy (they're only valid when
 overlaid onto `ourapp/`).
+

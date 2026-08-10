@@ -18,14 +18,10 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import TYPE_CHECKING
 from unittest import TestCase
 from unittest.mock import patch
 
 import git
-
-if TYPE_CHECKING:
-    from typing import Any
 
 
 def _write(root: Path, rel: str, text: str) -> None:
@@ -59,7 +55,7 @@ def _worktree_roots(test: TestCase) -> tuple[Path, Path]:
     return main_root, scratch_root
 
 
-def _commit(repo: git.Repo, root: Path, files: dict[str, str], message: str) -> Any:  # noqa: ANN401 -- git.Repo.index.commit() has no first-class stub; Any is honest
+def _commit(repo: git.Repo, root: Path, files: dict[str, str], message: str) -> git.Commit:
     """Stage ``files`` (overwriting existing) and commit. ``files``: ``{rel: text}```."""
     for rel, text in files.items():
         _write(root, rel, text)
@@ -86,9 +82,9 @@ class GitRepoMixin(TestCase):
     - Scratch uncommitted: TodoApp/scratch_only.py modified, TodoApp/scratch_notes.md untracked
     """
 
-    commit_a: Any  # git.Commit — the root commit (all files "added")
-    commit_b: Any
-    commit_c: Any
+    commit_a: git.Commit  # the root commit (all files "added")
+    commit_b: git.Commit
+    commit_c: git.Commit
     short_a: str
     short_b: str
     short_c: str
