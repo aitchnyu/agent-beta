@@ -1,6 +1,8 @@
 <template>
   <Layout>
-    <PageTitle :value="'Commit ' + data.commit.short_sha + ' ' + data.commit.subject" />
+    <PageTitle
+      :value="'Commit ' + data.commit.short_sha + ' ' + data.commit.subject"
+    />
     <GitNav />
     <h1>
       <code>{{ data.commit.short_sha }}</code> {{ data.commit.subject }}

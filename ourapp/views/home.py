@@ -12,10 +12,13 @@ from typing import TYPE_CHECKING
 from inertia import InertiaResponse
 from ninja import Router
 
+from djangoapp.logging import get_logger
 from djangoapp.shortcuts import maybe_user
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
+
+logger = get_logger(__name__)
 
 router = Router()
 
@@ -28,16 +31,25 @@ def home_page(request: HttpRequest) -> InertiaResponse:
     fields; an authenticated viewer gets their display name and ``public_id``.
     """
     user = maybe_user(request)
+    # Example structured log lines (see agentconfig/steer.md § Logging). The
+    # event is a short human phrase (spaces, not snake_case); key/value fields
+    # make the line jq-filterable. method/path/user_public_id/username are
+    # already bound by LoggingContextMiddleware, so they're not repeated here.
     if user is None:
-        props = {
+        logger.info("home viewed", viewer="anonymous")
+    else:
+        logger.info("home viewed", viewer=user.username)
+    props = (
+        {
             "is_authenticated": False,
             "display_name": "",
             "public_id": "",
         }
-    else:
-        props = {
+        if user is None
+        else {
             "is_authenticated": True,
             "display_name": user.display_name,
             "public_id": user.public_id,
         }
+    )
     return InertiaResponse(request, "ours/Home", {"props": props})

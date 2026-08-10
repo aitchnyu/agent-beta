@@ -181,7 +181,7 @@ class GitRealTests(GitRepoMixin, InertiaTestCase):
     def test_commit_files_unknown(self) -> None:
         """An unknown commit id → 404."""
         self.assertEqual(
-            self.client.get("/git/commits/deadbeef").status_code,
+            self.client.get("/git/commits/0123456789abcdef").status_code,
             HTTPStatus.NOT_FOUND,
         )
 

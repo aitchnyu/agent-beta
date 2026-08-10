@@ -307,6 +307,61 @@ where possible** — keep the app out of the framework's `pages/`, `components/`
 shared `schemas.ts`, and `styles/` (those hold framework code; the app's own
 schemas/styles live inside `ours/`).
 
+### Logging
+**Try to log problems; don't swallow them.** A caught-and-recovered exception
+that isn't logged is invisible in prod. The whole app emits one JSON-per-line
+stream — never `print()` for diagnostics.
+
+- **Backend** — get the logger from `djangoapp.logging`, never import `structlog`
+  directly. Pass **key/value fields**, not an f-string, so each line stays
+  `jq`-filterable. Per-request fields (`user_public_id`, `username`, `method`,
+  `path`) are already bound by `LoggingContextMiddleware` — don't repeat them on the call.
+  Pick the level by what the line is:
+
+  ```python
+  from djangoapp.logging import get_logger
+
+  logger = get_logger(__name__)
+
+  # info — a normal, interesting milestone (a step completing, not per-row churn).
+  logger.info("git index built", count=commits.count(), repo=repo_path)
+
+  # warning — something unexpected that you recovered from; the user keeps going,
+  # but it deserves a look. THIS is "logging problems": catch → log → fall back.
+  try:
+      resp = httpx.get(url)
+  except httpx.HTTPError as exc:
+      logger.warning("files fetch failed", path=path, error=str(exc))
+      return _safe_fallback()
+
+  # error — something is wrong and the operation failed (not just degraded);
+  # log it even if you also return a clean error to the user.
+  logger.error("audit log missing", model=type(instance).__name__, public_id=instance.public_id)
+
+  # exception — inside an `except` you can't recover from; attaches a structured
+  # traceback automatically (don't pass exc_info yourself).
+  except Exception:
+      logger.exception("unhandled", method=request.method)
+      raise
+
+  # debug — noisy detail for local diagnosis; filtered out below INFO in prod.
+  logger.debug("http call", url=url, method=method, ms=elapsed)
+  ```
+
+  The event string is a short human phrase with **spaces** (not snake_case) —
+  `logger.info("todo created", ...)` not `"todo_created"` — aim for uniqueness. Reach for `.warning`/`.error` whenever you
+  catch something; a silent catch is a
+  prod-invisible problem.
+
+- **Frontend** — keep the `ours/` axios convention (`try/catch` + `showErrorToast`,
+  above) for failures you handle. Anything you don't catch is captured by the
+  global handlers (`window error` / `unhandledrejection` / Vue `errorHandler`) and
+  POSTed to `/client-errors` via `frontend/src/utils/clientError.ts`, landing on
+  the `client` log. So don't add a `console.error`-then-ignore — either handle it
+  (toast) or let the global net catch it; both end up observable.
+- When **updating an existing app**, route its diagnostics through this logging
+  instead of leaving silent catches or `print`s behind.
+
 ## Writing tests
 - **Unit tests** cover **models and views**: regular Django tests
   (`TestCase`/`SimpleTestCase`) in `ourapp/tests/`, one file per feature + layer

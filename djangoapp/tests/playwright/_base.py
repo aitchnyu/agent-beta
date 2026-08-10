@@ -86,6 +86,7 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
         self.logged_in_page: Page = self.context.new_page()
         self.logged_in_page.set_default_timeout(1000)
         self.console_errors: list[str] = []
+        self._expect_console_errors = False
         # Attach the console.error-stringifier at the CONTEXT level so every page
         # in the shared context (incl. logged_in_page) gets it; anon_page wires
         # its own (separate) context. Capture uncaught page errors too — both
@@ -102,6 +103,16 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
         )
         return super().setUp()
 
+    def expect_console_errors(self) -> None:
+        """Mark this test as expecting console/page errors (skip tearDown fail).
+
+        The default tearDown fails on ANY console.error / pageerror, which is
+        the right default for regression-hunting. Tests that deliberately raise
+        an uncaught error (e.g. to exercise the client-error reporting path and
+        assert on the network call instead) call this in setUp to opt out.
+        """
+        self._expect_console_errors = True
+
     def _handle_console(self, msg: object) -> None:
         assert isinstance(msg, ConsoleMessage)
         if msg.type == "error":
@@ -114,7 +125,7 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
         self.console_errors.append(f"pageerror: {err}")
 
     def tearDown(self) -> None:
-        if self.console_errors:
+        if self.console_errors and not self._expect_console_errors:
             self.fail(f"Console errors detected: {self.console_errors}")
         self.logged_in_page.close()
         return super().tearDown()

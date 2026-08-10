@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING, cast
 
 from inertia import share
 
+from djangoapp.logging import bind_log_context, clear_log_context, get_logger
 from djangoapp.models import User, UserProfile
+from djangoapp.shortcuts import maybe_user
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -20,6 +22,51 @@ def _viewer_profile(user: object) -> UserProfile | None:
         return None
     viewer = cast("User", user)
     return UserProfile(public_id=viewer.public_id, title=viewer.display_name)
+
+
+class LoggingContextMiddleware:
+    """Bind per-request fields into the log context and log the request.
+
+    ``method``, ``path`` and the viewer identity (``user_public_id``,
+    ``username``) are bound into structlog's contextvars so every log line
+    emitted during the request carries them — no per-call boilerplate. The
+    integer ``pk`` is never logged (the app is pk-free; only ``public_id`` is
+    exposed, in logs as elsewhere).
+
+    Runs after ``AuthenticationMiddleware`` (so ``request.user`` is resolved)
+    and clears its contextvars in ``finally`` (runserver reuses threads, so a
+    leak would smear one request's identity into the next).
+    """
+
+    def __init__(self, get_response: Callable[..., HttpResponse]) -> None:
+        self.get_response = get_response
+        self._logger = get_logger("djangoapp.request")
+
+    def __call__(self, request: HttpRequest) -> HttpResponse:
+        user = maybe_user(request)
+        tokens = bind_log_context(
+            method=request.method,
+            path=request.path,
+            user_public_id=user.public_id if user is not None else None,
+            username=user.username if user is not None else None,
+        )
+        # Log + serve inside the try so clear_log_context runs on every path
+        # (a failure in the log line or get_response must not leak the bound
+        # identity onto the next request reusing this thread).
+        try:
+            # One request log line carrying the authoritative viewer identity
+            # (server-side source of truth; never trusted from the client).
+            self._logger.info(
+                "http request",
+                method=request.method,
+                path=request.path,
+                user_public_id=user.public_id if user is not None else None,
+                username=user.username if user is not None else None,
+            )
+            response = self.get_response(request)
+        finally:
+            clear_log_context(tokens)
+        return response
 
 
 class SharedPropsMiddleware:

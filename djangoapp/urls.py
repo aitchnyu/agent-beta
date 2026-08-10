@@ -1,6 +1,7 @@
 from django.urls import include, path
 
 from djangoapp.views import login_for_test
+from djangoapp.views.client_errors import client_errors_api
 from djangoapp.views.files import files_api
 from djangoapp.views.git import git_api
 from djangoapp.views.manage import manage_api
@@ -14,6 +15,7 @@ urlpatterns = [
     # has no framework-prefixed routes, so it never shadows /users, /manage,
     # /agent, /files, /git (those fall through past it).
     path("", include("ourapp.urls")),
+    path("", client_errors_api.urls), # Frontend error capture sink
     path("", users_api.urls),
     path("", manage_api.urls),
     path("", git_api.urls),

@@ -2,6 +2,11 @@ import { createApp, h } from "vue"
 import type { App as VueApp, DefineComponent } from "vue"
 import { createInertiaApp } from "@inertiajs/vue3"
 import axios from "axios"
+import {
+  reportErrorEvent,
+  reportRejection,
+  reportVueError,
+} from "./utils/clientError"
 import { showErrorToast } from "./utils/sweetalert"
 import "./main.scss"
 import "vue-multiselect/dist/vue-multiselect.css"
@@ -16,14 +21,17 @@ document.addEventListener("DOMContentLoaded", () => {
 })
 
 // Global safety net: surface errors that escape component try/catch as toasts,
-// and log the full error so the stack/Zod issues are visible in the console.
-// Vue-caught errors go to app.config.errorHandler (below) and do NOT reach here,
-// so there is no double-toast.
+// AND ship them to the backend (POST /client-errors) with the source location,
+// page url and reporter identity. Vue-caught errors go to app.config.errorHandler
+// (below) and do NOT reach here, so there is no double-report.
 window.addEventListener("error", (event: ErrorEvent) => {
   const err = event.error
   // Log the stack explicitly as text — passing the object arg renders it only
   // in the dev console (Playwright captures object args as "JSHandle@object").
   console.error("window error:", err?.stack ?? err ?? event.message)
+  // reportErrorEvent returns false for resource-load failures (broken
+  // <img>/<script>) — those aren't JS errors, so skip the user-facing toast too.
+  if (!reportErrorEvent(event)) return
   showErrorToast(err ?? event.message, "Something went wrong")
 })
 window.addEventListener(
@@ -34,6 +42,7 @@ window.addEventListener(
       "unhandled rejection:",
       reason?.stack ?? reason?.message ?? reason,
     )
+    reportRejection(event)
     showErrorToast(reason, "Something went wrong")
   },
 )
@@ -84,8 +93,9 @@ createInertiaApp({
   },
   setup({ el, App, props, plugin }) {
     const app: VueApp = createApp({ render: () => h(App, props) })
-    app.config.errorHandler = (err) => {
+    app.config.errorHandler = (err, _instance, info) => {
       console.error("Vue error:", err instanceof Error ? err.stack : err)
+      reportVueError(err, info)
       showErrorToast(err, "Something went wrong")
     }
     app.use(plugin).mount(el)

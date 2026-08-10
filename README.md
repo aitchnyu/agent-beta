@@ -120,6 +120,69 @@ All via the `run` script: `init`, `runserver`, `test`, `typecheck`, `lintfix`,
 `mergescratch`, `cleanscratch`, plus `djangomanage`/`python` passthroughs (e.g.
 `./run djangomanage makemigrations`, `./run python manage.py …`).
 
+
+## Logging
+
+The whole app — backend **and** frontend-reported errors — emits one
+**JSON object per line** (NDJSON) so the stream is `jq`-filterable. Configure
+it once in `djangoapp/logging.py`; `LoggingContextMiddleware` (in
+`djangoapp/middleware.py`) binds per-request context.
+
+### Backend
+
+Every logger flows through one structlog `ProcessorFormatter`, so Django's own
+loggers (`django.request`/`django.security`), third-party libs (allauth, httpx,
+ninja, …) and our code all come out with the same shape. Import the logger from
+`djangoapp.logging`, never `structlog` directly. Pass key/value fields (not an
+f-string) so each line stays `jq`-filterable:
+
+```python
+from djangoapp.logging import get_logger
+
+logger = get_logger(__name__)
+logger.warning("files fetch failed", path=path, error=str(exc))   # recovered problem
+try:
+    risky()
+except Exception:
+    logger.exception("unhandled", method=request.method)         # structured traceback
+```
+
+`LoggingContextMiddleware` binds `method`, `path`, `user_public_id`, `username`
+onto every line in a request (the integer `pk` is never logged). `exception` is a structured list of stack frames (local variables redacted), not a trailing string.
+
+```bash
+jq 'select(.level=="error")'
+jq 'select(.logger=="client")'                              # frontend-reported errors
+jq 'select(.event=="http request" and .user_public_id=="<id>")'
+```
+
+### Frontend errors
+
+Uncaught browser errors are captured globally (`window error`,
+`unhandledrejection`, Vue `errorHandler`) by `frontend/src/utils/clientError.ts`
+and POSTed (async, `await`ed) to `/client-errors`, which logs them on the
+**`client`** logger (`source=client`). Each report carries the browser source
+location (`client_filename`/`client_lineno`/`client_colno`, resolvable against
+the emitted sourcemap), `url`, `user_agent`, Vue's `info` hint, and the
+reporter's `public_id`; the backend re-derives the authoritative identity from
+`request.user` (never the body) and accepts anonymous reports (`user=null`). A
+`navigator.sendBeacon` fallback fires on `pagehide` only while a POST is in
+flight, so an error caught right before navigation isn't lost (and isn't re-sent
+once delivered). Redis is a hard dependency for the per-identity rate limit:
+`REDIS_URL` (defaults to the local redis) + `CLIENT_ERROR_RATE_LIMIT` (in
+`.env.example`) drive it, and if redis is unreachable the endpoint **fails
+closed** (500 — the redis error propagates to the global handler) rather than
+accepting an unbounded stream.
+
+```bash
+jq 'select(.source=="client")'        # every frontend-reported error
+jq 'select(.source=="client" and .user_public_id=="<id>")'
+```
+
+Sourcemaps are emitted in every build (`vite.config.js` `sourcemap: true`) for
+offline/server-side row:col resolution; the serving layer must deny `*.map`
+under `/static/djangoapp/` so they never reach clients.
+
 ## Testing
 
 Three tiers:

@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import contextlib
 import json
-import logging
 import os
 import time
 from typing import TYPE_CHECKING, Any, Literal
@@ -33,6 +32,7 @@ from inertia import render
 from ninja import Router
 from pydantic import BaseModel
 
+from djangoapp.logging import get_logger
 from djangoapp.ninja_api import make_ninja_api
 from djangoapp.views import require_superuser
 
@@ -56,7 +56,7 @@ _STREAM_MAX_SECS = 300
 # don't forward the whole thing to the browser.
 _MAX_DETAIL_CHARS = 500
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 # Provider/model used for every prompt — env-driven so a deployment can swap
 # without a code change (single-admin dev tool, so no per-request override).
 _PROVIDER = os.environ.get("OPENCODE_PROVIDER", "zai-coding-plan")
@@ -194,11 +194,16 @@ def _forward(
     try:
         opencode_resp = httpx.request(method, f"{_OPENCODE_BASE}{path}", **kwargs)
     except httpx.HTTPError as exc:
-        logger.warning("opencode transport error for %s: %s", path, exc)
+        logger.warning("opencode transport error", path=path, error=str(exc))
         return JsonResponse({"ok": False, "detail": _transport_error_message(exc)}, status=502)
     if not opencode_resp.is_success:
         detail = opencode_resp.text
-        logger.warning("opencode rejected %s: %s %s", path, opencode_resp.status_code, detail)
+        logger.warning(
+            "opencode rejected",
+            path=path,
+            status=opencode_resp.status_code,
+            detail=detail,
+        )
         return JsonResponse({"ok": False, "detail": detail[:_MAX_DETAIL_CHARS]}, status=502)
     return JsonResponse({"ok": True})
 
@@ -248,7 +253,7 @@ def _fire_prompt(session_id: str, message: str) -> tuple[bool, bytes | None]:
     if prompt_resp.is_success:
         return True, None
     detail = f"{prompt_resp.status_code} {prompt_resp.text}"[:_MAX_DETAIL_CHARS]
-    logger.warning("opencode rejected prompt_async for %s: %s", session_id, detail)
+    logger.warning("opencode prompt async rejected", session_id=session_id, detail=detail)
     return False, _sse(
         _SseError(properties=_SseErrorProps(message=f"opencode rejected prompt_async: {detail}"))
     )

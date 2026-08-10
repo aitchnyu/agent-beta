@@ -15,7 +15,6 @@ body:
   exception is logged with a traceback server-side; the body never echoes it).
 """
 
-import logging
 from typing import TYPE_CHECKING
 
 from django.core.exceptions import PermissionDenied
@@ -23,13 +22,19 @@ from django.http import Http404, HttpRequest, HttpResponse
 from ninja import NinjaAPI, Router
 from ninja.errors import HttpError
 
+from djangoapp.logging import get_logger
+
 if TYPE_CHECKING:
     from ninja.types import DictStrAny
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Fixed, leak-free messages for error classes that shouldn't echo internals.
-_NOT_FOUND = "This is a 404. We couldn't show you what you were looking for or complete that action. This usually happens when the page has moved, the link has expired, or access is restricted."
+_NOT_FOUND = (
+    "This is a 404. We couldn't show you what you were looking for or complete that "
+    "action. This usually happens when the page has moved, the link has expired, "
+    "or access is restricted."
+)
 _FORBIDDEN = "You don't have permission to do that."
 _INTERNAL = "Something went wrong. Please try again, or reload if it keeps happening."
 
@@ -77,7 +82,16 @@ def register_api_error_handlers(api: NinjaAPI) -> None:
 
     @api.exception_handler(Exception)
     def on_unexpected(request: HttpRequest, exc: Exception) -> HttpResponse:
-        logger.exception("Unhandled exception on %s %s", request.method, request.path, exc_info=exc)
+        # .exception() attaches exc_info (dict_tracebacks renders it as a
+        # structured traceback); method/path come from LoggingContextMiddleware,
+        # but echo them + the error type so the record is self-describing even
+        # outside a request log.
+        logger.exception(
+            "unhandled exception",
+            method=request.method,
+            path=request.path,
+            error_type=type(exc).__name__,
+        )
         return api.create_response(request, {"detail": _INTERNAL}, status=500)
 
 

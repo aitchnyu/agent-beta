@@ -13,6 +13,8 @@ from pathlib import Path
 from django.utils.csp import CSP
 from dotenv import load_dotenv
 
+from djangoapp.logging import configure_logging, json_formatter
+
 load_dotenv(override=True)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -29,6 +31,10 @@ DEBUG = os.environ["DEBUG"] == "True"
 if not DEBUG and SECRET_KEY == "fake":  # noqa: S105
     msg = "Do not use `fake` secret key in production"
     raise ValueError(msg)
+
+# Structured (JSON/NDJSON) logging: one object per line, jq-filterable.
+# Configured once at import so it's ready before the first log call.
+configure_logging()
 
 # Convert comma-separated string to list
 ALLOWED_HOSTS = [host.strip() for host in os.environ["ALLOWED_HOSTS"].split(",") if host.strip()]
@@ -63,6 +69,9 @@ MIDDLEWARE = [
     "django.middleware.csp.ContentSecurityPolicyMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    # Bind request_id + viewer identity into the log context (runs after
+    # AuthenticationMiddleware so request.user is resolved) before any view log.
+    "djangoapp.middleware.LoggingContextMiddleware",
     # Shares the viewer profile + superuser flag on every Inertia page;
     # reads request.user, so it must run after AuthenticationMiddleware.
     "djangoapp.middleware.SharedPropsMiddleware",
@@ -225,3 +234,35 @@ else:
     SECURE_CSP = _CSP_STRICT
     # Report-only mirrors enforced policy to catch regressions
     SECURE_CSP_REPORT_ONLY = _CSP_STRICT
+
+
+# Logging
+# https://docs.djangoproject.com/en/6.0/topics/logging/
+
+# One JSON object per line. Every logger (django.*, allauth, httpx, ninja, ours)
+# propagates to the root handler, which renders via the formatter from
+# djangoapp.logging — so the whole process emits one uniform, jq-filterable
+# NDJSON stream. See djangoapp/logging.py for the contract.
+_LOG_LEVEL = "DEBUG" if DEBUG else "INFO"
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "json": {"()": json_formatter},
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "json",
+        },
+    },
+    "root": {
+        "handlers": ["console"],
+        "level": _LOG_LEVEL,
+    },
+    "loggers": {
+        # django.server already logs every request; keep it (now JSON) at INFO.
+        "django.server": {"level": _LOG_LEVEL},
+    },
+}

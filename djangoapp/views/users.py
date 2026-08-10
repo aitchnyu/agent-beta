@@ -13,12 +13,12 @@ from ninja import (
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Field, field_validator
 
-from djangoapp.ninja_api import ApiError, make_ninja_api
 from djangoapp.models import (
     User,
     UserHistory,
     UserHistoryEntryItem,
 )
+from djangoapp.ninja_api import ApiError, make_ninja_api
 from djangoapp.utils import sanitize_html
 
 USERS_PATH_PREFIX = "/users"
