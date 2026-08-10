@@ -3,6 +3,7 @@ import { computed, onMounted } from "vue"
 import { Link, router } from "@inertiajs/vue3"
 import BackToTopLink from "../components/BackToTopLink.vue"
 import Layout from "../components/Layout.vue"
+import PageTitle from "../components/PageTitle.vue"
 import RowCell from "../components/RowCell.vue"
 import {
   RowDetailPropsSchema,
@@ -60,6 +61,7 @@ function formatLogValue(v: unknown): string {
 
 <template>
   <Layout>
+    <PageTitle :value="p.model_name + ' / ' + p.public_id" />
     <div class="container manage-rowdetail-page">
       <h1>{{ p.model_name }} / {{ p.public_id }}</h1>
       <p class="text-muted">

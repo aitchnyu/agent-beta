@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { nextTick, ref } from "vue"
 import Layout from "../components/Layout.vue"
+import PageTitle from "../components/PageTitle.vue"
 import PermissionPrompt from "../components/opencode/PermissionPrompt.vue"
 import PermissionInline from "../components/opencode/PermissionInline.vue"
 import ReasoningBlock from "../components/opencode/ReasoningBlock.vue"
@@ -123,6 +124,7 @@ const { canNotify, notifyGranted, notifyDenied, enableNotifications } =
 
 <template>
   <Layout>
+    <PageTitle value="Agent" />
     <div class="container opencode-page">
       <h2>Agent</h2>
       <p>

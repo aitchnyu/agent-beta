@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
 import Layout from "../components/Layout.vue"
+import PageTitle from "../components/PageTitle.vue"
 import RenderRawHtml from "../components/RenderRawHtml.vue"
 import { UserHistoryPropsSchema } from "../schemas.ts"
 
@@ -85,6 +86,7 @@ function diffsFor(changes: Changes): FieldDiff[] {
 
 <template>
   <Layout>
+    <PageTitle :value="'History: ' + p.target_title" />
     <div class="container user-history-page">
       <Link
         :href="`${pathPrefix}/id/${p.target_public_id}`"

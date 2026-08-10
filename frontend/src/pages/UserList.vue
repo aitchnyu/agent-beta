@@ -4,6 +4,7 @@ import axios from "axios"
 import { computed, onMounted, ref } from "vue"
 import Multiselect from "vue-multiselect"
 import Layout from "../components/Layout.vue"
+import PageTitle from "../components/PageTitle.vue"
 import { showErrorToast } from "../utils/sweetalert"
 import {
   UserListPropsSchema,
@@ -66,6 +67,7 @@ onMounted(() => {
 
 <template>
   <Layout>
+    <PageTitle value="Users" />
     <div class="container users-page">
       <h1>Users</h1>
 

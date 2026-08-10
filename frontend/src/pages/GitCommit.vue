@@ -1,5 +1,6 @@
 <template>
   <Layout>
+    <PageTitle :value="'Commit ' + data.commit.short_sha + ' ' + data.commit.subject" />
     <GitNav />
     <h1>
       <code>{{ data.commit.short_sha }}</code> {{ data.commit.subject }}
@@ -27,6 +28,7 @@
 import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import Layout from "../components/Layout.vue"
+import PageTitle from "../components/PageTitle.vue"
 import GitNav from "../components/GitNav.vue"
 import { GitCommitPropsSchema } from "../schemas"
 

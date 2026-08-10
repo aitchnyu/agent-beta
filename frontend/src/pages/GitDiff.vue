@@ -1,5 +1,6 @@
 <template>
   <Layout>
+    <PageTitle :value="data.title" />
     <GitNav />
     <h1>{{ data.title }}</h1>
     <p v-if="error" class="text-danger">Failed to render diff.</p>
@@ -19,6 +20,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue"
 import Layout from "../components/Layout.vue"
+import PageTitle from "../components/PageTitle.vue"
 import GitNav from "../components/GitNav.vue"
 import { GitDiffPropsSchema } from "../schemas"
 

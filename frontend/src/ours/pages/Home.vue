@@ -3,6 +3,7 @@ import { computed } from "vue"
 // Framework layout sits at frontend/src/components/Layout.vue; from
 // src/ours/pages/ that is two levels up to src/ then into components/.
 import Layout from "../../components/Layout.vue"
+import PageTitle from "../../components/PageTitle.vue"
 import { getCsrfToken } from "../../utils/csrf"
 import { HomePropsSchema } from "../schemas"
 // Side-effect import: the app ships its own styles from ours/style.scss, so the
@@ -17,6 +18,7 @@ const csrfToken = computed(() => getCsrfToken())
 
 <template>
   <Layout>
+    <PageTitle />
     <div class="home-container">
       <h1>Instant</h1>
       <p class="home-placeholder-note text-muted">

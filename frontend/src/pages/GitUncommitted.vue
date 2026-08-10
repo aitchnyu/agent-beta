@@ -1,5 +1,6 @@
 <template>
   <Layout>
+    <PageTitle value="Uncommitted changes" />
     <GitNav />
     <h1>Uncommitted changes</h1>
     <section v-for="wt in sections" :key="wt.name" class="mb-4">
@@ -29,6 +30,7 @@ import { computed } from "vue"
 import { Link } from "@inertiajs/vue3"
 import GitNav from "../components/GitNav.vue"
 import Layout from "../components/Layout.vue"
+import PageTitle from "../components/PageTitle.vue"
 import { GitUncommittedPropsSchema } from "../schemas"
 
 const props = defineProps<{ props: object }>()

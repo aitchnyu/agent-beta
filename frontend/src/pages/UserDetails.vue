@@ -2,6 +2,7 @@
 import { computed } from "vue"
 import { Link, usePage } from "@inertiajs/vue3"
 import Layout from "../components/Layout.vue"
+import PageTitle from "../components/PageTitle.vue"
 import RenderRawHtml from "../components/RenderRawHtml.vue"
 import { SharedPropsSchema, UserDetailsPropsSchema } from "../schemas.ts"
 
@@ -18,6 +19,7 @@ const isSuperuser = computed(
 
 <template>
   <Layout>
+    <PageTitle :value="p.first_name + ' ' + p.last_name" />
     <div class="container user-details-page">
       <Link
         v-if="isSuperuser"

@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue"
 import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import Layout from "../components/Layout.vue"
+import PageTitle from "../components/PageTitle.vue"
 import { FileViewerPropsSchema } from "../schemas"
 import {
   detectLanguage,
@@ -38,6 +39,7 @@ onMounted(async () => {
 
 <template>
   <Layout>
+    <PageTitle :value="p.name" />
     <div class="container files-page">
       <nav class="files-breadcrumb">
         <template v-for="c in p.breadcrumb" :key="c.rel">

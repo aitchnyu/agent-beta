@@ -23,6 +23,11 @@ Find all instances of this and make it consistent
 except git.BadName, git.BadObject, git.GitCommandError, ValueError:
 
 --------
+Our logging is a mess, agent may have added too many logger = logging.getLogger(__name__)
+We should log as json only, including exceptions. We should be able to filter by module attributes with jq etc
+Frontend error handler should send error to backend with row:col (no probs if minified), username, url and other useful details.
+Have a playwright test for above use case
+
 Include logging, including storing in db in example app
 Log backend in json, log stack on api error
 Send frontend errors to backend, make it easy to search/filter by line
@@ -32,7 +37,7 @@ logger = logging.getLogger(__name__) - agent added
 Add type stubs for GitPython — `import git` has no py.typed, so git_data.py uses `Any`/`# noqa: ANN401`
 Poorly typed stuff in opencode.py - `def _is_idle(event: dict[str, Any]) -> bool:`
 
---------
+Log anything to db?
 Does the chore tracker thing need Huey anyway?
 
 checkall vs checkscratch - run if anything outside of ours/ and ourapp/ is changed
@@ -61,7 +66,7 @@ Which ones to mute?
 Require redis
 Huey based background and scheduled tasks?
 Decorator for tasks
-Screen mux for dev
+Screen mux for dev, instructions
 
 ## Chatting
 Upload files

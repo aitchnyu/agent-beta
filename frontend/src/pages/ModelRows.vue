@@ -3,6 +3,7 @@ import { computed } from "vue"
 import { Link, router } from "@inertiajs/vue3"
 import BackToTopLink from "../components/BackToTopLink.vue"
 import Layout from "../components/Layout.vue"
+import PageTitle from "../components/PageTitle.vue"
 import RowCell from "../components/RowCell.vue"
 import { ModelRowsPropsSchema } from "../schemas"
 import { rowDetailUrl, rowListUrl } from "../utils/urls"
@@ -66,6 +67,7 @@ const nextHref = computed(() => {
 
 <template>
   <Layout>
+    <PageTitle :value="p.model_name + ' Model'" />
     <div class="container manage-modelrows-page">
       <h1>{{ p.model_name }}</h1>
       <p class="text-muted">

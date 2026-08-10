@@ -3,6 +3,7 @@ import axios from "axios"
 import { defineAsyncComponent, reactive, ref } from "vue"
 import { router } from "@inertiajs/vue3"
 import Layout from "../components/Layout.vue"
+import PageTitle from "../components/PageTitle.vue"
 import { showErrorToast } from "../utils/sweetalert"
 import { MessageResponseSchema, UserEditPropsSchema } from "../schemas.ts"
 
@@ -58,6 +59,7 @@ async function onSubmit() {
 
 <template>
   <Layout>
+    <PageTitle value="Edit User" />
     <div class="container user-edit-page">
       <h1>Edit User</h1>
       <p class="text-muted">

@@ -219,6 +219,8 @@ Run through every box; the order is the order you build in.
     - [ ] every Inertia page end-to-end in `ourapp/tests/test_<feature>_playwright.py`
 - [ ] **Frontend** — page in `frontend/src/ours/pages/<Name>.vue`, a zod schema
       in `ours/schemas.ts`, side-effect styles in `ours/style.scss`.
+- [ ] **PageTitle** — the page renders `<PageTitle :value="…"/>` (import from
+      `components/PageTitle.vue`); see "For every Inertia page" below.
 - [ ] **Home navigation** — add a link to the feature from the landing page
       (`frontend/src/ours/pages/Home.vue`), shown only when this viewer can use
       it (e.g. hide an auth-required feature from an anonymous visitor). The link
@@ -260,10 +262,15 @@ hidden) or `maybe_user(request)` (returns `User | None`). Never sprinkle
       renders an empty or broken page.
 - [ ] Sends only `public_id`, never the integer `pk`/`id`.
 
-For every **Inertia page**, all four must hold:
+For every **Inertia page**, all five must hold:
 - write a **zod schema** for its props (frontend).
 - **raise 404** when something is not found, or not allowed for that user
   (ownership/permissions) — never render an empty or broken page.
+- render **`<PageTitle :value="…"/>`** (import from `components/PageTitle.vue`) —
+  sets the browser tab title on mount and whenever `value` changes. Pass a
+  descriptive string (`value="Projects"`) or one derived from the page's data
+  (`:value="p.first_name + ' ' + p.last_name"`); omit `value` to fall back to the
+  app default `App`. The page owns the title text.
 - write **unit tests** covering **models and views** (state + endpoint return
   values, pk-free).
 - write a **Playwright test** covering it **end-to-end** (real browser + live

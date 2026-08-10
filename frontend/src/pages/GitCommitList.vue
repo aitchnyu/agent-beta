@@ -1,5 +1,6 @@
 <template>
   <Layout>
+    <PageTitle value="Commits" />
     <GitNav />
     <h1>Commits</h1>
     <p v-if="!data.commits.length" class="text-muted">No commits.</p>
@@ -56,6 +57,7 @@
 import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import Layout from "../components/Layout.vue"
+import PageTitle from "../components/PageTitle.vue"
 import GitNav from "../components/GitNav.vue"
 import { GitCommitListPropsSchema } from "../schemas"
 

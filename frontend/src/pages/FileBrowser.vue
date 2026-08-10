@@ -2,6 +2,7 @@
 import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import Layout from "../components/Layout.vue"
+import PageTitle from "../components/PageTitle.vue"
 import { FileBrowserPropsSchema } from "../schemas"
 import { fileUrl, formatSize } from "../utils/files"
 
@@ -16,6 +17,7 @@ function entryUrl(name: string): string {
 
 <template>
   <Layout>
+    <PageTitle value="Files" />
     <div class="container files-page">
       <nav class="files-breadcrumb">
         <template v-for="c in p.breadcrumb" :key="c.rel">

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
 import Layout from "../components/Layout.vue"
+import PageTitle from "../components/PageTitle.vue"
 import { ModelListPropsSchema } from "../schemas"
 import { rowListUrl } from "../utils/urls"
 
@@ -11,6 +12,7 @@ const p = ModelListPropsSchema.parse(props.props)
 
 <template>
   <Layout>
+    <PageTitle value="Models" />
     <div class="container manage-modellist-page">
       <h1>Models</h1>
       <table class="table table-sm align-middle">
