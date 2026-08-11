@@ -361,6 +361,49 @@ stream — never `print()` for diagnostics.
   (toast) or let the global net catch it; both end up observable.
 - When **updating an existing app**, route its diagnostics through this logging
   instead of leaving silent catches or `print`s behind.
+## Background tasks (Huey)
+Huey (Redis-backed) runs background + cron tasks. It's enabled framework-wide via
+`huey.contrib.djhuey` (see `HUEY` in `djangoproject/settings.py`), which
+auto-discovers each installed app's `tasks` module. Redis is a **hard dependency**
+(shared with the client-error rate limiter via `REDIS_URL`).
+
+- **Add tasks** in the `ourapp/tasks/` package — one file per feature
+  (`tasks/<feature>.py`), re-exported from `tasks/__init__.py` so djhuey registers
+  them when it imports the package. Two kinds:
+  - `@db_task()` — a one-off enqueued job (fire-and-forget from a view; DB
+    connection auto-closed). The example ships only the periodic task below, so
+    this shape is illustrative:
+    ```python
+    from huey.contrib.djhuey import db_task
+
+    @db_task()
+    def my_one_off() -> None:
+        ...  # one-line call to a model classmethod — logic lives on the model
+    ```
+    Enqueue by calling the task (`my_one_off()` returns at once); in tests run it
+    inline with `my_one_off.call_local()`.
+  - `@db_periodic_task(crontab(...))` — a cron schedule:
+    ```python
+    from huey import crontab
+    from huey.contrib.djhuey import db_periodic_task
+
+    @db_periodic_task(crontab(hour=0, minute=0))
+    def choose_fact_of_the_day() -> None:
+        FactOfTheDay.choose_for_today()
+    ```
+- **Fat task, thin wrapper**: put the real logic on the model (a classmethod) and
+  make the task a one-line call, so it's testable without a consumer.
+- **Run the consumer** with `./run hueydev`, or `./run dev` (which starts it alongside
+  runserver/vite/opencode). Without a running consumer, enqueued tasks queue up and
+  periodic tasks don't fire — so make user-facing paths degrade gracefully (e.g.
+  `FactOfTheDay.current()` reads the last cron pick without writing, so a dead
+  consumer shows a stale-but-present fact or an empty state; a `GET` never creates
+  rows).
+- **Tests** call the model classmethod directly, or the task via
+  `task.call_local()` (runs the wrapped fn immediately, bypassing the queue) — no
+  consumer, no Redis needed. (`HUEY["immediate"]` is deliberately `False` so the
+  consumer can run in dev; don't tie it to `DEBUG`, or `./run hueydev` refuses to
+  start.)
 
 ## Writing tests
 - **Unit tests** cover **models and views**: regular Django tests

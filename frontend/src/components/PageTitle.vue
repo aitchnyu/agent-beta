@@ -12,5 +12,3 @@ function setTitle() {
 onMounted(setTitle)
 watch(() => props.value, setTitle)
 </script>
-
-<template></template>

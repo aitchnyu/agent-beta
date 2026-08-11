@@ -1,9 +1,10 @@
 # Reference app
 
 A complete, copyable example of the user app's multi-file layout, with two
-features: **facts** (a `Topic` + `Fact`, a seed command, two pages) and **todos**
-(a `Todo` owned by a user, one page). Copy a feature into the real `ourapp/`
-locations and adapt. The agent consults this when adding a feature.
+features: **facts** (a `Topic` + `Fact` + a daily `FactOfTheDay` picked by a Huey
+cron, a seed command, two pages) and **todos** (a `Todo` owned by a user, one
+page). Copy a feature into the real `ourapp/` locations and adapt. The agent
+consults this when adding a feature.
 
 > The reference frontend under `docs/reference/frontend/src/ours/` ships only the
 > app's own pages/components/schemas/styles — its pages `import` the framework's
@@ -17,6 +18,7 @@ locations and adapt. The agent consults this when adding a feature.
 | --- | --- |
 | `ourapp/models/<feature>.py` | `ourapp/models/<feature>.py` (import in `models/__init__.py`) |
 | `ourapp/views/<feature>.py` | `ourapp/views/<feature>.py` (register in `views/__init__.py`) |
+| `ourapp/tasks/` | `ourapp/tasks/` (a package; one file per feature, re-exported from `tasks/__init__.py`; auto-discovered by djhuey) |
 | `ourapp/management/commands/<cmd>.py` | `ourapp/management/commands/<cmd>.py` |
 | `ourapp/urls.py` | `ourapp/urls.py` (mounts the API) |
 | `ourapp/tests/test_<feature>_<layer>.py` | `ourapp/tests/test_<feature>_<layer>.py` (flat; layer = models/views/commands/playwright) |
@@ -97,9 +99,10 @@ Public ids only in both kinds (never the integer `pk`).
 
 ## Features
 
-- [facts](ourapp/docs/facts.md) — random trivia, optionally by topic; seedable.
+- [facts](ourapp/docs/facts.md) — random trivia by topic + a daily Fact of the
+  Day (Huey cron); seedable.
 - [todos](ourapp/docs/todos.md) — a signed-in user's todo list.
-- [home](ourapp/docs/home.md) — the landing page.
+- [home](ourapp/docs/home.md) — the landing page (shows today's Fact of the Day).
 
 ## Workflow
 

@@ -5,6 +5,7 @@ from http import HTTPStatus
 from inertia.test import InertiaTestCase
 
 from djangoapp.models import User
+from ourapp.models import Fact, FactOfTheDay, Topic
 
 
 class HomeViewTests(InertiaTestCase):
@@ -14,6 +15,8 @@ class HomeViewTests(InertiaTestCase):
     - test_authenticated_home, authed GET / has display_name and public_id set
     - test_home_issues_csrftoken_cookie, GET / sets a csrftoken cookie so logout can POST
     - test_no_integer_pk_in_props, public_id present but no integer id/pk leaks
+    - test_home_get_does_not_create_pick, GET / with facts but no cron write leaves fact_of_day None (GET never writes)
+    - test_home_shows_fact_of_the_day, once the cron has picked, GET / carries it in props (pk-free)
     """
 
     def test_anonymous_home(self) -> None:
@@ -26,6 +29,7 @@ class HomeViewTests(InertiaTestCase):
                     "is_authenticated": False,
                     "display_name": "",
                     "public_id": "",
+                    "fact_of_day": None,
                 },
                 # Shared viewer props (SharedPropsMiddleware) are anonymous here.
                 "user": None,
@@ -49,6 +53,7 @@ class HomeViewTests(InertiaTestCase):
                     "is_authenticated": True,
                     "display_name": "Alice Smith",
                     "public_id": user.public_id,
+                    "fact_of_day": None,
                 },
                 "user": {"public_id": user.public_id, "title": "Alice Smith"},
                 "viewer_is_superuser": False,
@@ -73,3 +78,21 @@ class HomeViewTests(InertiaTestCase):
         self.assertEqual(page["public_id"], user.public_id)
         self.assertNotIn("id", page)
         self.assertNotIn("pk", page)
+
+    def test_home_shows_fact_of_the_day(self) -> None:
+        """Once the cron has picked, GET / carries it as fact_of_day (pk-free)."""
+        topic = Topic.objects.create(name="cars", slug="cars")
+        fact = Fact.objects.create(text="VW Beetle ran 65 years.", topic=topic)
+        FactOfTheDay.choose_for_today()  # the cron's write — a GET never writes
+        page = self.client.get("/", HTTP_X_INERTIA="true").json()
+        props = page["props"]["props"]
+        self.assertEqual(props["fact_of_day"]["public_id"], fact.public_id)
+        self.assertNotIn("id", props["fact_of_day"])  # pk-free
+
+    def test_home_get_does_not_create_pick(self) -> None:
+        """A GET alone never creates the pick, even when facts exist (read-only)."""
+        topic = Topic.objects.create(name="cars", slug="cars")
+        Fact.objects.create(text="VW Beetle ran 65 years.", topic=topic)
+        page = self.client.get("/", HTTP_X_INERTIA="true").json()
+        self.assertIsNone(page["props"]["props"]["fact_of_day"])
+        self.assertEqual(FactOfTheDay.objects.count(), 0)

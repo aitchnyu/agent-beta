@@ -5,7 +5,7 @@ framework).
 
 ## Route
 
-- `GET /` → Inertia page `ours/Home`, props `{ is_authenticated, display_name, public_id }`.
+- `GET /` → Inertia page `ours/Home`, props `{ is_authenticated, display_name, public_id, fact_of_day }`.
 
 ## Behaviour
 
@@ -13,6 +13,8 @@ framework).
   plus a Google sign-in link rendered client-side.
 - Authenticated viewer: their `display_name` and `public_id` (never the integer
   `pk`), plus a logout form.
+- `fact_of_day`: today's Fact of the Day (one fixed pick per local date, chosen
+  by the Huey cron in `tasks/`); `null` when the fact pool is empty.
 - Links to the app's features — each shown only when this viewer can use it
   (e.g. todos, which 404s for anon, is hidden from signed-out visitors).
 

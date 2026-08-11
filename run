@@ -44,6 +44,32 @@ runserver() {
   djangomanage runserver
 }
 
+hueydev() {
+  # Huey consumer for DEV (djhuey's runhuey), run in the foreground. Auto-
+  # discovers each installed app's tasks.py (ourapp.tasks) and runs periodic +
+  # enqueued tasks. Redis must be running (REDIS_URL — shared with the client-
+  # error rate limiter). For prod, run the consumer as a managed service
+  # (systemd/supervisord/container) with workers — not via this helper.
+  setenv
+  djangomanage runhuey "$@"
+}
+
+dev() {
+  # Run the whole dev stack in one terminal via `concurrently` (color-coded,
+  # interleaved output): runserver + vite watch + opencode + huey. Ctrl-C stops
+  # all four (concurrently forwards the signal). Idempotent: kills any stale
+  # instance first. Not --kill-others-on-fail, so an opencode preflight refusal
+  # doesn't tear down runserver/vite/huey.
+  setenv
+  # Kill any stale instance of the same dev stack (idempotent relaunch).
+  pkill -f "concurrently.*-n runserver,vite,opencode,huey" 2>/dev/null || true
+  frontend/node_modules/.bin/concurrently -n runserver,vite,opencode,huey -c blue,green,magenta,cyan \
+    "./run runserver" \
+    "cd frontend && npm run dev" \
+    "./run opencode --print-logs --log-level DEBUG" \
+    "./run hueydev"
+}
+
 opencode() {
   # Bind address for the daemon. 4196, not opencode's default 4096: 4096
   # collides with the Kilo extension's random `kilo serve` server in this

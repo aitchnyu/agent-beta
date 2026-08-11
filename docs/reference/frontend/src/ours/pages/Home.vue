@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
+import { Link } from "@inertiajs/vue3"
 // Framework layout sits at frontend/src/components/Layout.vue; from
 // src/ours/pages/ that is two levels up to src/ then into components/.
 import Layout from "../../components/Layout.vue"
@@ -19,6 +20,26 @@ const csrfToken = computed(() => getCsrfToken())
   <Layout>
     <div class="home-container">
       <h1>Instant</h1>
+
+      <!-- Today's Fact of the Day: one fixed pick per local date (Huey cron). -->
+      <section v-if="p.fact_of_day" class="home-fact-of-day">
+        <h2>Fact of the Day</h2>
+        <p>
+          <Link class="ours-fact-text" :href="`/fact/${p.fact_of_day.public_id}`">{{
+            p.fact_of_day.text
+          }}</Link>
+        </p>
+        <p class="text-muted">
+          Topic:
+          <Link :href="`/facts/${p.fact_of_day.topic.slug}`">{{
+            p.fact_of_day.topic.name
+          }}</Link>
+        </p>
+      </section>
+      <p v-else class="text-muted">
+        No facts yet — run <code>./run djangomanage seedfacts</code>.
+      </p>
+
       <p v-if="p.is_authenticated" class="home-status home-status-signed-in">
         Signed in as
         <strong class="home-display-name">{{ p.display_name }}</strong>
@@ -28,7 +49,7 @@ const csrfToken = computed(() => getCsrfToken())
       </p>
 
       <nav class="home-feature-nav">
-        <a class="home-feature-link" href="/facts">Facts</a>
+        <Link class="home-feature-link" href="/facts">Facts</Link>
         <!-- Todos is auth-required (anon GET /todos is 404), so only signed-in
              viewers see its link — never link a viewer into a page they can't open. -->
         <a v-if="p.is_authenticated" class="home-feature-link" href="/todos">

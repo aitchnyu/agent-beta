@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     "djangoapp",
     "ourapp",
     "inertia",
+    "huey.contrib.djhuey",
 ]
 
 MIDDLEWARE = [
@@ -265,4 +266,19 @@ LOGGING = {
         # django.server already logs every request; keep it (now JSON) at INFO.
         "django.server": {"level": _LOG_LEVEL},
     },
+}
+
+# Huey — Redis-backed background tasks + cron. Reuses REDIS_URL (shared with the
+# client-error rate limiter, djangoapp/views/client_errors.py). `immediate` is
+# False: enqueued tasks run via the consumer (`./run hueydev` / `./run dev`), and
+# tests call the model classmethod or `task.call_local()` directly (no consumer).
+# `utc: False` so crontab times are local TIME_ZONE.
+HUEY = {
+    "huey_class": "huey.RedisHuey",
+    "name": "instant",
+    "results": False,
+    "store_none": False,
+    "immediate": False,
+    "utc": False,
+    "connection": {"url": os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")},
 }

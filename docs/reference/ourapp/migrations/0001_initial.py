@@ -115,6 +115,71 @@ class Migration(migrations.Migration):
             ],
         ),
         migrations.CreateModel(
+            name="FactOfTheDay",
+            options={
+                "ordering": ["-last_updated_at"],
+                "constraints": [
+                    models.UniqueConstraint(
+                        fields=["singleton"],
+                        name="factoftheday_singleton_row",
+                    ),
+                ],
+            },
+            fields=[
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "public_id",
+                    models.CharField(
+                        db_index=True,
+                        default=djangoapp.models.base.generate_uuid7_id,
+                        editable=False,
+                        max_length=100,
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("last_updated_at", models.DateTimeField(blank=True, null=True)),
+                ("singleton", models.SmallIntegerField(default=1, editable=False)),
+                (
+                    "created_by",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=models.deletion.RESTRICT,
+                        related_name="+",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "last_updated_by",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=models.deletion.RESTRICT,
+                        related_name="+",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "fact",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=models.deletion.SET_NULL,
+                        related_name="daily_picks",
+                        to="ourapp.fact",
+                    ),
+                ),
+            ],
+        ),
+        migrations.CreateModel(
             name="Todo",
             options={"ordering": ["-created_at"]},
             fields=[

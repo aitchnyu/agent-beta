@@ -3,6 +3,52 @@
 A Django **single-app template**: clone it, build your app in `ourapp/`, and drive
 changes through an agent that edits a throwaway.
 
+## Features
+
+- **Agent-driven development** — an in-app [`opencode`](https://opencode.ai/) chat
+  edits a throwaway `scratch/` copy of the repo; you review, then `mergescratch`
+  deploys to `main/` (server auto-reloads). See [Edit → test → deploy workflow](#edit--test--deploy-workflow).
+- **Async tasks + cron (Huey)** — Redis-backed background tasks and scheduled
+  jobs via `huey.contrib.djhuey` (reusing the same Redis as the error rate
+  limiter). Run the consumer with `./run hueydev` (or `./run dev`). The reference
+  app ships a daily "Fact of the Day" cron as the example (`docs/reference/`).
+- **Models management** — a superuser UI at `/manage/models` to browse, sort,
+  inspect and edit any model's rows, with a per-row audit log
+  (create/update/delete diffs). See [Models management (superuser)](#models-management-superuser).
+- **User management** — `/users` CRUD + search, identity by `public_id` (never
+  the integer `pk`), audit history, and Google social login. See
+  [User management](#user-management) and [Google OAuth](#google-oauth-social-login).
+- **File browser** — `/files` to browse and preview the repo filesystem in-app.
+- **Git viewer** — `/git` to browse commits, view diffs, and inspect the
+  uncommitted working tree.
+- **Structured logging** — one NDJSON line per record across the backend **and**
+  frontend-reported errors (`/client-errors`, rate-limited via Redis), all
+  `jq`-filterable. See [Logging](#logging).
+- **Single-page Inertia + Vue frontend** — one build, sourcemaps emitted for
+  offline row:col resolution; framework pages under `frontend/src/pages/`, the
+  app's own under `frontend/src/ours/`.
+
+## Quick start
+
+**Prerequisites** (install once): Python 3.14+ with [`uv`](https://docs.astral.sh/uv/),
+Node.js + npm, PostgreSQL, and Redis. [`opencode`](https://opencode.ai/) is only
+needed for the in-app agent chat (the `./run dev` stack still starts without it —
+it just refuses with a message). No `screen`/`tmux` required.
+
+```bash
+./run init                          # one-time: uv sync, npm install, create+migrate DB, build frontend
+./run dev                           # runserver + vite watch + opencode + huey (one terminal, color-coded)
+```
+
+`./run dev` runs all four processes via [`concurrently`](https://github.com/open-cli-tools/concurrently)
+with color-prefixed output (`[runserver]` `[vite]` `[opencode]` `[huey]`); **Ctrl-C
+stops all four**. Then open http://127.0.0.1:8000/ — the live `ourapp/` is a
+placeholder landing page; the **facts** feature (a daily Fact of the Day chosen by
+a Huey cron) is the copyable example in `docs/reference/`.
+
+Individual processes are also runnable on their own: `./run runserver`,
+`./run opencode`, `./run hueydev`, and `cd frontend && npm run dev`.
+
 ## Google OAuth (social login)
 
 Credentials live in the database, not in settings or `.env`. After the first
