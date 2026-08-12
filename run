@@ -214,9 +214,19 @@ coverage() {
   open htmlcov/index.html
 }
 
+# Color in linter/typechecker output: keep it in a real terminal, strip it when
+# captured (agent logs, pipes) so ANSI escapes don't pollute the captured text.
+if [ -t 1 ]; then
+  _RUFF_COLOR=
+  _MYPY_COLOR=
+else
+  _RUFF_COLOR=--color=never
+  _MYPY_COLOR=--no-color-output
+fi
+
 typecheck() {
   setenv
-  uv run mypy .
+  uv run mypy $_MYPY_COLOR .
 }
 
 playwrighttest() {
@@ -230,11 +240,11 @@ playwrighttest() {
 checkall() {
   setenv
   echo "Running ruff format --check (formatting drift)"
-  uv run ruff format --check
+  uv run ruff format $_RUFF_COLOR --check
   echo "Running ruff check (lint)"
-  uv run ruff check
+  uv run ruff check $_RUFF_COLOR
   echo "Running mypy for type checking"
-  uv run mypy .
+  uv run mypy $_MYPY_COLOR .
   echo "Running test"
   test --noinput
   cd frontend
@@ -256,11 +266,11 @@ checkall() {
 checkscratch() {
   setenv
   echo "Running ruff format --check (formatting drift)"
-  uv run ruff format --check
+  uv run ruff format $_RUFF_COLOR --check
   echo "Running ruff check (lint)"
-  uv run ruff check
+  uv run ruff check $_RUFF_COLOR
   echo "Running mypy for type checking"
-  uv run mypy .
+  uv run mypy $_MYPY_COLOR .
   echo "Running ourapp tests (scoped; the framework suite runs in main/)"
   test ourapp --noinput
   cd frontend
@@ -275,8 +285,8 @@ checkscratch() {
 
 lintfix() {
   setenv
-  uv run ruff format
-  uv run ruff check --fix --unsafe-fixes
+  uv run ruff format $_RUFF_COLOR
+  uv run ruff check $_RUFF_COLOR --fix --unsafe-fixes
   cd frontend
   npm run lint:fix
 }
@@ -290,6 +300,7 @@ lintfix() {
 # never synced BACK to main/.
 _SCRATCH_EXCLUDES=(
   --exclude='.git/'
+  --exclude='.kilo/'
   --exclude='scratch/'
   --exclude='node_modules/'
   --exclude='.venv/'

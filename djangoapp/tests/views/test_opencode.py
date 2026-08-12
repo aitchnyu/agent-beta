@@ -883,3 +883,66 @@ class OpencodeEventStreamTests(TestCase):
         types = [e["type"] for e in events]
         self.assertIn("permission.asked", types)
         self.assertNotIn("error", types)
+
+
+class OpencodeTranscriptTests(TestCase):
+    """Transcript endpoint GET /agent/api/session/<sid>/transcript/.
+
+    Returns the daemon's persisted transcript verbatim so the client can
+    reconcile after a dropped stream (dev-server reload, daemon bounce). No
+    Inertia features are exercised; plain ``TestCase``.
+
+    - test_proxies_transcript_verbatim, superuser GET returns the daemon body unchanged
+    - test_proxies_opencode_failure_returns_502, daemon rejection -> 502
+    - test_transport_error_returns_502, daemon unreachable -> 502
+    """
+
+    superuser: ClassVar[User]
+    plain: ClassVar[User]
+
+    @classmethod
+    def setUpTestData(cls) -> None:
+        cls.superuser = User.objects.create_user(username="admin", is_superuser=True, is_staff=True)
+        cls.plain = User.objects.create_user(username="plain")
+
+    def test_proxies_transcript_verbatim(self) -> None:
+        """The daemon's persisted transcript is returned unchanged, as JSON."""
+        self.client.force_login(self.superuser)
+        body = (
+            '[{"info":{"role":"user"},'
+            '"parts":[{"id":"prt_1","type":"text","text":"hi"}]}]'
+        )
+        with patch(
+            "djangoapp.views.opencode.httpx.get",
+            return_value=Mock(is_success=True, content=body.encode()),
+        ) as got:
+            response = self.client.get("/agent/api/session/ses_x/transcript/")
+        self.assertEqual(response.status_code, HTTPStatus.OK)
+        self.assertIn("application/json", response.headers["Content-Type"])
+        # Verbatim passthrough — the client validates the shape with zod.
+        self.assertEqual(response.content, body.encode())
+        got.assert_called_once_with(
+            f"{opencode._OPENCODE_BASE}/session/ses_x/message",
+            timeout=opencode._OPENCODE_TIMEOUT,
+        )
+
+    def test_proxies_opencode_failure_returns_502(self) -> None:
+        """A daemon rejection (e.g. unknown session) surfaces as 502."""
+        self.client.force_login(self.superuser)
+        with patch(
+            "djangoapp.views.opencode.httpx.get",
+            return_value=Mock(is_success=False, text="no such session"),
+        ):
+            response = self.client.get("/agent/api/session/ses_x/transcript/")
+        self.assertEqual(response.status_code, HTTPStatus.BAD_GATEWAY)
+        self.assertEqual(response.json(), {"ok": False, "detail": "no such session"})
+
+    def test_transport_error_returns_502(self) -> None:
+        """A daemon transport failure (conn refused) -> 502, not 500."""
+        self.client.force_login(self.superuser)
+        with patch(
+            "djangoapp.views.opencode.httpx.get",
+            side_effect=httpx.HTTPError("conn refused"),
+        ):
+            response = self.client.get("/agent/api/session/ses_x/transcript/")
+        self.assertEqual(response.status_code, HTTPStatus.BAD_GATEWAY)

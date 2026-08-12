@@ -1,4 +1,19 @@
+Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.
+
+`Awaiting your reply` is premature - I clicked it and it was thinking
+
+update steer - Dont use get_user_model() - use our user model only
+should we ask ruff not to emit colors? `ourapp/tests/test_chores_models.py:7: [1m[31merror:(B[m Module (B[m[1m"ourapp.models"(B[m does not explicitly export attribute (B[m[1m"Chore"(B[m  (B[m[33m[attr-defined](B[m`
+Task checklist in steer should mention:
+  Ask how to link or summarize in homepage or otherwise make it accessible from another page
+  If there is a pending scratch, ask if it should be deleted
+
+When agent is cut off due to redeployment, download latest message to show to user?
+
+Review using agents?
+
 checkall vs checkscratch - run if anything outside of ours/ and ourapp/ is changed
+Profile test suite for speed
 
 ## Deployment
 Tool to analyse error logs and stacktraces, both backend and map stacktraces
@@ -16,8 +31,7 @@ rate limiting for http requests?
 Upload files in chat or files
 
 Run all tests in checkproject and merge coverage from both stages.
-When agent is cut off due to redeployment, download latest message to show to user?
-Review using agents?
+
 Generate multiline, render as multiline:
   ./run python -c "import inspect; from inertia import InertiaResponse; print(inspect.signature(InertiaResponse))"
 

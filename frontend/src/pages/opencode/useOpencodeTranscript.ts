@@ -140,20 +140,51 @@ export function useOpencodeTranscript() {
   function onTurnEnd({
     clean,
     userStopped,
+    recovered = false,
+    timedOut = false,
+    cancelled = false,
   }: {
     clean: boolean
     userStopped: boolean
+    recovered?: boolean
+    timedOut?: boolean
+    cancelled?: boolean
   }) {
     const hadPending = _hasAskedPermission()
     _freezePendingCards()
     _scrollToBottom()
     if (clean && !userStopped && !hadPending) {
       notify("Agent finished", "Awaiting your reply")
+    } else if (recovered && !userStopped && !cancelled && !hadPending) {
+      // The live stream dropped (deploy/daemon bounce) but the daemon kept the
+      // turn and we reconciled its parts — tell a backgrounded user the reply
+      // is here, without claiming idle (we reconciled, we didn't see idle).
+      notify("Agent reply recovered", "Connection dropped — reply restored")
+    } else if (timedOut && !userStopped && !cancelled && !hadPending) {
+      // Recovery hit the 60s cap with a partial reply; the daemon may still be
+      // running, so don't claim "restored".
+      notify(
+        "Agent reply may be incomplete",
+        "Recovery timed out — the agent may still be running",
+      )
     }
   }
 
   function pushUser(text: string) {
     blocks.value.push({ kind: "user", uid: crypto.randomUUID(), text })
+  }
+
+  // Replay persisted parts (from getSessionTranscript) into the transcript — after
+  // a dropped stream or on page load. Each part is fed through the same upsert
+  // path as a live `message.part.updated` event, so a partial block is filled in
+  // and a missing one appended, idempotently by partID. User blocks aren't
+  // reconstructed (they survive a drop locally; a full reload shows the agent's
+  // parts only).
+  function applyParts(parts: Part[]) {
+    for (const part of parts) {
+      handleEvent({ type: "message.part.updated", properties: { part } })
+    }
+    _scrollToBottom()
   }
 
   // Post-HTTP success flip for answerPermission (the page does the POST, then
@@ -335,6 +366,7 @@ export function useOpencodeTranscript() {
     permissionTotal,
     turnHooks,
     pushUser,
+    applyParts,
     markAnswered,
     clear,
   }

@@ -1,5 +1,7 @@
 import axios from "axios"
-import { OpencodeActionResponseSchema } from "../../schemas"
+import { z } from "zod"
+import { OpencodeActionResponseSchema, PartSchema } from "../../schemas"
+import type { Part } from "../../schemas"
 import type { PermissionReply } from "./types"
 
 // Pure HTTP wrappers around the opencode proxy endpoints. Each resolves on
@@ -37,4 +39,36 @@ export async function postDeleteSession(sessionId: string): Promise<void> {
   OpencodeActionResponseSchema.parse(
     (await axios.post(`/agent/api/delete/${sessionId}/`)).data,
   )
+}
+
+// One persisted message from the daemon's history. `role` (under `info`) is the
+// message author — used to drop user turns so they aren't replayed as agent
+// text (the current user message is already in the transcript via pushUser, and
+// prior user turns aren't reconstructed). Other `info` fields are ignored.
+const SessionMessageSchema = z.object({
+  info: z.object({ role: z.string().optional() }).optional(),
+  parts: z.array(PartSchema).default([]),
+})
+
+// Fetch the daemon's persisted transcript for a session — the replay source
+// after a dropped stream (dev-server reload, daemon bounce) and on page load.
+// Returns the assistant parts in order (user turns are dropped so they aren't
+// re-rendered as agent output); the caller feeds them through the transcript's
+// upsert path to recover whatever the live stream missed. Throws on a non-2xx
+// (the proxy returns 502 when the daemon is down).
+export async function getSessionTranscript(
+  sessionId: string,
+  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
+): Promise<Part[]> {
+  // Build the config conditionally so we never pass `undefined` for signal /
+  // timeout (the project enables exactOptionalPropertyTypes).
+  const config: { signal?: AbortSignal; timeout?: number } = {}
+  if (opts.signal) config.signal = opts.signal
+  if (opts.timeoutMs) config.timeout = opts.timeoutMs
+  const resp = await axios.get(
+    `/agent/api/session/${sessionId}/transcript/`,
+    config,
+  )
+  const messages = z.array(SessionMessageSchema).parse(resp.data)
+  return messages.filter((m) => m.info?.role !== "user").flatMap((m) => m.parts)
 }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref } from "vue"
+import { nextTick, onMounted, onUnmounted, ref } from "vue"
 import Layout from "../components/Layout.vue"
 import PageTitle from "../components/PageTitle.vue"
 import PermissionPrompt from "../components/opencode/PermissionPrompt.vue"
@@ -7,9 +7,13 @@ import PermissionInline from "../components/opencode/PermissionInline.vue"
 import ReasoningBlock from "../components/opencode/ReasoningBlock.vue"
 import RenderRawHtml from "../components/RenderRawHtml.vue"
 import ToolBlock from "../components/opencode/ToolBlock.vue"
-import { useOpencodeConnection } from "./opencode/useOpencodeConnection"
+import {
+  lastToolRunning,
+  useOpencodeConnection,
+} from "./opencode/useOpencodeConnection"
 import { useOpencodeTranscript } from "./opencode/useOpencodeTranscript"
 import { useOpencodeNotifications } from "./opencode/useOpencodeNotifications"
+import { getSessionTranscript } from "./opencode/api"
 import { blockKey } from "./opencode/types"
 import type { PermissionBlock, PermissionReply } from "./opencode/types"
 import { showErrorToast } from "../utils/sweetalert"
@@ -45,9 +49,43 @@ function onKeydown(event: KeyboardEvent) {
 const conn = useOpencodeConnection()
 const tr = useOpencodeTranscript()
 
-const { streaming, resetting, hasSession, eventCount, debugMode, debugLog } =
-  conn
+const {
+  streaming,
+  resetting,
+  hasSession,
+  eventCount,
+  debugMode,
+  debugLog,
+  recovering,
+} = conn
 const { blocks, activePermission, activePermissionIndex, permissionTotal } = tr
+
+// Page-local liveness flag so a navigate-away between the transcript fetch and
+// the reconcile doesn't mutate the transcript post-unmount.
+let isPageAlive = true
+onUnmounted(() => {
+  isPageAlive = false
+})
+
+// Restore the recent transcript after a refresh/redeploy cut-off: the daemon
+// persisted the session, so pull its tail and reconcile. Best-effort — if the
+// daemon is down we leave the window empty. If the restored tail looks in-flight
+// (a tool still running), keep polling via resume() so a mid-turn reload catches
+// the rest of the reply instead of freezing on a partial.
+onMounted(async () => {
+  if (!conn.sessionId.value) return
+  try {
+    const parts = await getSessionTranscript(conn.sessionId.value)
+    if (!isPageAlive) return
+    const tail = parts.slice(-80)
+    tr.applyParts(tail)
+    if (tail.length > 0 && lastToolRunning(tail)) {
+      await conn.resume(tr.turnHooks)
+    }
+  } catch {
+    // daemon unreachable — silently skip
+  }
+})
 
 async function send(message: string) {
   const text = message.trim()
@@ -131,6 +169,9 @@ const { canNotify, notifyGranted, notifyDenied, enableNotifications } =
         Describe a change and the agent will edit files under
         <code>ourapp/</code>, run commands, and ask before doing anything
         destructive.
+      </p>
+      <p v-if="recovering" class="opencode-recovering" role="status">
+        Connection dropped — recovering the agent's reply…
       </p>
       <div
         class="opencode-transcript"

@@ -173,6 +173,32 @@ def delete_session(request: HttpRequest, session_id: str) -> HttpResponse:
     return _forward(f"/session/{_encode_path_segment(session_id)}", method="DELETE")
 
 
+@opencode_router.get("/session/{session_id}/transcript/", response=None)
+def session_transcript(request: HttpRequest, session_id: str) -> HttpResponse:
+    """Return the session's persisted transcript (the replay/recovery source).
+
+    After a dropped stream (dev-server reload, daemon bounce, network blip) the
+    client reconciles its transcript from this: parts carry the same shape as the
+    live ``message.part.updated`` events, so the existing upsert path rebuilds
+    blocks idempotently by part id — recovering the final reply the dropped
+    stream never delivered. Forwards verbatim to the daemon's own
+    ``/session/:id/message`` route (its name for the same data). Transport
+    failures map to ``502 {"ok": false, detail}`` (matching ``_forward``) so the
+    frontend's axios throws and surfaces a toast.
+    """
+    require_superuser(request)
+    path = f"/session/{_encode_path_segment(session_id)}/message"
+    try:
+        resp = httpx.get(f"{_OPENCODE_BASE}{path}", timeout=_OPENCODE_TIMEOUT)
+    except httpx.HTTPError as exc:
+        logger.warning("opencode transport error", path=path, error=str(exc))
+        return JsonResponse({"ok": False, "detail": _transport_error_message(exc)}, status=502)
+    if not resp.is_success:
+        logger.warning("opencode rejected", path=path, status=resp.status_code, detail=resp.text)
+        return JsonResponse({"ok": False, "detail": resp.text[:_MAX_DETAIL_CHARS]}, status=502)
+    return HttpResponse(resp.content, content_type="application/json")
+
+
 def _encode_path_segment(value: str) -> str:
     """URL-encode a path component.
 

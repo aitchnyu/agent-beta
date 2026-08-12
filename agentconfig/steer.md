@@ -42,10 +42,13 @@ to an absolute path (`cd /abs/path/scratch`), never `cd ..`.
 You never edit `main/` directly. For every change:
 
 1. **Start fresh:** `main/run createscratch` — copies `main/` (minus `.git`,
-   `node_modules`, `.venv`, caches, build output) into a fresh `scratch/`,
-   bootstraps its own env (`uv sync` + `npm install`), and `git init`s it so you
-   can see your changes via `/git/uncommitted/`. An existing `scratch/` is
-   wiped, so each feature starts clean.
+   `.kilo/`, `node_modules`, `.venv`, caches, build output) into a fresh
+   `scratch/`, bootstraps its own env (`uv sync` + `npm install`), and `git init`s
+   it so you can see your changes via `/git/uncommitted/`. An existing `scratch/`
+   is wiped, so each feature starts clean. **If a `scratch/` already exists, ask
+   first whether to delete it** — it may hold uncommitted work from a prior,
+   unfinished task (`main/run cleanscratch` wipes it). Ask this during planning,
+   before the go-ahead, not after.
 2. **Edit `scratch/`** — all of it is yours to change.
 3. **Verify:** `( cd scratch && ./run checkscratch )` — ruff + mypy + **ourapp's own
    tests** + frontend lint/type-check/build. This is the fast loop: it does NOT
@@ -80,6 +83,16 @@ plan, then **stop** and wait for a go-ahead. I run the daemon, Django, and the
 dev server myself; your job is to edit `scratch/` and deploy via `mergescratch`
 only once I've said to start. Starting early wastes a fresh `scratch/` and an env
 bootstrap I didn't ask for.
+
+**Once I say go, run the whole loop — don't stop mid-work.** After the go-ahead,
+execute the full scratch workflow straight through to the final message:
+`createscratch` → edit → `checkscratch` → Playwright (if you added e2e) →
+`mergescratch` → `djangomanage migrate` → rebuild the frontend. Every turn you
+end flips the chat to "awaiting your reply", which I then have to break just to
+nudge you forward — so don't stop to report progress or "check in". Stop only at
+a real decision that needs me (a blocked question, a suite failure you can't
+resolve, or the final message). If you're still thinking, keep thinking in the
+same turn.
 
 **Plan format — data models first, then features.** That order is clearest for
 the user to sanity-check before you start; keep it a tight list, not prose.
@@ -206,7 +219,11 @@ Run through every box; the order is the order you build in.
 - [ ] **Feature doc** — add `ourapp/docs/<feature>.md` cataloguing the feature
       (models, endpoints, pages, command, data shape) and link it from the README.
 - [ ] **Model module** — add `ourapp/models/<feature>.py` (subclass
-      `BaseModel`, give it a docstring) and import it in `ourapp/models/__init__.py`.
+      `BaseModel`, give it a docstring) and import it in `ourapp/models/__init__.py`,
+      **adding each name to `__all__`** there. mypy runs with
+      `--no-implicit-reexport`, so `from ourapp.models import <Model>` errors with
+      `module does not explicitly export attribute` unless `<Model>` is in `__all__`
+      (or imported `as <Model>`).
       Then `./run djangomanage makemigrations ourapp`.
 - [ ] **View module** — add `ourapp/views/<feature>.py` with a `Router`, wire
       **every** API endpoint (pages + data) there, and register it in
@@ -221,11 +238,12 @@ Run through every box; the order is the order you build in.
       in `ours/schemas.ts`, side-effect styles in `ours/style.scss`.
 - [ ] **PageTitle** — the page renders `<PageTitle :value="…"/>` (import from
       `components/PageTitle.vue`); see "For every Inertia page" below.
-- [ ] **Home navigation** — add a link to the feature from the landing page
-      (`frontend/src/ours/pages/Home.vue`), shown only when this viewer can use
-      it (e.g. hide an auth-required feature from an anonymous visitor). The link
-      is the user's way in, so a feature that's reachable but unlinked is as good
-      as missing.
+- [ ] **Home navigation (ask first)** — during planning, **ask how the feature
+      surfaces on the landing page**: a link, a summary/card, or reached from
+      another page (e.g. listed inside a related feature). Then add that to
+      `frontend/src/ours/pages/Home.vue`, shown only when this viewer can use it
+      (hide an auth-required feature from an anonymous visitor). A feature that's
+      reachable but unlinked is as good as missing — don't assume a plain link.
 
 ### APIs & pages
 Prefer a django-ninja API: each feature exposes a `Router` in
@@ -246,6 +264,12 @@ For the authenticated user in queries, use `djangoapp.shortcuts`:
 `user_or_404(request)` (raises 404 when anonymous — keep the page's existence
 hidden) or `maybe_user(request)` (returns `User | None`). Never sprinkle
 `# type: ignore` to work around `request.user`'s `User | AnonymousUser` type.
+
+**Never `get_user_model()`.** This project has one custom user model,
+`djangoapp.models.User`. Reference it in code with
+`from djangoapp.models import User`, and as `settings.AUTH_USER_MODEL` on FK /
+migration fields. `get_user_model()` is a runtime
+lookup that hides the concrete model from the type checker — don't reach for it.
 
 ### Checklist — every view (writes & transactions)
 - [ ] DB operations that must happen together are wrapped in one
