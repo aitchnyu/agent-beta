@@ -47,6 +47,7 @@
     "highlight.js": "^11.11.1",
     "marked": "^18.0.6",
     "marked-highlight": "^2.2.4",
+    "mermaid": "^11.4.0",
     "quill": "^2.0.3",
     "sweetalert2": "^11.26.17",
     "vue": "^3.5.33",

@@ -15,6 +15,8 @@ else
   _MYPY_COLOR=--no-color-output
   _DJANGO_NO_COLOR=--no-color
   export NO_COLOR=1
+  # FORCE_COLOR (injected by e.g. concurrently) makes chalk ignore NO_COLOR
+  unset FORCE_COLOR
 fi
 
 setenv() {

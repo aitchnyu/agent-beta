@@ -1,66 +1,47 @@
 import DOMPurify from "dompurify"
 
-const ALLOWED_TAGS: string[] = [
-  "p",
-  "br",
-  "strong",
-  "em",
-  "code",
-  "pre",
-  "kbd",
-  "samp",
-  "blockquote",
-  "span", // highlight.js wraps tokens in <span class="hljs-…">
-  "h1",
-  "h2",
-  "h3",
-  "h4",
-  "h5",
-  "h6",
-  "ul",
-  "ol",
-  "li",
-  "a",
-  "hr",
-  "table",
-  "thead",
-  "tbody",
-  "tr",
-  "th",
-  "td",
-  "img",
+// Permissive-but-safe config. We allow standard HTML (so the agent's Bootstrap
+// mockups keep their markup + classes/styles) and rely on DOMPurify's defaults
+// to strip <script>, on* event handlers, and javascript:/vbscript: URIs. We add
+// an explicit FORBID list for the embedding/active tags DOMPurify leaves alone
+// by default (iframe/object/embed/link/…), plus a hook that drops
+// protocol-relative (//host) URLs on every URL-bearing attribute. `class` and
+// `style` are allowed on all tags (the two marker classes .opencode-diagram /
+// .opencode-mockup, Bootstrap row/col/btn…, and highlight.js hljs-* spans all
+// survive). Mockup interactivity is neutered separately in RichTextViewer.
+const FORBID_TAGS = [
+  "script",
+  "iframe",
+  "object",
+  "embed",
+  "link",
+  "meta",
+  "base",
+  "style",
+  // SVG is an XSS surface (onload, <script>, foreignObject)
+  "svg",
 ]
+const FORBID_ATTR = ["srcdoc", "formaction"]
 
-// `class` is allowed so highlight.js token spans keep their colour. ALLOWED_ATTR
-// is a global pre-filter (the union of what any tag may carry); the hook below
-// then enforces the per-tag mapping.
-const ALLOWED_ATTR: string[] = ["href", "src", "class"]
-const ATTRS_BY_TAG: Record<string, string[]> = {
-  a: ["href"],
-  img: ["src"],
-  code: ["class"],
-  pre: ["class"],
-  span: ["class"],
-}
-
-// Enforce the per-tag attribute allow-list, then block protocol-relative URLs
-// (//host) — the old allowProtocolRelative:false. DOMPurify's defaults already
-// drop javascript:/data: schemes; this hook adds per-tag precision + the
-// protocol-relative block. Stateless, so one global hook covers every call.
-DOMPurify.addHook("uponSanitizeAttribute", (node, data) => {
-  const allowed = ATTRS_BY_TAG[node.nodeName.toLowerCase()]
-  if (!allowed || !allowed.includes(data.attrName)) {
-    data.keepAttr = false
-    return
-  }
-  // Only URL-bearing attributes (href/src) can be protocol-relative; `class`
-  // (the only other attr that survives the per-tag check above) never carries a
-  // URL, so gate the // check to these two.
-  const value = data.attrValue
+// DOMPurify's defaults already block javascript:/vbscript: on href/src/action;
+// this hook additionally drops protocol-relative (//host) URLs across every
+// URL-bearing attribute (incl. xlink:href, poster, …). Stateless, so one global
+// hook covers every call.
+const URL_ATTRS = new Set([
+  "href",
+  "src",
+  "action",
+  "formaction",
+  "xlink:href",
+  "poster",
+  "background",
+  "cite",
+])
+DOMPurify.addHook("uponSanitizeAttribute", (_node, data) => {
   if (
-    (data.attrName === "href" || data.attrName === "src") &&
-    typeof value === "string" &&
-    value.startsWith("//")
+    URL_ATTRS.has(data.attrName) &&
+    typeof data.attrValue === "string" &&
+    data.attrValue.startsWith("//")
   ) {
     data.keepAttr = false
   }
@@ -90,8 +71,8 @@ export function sanitizeHtml(
 ): string {
   if (!html) return ""
   const clean = DOMPurify.sanitize(html, {
-    ALLOWED_TAGS,
-    ALLOWED_ATTR,
+    FORBID_TAGS,
+    FORBID_ATTR,
     ALLOW_DATA_ATTR: false,
   })
   if (options.rewriteImagesFrom === undefined) return clean

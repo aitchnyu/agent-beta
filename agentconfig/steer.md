@@ -38,61 +38,56 @@ to an absolute path (`cd /abs/path/scratch`), never `cd ..`.
 - Edit + test in `scratch/`: `cd /abs/path/scratch` then `./run checkscratch`.
 - Deploy `scratch/` → `main/`: `main/run mergescratch` (run from `parent/`).
 
-## The scratch workflow
-You never edit `main/` directly. For every change:
+## Feature workflow
 
-1. **Start fresh:** `main/run createscratch` — copies `main/` (minus `.git`,
-   `.kilo/`, `node_modules`, `.venv`, caches, build output) into a fresh
-   `scratch/`, bootstraps its own env (`uv sync` + `npm install`), and `git init`s
-   it so you can see your changes via `/git/uncommitted/`. An existing `scratch/`
-   is wiped, so each feature starts clean. **If a `scratch/` already exists, ask
-   first whether to delete it** — it may hold uncommitted work from a prior,
-   unfinished task (`main/run cleanscratch` wipes it). Ask this during planning,
-   before the go-ahead, not after.
-2. **Edit `scratch/`** — all of it is yours to change.
-3. **Verify:** `( cd scratch && ./run checkscratch )` — ruff + mypy + **ourapp's own
-   tests** + frontend lint/type-check/build. This is the fast loop: it does NOT
-   re-run the framework backend suite (`djangoapp/tests/`, identical to `main/`)
-   or the slow Playwright browser pass — those are unchanged by `ourapp/` edits
-   and belong in `main/`'s `checkall`. Iterate on the failing command (see
-   `INSTRUCTIONS.md`); `checkscratch` must finish green. (If you added `ourapp/`
-   e2e, run `./run playwrighttest` for just those.)
-4. **Deploy:** `main/run mergescratch` — rsyncs `scratch/` → `main/` (never
-   overwriting `main/.env`). This does **not** commit. Then **run migrations** so
-   the app is runnable: `main/run djangomanage migrate` (any new models/migrations
-   created in `scratch/` shipped with the deploy and must be applied to the DB).
-   In dev the server auto-reloads `main/`, so the user sees the change live.
-5. **Send the final message** — the work is done and live. Close with the final
-   message (see "Final message"): state that it's done and **link the running
-   feature** (its URL). Committing is a separate later step — offer it, and commit
-   in `main/` only on approval.
+You build features through four phases, each gated by my explicit approval
+("approved" / "go ahead" / "build it" / "ship it"); anything less clear ("ok",
+"sure", silence) → re-ask before advancing. I run the daemon, Django, and the dev
+server myself — your job is to edit `scratch/` and deploy via `mergescratch`, and
+only once I've said to start, so don't begin building before the Design phase is
+approved (starting early wastes a fresh `scratch/` and an env bootstrap I didn't
+ask for). Within a phase keep going (ending a turn flips the chat to "awaiting
+your reply") — stop only at a real decision that needs me, or at a phase's
+approval gate. Any phase can be sent back to the drawing board (Design): if I say
+rethink it, or the build shows the design is wrong, drop back to phase 1,
+re-discuss, update the diagrams/mockups, and get fresh approval before coding
+further — don't keep building against a design that's been rejected or changed.
 
-`scratch/` is disposable — re-running `createscratch` wipes it. `createscratch`
-also `git init`s `scratch/` with a baseline commit (no shared history with
-`main/`), so review your in-progress edits with `cd scratch && git diff` or the
-web viewer at `/git/uncommitted/` (one page: `main/`'s pending files, then
-`scratch/`'s — your `scratch/` edits show **live**, no deploy needed). They reach
-`main/`'s commit views only after `mergescratch` deploys them.
+- [ ] **1. Design — discuss; no `scratch/`, no edits.** Produce these for
+      approval (the chat renders them): an **ER diagram** whenever DB
+      tables/models are involved (see [Models](#models)), a **state diagram** for
+      any lifecycle, and **mockups** of each page (see [Frontend](#frontend)). How
+      to emit them (markers, mermaid, Bootstrap): see
+      [Mockups and diagrams](#mockups-and-diagrams).
+- [ ] **2. Build — only after the design is explicitly approved.** The fast loop
+      is `createscratch` → edit → `checkscratch` → Playwright; see
+      [The scratch workflow](#the-scratch-workflow) for the mechanics and the
+      [feature checklist](#checklist--adding-or-changing-a-feature) for what to
+      build. Run it straight through; don't stop to report progress.
+- [ ] **3. Verify — tests pass + a short walkthrough** of what changed; see
+      [Writing tests](#writing-tests).
+- [ ] **4. Deploy — ask before `mergescratch`.** Only after approval:
+      `mergescratch` → `djangomanage migrate` → rebuild the frontend (see
+      [The scratch workflow](#the-scratch-workflow)), then the
+      [Final message](#final-message).
+- [ ] **Persist the design.** During Build, write the approved ER/state diagrams
+      + mockups into `ourapp/docs/<feature>.md`, so viewing the doc renders them.
 
-## User communication
-
-### Don't start without permission
-Don't start building the app — no `createscratch`, no edits, no build, no running
-the server — until I explicitly tell you to begin. Acknowledge the task with a
-plan, then **stop** and wait for a go-ahead. I run the daemon, Django, and the
-dev server myself; your job is to edit `scratch/` and deploy via `mergescratch`
-only once I've said to start. Starting early wastes a fresh `scratch/` and an env
-bootstrap I didn't ask for.
-
-**Once I say go, run the whole loop — don't stop mid-work.** After the go-ahead,
-execute the full scratch workflow straight through to the final message:
-`createscratch` → edit → `checkscratch` → Playwright (if you added e2e) →
-`mergescratch` → `djangomanage migrate` → rebuild the frontend. Every turn you
-end flips the chat to "awaiting your reply", which I then have to break just to
-nudge you forward — so don't stop to report progress or "check in". Stop only at
-a real decision that needs me (a blocked question, a suite failure you can't
-resolve, or the final message). If you're still thinking, keep thinking in the
-same turn.
+**Phase gates — run only the commands listed for your current phase.** Before
+any scratch/deploy command, name the phase you're in; if the command isn't
+allowed there, you're in the wrong phase (go back, or ask for the approval that
+unlocks the next one). The agent drifts when it re-derives these per turn, so
+treat this map as the hard rule, not prose to interpret:
+- **1. Design** — read/grep/glob, discussion, emit diagrams + mockups. **No
+  `createscratch`, no edits, no `checkscratch`, no `mergescratch`.**
+- **2. Build** (after design approval) — `createscratch` **once** → edit in
+  `scratch/` → `checkscratch` **once per edit batch** (not per file) → `lintfix`
+  if formatting is flagged. **No `mergescratch`; no editing `main/`.**
+- **3. Verify** — `playwrighttest` + one full `checkscratch`. **No `mergescratch`
+  until I approve deploy.**
+- **4. Deploy** (after approval) — `mergescratch` **once** → `djangomanage
+  migrate` → frontend rebuild. **No further edits** — go back to Build instead.
+  Never loop `mergescratch`; it's a single deploy, not a save button.
 
 **Work fast — don't spin on the trivial.** For low-stakes choices (a selector
 style, whether an import is runtime vs annotation-only), follow what the
@@ -119,6 +114,51 @@ suppress it. `noqa` is a last resort, never a habit.
 line. Put a `python -c` script on its own lines inside the quotes, and break
 pipes/chains with `\` continuations, so the whole command reads clearly (the
 permission prompt renders it multiline and syntax-highlights it).
+
+**Never `git -C`.** It's globally deny-listed and will fail or prompt. `cd` into
+the directory first (`cd /abs/path/scratch`) then run `git …`, or use an
+allowlisted `git` form from the current dir — never `git -C <dir> …`.
+
+**`./run lintfix` is safe to run repo-wide.** It only normalizes formatting to
+the committed ruff config — never changes logic — so run it the moment
+`checkscratch` flags formatting, on any file (framework included). Don't stop to
+debate whether formatting a file is "allowed"; drift in `main` is exactly what
+it's there to clear.
+
+**Use the exact allowlisted command forms** so you don't trigger prompts:
+`./run test …`, `./run checkscratch`, `./run lintfix`, `./run playwrighttest …`,
+`git status` / `git diff …` — not near-misses like `djangomanage test --t…` or a
+bare `git …` that fall outside the rules and prompt every time.
+
+## The scratch workflow
+You never edit `main/` directly — the [Feature workflow](#feature-workflow) phases
+drive the sequence; these are the mechanics of the three commands (run from
+`parent/`).
+
+**`main/run createscratch`** — copies `main/` (minus `.git`, `.kilo/`,
+`node_modules`, `.venv`, caches, build output) into a fresh `scratch/`, bootstraps
+its own env (`uv sync` + `npm install`), and `git init`s it (a baseline commit, no
+shared history with `main/`) so you can review changes via `/git/uncommitted/`.
+An existing `scratch/` is wiped — **if one already exists, ask first whether to
+delete it**, during planning / before the go-ahead (it may hold uncommitted work
+from a prior task; `main/run cleanscratch` wipes it).
+
+**`( cd scratch && ./run checkscratch )`** — ruff + mypy + **ourapp's own tests**
++ frontend lint/type-check/build. It does NOT re-run the framework backend suite
+(`djangoapp/tests/`, identical to `main/`) or the Playwright pass — those belong
+in `main/`'s `checkall`. Iterate on the failing command (see `INSTRUCTIONS.md`);
+`checkscratch` must finish green.
+
+**`main/run mergescratch`** — rsyncs `scratch/` → `main/` (never overwriting
+`main/.env`); does **not** commit. (Migrations + frontend rebuild are the Deploy
+phase's last step; in dev the server then auto-reloads `main/`.)
+
+`scratch/` is disposable — re-running `createscratch` wipes it. Review in-progress
+edits with `cd scratch && git diff` or the web viewer at `/git/uncommitted/`
+(`main/`'s pending files, then `scratch/`'s — your `scratch/` edits show **live**,
+no deploy needed; they reach `main/`'s commit views only after `mergescratch`).
+
+## User communication
 
 **Plan format — data models first, then features.** That order is clearest for
 the user to sanity-check before you start; keep it a tight list, not prose.
@@ -193,6 +233,28 @@ Read code in this priority order:
    (model + ninja API + urls + Inertia page + test).
 3. **The framework only as reference** — `djangoapp/` is there to understand
    behaviour, not to rework. Change it only when the user explicitly asks.
+
+### Mockups and diagrams
+
+The Design phase produces ER/state diagrams and page mockups. Emit them as raw
+HTML (not code fences) — the chat and the feature `.md` docs both render them,
+view-only. Put each marker block on its own lines with **no indentation and no
+blank lines inside it** (marked treats the marker as a raw-HTML block; indenting
+or a blank line splits it and corrupts the content). **Title every marker**: a
+one-line **bold title** immediately above it, and an optional one-line caption
+below, so the reader knows what they're looking at before the render.
+
+- **`<div class="opencode-diagram">…mermaid…</div>`** — Mermaid source inside:
+  - `erDiagram` whenever models / DB tables come up (entities, fields, FKs,
+    ownership) — one field per line as `type name`.
+  - `stateDiagram-v2` for a lifecycle / state machine.
+  - No `<`, `>`, or `&` in labels — the block is parsed as HTML so they break.
+    Use the HTML-safe lookalikes `‹` `›` `∧` instead (`count ‹ 5 ∧ active`, not
+    `count < 5 && active`; `≤`/`≥`/`+`/`＆` also work).
+- **`<div class="opencode-mockup">…</div>`** — the page's real Bootstrap markup
+  + our CSS classes (read an existing page like `Home.vue` to match the look —
+  same containers, `row`/`col`, buttons, badges). It's responsive and view-only,
+  so lay it out with the grid and omit real `action`/`href`.
 
 ### Models
 Concrete models live in `ourapp/models/<feature>.py` (imported in

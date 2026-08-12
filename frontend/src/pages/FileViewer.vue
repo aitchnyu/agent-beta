@@ -4,6 +4,7 @@ import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import Layout from "../components/Layout.vue"
 import PageTitle from "../components/PageTitle.vue"
+import RichTextViewer from "../components/RichTextViewer.vue"
 import { FileViewerPropsSchema } from "../schemas"
 import {
   detectLanguage,
@@ -65,7 +66,7 @@ onMounted(async () => {
         <p class="files-raw-link">
           <a href="#files-raw-source">↓ View raw source</a>
         </p>
-        <div class="files-markdown" v-html="rendered"></div>
+        <RichTextViewer class-name="files-markdown" :html="rendered" />
         <pre
           id="files-raw-source"
           class="files-code files-raw-source"

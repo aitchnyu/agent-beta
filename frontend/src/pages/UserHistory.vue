@@ -2,7 +2,7 @@
 import { Link } from "@inertiajs/vue3"
 import Layout from "../components/Layout.vue"
 import PageTitle from "../components/PageTitle.vue"
-import RenderRawHtml from "../components/RenderRawHtml.vue"
+import RichTextViewer from "../components/RichTextViewer.vue"
 import { UserHistoryPropsSchema } from "../schemas.ts"
 
 const props = defineProps<{
@@ -128,7 +128,7 @@ function diffsFor(changes: Changes): FieldDiff[] {
                     class="user-history-content-section"
                   >
                     <div class="user-history-content-label">Before</div>
-                    <RenderRawHtml
+                    <RichTextViewer
                       :html="diff.old"
                       className="user-history-content-body"
                     />
@@ -137,7 +137,7 @@ function diffsFor(changes: Changes): FieldDiff[] {
                     <div class="user-history-content-label">
                       {{ entry.action === "edited" ? "After" : "Content" }}
                     </div>
-                    <RenderRawHtml
+                    <RichTextViewer
                       :html="diff.new"
                       className="user-history-content-body"
                     />

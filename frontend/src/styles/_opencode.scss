@@ -50,7 +50,7 @@
   padding: 0.5rem 0.75rem;
 }
 
-// Agent markdown prose (rendered via RenderRawHtml). This is the only content
+// Agent markdown prose (rendered via RichTextViewer). This is the only content
 // block that wraps; read/command output and reasoning scroll instead. The last
 // child's margin is collapsed so it doesn't double up with the box's bottom
 // padding.
@@ -274,4 +274,57 @@
 .opencode-input {
   flex: 1;
   resize: none;
+}
+
+// Design-phase Bootstrap page mockup. View-only: controls are neutered at render
+// (disabled, no href/action) — this box just frames the preview and keeps wide
+// layouts from blowing out the column.
+.opencode-mockup {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  // Solid gray border — reads as a UI panel, distinct from the dashed schematic
+  // .opencode-diagram.
+  border: 1px solid $gray-300;
+  border-radius: $radius-md;
+  background-color: #fff;
+  overflow-x: auto;
+
+  // Neutered controls render slightly faded so it reads as a preview, not live.
+  button,
+  input,
+  select,
+  textarea {
+    &[disabled] {
+      opacity: 0.65;
+    }
+  }
+}
+
+// Design-phase Mermaid diagram. Until the SVG swaps in (and on parse error) the
+// raw source shows as plain text; center the rendered SVG and let wide diagrams
+// scroll rather than shrink legibility.
+.opencode-diagram {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  text-align: center;
+  overflow-x: auto;
+  // Dashed blue border + faint tint — reads as a schematic, distinct from the
+  // solid-gray .opencode-mockup UI panel.
+  background-color: $indigo-50;
+  border: 2px dashed $blue-500;
+  border-radius: $radius-md;
+
+  svg {
+    max-width: 100%;
+    height: auto;
+  }
+
+  // Render failed (incomplete/invalid source) — show the raw text deemphasized.
+  &.opencode-diagram-error {
+    text-align: left;
+    color: $gray-600;
+    font-family: $font-family-monospace;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+  }
 }

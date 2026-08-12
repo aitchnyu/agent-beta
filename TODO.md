@@ -15,8 +15,18 @@ Ask before deploying scratch to main.
 Render UI mockup in wide area. 
 Mermaid or D2 renderer for showing table relationships or other diagrams
 
+-------
+Title each diagram/mockup before rendering them and outline them differently.
+Try to reduce mermaid to commonly used diagrams. Others can be loaded even later. 
+Avoid git -C commands
+Why did it change test_opencode.py?
+Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+
+Opencode sdk for connecting?
+
 checkall vs checkscratch - run if anything outside of ours/ and ourapp/ is changed
 Profile test suite for speed
+on update restrict on delete restrict
 
 Buttons spill for agent text box in responsive mode.
 

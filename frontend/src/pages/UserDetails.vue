@@ -3,7 +3,7 @@ import { computed } from "vue"
 import { Link, usePage } from "@inertiajs/vue3"
 import Layout from "../components/Layout.vue"
 import PageTitle from "../components/PageTitle.vue"
-import RenderRawHtml from "../components/RenderRawHtml.vue"
+import RichTextViewer from "../components/RichTextViewer.vue"
 import { SharedPropsSchema, UserDetailsPropsSchema } from "../schemas.ts"
 
 const props = defineProps<{
@@ -86,7 +86,7 @@ const isSuperuser = computed(
         </tbody>
       </table>
 
-      <RenderRawHtml
+      <RichTextViewer
         v-if="p.description"
         :html="p.description"
         className="rich-text-display user-details-content"

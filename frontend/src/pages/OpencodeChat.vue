@@ -5,7 +5,7 @@ import PageTitle from "../components/PageTitle.vue"
 import PermissionPrompt from "../components/opencode/PermissionPrompt.vue"
 import PermissionInline from "../components/opencode/PermissionInline.vue"
 import ReasoningBlock from "../components/opencode/ReasoningBlock.vue"
-import RenderRawHtml from "../components/RenderRawHtml.vue"
+import RichTextViewer from "../components/RichTextViewer.vue"
 import ToolBlock from "../components/opencode/ToolBlock.vue"
 import {
   lastToolRunning,
@@ -182,7 +182,7 @@ const { canNotify, notifyGranted, notifyDenied, enableNotifications } =
             v-else-if="block.kind === 'reasoning'"
             :text="block.text"
           />
-          <RenderRawHtml
+          <RichTextViewer
             v-else-if="block.kind === 'text'"
             :html="block.text"
             markdown
