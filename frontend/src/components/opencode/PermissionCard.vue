@@ -29,6 +29,27 @@ watch(
     })
   },
 )
+
+// Syntax-highlight bash commands (lazy hljs, pre-warmed at boot) so the prompt
+// reads like the tool blocks; filepaths (edit/write) stay plain. The highlight
+// arrives async — until it lands the raw command shows (Vue-escaped).
+const highlightedCmd = ref("")
+watch(
+  () => props.block.command,
+  async (cmd) => {
+    if (!cmd) {
+      highlightedCmd.value = ""
+      return
+    }
+    try {
+      const { highlightCode } = await import("../../utils/filePreview")
+      highlightedCmd.value = highlightCode(cmd, "bash")
+    } catch {
+      highlightedCmd.value = ""
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -40,11 +61,14 @@ watch(
     <div class="opencode-permission-head">
       Permission: <strong>{{ block.permission }}</strong>
     </div>
-    <pre
-      v-if="block.filepath || block.command"
-      class="opencode-permission-cmd"
-      >{{ block.filepath || block.command }}</pre
-    >
+    <div v-if="block.filepath || block.command" class="opencode-permission-cmd">
+      <code
+        v-if="highlightedCmd"
+        class="hljs language-bash"
+        v-html="highlightedCmd"
+      ></code>
+      <span v-else>{{ block.filepath || block.command }}</span>
+    </div>
     <div
       v-if="block.state === 'asked'"
       ref="actionsEl"

@@ -180,8 +180,11 @@
   padding: 0.4rem 0.6rem;
   font-family: $font-family-monospace;
   font-size: 0.8rem;
-  white-space: pre;
-  overflow: auto;
+  // Wrap (don't ellipsize or scroll) so a long/combined command is fully
+  // visible in the permission prompt, syntax-highlighted line by line.
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   background-color: $gray-100;
   border-radius: $radius-sm;
 }
@@ -226,7 +229,9 @@
   text-transform: capitalize;
 }
 
-.opencode-permission-cmd {
+// Compact one-line command/path in the inline transcript record (distinct from
+// the full .opencode-permission-cmd prompt block above, which wraps).
+.opencode-permission-cmd-inline {
   font-family: $font-family-monospace;
   font-size: 0.78rem;
   color: $gray-700;
@@ -257,6 +262,13 @@
 .opencode-input-row {
   display: flex;
   gap: 0.5rem;
+  // Pin the input to the bottom of the viewport while the transcript scrolls,
+  // so it's always reachable without scrolling back down.
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  background-color: var(--bs-body-bg, #fff);
+  padding: 0.5rem 0;
 }
 
 .opencode-input {

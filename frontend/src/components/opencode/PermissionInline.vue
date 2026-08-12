@@ -27,7 +27,9 @@ const stateClass = computed(
 <template>
   <div class="opencode-permission-inline">
     <span class="opencode-permission-type">{{ block.permission }}</span>
-    <code v-if="subject" class="opencode-permission-cmd">{{ subject }}</code>
+    <code v-if="subject" class="opencode-permission-cmd-inline">{{
+      subject
+    }}</code>
     <span class="opencode-permission-state" :class="stateClass">
       {{ stateText }}
     </span>

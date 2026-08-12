@@ -18,6 +18,7 @@ import diffGrammar from "highlight.js/lib/languages/diff"
 import scss from "highlight.js/lib/languages/scss"
 import yaml from "highlight.js/lib/languages/yaml"
 import markdownGrammar from "highlight.js/lib/languages/markdown"
+import plaintext from "highlight.js/lib/languages/plaintext"
 import { marked } from "marked"
 import { markedHighlight } from "marked-highlight"
 
@@ -41,13 +42,13 @@ for (const [name, def] of [
   ["yml", yaml],
   ["markdown", markdownGrammar],
   ["md", markdownGrammar],
+  ["plaintext", plaintext],
+  ["text", plaintext],
   ["diff", diffGrammar],
 ] as const) {
   hljs.registerLanguage(name, def)
 }
 
-// Highlight code blocks inside markdown; classes match highlight.js conventions
-// (`.hljs` + `.hljs-<token>`), which the github theme CSS targets.
 marked.use(
   markedHighlight({
     langPrefix: "hljs language-",

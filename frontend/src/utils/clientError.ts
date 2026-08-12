@@ -7,6 +7,11 @@ import { z } from "zod"
 // sendBeacon fallback land without a csrftoken cookie.
 const ENDPOINT = "/client-errors"
 
+// Cap the stack before sending — must stay in sync with
+// djangoapp.views.client_errors._MAX_STACK_INPUT, or a long browser stack 422s
+// (pydantic max_length) and the report is silently dropped.
+const MAX_STACK_CHARS = 5000
+
 // The contract for a client error report. Mirrors the backend
 // `djangoapp.views.client_errors.ClientErrorBody` (camelCase wire keys — the
 // pydantic model aliases userAgent/vueInfo), so there is one source of truth:
@@ -64,6 +69,7 @@ export async function reportClientError(
   const parsed = ClientErrorPayloadSchema.safeParse(payload)
   if (!parsed.success) return
   const valid = parsed.data
+  valid.stack = valid.stack.slice(0, MAX_STACK_CHARS)
   inFlightPayload = valid
   wirePageHide()
   try {

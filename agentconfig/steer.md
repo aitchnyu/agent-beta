@@ -94,6 +94,32 @@ a real decision that needs me (a blocked question, a suite failure you can't
 resolve, or the final message). If you're still thinking, keep thinking in the
 same turn.
 
+**Work fast — don't spin on the trivial.** For low-stakes choices (a selector
+style, whether an import is runtime vs annotation-only), follow what the
+reference code already does and move on — don't write multi-paragraph reasoning
+weighing options. Deliberation isn't progress; shipping the edit is.
+
+**Escalate instead of spinning.** If the **same** error recurs 2–3 times, stop
+and ask me — you're missing something fundamental (e.g. a `from __future__
+import annotations` schema needing `model_rebuild()`), and another retry won't
+fix it. Don't reason in circles silently, so I never have to ask "are you stuck".
+
+**Don't re-read what you've already read this turn.** Recall it. Re-reading a
+reference file (INSTRUCTIONS.md, the reference views, a base class) you just
+looked at is pure waste — 50+ reads for a one-feature turn means you're
+re-fetching context instead of remembering it.
+
+**Resolve lint, don't suppress it.** Don't pile on `# noqa`. ruff's
+type-checking-only rule wants annotation-only imports under
+`if TYPE_CHECKING:` — move them there cleanly; don't deliberate each import or
+suppress it. `noqa` is a last resort, never a habit.
+
+**Format long/combined commands across multiple lines.** `python -c "…"`, pipes
+(`a | b | c`), and `&&`/`||` chains are all fine — just don't cram them onto one
+line. Put a `python -c` script on its own lines inside the quotes, and break
+pipes/chains with `\` continuations, so the whole command reads clearly (the
+permission prompt renders it multiline and syntax-highlights it).
+
 **Plan format — data models first, then features.** That order is clearest for
 the user to sanity-check before you start; keep it a tight list, not prose.
 - **Models** — each model with its fields and key relationships (foreign keys,

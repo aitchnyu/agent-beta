@@ -15,6 +15,8 @@
       "pwd": "allow",
       "ls -la": "allow",
       "ls -la *": "allow",
+      "ls -d": "allow",
+      "ls -d *": "allow",
       "main/run createscratch": "allow",
       "main/run mergescratch": "allow",
       "main/run cleanscratch": "allow",

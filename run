@@ -2,6 +2,21 @@
 
 set -euo pipefail
 
+# Color in tool/test output: keep it in a real terminal, strip it when captured
+# (agent logs, pipes) so ANSI escapes don't pollute the captured text. NO_COLOR
+# is the broad switch (eslint/vitest/vite/Django/ruff/mypy all respect it); the
+# explicit flags are belt-and-suspenders for the tools the agent runs most.
+if [ -t 1 ]; then
+  _RUFF_COLOR=
+  _MYPY_COLOR=
+  _DJANGO_NO_COLOR=
+else
+  _RUFF_COLOR=--color=never
+  _MYPY_COLOR=--no-color-output
+  _DJANGO_NO_COLOR=--no-color
+  export NO_COLOR=1
+fi
+
 setenv() {
   if [ ! -f .env ]; then
     echo "Warning: .env file not found, relying on python-dotenv to load defaults or environment"
@@ -203,26 +218,16 @@ opencode() {
 
 test() {
   setenv
-  uv run manage.py test --exclude-tag playwright "$@"
+  uv run manage.py test $_DJANGO_NO_COLOR --exclude-tag playwright "$@"
 }
 
 coverage() {
   setenv
-  uv run coverage run --source=djangoapp --omit='djangoapp/tests/test_playwright.py' manage.py test --exclude-tag playwright
+  uv run coverage run --source=djangoapp --omit='djangoapp/tests/test_playwright.py' manage.py test $_DJANGO_NO_COLOR --exclude-tag playwright
   uv run coverage report -m
   uv run coverage html
   open htmlcov/index.html
 }
-
-# Color in linter/typechecker output: keep it in a real terminal, strip it when
-# captured (agent logs, pipes) so ANSI escapes don't pollute the captured text.
-if [ -t 1 ]; then
-  _RUFF_COLOR=
-  _MYPY_COLOR=
-else
-  _RUFF_COLOR=--color=never
-  _MYPY_COLOR=--no-color-output
-fi
 
 typecheck() {
   setenv
@@ -234,7 +239,7 @@ playwrighttest() {
   cd frontend
   npm run build
   cd ..
-  uv run manage.py test --tag playwright --noinput
+  uv run manage.py test $_DJANGO_NO_COLOR --tag playwright --noinput
 }
 
 checkall() {
@@ -380,7 +385,7 @@ checkproject() {
   ( cd "$_SCRATCH_DIR"
     ./run lintfix
     ./run typecheck
-    RUN_PROJECT_TESTS=1 uv run manage.py test --exclude-tag playwright --noinput
+    RUN_PROJECT_TESTS=1 uv run manage.py test $_DJANGO_NO_COLOR --exclude-tag playwright --noinput
   )
 
   echo "=== checkproject cycle 2: reference app (its own tests) ==="
@@ -393,7 +398,7 @@ checkproject() {
   rsync -a "$_MAIN_DIR/docs/reference/frontend/src/ours/" "$_SCRATCH_DIR/frontend/src/ours/"
   ( cd "$_SCRATCH_DIR"
     ( cd frontend && npm run build )
-    uv run manage.py test ourapp --noinput
+    uv run manage.py test $_DJANGO_NO_COLOR ourapp --noinput
   )
 
   rm -rf "$_SCRATCH_DIR"

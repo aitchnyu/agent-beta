@@ -49,15 +49,8 @@ function onKeydown(event: KeyboardEvent) {
 const conn = useOpencodeConnection()
 const tr = useOpencodeTranscript()
 
-const {
-  streaming,
-  resetting,
-  hasSession,
-  eventCount,
-  debugMode,
-  debugLog,
-  recovering,
-} = conn
+const { streaming, resetting, hasSession, eventCount, debugLog, recovering } =
+  conn
 const { blocks, activePermission, activePermissionIndex, permissionTotal } = tr
 
 // Page-local liveness flag so a navigate-away between the transcript fetch and
@@ -151,7 +144,6 @@ async function answerPermission(
 }
 
 const stop = conn.stop
-const toggleDebug = conn.toggleDebug
 
 // OS-notification permission lives in its own module (orthogonal to transport/
 // transcript); the browser persists it across refreshes, so it's the source of
@@ -265,15 +257,6 @@ const { canNotify, notifyGranted, notifyDenied, enableNotifications } =
         >
           {{ resetting ? "Resetting…" : "Reset session" }}
         </button>
-        <button
-          class="btn btn-sm btn-outline-secondary opencode-debug"
-          type="button"
-          :class="{ active: debugMode }"
-          :aria-pressed="debugMode"
-          @click="toggleDebug"
-        >
-          Debug
-        </button>
       </div>
       <p
         v-if="canNotify && !notifyGranted"
@@ -289,8 +272,8 @@ const { canNotify, notifyGranted, notifyDenied, enableNotifications } =
         </template>
       </p>
       <!-- Machine-readable dump of every received event, hidden from the UI but
-           present in the DOM for debugging (toggle on with the Debug button). -->
-      <pre v-if="debugMode" class="opencode-debug-log" aria-hidden="true">{{
+           present in the DOM for debugging (always on). -->
+      <pre class="opencode-debug-log" aria-hidden="true">{{
         debugLog.join("\n\n")
       }}</pre>
     </div>

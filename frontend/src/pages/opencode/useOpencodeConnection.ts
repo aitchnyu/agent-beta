@@ -85,10 +85,10 @@ export function useOpencodeConnection() {
   const resetting = ref(false)
   const hasSession = computed(() => sessionId.value !== null)
   // Live count of SSE events received in this conversation window (resets on
-  // clear) + an opt-in, machine-readable event log for debugging. Both are
-  // per-raw-frame, so they live with the transport (pre-parse).
+  // clear) + an always-on, machine-readable event log for debugging (no user
+  // toggle — a hidden <pre> in the page renders it for DOM inspection). Both
+  // are per-raw-frame, so they live with the transport (pre-parse).
   const eventCount = ref(0)
-  const isInDebugMode = ref(false)
   const debugLogs = ref<string[]>([])
   // Plain `let` (no reactivity needed; never read in a template/computed).
   let controller: AbortController | null = null
@@ -143,12 +143,11 @@ export function useOpencodeConnection() {
       for await (const payload of parseSsePayloads(body)) {
         if (!isAlive) return
         eventCount.value++
-        if (isInDebugMode.value) {
-          // Machine-readable dump of the raw frame, capped so a long debug
-          // session can't grow the buffer without bound.
-          debugLogs.value.push(JSON.stringify(payload, null, 2))
-          if (debugLogs.value.length > 1000) debugLogs.value.shift()
-        }
+        // Machine-readable dump of every raw frame, capped so a long session
+        // can't grow the buffer without bound. Always captured — debug is on
+        // permanently (no toggle).
+        debugLogs.value.push(JSON.stringify(payload, null, 2))
+        if (debugLogs.value.length > 1000) debugLogs.value.shift()
         const parsed = OpencodeEventSchema.safeParse(payload)
         if (!parsed.success) continue
         const event = parsed.data
@@ -332,10 +331,6 @@ export function useOpencodeConnection() {
     debugLogs.value = []
   }
 
-  function toggleDebug() {
-    isInDebugMode.value = !isInDebugMode.value
-  }
-
   onUnmounted(() => {
     isAlive = false
     controller?.abort()
@@ -349,7 +344,6 @@ export function useOpencodeConnection() {
     resetting,
     hasSession,
     eventCount,
-    debugMode: isInDebugMode,
     debugLog: debugLogs,
     send,
     resume,
@@ -360,6 +354,5 @@ export function useOpencodeConnection() {
     postPermission,
     clearWindow,
     resetLocal,
-    toggleDebug,
   }
 }
