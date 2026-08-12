@@ -48,16 +48,6 @@ def _default_source(_logger: WrappedLogger, _name: str, event_dict: EventDict) -
     return event_dict
 
 
-# Callsite (module/filename/lineno) for our OWN structlog loggers only — see the
-# note on ``_SHARED_PROCESSORS`` for why it is not shared with foreign records.
-_CALLSITE = structlog.processors.CallsiteParameterAdder(
-    parameters=[
-        structlog.processors.CallsiteParameter.MODULE,
-        structlog.processors.CallsiteParameter.FILENAME,
-        structlog.processors.CallsiteParameter.LINENO,
-    ],
-)
-
 # Chain applied to EVERY record (structlog loggers AND bridged stdlib records)
 # before the final JSON render. ``merge_contextvars`` pulls in the per-request
 # fields bound by LoggingContextMiddleware; the traceback renderer turns
@@ -65,18 +55,6 @@ _CALLSITE = structlog.processors.CallsiteParameterAdder(
 # instead of a trailing multi-line string.
 # show_locals=False is deliberate: an exception in a view could otherwise dump
 # request bodies, tokens, or ORM rows (the locals) into the log stream.
-#
-# ``_CALLSITE`` is intentionally NOT here. ``_SHARED_PROCESSORS`` is also the
-# formatter's ``foreign_pre_chain``, which runs for every stdlib record
-# (httpcore, GitPython, django.db, ...). For those records the callsite is
-# always the library's own ``logger.debug(...)`` line (httpcore ``_trace.py``,
-# git ``cmd.py``) — the app never makes the log call, the library does it
-# internally — so ``CallsiteParameterAdder`` faithfully reports a library frame
-# that reads as "tracing the wrong function". For foreign records the
-# per-request ``path``/``method`` from ``merge_contextvars`` is the real caller
-# signal, and ``logger`` (set by ``add_logger_name``) already names the source
-# library. ``_CALLSITE`` is added per-chain in ``configure_logging`` for our own
-# loggers, where the callsite is the genuine origin.
 _DICT_TRACEBACKS = structlog.processors.ExceptionRenderer(
     structlog.tracebacks.ExceptionDictTransformer(show_locals=False)
 )
@@ -86,6 +64,13 @@ _SHARED_PROCESSORS: list[Any] = [
     structlog.stdlib.add_log_level,
     structlog.stdlib.add_logger_name,
     structlog.processors.TimeStamper(fmt="iso", utc=True),
+    structlog.processors.CallsiteParameterAdder(
+        parameters=[
+            structlog.processors.CallsiteParameter.MODULE,
+            structlog.processors.CallsiteParameter.FILENAME,
+            structlog.processors.CallsiteParameter.LINENO,
+        ],
+    ),
     structlog.processors.StackInfoRenderer(),
     _DICT_TRACEBACKS,
 ]
@@ -129,7 +114,6 @@ def configure_logging() -> None:
     structlog.configure(
         processors=[
             *_SHARED_PROCESSORS,
-            _CALLSITE,
             structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         wrapper_class=structlog.make_filtering_bound_logger(_level()),

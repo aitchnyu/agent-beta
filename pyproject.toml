@@ -39,7 +39,7 @@ exclude-newer = "7 days"
 exclude = [
   ".venv",
   ".git",
-  ".kilo", # kilocode agent
+  ".kilo",
   "djangoapp/migrations",
   "ourapp/migrations",
   "prevproject",
