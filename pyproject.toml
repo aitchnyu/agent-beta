@@ -39,6 +39,7 @@ exclude-newer = "7 days"
 exclude = [
   ".venv",
   ".git",
+  ".kilo", # kilocode agent
   "djangoapp/migrations",
   "ourapp/migrations",
   "prevproject",
@@ -112,6 +113,7 @@ exclude = [
   "node_modules/",  # frontend deps (only stray .py, never ours)
   "dist/",  # frontend build output
   "build/",  # packaging/build artifacts
+  ".kilo/",  # kilo editor review worktrees (snapshots, not source)
 ]
 warn_unused_ignores = true
 warn_unreachable = true  # flag dead branches strict mode doesn't cover
