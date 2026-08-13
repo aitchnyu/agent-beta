@@ -47,11 +47,10 @@ function onKeydown(event: KeyboardEvent) {
 // HTTP + session; the transcript owns the blocks. The actions below cross both
 // (send pushes a user block then streams; answer/clear/reset touch HTTP + state).
 const conn = useOpencodeConnection()
-const tr = useOpencodeTranscript()
+const transcript = useOpencodeTranscript()
 
-const { streaming, resetting, hasSession, eventCount, debugLog, recovering } =
-  conn
-const { blocks, activePermission, activePermissionIndex, permissionTotal } = tr
+const { streaming, resetting, hasSession, eventCount, debugLog, recovering } = conn
+const { blocks, activePermission, activePermissionIndex, permissionTotal } = transcript
 
 // Page-local liveness flag so a navigate-away between the transcript fetch and
 // the reconcile doesn't mutate the transcript post-unmount.
@@ -71,9 +70,9 @@ onMounted(async () => {
     const parts = await getSessionTranscript(conn.sessionId.value)
     if (!isPageAlive) return
     const tail = parts.slice(-80)
-    tr.applyParts(tail)
+    transcript.applyParts(tail)
     if (tail.length > 0 && lastToolRunning(tail)) {
-      await conn.resume(tr.turnHooks)
+      await conn.resume(transcript.turnHooks)
     }
   } catch {
     // daemon unreachable — silently skip
@@ -83,8 +82,8 @@ onMounted(async () => {
 async function send(message: string) {
   const text = message.trim()
   if (!text || streaming.value) return
-  tr.pushUser(text)
-  await conn.send(text, tr.turnHooks)
+  transcript.pushUser(text)
+  await conn.send(text, transcript.turnHooks)
 }
 
 async function sendPrompt() {
@@ -101,7 +100,7 @@ async function sendPrompt() {
 // view isn't repopulated by its deltas.
 function clear() {
   conn.clearWindow()
-  tr.clear()
+  transcript.clear()
 }
 
 // Kill the daemon session entirely and reset the view. Client teardown first so
@@ -120,7 +119,7 @@ async function resetSession() {
     showErrorToast(err, "Failed to reset session")
   } finally {
     conn.resetLocal()
-    tr.clear()
+    transcript.clear()
     resetting.value = false
   }
 }
@@ -135,7 +134,7 @@ async function answerPermission(
   block.pending = true
   try {
     await conn.postPermission(block.id, reply)
-    tr.markAnswered(block, reply)
+    transcript.markAnswered(block, reply)
   } catch (err: unknown) {
     showErrorToast(err, "Failed to answer permission")
   } finally {

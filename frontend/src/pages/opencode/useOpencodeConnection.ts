@@ -35,6 +35,15 @@ function _storeSession(id: string | null) {
   }
 }
 
+// Recovery poll timing (see _recover). The daemon is a separate process that
+// keeps running a dropped turn, so recovery follows it to idle rather than
+// bailing on a fixed wall-clock — a long turn after a deploy drop is still
+// progressing on the daemon and must be followed to its end. Only continuous
+// unreachability (a dead daemon / an application that fails to import) bounds it.
+const RECOVER_POLL_MS = 2000 // interval while the turn is running
+const RECOVER_MAX_BACKOFF_MS = 15000 // cap on the transient-failure backoff
+const RECOVER_STALL_MS = 120_000 // give up after this long continuously unreachable
+
 // Hooks the consumer (the facade → transcript) wires into `send` so the
 // transport is decoupled from the transcript: every parsed event is routed via
 // `onEvent`, and the turn's start/end are signalled so the transcript can
@@ -57,7 +66,7 @@ export type TurnHooks = {
 // completed/error). A tool flips status to running/pending mid-execution and to
 // completed/error when done — without adding a new part — so parts.length alone
 // can't see it. Only the LAST tool is checked, so a tool stuck non-terminal in a
-// prior turn doesn't pin recovery to the 60s cap (it isn't the active tool).
+// prior turn doesn't pin recovery indefinitely (it isn't the active tool).
 export function lastToolRunning(parts: Part[]): boolean {
   for (let i = parts.length - 1; i >= 0; i--) {
     const part = parts[i]
@@ -78,7 +87,7 @@ export function useOpencodeConnection() {
   const sessionId = ref<string | null>(_loadStoredSession())
   const isStreaming = ref(false)
   // True while the transport polls the daemon transcript to recover a turn
-  // after the SSE stream dropped (dev-server reload / daemon bounce).
+  // after the SSE stream dropped (application reload / daemon bounce).
   const recovering = ref(false)
   // True while a Reset-session round-trip (abort + daemon delete) is in flight,
   // so the button can disable and re-entry is blocked.
@@ -93,7 +102,7 @@ export function useOpencodeConnection() {
   // Plain `let` (no reactivity needed; never read in a template/computed).
   let controller: AbortController | null = null
   // AbortController for the in-flight recovery poll, so stop/clear/reset/unmount
-  // can cancel a hung fetch (e.g. during a dev-server reload) instead of waiting
+  // can cancel a hung fetch (e.g. during an application reload) instead of waiting
   // on axios's default (no) timeout.
   let recoveryController: AbortController | null = null
   // Lifecycle flag so events arriving after unmount (the fetch is still
@@ -111,9 +120,9 @@ export function useOpencodeConnection() {
 
   // Recovery poll outcomes (see _recover):
   //   "quiet"     — the turn settled (2 quiet polls); reply is complete.
-  //   "timeout"   — the 60s cap (or a late poll failure) hit with a partial
-  //                 reply; the daemon may still be running.
-  //   "error"     — the daemon was never reachable (no parts reconciled).
+  //   "timeout"   — the backend stayed unreachable past the stall cap after a
+  //                 partial reply was reconciled; the daemon may still be running.
+  //   "error"     — the backend was never reachable (no parts reconciled).
   //   "cancelled" — stop/clear/reset/unmount broke the loop.
   type RecoveryOutcome = "quiet" | "timeout" | "error" | "cancelled"
 
@@ -162,7 +171,7 @@ export function useOpencodeConnection() {
     } catch (err: unknown) {
       // A user-initiated stop is not an error to surface.
       if (err instanceof DOMException && err.name === "AbortError") return
-      // A dropped stream (dev-server reload after mergescratch, daemon bounce,
+      // A dropped stream (application reload after mergescratch, daemon bounce,
       // network blip): the opencode daemon is a separate process that keeps
       // running the turn and persists it. Poll its transcript and reconcile so
       // the final message still lands instead of being lost.
@@ -197,9 +206,14 @@ export function useOpencodeConnection() {
   }
 
   // Poll the daemon's persisted transcript and reconcile parts after a dropped
-  // stream, until the turn goes quiet, the 60s cap hits, or the user cancels.
-  // Each poll is bounded by a client timeout and abortable, so a hung fetch
-  // during a dev-server reload can't pin the loop past the cap.
+  // stream. The daemon is a separate process that keeps running the turn and
+  // persists it, so recovery follows it until it goes quiet (idle) — there is no
+  // fixed wall-clock cap, so a long turn after a deploy drop is still followed to
+  // its end instead of being cut at 60s. A transient application reload (proxy
+  // 502 / network error) is retried with backoff; only continuous unreachability
+  // past RECOVER_STALL_MS (a dead daemon, or an application that fails to import) gives
+  // up. Each poll is bounded by a client timeout and abortable, so a hung fetch
+  // during an application reload can't pin a single poll.
   async function _recover(
     sid: string,
     hooks: TurnHooks,
@@ -209,12 +223,21 @@ export function useOpencodeConnection() {
     let lastCount = -1
     let quietPolls = 0
     let reconciled = false
-    const deadline = Date.now() + 60_000
+    // Start of the current streak of unreachable polls (application reloading →
+    // proxy 502 / network error). Cleared on every successful poll, so a
+    // momentary application reload doesn't count toward the stall cap.
+    let failSince: number | null = null
+    let backoff = RECOVER_POLL_MS
     const isCancelled = () => !isAlive || userStopped || recoveryCancelled
     try {
       while (true) {
         if (isCancelled()) return "cancelled"
-        if (Date.now() >= deadline) return reconciled ? "timeout" : "error"
+        // Bail only when the backend has been CONTINUOUSLY unreachable past the
+        // stall cap. A transient application reload retries below; a dead daemon
+        // (or an application that fails to import) gives up here.
+        if (failSince !== null && Date.now() - failSince >= RECOVER_STALL_MS) {
+          return reconciled ? "timeout" : "error"
+        }
         let parts: Part[]
         try {
           parts = await getSessionTranscript(sid, {
@@ -222,11 +245,19 @@ export function useOpencodeConnection() {
             timeoutMs: 10_000,
           })
         } catch {
-          // Abort (stop/clear/unmount) beats transport failure: if cancelled
-          // the user drove it; otherwise a poll failed after we'd reconciled
-          // something (→ partial/timeout) or before (→ error).
-          return isCancelled() ? "cancelled" : reconciled ? "timeout" : "error"
+          // Abort (stop/clear/unmount) beats transport failure. Otherwise this
+          // is a transient blip (application reload, daemon bounce): mark the
+          // streak, back off, and keep following the daemon — it's unaffected
+          // and still running the turn.
+          if (isCancelled()) return "cancelled"
+          if (failSince === null) failSince = Date.now()
+          backoff = Math.min(backoff * 2, RECOVER_MAX_BACKOFF_MS)
+          await _sleep(backoff, recoveryController.signal)
+          continue
         }
+        // Reachable again: clear the streak and reset the backoff.
+        failSince = null
+        backoff = RECOVER_POLL_MS
         reconciled = true
         if (isCancelled()) return "cancelled"
         for (const part of parts) {
@@ -239,7 +270,7 @@ export function useOpencodeConnection() {
         else quietPolls = 0
         lastCount = parts.length
         if (quietPolls >= 2) return "quiet"
-        await _sleep(2000)
+        await _sleep(RECOVER_POLL_MS, recoveryController.signal)
       }
     } finally {
       recovering.value = false
@@ -247,8 +278,23 @@ export function useOpencodeConnection() {
     }
   }
 
-  function _sleep(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms))
+  // Abort-aware sleep: resolves immediately if `signal` aborts (stop/clear/
+  // reset/unmount), so a backoff sleep — now up to RECOVER_MAX_BACKOFF_MS — can't
+  // delay cancellation by more than a tick. The caller still re-checks
+  // isCancelled() at the next await boundary to actually return.
+  function _sleep(ms: number, signal?: AbortSignal): Promise<void> {
+    return new Promise((resolve) => {
+      if (signal?.aborted) return resolve()
+      const timer = setTimeout(resolve, ms)
+      signal?.addEventListener(
+        "abort",
+        () => {
+          clearTimeout(timer)
+          resolve()
+        },
+        { once: true },
+      )
+    })
   }
 
   // On page load, if the restored transcript looks in-flight (a tool still

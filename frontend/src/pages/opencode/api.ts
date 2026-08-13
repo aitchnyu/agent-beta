@@ -51,7 +51,7 @@ const SessionMessageSchema = z.object({
 })
 
 // Fetch the daemon's persisted transcript for a session — the replay source
-// after a dropped stream (dev-server reload, daemon bounce) and on page load.
+// after a dropped stream (application reload, daemon bounce) and on page load.
 // Returns the assistant parts in order (user turns are dropped so they aren't
 // re-rendered as agent output); the caller feeds them through the transcript's
 // upsert path to recover whatever the live stream missed. Throws on a non-2xx

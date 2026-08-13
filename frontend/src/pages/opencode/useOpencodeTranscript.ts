@@ -161,8 +161,8 @@ export function useOpencodeTranscript() {
       // is here, without claiming idle (we reconciled, we didn't see idle).
       notify("Agent reply recovered", "Connection dropped — reply restored")
     } else if (timedOut && !userStopped && !cancelled && !hadPending) {
-      // Recovery hit the 60s cap with a partial reply; the daemon may still be
-      // running, so don't claim "restored".
+      // Recovery lost contact with the backend past the stall cap with a partial
+      // reply; the daemon may still be running, so don't claim "restored".
       notify(
         "Agent reply may be incomplete",
         "Recovery timed out — the agent may still be running",
