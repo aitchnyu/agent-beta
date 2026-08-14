@@ -266,19 +266,44 @@ the referenced row via that row's `get_absolute_url()`.
 **Prefer `BaseModel` and its save methods.** Every concrete model subclasses
 `BaseModel`, which gives each row a URL-safe `public_id`, audit fields
 (`created_by`, `created_at`, `last_updated_at`, `last_updated_by`), and
-`get_absolute_url()`. **Persist and delete through the audit-aware methods, not
-bare `.save()`/`.delete()`**, so every change is logged to `BaseModelUpdateLog`:
-- `instance.save_with_logs(user=…)` — create or update. On create it stamps
+`get_absolute_url()`. **Prefer the audit-aware methods over bare
+`.save()`/`objects.create()` so changes are tracked in history** — every write
+through them is logged to `BaseModelUpdateLog`:
+- `instance.save_with_logs(actor=…)` — create or update. On create it stamps
   `created_by`/`last_updated_by`/`last_updated_at` and writes one `created` log
   (old values empty, new values = the full row). On update it diffs against the
   pre-edit row and writes one `updated` log holding only the changed columns; a
   no-op edit writes no log.
-- `instance.delete_with_logs(user=…)` — writes a `deleted` log (old/new values
+- `instance.delete_with_logs(actor=…)` — writes a `deleted` log (old/new values
   both empty — a delete only records that the row was removed, not a snapshot)
   then deletes; the log outlives the row.
-The actor is the request user (see `user_or_404`/`maybe_user` below). The logs
-show on the row's detail page at `/manage/models/<Model>/id/<public_id>`. Bare
-`.save()`/`.delete()` skip the audit — use them only for tests/fixtures.
+The audit kwarg is `actor=` (named so a model with its own `user` FK column
+keeps that name free for the field). The actor is the request user (see
+`user_or_404`/`maybe_user` below). The logs show on the row's detail page at
+`/manage/models/<Model>/id/<public_id>`.
+Bare `obj.save()` / `objects.create(…)` still work (plain Django) but write no
+`BaseModelUpdateLog` history — reach for them only when the write deliberately
+needs no audit trail (e.g. throwaway fixtures), with a comment stating **why** —
+the *reason*, not a description of the line (✗ `# test fixture`, ✓
+`# the detail view asserts no log exists yet`).
+
+```python
+# ✓ tracked (production) — create or update writes one log row. To create,
+# build unsaved, then save_with_logs (there is no create_with_logs helper).
+todo = Todo(text="x", owner=user)
+todo.save_with_logs(actor=user)
+
+# ✓ untracked — plain Django; no history. Comment WHY when you choose it.
+Todo.objects.create(text="x", owner=user)  # seed only — the detail view asserts an empty log
+todo.save()  # benchmark loop — 10k writes, audit rows would dominate
+```
+**Foreign keys must be `on_delete=RESTRICT`.** Declare every
+`models.ForeignKey(...)` with `on_delete=models.RESTRICT` (the repo default) so a
+still-referenced row can't be deleted unless you say so; deviate (e.g.
+`SET_NULL` so an audit log survives its actor's deletion) only with a comment
+saying why. Django's ORM has no `on_update`; PostgreSQL's default
+`ON UPDATE NO ACTION` is already restrictive, so update-cascades are blocked at
+the DB without extra code.
 **Fat models, thin views** — put domain logic and queries on the model or its
 manager, not in views. A method is reusable, unit-testable in isolation, and
 keeps views short. Prefer a custom manager/queryset method
@@ -313,6 +338,8 @@ Run through every box; the order is the order you build in.
       `module does not explicitly export attribute` unless `<Model>` is in `__all__`
       (or imported `as <Model>`).
       Then `./run djangomanage makemigrations ourapp`.
+      Every `ForeignKey` sets `on_delete=models.RESTRICT` (deviate only with a
+      comment).
 - [ ] **View module** — add `ourapp/views/<feature>.py` with a `Router`, wire
       **every** API endpoint (pages + data) there, and register it in
       `ourapp/views/__init__.py` via `api.add_router("/", <feature>.router)`.

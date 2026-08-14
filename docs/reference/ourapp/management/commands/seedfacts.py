@@ -301,7 +301,7 @@ class Command(BaseCommand):
                 topic = Topic.objects.get(slug=slug)
             except Topic.DoesNotExist:
                 topic = Topic(name=name, slug=slug)
-                topic.save_with_logs(user=seeder)
+                topic.save_with_logs(actor=seeder)
             topics[slug] = topic
         return topics
 
@@ -311,6 +311,6 @@ class Command(BaseCommand):
         for slug, topic in topics.items():
             for text in FACTS[topic.name]:
                 fact = Fact(text=text, topic=topic)
-                fact.save_with_logs(user=seeder)
+                fact.save_with_logs(actor=seeder)
                 count += 1
         return count

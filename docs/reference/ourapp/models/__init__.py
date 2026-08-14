@@ -7,7 +7,7 @@ below; every model appears in the superuser models-management UI at
 ``/manage/models``.
 """
 
-from ourapp.models.facts import Fact, Topic
+from ourapp.models.facts import Fact, FactOfTheDay, Topic
 from ourapp.models.todos import Todo
 
-__all__ = ["Fact", "Topic", "Todo"]
+__all__ = ["Fact", "FactOfTheDay", "Topic", "Todo"]

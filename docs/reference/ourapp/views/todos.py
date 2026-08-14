@@ -79,7 +79,7 @@ def create_todo(request: HttpRequest, payload: TodoCreateSchema) -> TodoOutSchem
     """
     user = user_or_404(request)
     todo = Todo(text=payload.text.strip(), owner=user)
-    todo.save_with_logs(user=user)
+    todo.save_with_logs(actor=user)
     return _todo_out(todo)
 
 
@@ -93,5 +93,5 @@ def toggle_todo(request: HttpRequest, public_id: str) -> TodoOutSchema:
     user = user_or_404(request)
     todo = _todo_or_404(public_id, user)
     todo.toggle()
-    todo.save_with_logs(user=user)
+    todo.save_with_logs(actor=user)
     return _todo_out(todo)

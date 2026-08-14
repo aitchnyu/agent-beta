@@ -49,8 +49,10 @@ function onKeydown(event: KeyboardEvent) {
 const conn = useOpencodeConnection()
 const transcript = useOpencodeTranscript()
 
-const { streaming, resetting, hasSession, eventCount, debugLog, recovering } = conn
-const { blocks, activePermission, activePermissionIndex, permissionTotal } = transcript
+const { streaming, resetting, hasSession, eventCount, debugLog, recovering } =
+  conn
+const { blocks, activePermission, activePermissionIndex, permissionTotal } =
+  transcript
 
 // Page-local liveness flag so a navigate-away between the transcript fetch and
 // the reconcile doesn't mutate the transcript post-unmount.

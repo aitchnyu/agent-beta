@@ -129,7 +129,7 @@ class FactOfTheDay(BaseModel):
         """Pick one random fact and upsert the singleton. None if the pool is empty.
 
         The only mutator. The unique ``singleton`` sentinel enforces "one row" at
-        the DB level. Writes go through ``save_with_logs(user=None)``.
+        the DB level. Writes go through ``save_with_logs(actor=None)``.
         """
         fact = Fact.objects.random()
         if fact is None:
@@ -139,5 +139,5 @@ class FactOfTheDay(BaseModel):
             row = cls(fact=fact)
         else:
             row.fact = fact
-        row.save_with_logs(user=None)
+        row.save_with_logs(actor=None)
         return row

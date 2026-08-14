@@ -24,7 +24,7 @@ class BaseModelUpdateLogTests(TestCase):
     - test_delete_logs_deleted_no_snapshot, delete log: old/new both {} (no snapshot)
     - test_value_shapes, int→str, FK→{id,url,name}, null passthrough, no pk leak
     - test_log_model_name_resolution, log.model == log_model_name(); log_as_name overrides
-    - test_performed_by_none, user=None recorded as a null actor
+    - test_performed_by_none, actor=None recorded as a null actor
     """
 
     Book: ClassVar[type[Any]]
@@ -42,7 +42,7 @@ class BaseModelUpdateLogTests(TestCase):
         # A fresh author + book per test, created via save_with_logs (each emits
         # exactly one 'created' log attributed to the actor).
         self.author = self.Author(name="Ada", bio="", rating="4.50", active=True)
-        self.author.save_with_logs(user=self.actor)
+        self.author.save_with_logs(actor=self.actor)
         self.book = self.Book(
             title="Notes",
             description="",
@@ -50,7 +50,7 @@ class BaseModelUpdateLogTests(TestCase):
             author=self.author,
             reviewer=self.actor,
         )
-        self.book.save_with_logs(user=self.actor)
+        self.book.save_with_logs(actor=self.actor)
 
     def _logs(self, **filters: object) -> list[BaseModelUpdateLog]:
         qs = BaseModelUpdateLog.objects.filter(
@@ -84,7 +84,7 @@ class BaseModelUpdateLogTests(TestCase):
     def test_update_logs_changed_values(self) -> None:
         """Update writes an 'updated' log whose old/new reflect the changed field."""
         self.book.title = "Updated Notes"
-        self.book.save_with_logs(user=self.actor)
+        self.book.save_with_logs(actor=self.actor)
 
         updated = self._logs(action="updated")
         self.assertEqual(len(updated), 1)
@@ -96,13 +96,13 @@ class BaseModelUpdateLogTests(TestCase):
         """An update that changes no data column writes no 'updated' log."""
         # last_updated_at/by are re-stamped but excluded from the diff, so a
         # no-field-change save_with_logs produces no log row.
-        self.book.save_with_logs(user=self.actor)
+        self.book.save_with_logs(actor=self.actor)
         self.assertEqual(self._logs(action="updated"), [])
 
     def test_delete_logs_deleted_no_snapshot(self) -> None:
         """Delete writes a 'deleted' log with empty old/new values; the log outlives the row."""
         pk = self.book.pk
-        self.book.delete_with_logs(user=self.actor)
+        self.book.delete_with_logs(actor=self.actor)
 
         log = BaseModelUpdateLog.objects.get(
             model=self.Book.log_model_name(), model_pk=pk, action="deleted"
@@ -144,9 +144,9 @@ class BaseModelUpdateLogTests(TestCase):
             self.Book.log_as_name = original
 
     def test_performed_by_none(self) -> None:
-        """Creating with user=None records a null actor (no crash)."""
+        """Creating with actor=None records a null actor (no crash)."""
         book = self.Book(title="Anon", author=self.author)
-        book.save_with_logs(user=None)
+        book.save_with_logs(actor=None)
         log = BaseModelUpdateLog.objects.filter(
             model=self.Book.log_model_name(), model_pk=book.pk, action="created"
         ).get()

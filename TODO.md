@@ -1,17 +1,14 @@
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.
 
-Opencode sdk for connecting?
-
+We have a models.py. Ensure that test/example apps meets the expectations of steer.md
 checkall vs checkscratch - run if anything outside of ours/ and ourapp/ is changed. Run a subset of tests.
 Profile test suite for speed
-on update restrict on delete restrict
-.save() sentinel for model
 
 Buttons spill for agent text box in responsive mode.
 
-Review using agents?
+Review using agents after finishing coding?
 
-Run all tests in checkproject and merge coverage from both stages.
+Run all tests in checkproject and merge coverage from both stages. Improve test coverage
 
 ## Deployment
 Tool to analyse error logs and stacktraces, both backend and map stacktraces
@@ -31,7 +28,7 @@ Django 6.1 fetch modes? New Mypy plugin - https://github.com/typeddjango/django-
 ## Notification center
 Service worker and PWA?
 Have link to correct place
-Group them
+Group them by url/key
 Browser notification/email to send to user
 Which ones to mute?
 

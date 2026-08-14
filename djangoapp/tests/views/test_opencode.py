@@ -908,10 +908,7 @@ class OpencodeTranscriptTests(TestCase):
     def test_proxies_transcript_verbatim(self) -> None:
         """The daemon's persisted transcript is returned unchanged, as JSON."""
         self.client.force_login(self.superuser)
-        body = (
-            '[{"info":{"role":"user"},'
-            '"parts":[{"id":"prt_1","type":"text","text":"hi"}]}]'
-        )
+        body = '[{"info":{"role":"user"},"parts":[{"id":"prt_1","type":"text","text":"hi"}]}]'
         with patch(
             "djangoapp.views.opencode.httpx.get",
             return_value=Mock(is_success=True, content=body.encode()),

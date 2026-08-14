@@ -460,8 +460,11 @@ class BaseModel(models.Model):
             return _log_fk_value(value)
         return _OMIT
 
-    def save_with_logs(self, *, user: User | None) -> None:
+    def save_with_logs(self, *, actor: User | None) -> None:
         """Persist and write one ``BaseModelUpdateLog`` (``created`` or ``updated``).
+
+        ``actor`` is who performed the write (recorded as ``performed_by`` and
+        stamped on ``created_by``/``last_updated_by``)
 
         Create: ``old_values={}``, ``new_values`` = full snapshot.
         Update: only **changed** columns appear in old/new_values; a no-op edit
@@ -474,13 +477,13 @@ class BaseModel(models.Model):
         """
         now = timezone.now()
         if self._state.adding:
-            self.created_by = user
-            self.last_updated_by = user
+            self.created_by = actor
+            self.last_updated_by = actor
             self.last_updated_at = now
             with transaction.atomic():
                 super().save()
                 BaseModelUpdateLog.objects.create(
-                    performed_by=user,
+                    performed_by=actor,
                     performed_at=now,
                     model=type(self).log_model_name(),
                     model_pk=self.pk,
@@ -489,7 +492,7 @@ class BaseModel(models.Model):
                     new_values=self._log_values_snapshot(),
                 )
             return
-        self.last_updated_by = user
+        self.last_updated_by = actor
         self.last_updated_at = now
         with transaction.atomic():
             # Read the pre-edit snapshot inside the txn so a concurrent edit
@@ -516,7 +519,7 @@ class BaseModel(models.Model):
             diff_new.pop("last_updated_by", None)
             if diff_old:  # no-op edit → no log row
                 BaseModelUpdateLog.objects.create(
-                    performed_by=user,
+                    performed_by=actor,
                     performed_at=now,
                     model=type(self).log_model_name(),
                     model_pk=self.pk,
@@ -525,7 +528,7 @@ class BaseModel(models.Model):
                     new_values=diff_new,
                 )
 
-    def delete_with_logs(self, *, user: User | None) -> BaseModelUpdateLog:
+    def delete_with_logs(self, *, actor: User | None) -> BaseModelUpdateLog:
         """Delete and write a ``deleted`` log with empty old/new values.
 
         A delete records only that the row was removed (action + model + pk) — no
@@ -535,7 +538,7 @@ class BaseModel(models.Model):
         now = timezone.now()
         with transaction.atomic():
             log = BaseModelUpdateLog.objects.create(
-                performed_by=user,
+                performed_by=actor,
                 performed_at=now,
                 model=type(self).log_model_name(),
                 model_pk=self.pk,
