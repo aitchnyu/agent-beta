@@ -2,12 +2,12 @@ from io import StringIO
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.test import TestCase
 
 from djangoapp.models import User, UserHistory
+from djangoapp.tests._base import BaseTestCase
 
 
-class MakeSuperuserCommandTests(TestCase):
+class MakeSuperuserCommandTests(BaseTestCase):
     """``makesuperuser`` promotes an existing user (by email) to superuser+staff.
 
     Uses ``User.update`` so each promotion is audited as a ``UserHistory``

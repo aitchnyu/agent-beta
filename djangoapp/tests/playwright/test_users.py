@@ -1,21 +1,18 @@
 from __future__ import annotations
 
 from http import HTTPStatus
-from typing import TYPE_CHECKING
 
 from django.test import override_settings
 
 from djangoapp.models import User
 from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 
-if TYPE_CHECKING:
-    from playwright.sync_api import Page
-
 
 class LoginForTestGateE2eTestCase(BasePlaywrightTestCase):
-    """The test login bypass must be disabled outside DEBUG.
+    """Auth-infrastructure gates.
 
     - test_login_for_test_forbidden_when_not_debug, with DEBUG off the login-for-test URL is 404
+    - test_set_up_injects_session_cookie, ensures login_as works (cookie in context)
     """
 
     @override_settings(DEBUG=False)
@@ -26,6 +23,22 @@ class LoginForTestGateE2eTestCase(BasePlaywrightTestCase):
                 f"{self.live_server_url}/login-for-test/{self.user.pk}",
             )
             self.assertEqual(response.status, HTTPStatus.NOT_FOUND)
+
+    def test_set_up_injects_session_cookie(self) -> None:
+        """Ensure login_as works as expected: an authenticated round trip.
+
+        Every e2e test assumes the harness's in-process cookie injection is
+        sound; if it ever breaks (session engine change, cookie rename,
+        add_cookies semantics), this fails loudly by name instead of as 20+
+        baffling 404s across unrelated feature tests. A real page load (not
+        just the cookie's presence) proves the server accepts the session.
+        """
+        self.page.goto(f"{self.live_server_url}/")
+        self.page.wait_for_selector(".home-status-signed-in")
+        self.assertIn(
+            self.user.username,
+            self.page.locator(".home-status-signed-in").inner_text(),
+        )
 
 
 class UserEditE2eTestCase(BasePlaywrightTestCase):
@@ -55,17 +68,11 @@ class UserEditE2eTestCase(BasePlaywrightTestCase):
             last_name="Name",
             email="old@example.com",
         )
-
-    def _login_superuser(self) -> Page:
-        login_url = f"{self.live_server_url}/login-for-test/{self.superuser.pk}"
-        page = self.context.new_page()
-        page.goto(login_url, wait_until="domcontentloaded")
-        page.set_default_timeout(5000)
-        return page
+        self.login_as(self.superuser)
 
     def test_edit_page_saves_first_name(self) -> None:
         """Change first name on the edit form; submit redirects and persists."""
-        page = self._login_superuser()
+        page = self.page
         page.goto(f"{self.live_server_url}/users/edit/{self.target.public_id}")
         page.wait_for_selector(".user-edit-first-name")
 
@@ -78,7 +85,7 @@ class UserEditE2eTestCase(BasePlaywrightTestCase):
 
     def test_edit_page_updates_description(self) -> None:
         """Type into the rich-text editor; submit persists the description."""
-        page = self._login_superuser()
+        page = self.page
         page.goto(f"{self.live_server_url}/users/edit/{self.target.public_id}")
         page.wait_for_selector(".ql-editor")
 
@@ -94,11 +101,10 @@ class UserEditE2eTestCase(BasePlaywrightTestCase):
 
     def test_edit_page_requires_superuser(self) -> None:
         """Anonymous viewer of the edit form gets a 404."""
-        page = self.context.new_page()
-        response = page.goto(f"{self.live_server_url}/users/edit/{self.target.public_id}")
-        assert response is not None
-        self.assertEqual(response.status, HTTPStatus.NOT_FOUND)
-        page.close()
+        with self.anon_page() as page:
+            response = page.goto(f"{self.live_server_url}/users/edit/{self.target.public_id}")
+            assert response is not None
+            self.assertEqual(response.status, HTTPStatus.NOT_FOUND)
 
 
 class UserHistoryE2eTestCase(BasePlaywrightTestCase):
@@ -127,13 +133,7 @@ class UserHistoryE2eTestCase(BasePlaywrightTestCase):
             last_name="Name",
             email="before@example.com",
         )
-
-    def _login_superuser(self) -> Page:
-        login_url = f"{self.live_server_url}/login-for-test/{self.superuser.pk}"
-        page = self.context.new_page()
-        page.goto(login_url, wait_until="domcontentloaded")
-        page.set_default_timeout(5000)
-        return page
+        self.login_as(self.superuser)
 
     def test_history_page_shows_edit_diff(self) -> None:
         """After an edit, the history timeline shows the first-name diff."""
@@ -149,7 +149,7 @@ class UserHistoryE2eTestCase(BasePlaywrightTestCase):
             user=self.superuser,
         )
 
-        page = self._login_superuser()
+        page = self.page
         page.goto(f"{self.live_server_url}/users/history/{self.target.public_id}")
         page.wait_for_selector(".user-history-entry")
 
@@ -159,8 +159,7 @@ class UserHistoryE2eTestCase(BasePlaywrightTestCase):
 
     def test_history_page_requires_superuser(self) -> None:
         """Anonymous viewer of the history page gets a 404."""
-        page = self.context.new_page()
-        response = page.goto(f"{self.live_server_url}/users/history/{self.target.public_id}")
-        assert response is not None
-        self.assertEqual(response.status, HTTPStatus.NOT_FOUND)
-        page.close()
+        with self.anon_page() as page:
+            response = page.goto(f"{self.live_server_url}/users/history/{self.target.public_id}")
+            assert response is not None
+            self.assertEqual(response.status, HTTPStatus.NOT_FOUND)

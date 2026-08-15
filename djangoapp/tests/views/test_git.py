@@ -3,7 +3,7 @@
 
 Against throwaway temp repos. No mocks: the class mixes in ``GitRepoMixin``
 (``djangoapp/tests/_git_fixtures.py``, shared with the Playwright suite), whose
-``setUp`` builds a known git history (3 commits incl. a root commit and a
+``setUpClass`` builds a known git history (3 commits incl. a root commit and a
 deletion, plus uncommitted changes) in a ``main`` worktree and a baseline +
 uncommitted changes in a sibling ``scratch`` worktree, and patches the repo
 root to ``main``. Each test hits the view via ``self.client`` and asserts the
@@ -18,16 +18,16 @@ from pathlib import Path
 from unittest.mock import patch
 
 import git
-from inertia.test import InertiaTestCase
 
 from djangoapp.models import User
+from djangoapp.tests._base import BaseInertiaTestCase
 from djangoapp.tests._git_fixtures import GitRepoMixin
 
 
-class GitRealTests(GitRepoMixin, InertiaTestCase):
+class GitRealTests(GitRepoMixin, BaseInertiaTestCase):
     """``/git`` views against real temp inner repos (no mocks).
 
-    ``GitRepoMixin.setUp`` (also the Playwright suite's base) builds the
+    ``GitRepoMixin.setUpClass`` (also the Playwright suite's base) builds the
     ``parent/main`` + ``parent/scratch`` fixture and its commit history — see the
     mixin's docstring for that history; this class adds superuser auth and
     asserts the Inertia props / 404s over ``self.client``.
@@ -60,7 +60,7 @@ class GitRealTests(GitRepoMixin, InertiaTestCase):
     """
 
     def setUp(self) -> None:
-        super().setUp()  # GitRepoMixin.setUp builds the repo fixture
+        super().setUp()  # auth only — the repo fixture is class-scoped
         self.user = User.objects.create_user(
             username="root", password="p", is_staff=True, is_superuser=True
         )

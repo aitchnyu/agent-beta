@@ -3,12 +3,11 @@ from __future__ import annotations
 from http import HTTPStatus
 from typing import ClassVar
 
-from inertia.test import InertiaTestCase
-
 from djangoapp.models import User
+from djangoapp.tests._base import BaseInertiaTestCase
 
 
-class ManageModelsViewTests(InertiaTestCase):
+class ManageModelsViewTests(BaseInertiaTestCase):
     """Superuser-only models-management pages over ourapp's models.
 
     ourapp ships empty, so the model list is empty here; the routes, the

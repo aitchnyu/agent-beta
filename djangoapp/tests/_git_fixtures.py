@@ -5,9 +5,10 @@ Playwright suite (``tests/playwright/test_git.py``) stand up the **same** real
 ``parent/main`` + ``parent/scratch`` temp repos and patch
 ``djangoapp.views.git_data._REPO_ROOT`` to ``main`` — mirroring the real layout
 (``main/`` = the dev-server repo, ``scratch/`` = the scratch sibling
-``./run createscratch`` builds). :class:`GitRepoMixin` does that build in its
-``setUp`` (cooperatively chained before the real TestCase base), so the two
-suites share one fixture; each test class keeps only its harness-specific auth.
+``./run createscratch`` builds). :class:`GitRepoMixin` does that build ONCE
+PER CLASS in its ``setUpClass`` (cooperatively chained before the real
+TestCase base), so the two suites share one fixture per class; each test
+class keeps only its harness-specific auth.
 
 Main history (newest last): root commit → modify+add → modify+delete, plus
 uncommitted changes (a ``-``/``+`` modification + an untracked file). Scratch: a
@@ -18,6 +19,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from typing import ClassVar
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -38,20 +40,20 @@ def _init_repo(root: Path, *, email: str, name: str) -> git.Repo:
     return repo
 
 
-def _worktree_roots(test: TestCase) -> tuple[Path, Path]:
+def _worktree_roots(cls: type[TestCase]) -> tuple[Path, Path]:
     """Create a temp ``parent/main`` + ``parent/scratch``; patch ``_REPO_ROOT``→main.
 
     Returns ``(main_root, scratch_root)`` — both empty (no identity, no
     commits); callers :func:`_init_repo` each and build history. The temp dir is
-    removed and the patch undone on test exit (registered via ``test.addCleanup``).
+    removed and the patch undone on exit (registered via ``addClassCleanup``).
     """
     tmp = tempfile.TemporaryDirectory()
-    test.addCleanup(tmp.cleanup)
+    cls.addClassCleanup(tmp.cleanup)
     main_root = Path(tmp.name) / "main"
     scratch_root = Path(tmp.name) / "scratch"
     patcher = patch("djangoapp.views.git_data._REPO_ROOT", main_root)
     patcher.start()
-    test.addCleanup(patcher.stop)
+    cls.addClassCleanup(patcher.stop)
     return main_root, scratch_root
 
 
@@ -67,11 +69,16 @@ class GitRepoMixin(TestCase):
     """Cooperative mixin: builds the shared main+scratch repo fixture + ``_REPO_ROOT`` patch.
 
     Mix **first**, before the real TestCase base — ``InertiaTestCase`` for the
-    views suite, ``BasePlaywrightTestCase`` for the browser suite. ``setUp``
-    cooperatively calls ``super().setUp()`` (the real base's), then builds the
-    fixture and exposes the three main commits + their short shas; the temp dir
-    + patch are undone via ``addCleanup``. Subclasses keep doing their own auth
-    in their own ``setUp`` (after ``super().setUp()``).
+    views suite, ``BasePlaywrightTestCase`` for the browser suite. The build
+    runs ONCE PER CLASS in ``setUpClass`` (the git viewer is read-only, so
+    rebuilding identical repos per test was ~0.1s wasted each) and
+    cooperatively calls ``super().setUpClass()`` first; the temp dir + patch
+    are undone via ``addClassCleanup``. Tests must treat the repos as
+    read-only — anything mutating worktree state needs its own temp repo
+    (see the ``tempfile.TemporaryDirectory`` tests in the views suite).
+
+    Exposes the three main commits + their short shas as class attributes;
+    subclasses keep doing their own per-test auth in ``setUp``.
 
     History (the single source both suites assert against):
     - Main commits (newest first):
@@ -82,25 +89,26 @@ class GitRepoMixin(TestCase):
     - Scratch uncommitted: TodoApp/scratch_only.py modified, TodoApp/scratch_notes.md untracked
     """
 
-    commit_a: git.Commit  # the root commit (all files "added")
-    commit_b: git.Commit
-    commit_c: git.Commit
-    short_a: str
-    short_b: str
-    short_c: str
+    commit_a: ClassVar[git.Commit]  # the root commit (all files "added")
+    commit_b: ClassVar[git.Commit]
+    commit_c: ClassVar[git.Commit]
+    short_a: ClassVar[str]
+    short_b: ClassVar[str]
+    short_c: ClassVar[str]
 
-    def setUp(self) -> None:
-        super().setUp()
-        main_root, scratch_root = _worktree_roots(self)
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        main_root, scratch_root = _worktree_roots(cls)
         main = _init_repo(main_root, email="t@example.com", name="Tester")
 
-        self.commit_a = _commit(
+        cls.commit_a = _commit(
             main,
             main_root,
             {"TodoApp/app.py": 'def main():\n    print("hello")\n'},
             "Initial TodoApp",
         )
-        self.commit_b = _commit(
+        cls.commit_b = _commit(
             main,
             main_root,
             {
@@ -112,7 +120,7 @@ class GitRepoMixin(TestCase):
         # commit C: modify app.py + delete endpoints.py (a modify+delete commit).
         main.index.remove(["TodoApp/endpoints.py"])
         (main_root / "TodoApp/endpoints.py").unlink()
-        self.commit_c = _commit(
+        cls.commit_c = _commit(
             main,
             main_root,
             {"TodoApp/app.py": 'def main():\n    print("bye")\n    return x\n'},
@@ -129,6 +137,6 @@ class GitRepoMixin(TestCase):
         _write(scratch_root, "TodoApp/scratch_only.py", "x = 0\nx = 1\n")
         _write(scratch_root, "TodoApp/scratch_notes.md", "wip\n")
 
-        self.short_a = self.commit_a.hexsha[:7]
-        self.short_b = self.commit_b.hexsha[:7]
-        self.short_c = self.commit_c.hexsha[:7]
+        cls.short_a = cls.commit_a.hexsha[:7]
+        cls.short_b = cls.commit_b.hexsha[:7]
+        cls.short_c = cls.commit_c.hexsha[:7]

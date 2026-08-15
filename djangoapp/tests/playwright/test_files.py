@@ -16,11 +16,11 @@ _LEAF = "ourapp"  # breadcrumb leaf segment (the current dir)
 class FilesBrowserE2e(BasePlaywrightTestCase):
     """Basic E2E for the superuser ``/files`` browser (headless firefox).
 
-    Re-auths the shared page as a superuser (the base harness logs in a plain
-    user; ``/files`` is superuser-only) and drives the real repo tree
-    (``ourapp/`` and its ``models/`` package). ``tearDown`` fails the test on any
-    browser console error. Uses Python assert methods; ``networkidle`` navigation
-    (and targeted ``wait_for``) ensure Inertia has hydrated before asserting.
+    ``/files`` is superuser-only, so ``setUp`` re-auths the shared page as a
+    superuser via ``login_as`` (cookie replacement — the harness's plain-user
+    session is simply overwritten) and drives the real repo tree
+    (``ourapp/`` and its ``models/`` package). ``tearDown`` fails the test on
+    any browser console error.
 
     - test_browse_lists_entries_and_breadcrumb, entries + root/ourapp breadcrumb
     - test_clicking_directory_entry_navigates, an entry link SPA-navigates into the dir
@@ -31,17 +31,10 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
 
     def setUp(self) -> None:
         super().setUp()
-        # The base class logged in a plain user; /files is superuser-only (404
-        # otherwise), so re-auth as a superuser on the shared page.
         self.admin = User.objects.create_user(
             username="filesadmin", password="x", is_staff=True, is_superuser=True
         )
-        self.page = self.logged_in_page
-        self.page.set_default_timeout(5000)
-        self.page.goto(
-            f"{self.live_server_url}/login-for-test/{self.admin.pk}",
-            wait_until="networkidle",
-        )
+        self.login_as(self.admin)
 
     def _files(self, rel: str = "") -> str:
         return f"{self.live_server_url}/files/{rel}"
@@ -49,7 +42,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
     def test_browse_lists_entries_and_breadcrumb(self) -> None:
         """The ourapp/ listing renders its entries and a root/ourapp breadcrumb."""
         page = self.page
-        page.goto(self._files(_DIR), wait_until="networkidle")
+        page.goto(self._files(_DIR))
         body = page.inner_text("body")
         self.assertIn(_ENTRY_DIR, body)
         self.assertIn("urls.py", body)
@@ -60,7 +53,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
     def test_clicking_directory_entry_navigates(self) -> None:
         """Clicking a directory entry navigates into it (Inertia SPA nav)."""
         page = self.page
-        page.goto(self._files(_DIR), wait_until="networkidle")
+        page.goto(self._files(_DIR))
         page.get_by_role("link", name=_ENTRY_DIR).click()
         page.wait_for_url(lambda url: f"/files/{_DIR}/{_ENTRY_DIR}" in url)
         self.assertIn(f"/files/{_DIR}/{_ENTRY_DIR}", page.url)
@@ -68,9 +61,13 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
     def test_text_file_preview(self) -> None:
         """A code file renders its (escaped) content in the preview."""
         page = self.page
-        page.goto(self._files(_TEXT_FILE), wait_until="networkidle")
+        # The preview <pre> renders visible-but-empty — content arrives only
+        # after mount — so wait on the page root's data-files-state flipping to
+        # "rendered" (component state), not on content magic strings, the
+        # element (already visible), or network quiescence (~0.7s slower).
+        page.goto(self._files(_TEXT_FILE))
+        page.wait_for_selector('.files-page[data-files-state="rendered"]')
         preview = page.locator(".files-code")
-        preview.wait_for(state="visible")
         text = preview.text_content() or ""
         self.assertIn("BaseModel", text)
         self.assertIn("models-management", text)
@@ -83,12 +80,10 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         appears as escaped text — never parsed into live DOM elements.
         """
         page = self.page
-        page.goto(
-            self._files("main/frontend/src/pages/FileBrowser.vue"),
-            wait_until="networkidle",
-        )
+        page.goto(self._files("main/frontend/src/pages/FileBrowser.vue"))
+        # Same as test_text_file_preview: wait on component state, not content.
+        page.wait_for_selector('.files-page[data-files-state="rendered"]')
         preview = page.locator(".files-code")
-        preview.wait_for(state="visible")
         # The file's markup is shown as text (highlight.js escapes it), not parsed.
         self.assertIn("<template>", preview.text_content() or "")
         # A v-html regression would parse the file's tags into live elements.
@@ -99,7 +94,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
     def test_humanized_time_toggles_to_absolute(self) -> None:
         """Clicking the time swaps the relative label for the absolute one."""
         page = self.page
-        page.goto(self._files(_DIR), wait_until="networkidle")
+        page.goto(self._files(_DIR))
         t = page.locator(".humanized-time").first
         relative = t.text_content()
         t.click()
@@ -115,12 +110,11 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         source (not the rendered HTML). Clicking the link scrolls to it (hash nav).
         """
         page = self.page
-        page.goto(
-            self._files("main/djangoapp/tests/filefixtures/sample.md"),
-            wait_until="networkidle",
-        )
+        page.goto(self._files("main/djangoapp/tests/filefixtures/sample.md"))
+        # Both the rendered view and the raw block fill asynchronously — wait
+        # on the component state flip, not their (already-visible) elements.
+        page.wait_for_selector('.files-page[data-files-state="rendered"]')
         rendered = page.locator(".files-markdown")
-        rendered.wait_for(state="visible")
         self.assertIn("Sample markdown", rendered.inner_text())
         img = rendered.locator("img")
         img.wait_for(state="visible")
@@ -136,7 +130,6 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         # The raw block shows the markdown source, not the rendered HTML: the
         # image is the literal `![…](…)` syntax, not an <img> element.
         raw = page.locator("#files-raw-source")
-        raw.wait_for(state="visible")
         raw_text = raw.text_content() or ""
         self.assertIn("# Sample markdown", raw_text)
         self.assertIn("![A blue square](diagram.svg)", raw_text)

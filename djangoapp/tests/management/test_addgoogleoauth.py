@@ -4,10 +4,11 @@ from allauth.socialaccount.models import SocialApp
 from django.conf import settings
 from django.contrib.sites.models import Site
 from django.core.management import call_command
-from django.test import TestCase
+
+from djangoapp.tests._base import BaseTestCase
 
 
-class AddGoogleOAuthCommandTests(TestCase):
+class AddGoogleOAuthCommandTests(BaseTestCase):
     """``addgoogleoauth`` stores the Google SocialApp in the database.
 
     Verifies the command replaces the old ``SOCIALACCOUNT_PROVIDERS`` block by

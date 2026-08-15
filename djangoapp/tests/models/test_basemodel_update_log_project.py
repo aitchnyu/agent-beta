@@ -3,14 +3,14 @@ from __future__ import annotations
 from typing import Any, ClassVar
 
 from django.apps import apps
-from django.test import TestCase
 
 from djangoapp.models import BaseModelUpdateLog, User
+from djangoapp.tests._base import BaseTestCase
 from djangoapp.tests.views import skip_unless_env
 
 
 @skip_unless_env("RUN_PROJECT_TESTS")
-class BaseModelUpdateLogTests(TestCase):
+class BaseModelUpdateLogTests(BaseTestCase):
     """``BaseModel.save_with_logs`` / ``delete_with_logs`` against the real Book model.
 
     Runs only under ``checkproject`` (sets ``RUN_PROJECT_TESTS`` and overlays the

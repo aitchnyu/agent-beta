@@ -10,10 +10,12 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
 
     No function mocks: the class mixes in ``GitRepoMixin`` (the same real repo
     fixture the views suite uses) — ``main`` (3 commits + uncommitted changes) +
-    a sibling ``scratch`` (baseline commit + uncommitted changes), mirroring the
-    real ``parent/main`` + ``parent/scratch`` layout, and patches
+    a sibling ``scratch`` (baseline commit + uncommitted changes), mirroring
+    the real ``parent/main`` + ``parent/scratch`` layout, and patches
     ``git_data._REPO_ROOT`` to ``main`` (the in-process live server sees the
-    patch). ``tearDown`` fails on any browser console error.
+    patch). ``/git`` is superuser-only, so ``setUp`` re-auths the shared page
+    as a superuser via ``login_as`` (cookie replacement).
+    ``tearDown`` fails on any browser console error.
 
     - test_uncommitted_renders — /git/uncommitted/ lists both worktrees' files
       (main then scratch) with U/M status letters; each file links to its worktree diff
@@ -25,20 +27,16 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
     """
 
     def setUp(self) -> None:
-        super().setUp()  # GitRepoMixin.setUp builds the repo fixture
+        super().setUp()  # auth only — the repo fixture is class-scoped
         self.admin = User.objects.create_user(
             username="gitadmin", password="x", is_staff=True, is_superuser=True
         )
-        self.page = self.logged_in_page
-        self.page.goto(
-            f"{self.live_server_url}/login-for-test/{self.admin.pk}",
-            wait_until="networkidle",
-        )
+        self.login_as(self.admin)
 
     def test_uncommitted_renders(self) -> None:
         """``/git/uncommitted/`` lists both worktrees' files with U/M status letters."""
         page = self.page
-        page.goto(f"{self.live_server_url}/git/uncommitted/", wait_until="networkidle")
+        page.goto(f"{self.live_server_url}/git/uncommitted/")
         page.get_by_role("link", name="TodoApp/app.py").wait_for(state="visible")
         page.get_by_role("link", name="TodoApp/scratch_only.py").wait_for(state="visible")
         body = page.inner_text("body")
@@ -65,7 +63,7 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
     def test_commit_list_renders(self) -> None:
         """``/git/commits`` shows the 3 subjects (newest first) + a commit count."""
         page = self.page
-        page.goto(f"{self.live_server_url}/git/commits", wait_until="networkidle")
+        page.goto(f"{self.live_server_url}/git/commits")
         page.get_by_role("link", name=self.short_b).wait_for(state="visible")
         body = page.inner_text("body")
         self.assertIn("Add delete endpoint", body)
@@ -81,10 +79,7 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         ``filePreview`` chunk highlighted the diff (not raw text).
         """
         page = self.page
-        page.goto(
-            f"{self.live_server_url}/git/uncommitted/main/TodoApp/app.py",
-            wait_until="networkidle",
-        )
+        page.goto(f"{self.live_server_url}/git/uncommitted/main/TodoApp/app.py")
         # wait_for_selector, not wait_for_function (per INSTRUCTIONS.md): the diff
         # grammar emits .hljs-addition/.hljs-deletion once the highlighter runs, so
         # the addition selector proves the chunk rendered before the asserts below.
@@ -118,7 +113,7 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         """
         page = self.page
         # Land on the commit's file list (loads the Inertia app + main.js).
-        page.goto(f"{self.live_server_url}/git/commits/{self.short_b}", wait_until="networkidle")
+        page.goto(f"{self.live_server_url}/git/commits/{self.short_b}")
         page.get_by_role("link", name="TodoApp/endpoints.py").wait_for(state="visible")
         # Click the file link — a client-side Inertia swap to GitDiff.
         page.get_by_role("link", name="TodoApp/endpoints.py").click()
@@ -138,18 +133,15 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         """
         page = self.page
         # Commit list has a link to each commit.
-        page.goto(f"{self.live_server_url}/git/commits", wait_until="networkidle")
+        page.goto(f"{self.live_server_url}/git/commits")
         page.get_by_role("link", name=self.short_b).wait_for(state="visible")
         self.assertIn("Add create endpoint", page.inner_text("body"))
         # The commit page links to each changed file.
-        page.goto(f"{self.live_server_url}/git/commits/{self.short_b}", wait_until="networkidle")
+        page.goto(f"{self.live_server_url}/git/commits/{self.short_b}")
         page.get_by_role("link", name="TodoApp/endpoints.py").wait_for(state="visible")
         self.assertIn("Add create endpoint", page.inner_text("body"))
         # The file's diff renders.
-        page.goto(
-            f"{self.live_server_url}/git/commits/{self.short_b}/TodoApp/endpoints.py",
-            wait_until="networkidle",
-        )
+        page.goto(f"{self.live_server_url}/git/commits/{self.short_b}/TodoApp/endpoints.py")
         page.wait_for_selector(".code-diff .hljs-addition")
         diff_text = page.locator(".code-diff").text_content() or ""
         self.assertIn("new file mode", diff_text)

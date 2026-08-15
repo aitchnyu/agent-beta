@@ -2,12 +2,11 @@
 
 from http import HTTPStatus
 
-from inertia.test import InertiaTestCase
-
 from djangoapp.models import User
+from djangoapp.tests._base import BaseInertiaTestCase
 
 
-class HomeViewTests(InertiaTestCase):
+class HomeViewTests(BaseInertiaTestCase):
     """The landing page renders for anonymous and authenticated viewers (pk-free).
 
     - test_anonymous_home, anon GET / has ours/Home component, is_authenticated False

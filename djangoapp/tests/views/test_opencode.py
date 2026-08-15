@@ -6,10 +6,9 @@ from typing import TYPE_CHECKING, Any, ClassVar, cast
 from unittest.mock import Mock, patch
 
 import httpx
-from django.test import TestCase
-from inertia.test import InertiaTestCase
 
 from djangoapp.models import User
+from djangoapp.tests._base import BaseInertiaTestCase, BaseTestCase
 from djangoapp.views import opencode
 
 if TYPE_CHECKING:
@@ -70,7 +69,7 @@ def _frames(chunks: bytes) -> list[dict[str, Any]]:
     return out
 
 
-class OpencodePageTests(InertiaTestCase):
+class OpencodePageTests(BaseInertiaTestCase):
     """Superuser-only chat page at /agent/.
 
     - test_anonymous_404, unauthenticated visitor gets 404 (never the page)
@@ -105,7 +104,7 @@ class OpencodePageTests(InertiaTestCase):
         self.assertComponentUsed("OpencodeChat")
 
 
-class OpencodePromptTests(TestCase):
+class OpencodePromptTests(BaseTestCase):
     """Streaming prompt endpoint POST /agent/api/prompt/.
 
     No Inertia features are exercised (the streaming response isn't an Inertia
@@ -209,7 +208,7 @@ class _OpencodeProxyMixin:
             self.assertEqual(self._post().status_code, HTTPStatus.BAD_GATEWAY)  # type: ignore[attr-defined]
 
 
-class OpencodePermissionTests(_OpencodeProxyMixin, TestCase):
+class OpencodePermissionTests(_OpencodeProxyMixin, BaseTestCase):
     """Permission proxy POST /agent/api/permission/<sid>/<permid>/.
 
     No Inertia features are exercised; uses plain ``TestCase``.
@@ -294,7 +293,7 @@ class OpencodePermissionTests(_OpencodeProxyMixin, TestCase):
         self.assertEqual(response.json(), {"ok": False, "detail": "no such permission"})
 
 
-class OpencodeAbortTests(_OpencodeProxyMixin, TestCase):
+class OpencodeAbortTests(_OpencodeProxyMixin, BaseTestCase):
     """Abort endpoint POST /agent/api/abort/<sid>/.
 
     - test_anonymous_404, unauthenticated POST is 404
@@ -332,7 +331,7 @@ class OpencodeAbortTests(_OpencodeProxyMixin, TestCase):
         )
 
 
-class OpencodeDeleteSessionTests(_OpencodeProxyMixin, TestCase):
+class OpencodeDeleteSessionTests(_OpencodeProxyMixin, BaseTestCase):
     """Session-delete endpoint POST /agent/api/delete/<sid>/.
 
     The proxy stays POST (CSRF/axios consistency) and translates to opencode's
@@ -385,7 +384,7 @@ class OpencodeDeleteSessionTests(_OpencodeProxyMixin, TestCase):
         self.assertEqual(response.json()["ok"], False)
 
 
-class OpencodeStreamCoreTests(TestCase):
+class OpencodeStreamCoreTests(BaseTestCase):
     r"""Pure helpers behind the SSE proxy — no DB, no network.
 
     - test_iter_sse_joins_multiline_data, several ``data:`` lines for one event join and parse
@@ -594,7 +593,7 @@ class OpencodeStreamCoreTests(TestCase):
         self.assertTrue(opencode._client_disconnected(asgi_request))
 
 
-class OpencodeEventStreamTests(TestCase):
+class OpencodeEventStreamTests(BaseTestCase):
     """End-to-end behaviour of ``_event_stream`` with httpx mocked out.
 
     - test_emits_session_frame_first, the synthetic session event leads the stream
@@ -885,7 +884,7 @@ class OpencodeEventStreamTests(TestCase):
         self.assertNotIn("error", types)
 
 
-class OpencodeTranscriptTests(TestCase):
+class OpencodeTranscriptTests(BaseTestCase):
     """Transcript endpoint GET /agent/api/session/<sid>/transcript/.
 
     Returns the daemon's persisted transcript verbatim so the client can

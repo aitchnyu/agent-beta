@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 from django.http import Http404
 from django.test import SimpleTestCase
-from inertia.test import InertiaTestCase
 
 from djangoapp.models import User
+from djangoapp.tests._base import BaseInertiaTestCase
 from djangoapp.views import files as files_view
 from djangoapp.views.files import PathWrapper
 
@@ -21,7 +21,7 @@ from djangoapp.views.files import PathWrapper
 _TEXT_FILE = "main/ourapp/models/__init__.py"
 
 
-class FilesViewTests(InertiaTestCase):
+class FilesViewTests(BaseInertiaTestCase):
     """Superuser-only ``/files/...`` browser — HTTP view (gate, listing, preview, serving).
 
     Uses the Inertia test case (``self.props`` / ``assertComponentUsed``) against

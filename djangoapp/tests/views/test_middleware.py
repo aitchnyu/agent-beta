@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from inertia.test import InertiaTestCase
-
 from djangoapp.models import User
+from djangoapp.tests._base import BaseInertiaTestCase
 
 
 class SharedPropsMiddlewareTests(
-    InertiaTestCase,
+    BaseInertiaTestCase,
 ):
     """SharedPropsMiddleware injects the viewer profile on every Inertia page.
 

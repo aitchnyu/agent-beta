@@ -9,10 +9,10 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 import redis
-from django.test import TestCase
 
 from djangoapp.logging import json_formatter
 from djangoapp.models import User
+from djangoapp.tests._base import BaseTestCase
 from djangoapp.views import client_errors
 
 if TYPE_CHECKING:
@@ -57,7 +57,7 @@ def _ndjson(buf: io.StringIO) -> list[dict[str, object]]:
     return [json.loads(line) for line in buf.getvalue().splitlines() if line.strip()]
 
 
-class ClientErrorViewTests(TestCase):
+class ClientErrorViewTests(BaseTestCase):
     """Server-side behaviour of POST /client-errors (no browser involved).
 
     These POST directly (``self.client.post``) and assert on the resulting

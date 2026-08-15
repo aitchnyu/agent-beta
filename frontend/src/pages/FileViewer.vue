@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue"
+import { computed, onMounted, ref } from "vue"
 import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import Layout from "../components/Layout.vue"
@@ -25,6 +25,17 @@ const rendered = ref("")
 // Markdown source shown below the rendered view (highlighted).
 const raw = ref("")
 
+// Flips when the lazy filePreview chunk has filled rendered/raw. Markdown and
+// code previews fill asynchronously; text/image/binary render synchronously.
+const previewReady = ref(false)
+// Component state for tests (wait on [data-files-state="rendered"] instead of
+// polling content magic strings) and a11y (aria-busy while still empty).
+const filesState = computed(() =>
+  (p.kind === "markdown" || codeLang) && !previewReady.value
+    ? "loading"
+    : "rendered",
+)
+
 onMounted(async () => {
   // filePreview (hljs/marked) is a lazy chunk pre-warmed at boot in main.ts, so
   // this resolves from cache (a cold import during an Inertia v2 swap rolls back).
@@ -35,13 +46,18 @@ onMounted(async () => {
   } else if (codeLang) {
     rendered.value = highlightCode(p.text, codeLang)
   }
+  previewReady.value = true
 })
 </script>
 
 <template>
   <Layout>
     <PageTitle :value="p.name" />
-    <div class="container files-page">
+    <div
+      class="container files-page"
+      :data-files-state="filesState"
+      :aria-busy="filesState === 'loading'"
+    >
       <nav class="files-breadcrumb">
         <template v-for="c in p.breadcrumb" :key="c.rel">
           <Link class="files-crumb" :href="fileUrl(c.rel)">{{ c.label }}</Link>

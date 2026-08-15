@@ -4,9 +4,9 @@ from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from django.apps import apps
-from inertia.test import InertiaTestCase
 
 from djangoapp.models import User
+from djangoapp.tests._base import BaseInertiaTestCase
 from djangoapp.tests.views import skip_unless_env
 
 if TYPE_CHECKING:
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 @skip_unless_env("RUN_PROJECT_TESTS")
-class ManageProjectTests(InertiaTestCase):
+class ManageProjectTests(BaseInertiaTestCase):
     """Real models-management coverage against the test app's models.
 
     Runs only under ``checkproject`` (sets ``RUN_PROJECT_TESTS`` and overlays the

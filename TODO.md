@@ -1,8 +1,10 @@
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.
 
-We have a models.py. Ensure that test/example apps meets the expectations of steer.md
 checkall vs checkscratch - run if anything outside of ours/ and ourapp/ is changed. Run a subset of tests.
-Profile test suite for speed
+Command to test one backend/playwright test
+
+Upload files in chat or files
+Can agent render color changes and adding logos?
 
 Buttons spill for agent text box in responsive mode.
 
@@ -19,8 +21,6 @@ Require rsync, redis, log analysis, sourcemap tool
 Backup regularly - https://www.pghardstorage.org/examples
 Whitelist services for outbound connections
 How to configure provider and model for Opencode?
-
-Upload files in chat or files
 
 Inertia 3 - https://github.com/inertiajs/inertia-django/issues/99
 Django 6.1 fetch modes? New Mypy plugin - https://github.com/typeddjango/django-stubs

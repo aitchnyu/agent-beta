@@ -33,10 +33,11 @@ class ClientErrorReportingE2e(BasePlaywrightTestCase):
     def setUp(self) -> None:
         super().setUp()
         self.expect_console_errors()
-        self.page = self.logged_in_page
-        self.page.set_default_timeout(5000)
         # Home route shares the viewer profile (public_id) on every Inertia page.
-        self.page.goto(f"{self.live_server_url}/", wait_until="networkidle")
+        # Plain goto suffices: handlers are wired at app boot and the tests
+        # await the error POST via expect_request (networkidle here cost ~0.8s
+        # per test for no correctness).
+        self.page.goto(f"{self.live_server_url}/")
 
     def test_uncaught_error_posts_client_location_and_user(self) -> None:
         """A thrown window error POSTs row/col/url + the reporter's public_id."""
@@ -82,7 +83,7 @@ class ClientErrorReportingE2e(BasePlaywrightTestCase):
     def test_anonymous_report_omits_public_id(self) -> None:
         """An anonymous viewer's report carries no public_id (user info = auth)."""
         with self.anon_page() as page:
-            page.goto(f"{self.live_server_url}/", wait_until="networkidle")
+            page.goto(f"{self.live_server_url}/")
             with page.expect_request(
                 lambda req: req.method == "POST" and "/client-errors" in req.url
             ) as req_info:

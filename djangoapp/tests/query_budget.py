@@ -11,9 +11,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from django.db import connection
-from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from inertia.test import InertiaTestCase
+
+from djangoapp.tests._base import BaseTestCase
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -26,7 +27,7 @@ def _is_read_query(sql: str) -> bool:
     return lowered.startswith(_READ_PREFIXES)
 
 
-class QueryBudgetMixin(TestCase):
+class QueryBudgetMixin(BaseTestCase):
     """Fails a test whose SELECT-query count exceeds `max_select_queries`."""
 
     max_select_queries: int = 8

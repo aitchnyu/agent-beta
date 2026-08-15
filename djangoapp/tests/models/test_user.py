@@ -1,9 +1,8 @@
-from django.test import TestCase
-
 from djangoapp.models import User, UserHistory, UserSnapshot
+from djangoapp.tests._base import BaseTestCase
 
 
-class UserModelTests(TestCase):
+class UserModelTests(BaseTestCase):
     """Custom User model behaviour.
 
     Verifies public_id auto-generation, the has_public_profile default, the
@@ -86,7 +85,7 @@ class UserModelTests(TestCase):
         self.assertEqual(result, [])
 
 
-class UserHistoryModelTests(TestCase):
+class UserHistoryModelTests(BaseTestCase):
     """User.update history recording and snapshot diffing.
 
     Verifies that User.update applies only the 8 editable fields (never

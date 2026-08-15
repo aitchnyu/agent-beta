@@ -15,10 +15,9 @@ import logging
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
-from django.test import TestCase
-
 from djangoapp.logging import get_logger, json_formatter
 from djangoapp.models import User
+from djangoapp.tests._base import BaseTestCase
 
 if TYPE_CHECKING:
     from collections.abc import Generator
@@ -42,7 +41,7 @@ def _capture_json() -> Generator[io.StringIO]:
         root.removeHandler(handler)
 
 
-class StructuredLoggingTests(TestCase):
+class StructuredLoggingTests(BaseTestCase):
     """The NDJSON contract: flat keys, levels, tracebacks, request context.
 
     - test_stdlib_logger_renders_as_json: a bridged stdlib log → one flat JSON object
