@@ -1,5 +1,5 @@
 // Pure stream → parsed SSE payloads. Extracted from the transport so it's
-// unit-testable in isolation (no Vue/axios). Reads the fetch body, frames on
+// unit-testable in isolation (no Vue/fetch). Reads the fetch body, frames on
 // `\n\n` (normalising CRLF/CR → LF so a proxy that rewrites line endings can't
 // hang the spinner), joins multi-`data:` lines, and yields each frame's parsed
 // JSON. Malformed frames are skipped. The reader lock is released in `finally`

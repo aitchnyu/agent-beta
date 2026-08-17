@@ -69,6 +69,7 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csp.ContentSecurityPolicyMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
+    "inertia.middleware.InertiaMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     # Bind request_id + viewer identity into the log context (runs after
     # AuthenticationMiddleware so request.user is resolved) before any view log.

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
-import Layout from "../components/Layout.vue"
 import PageTitle from "../components/PageTitle.vue"
 import RichTextViewer from "../components/RichTextViewer.vue"
 import { UserHistoryPropsSchema } from "../schemas.ts"
@@ -85,76 +84,72 @@ function diffsFor(changes: Changes): FieldDiff[] {
 </script>
 
 <template>
-  <Layout>
-    <PageTitle :value="'History: ' + p.target_title" />
-    <div class="container user-history-page">
-      <Link
-        :href="`${pathPrefix}/id/${p.target_public_id}`"
-        class="small text-muted text-decoration-none"
+  <PageTitle :value="'History: ' + p.target_title" />
+  <div class="container user-history-page">
+    <Link
+      :href="`${pathPrefix}/id/${p.target_public_id}`"
+      class="small text-muted text-decoration-none"
+    >
+      &larr; Back to User
+    </Link>
+    <h1 class="mt-2">History: {{ p.target_title }}</h1>
+
+    <div v-if="p.entries.length === 0" class="text-muted py-4">
+      No history entries.
+    </div>
+
+    <div class="user-history-timeline">
+      <div
+        v-for="entry in p.entries"
+        :key="entry.public_id"
+        class="user-history-entry card mb-2"
       >
-        &larr; Back to User
-      </Link>
-      <h1 class="mt-2">History: {{ p.target_title }}</h1>
-
-      <div v-if="p.entries.length === 0" class="text-muted py-4">
-        No history entries.
-      </div>
-
-      <div class="user-history-timeline">
-        <div
-          v-for="entry in p.entries"
-          :key="entry.public_id"
-          class="user-history-entry card mb-2"
-        >
-          <div class="card-body">
-            <div class="d-flex justify-content-between mb-2">
-              <span class="badge bg-secondary">{{
-                actionLabel(entry.action)
-              }}</span>
-              <span class="text-muted small">{{ formatTime(entry.time) }}</span>
-            </div>
-            <div
-              v-for="diff in diffsFor(entry.changes)"
-              :key="diff.label"
-              class="user-history-diff mb-1"
-            >
-              <span class="user-history-field text-muted"
-                >{{ diff.label }}:</span
-              >
-              <template v-if="diff.html">
-                <div class="user-history-content-sections">
-                  <div
-                    v-if="entry.action === 'edited'"
-                    class="user-history-content-section"
-                  >
-                    <div class="user-history-content-label">Before</div>
-                    <RichTextViewer
-                      :html="diff.old"
-                      className="user-history-content-body"
-                    />
-                  </div>
-                  <div class="user-history-content-section">
-                    <div class="user-history-content-label">
-                      {{ entry.action === "edited" ? "After" : "Content" }}
-                    </div>
-                    <RichTextViewer
-                      :html="diff.new"
-                      className="user-history-content-body"
-                    />
-                  </div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between mb-2">
+            <span class="badge bg-secondary">{{
+              actionLabel(entry.action)
+            }}</span>
+            <span class="text-muted small">{{ formatTime(entry.time) }}</span>
+          </div>
+          <div
+            v-for="diff in diffsFor(entry.changes)"
+            :key="diff.label"
+            class="user-history-diff mb-1"
+          >
+            <span class="user-history-field text-muted">{{ diff.label }}:</span>
+            <template v-if="diff.html">
+              <div class="user-history-content-sections">
+                <div
+                  v-if="entry.action === 'edited'"
+                  class="user-history-content-section"
+                >
+                  <div class="user-history-content-label">Before</div>
+                  <RichTextViewer
+                    :html="diff.old"
+                    className="user-history-content-body"
+                  />
                 </div>
+                <div class="user-history-content-section">
+                  <div class="user-history-content-label">
+                    {{ entry.action === "edited" ? "After" : "Content" }}
+                  </div>
+                  <RichTextViewer
+                    :html="diff.new"
+                    className="user-history-content-body"
+                  />
+                </div>
+              </div>
+            </template>
+            <template v-else>
+              <template v-if="entry.action === 'edited'">
+                <span class="user-history-old">{{ diff.old }}</span>
+                <span class="user-history-arrow">&rarr;</span>
               </template>
-              <template v-else>
-                <template v-if="entry.action === 'edited'">
-                  <span class="user-history-old">{{ diff.old }}</span>
-                  <span class="user-history-arrow">&rarr;</span>
-                </template>
-                <span class="user-history-new">{{ diff.new }}</span>
-              </template>
-            </div>
+              <span class="user-history-new">{{ diff.new }}</span>
+            </template>
           </div>
         </div>
       </div>
     </div>
-  </Layout>
+  </div>
 </template>

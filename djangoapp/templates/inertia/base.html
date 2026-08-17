@@ -5,13 +5,13 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>{% block title %}Instant{% endblock %}</title>
-        <link rel="stylesheet" href="{{ '/static/djangoapp/main.css'|with_cache_buster }}">
+        <link rel="stylesheet" href="{{ '/static/djangoapp/main.css'|hashed_entry }}">
         {% block inertia_head %}{% endblock %}
         {% block head_extra %}{% endblock %}
     </head>
     <body>
         {% csrf_token %}
         {% block inertia %}{% endblock %}
-        <script type="module" src="{{ '/static/djangoapp/main.js'|with_cache_buster }}"></script>
+        <script type="module" src="{{ '/static/djangoapp/main.js'|hashed_entry }}"></script>
     </body>
 </html>

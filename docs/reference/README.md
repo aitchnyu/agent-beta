@@ -8,9 +8,10 @@ consults this when adding a feature.
 
 > The reference frontend under `docs/reference/frontend/src/ours/` ships only the
 > app's own pages/components/schemas/styles — its pages `import` the framework's
-> `../../components/Layout.vue` and `../../utils/{csrf,sweetalert}`, which already
-> exist in the main `frontend/`. It's meant to be dropped into an existing
-> framework frontend, not built standalone.
+> `../../utils/{csrf,http,sweetalert}`, which already exist in the main
+> `frontend/`. The framework's Layout (navbar) wraps every page automatically
+> (default layout in `createInertiaApp`) — pages don't import or wrap it. It's
+> meant to be dropped into an existing framework frontend, not built standalone.
 
 ## Files → where they go
 
@@ -39,16 +40,19 @@ consults this when adding a feature.
   `views/__init__.py` owns one `NinjaAPI` and registers every router
   (`api.add_router("/", <feature>.router)`). Page responses use
   `InertiaResponse(request, "ours/<Page>", {"props": …})`; data responses are
-  pydantic schemas (ninja validates them). CSRF is handled by the host
-  (`X-CSRFTOKEN` set globally in `main.ts`).
+  pydantic schemas (ninja validates them). CSRF is handled by the host (the
+  Inertia client's `http` config + the ky hook in `utils/http.ts`; the cookie
+  is set on every response by `InertiaMiddleware`).
 - **Commands** (`management/commands/<cmd>.py`): seed/setup commands; one module
   per command, with its seed data inlined at the top of the command.
 - **Frontend**: a self-contained `frontend/src/ours/` module — pages in
   `ours/pages/<Name>.vue` (Inertia component name `ours/<Name>`), components in
   `ours/components/`, helpers in `ours/utils/`, zod schemas in `ours/schemas.ts`,
   and styles in `ours/style.scss` (imported as a side-effect by the page).
-  Parse every server payload with a zod schema; wrap every `axios` call in
-  `try/catch` + `showErrorToast`.
+  Parse every server payload with a zod schema; make standalone HTTP calls via
+  the host's `utils/http.ts` (`postJSON`/`getJSON`/`streamPost`) or Inertia v3's
+  `useHttp` for form-shaped state, never a raw `fetch`/`axios` — wrap every call
+  in `try/catch` + `showErrorToast`.
 - **Home navigation**: link every feature from the landing page
   (`ours/pages/Home.vue`), shown only when this viewer can use it — hide an
   auth-required feature (e.g. todos, whose `/todos` 404s for anon) from an

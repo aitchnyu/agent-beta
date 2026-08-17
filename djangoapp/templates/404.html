@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Page not found</title>
+  </head>
+  <body>
+    <main>
+      <h1>Page not found</h1>
+      {# `message` comes only from ninja_api's HTML rendering of API 404s;
+         Django's default handler404 (plain page navigations) renders this
+         template without it, so the generic branch below is the fallback. #}
+      {% if message %}
+        <p>{{ message }}</p>
+      {% else %}
+        <p>The page <code>{{ request_path }}</code> does not exist.</p>
+      {% endif %}
+      <p><a href="/">Back to the homepage</a></p>
+    </main>
+  </body>
+</html>

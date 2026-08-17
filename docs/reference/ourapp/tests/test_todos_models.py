@@ -1,14 +1,13 @@
 """Tests for the todos model (``Todo``)."""
 
-from django.contrib.auth import get_user_model
-from django.test import TestCase
+from djangoapp.models import User
+from djangoapp.tests._base import BaseTestCase
 
 from ourapp.models import Todo
 
-User = get_user_model()
 
 
-class TodoModelTests(TestCase):
+class TodoModelTests(BaseTestCase):
     """Todo __str__, owner scoping, and toggle.
 
     - test_str_is_text, __str__ is the text

@@ -24,7 +24,10 @@ from djangoapp.tests._base import BaseInertiaTestCase
 from djangoapp.tests._git_fixtures import GitRepoMixin
 
 
-class GitRealTests(GitRepoMixin, BaseInertiaTestCase):
+class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _base.BaseInertiaTestCase
+    GitRepoMixin,
+    BaseInertiaTestCase,
+):
     """``/git`` views against real temp inner repos (no mocks).
 
     ``GitRepoMixin.setUpClass`` (also the Playwright suite's base) builds the

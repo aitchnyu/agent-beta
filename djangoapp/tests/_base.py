@@ -23,5 +23,5 @@ class BaseTestCase(TestCase):
     """``TestCase`` + the fast MD5 test hasher; root of the unit suites."""
 
 
-class BaseInertiaTestCase(BaseTestCase, InertiaTestCase):
-    """Same, for inertia-prop view tests (the MRO shape QueryBudget uses)."""
+class BaseInertiaTestCase(BaseTestCase, InertiaTestCase):  # type: ignore[misc]
+    """Same, for inertia-prop view tests — the one lineage-merge point."""

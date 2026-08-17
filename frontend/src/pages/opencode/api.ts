@@ -1,16 +1,16 @@
-import axios from "axios"
 import { z } from "zod"
 import { OpencodeActionResponseSchema, PartSchema } from "../../schemas"
 import type { Part } from "../../schemas"
 import type { PermissionReply } from "./types"
+import { getJSON, postJSON } from "../../utils/http"
 
 // Pure HTTP wrappers around the opencode proxy endpoints. Each resolves on
 // success and throws on a non-2xx reply (the proxy returns 502 on opencode
-// failure, which axios raises before this parse runs) or a network error. The
-// `OpencodeActionResponseSchema.parse` only validates the success body's shape
-// — on a 200 `ok` is always true, so there's no `if (!res.ok)` branch here. No
-// Vue, no toast, no state — callers own UI and reconciliation. CSRF is attached
-// globally via axios.defaults (see main.ts), so no explicit header here.
+// failure, which the client raises before this parse runs) or a network error.
+// The `OpencodeActionResponseSchema.parse` only validates the success body's
+// shape — on a 200 `ok` is always true, so there's no `if (!res.ok)` branch
+// here. No Vue, no toast, no state — callers own UI and reconciliation. CSRF
+// is attached by the shared ky hook (see utils/http.ts).
 
 export async function postPermission(
   sessionId: string,
@@ -18,17 +18,15 @@ export async function postPermission(
   reply: PermissionReply,
 ): Promise<void> {
   OpencodeActionResponseSchema.parse(
-    (
-      await axios.post(`/agent/api/permission/${sessionId}/${requestId}/`, {
-        response: reply,
-      })
-    ).data,
+    await postJSON(`/agent/api/permission/${sessionId}/${requestId}/`, {
+      response: reply,
+    }),
   )
 }
 
 export async function postAbort(sessionId: string): Promise<void> {
   OpencodeActionResponseSchema.parse(
-    (await axios.post(`/agent/api/abort/${sessionId}/`)).data,
+    await postJSON(`/agent/api/abort/${sessionId}/`),
   )
 }
 
@@ -37,7 +35,7 @@ export async function postAbort(sessionId: string): Promise<void> {
 // history/context, not just drop the client's handle.
 export async function postDeleteSession(sessionId: string): Promise<void> {
   OpencodeActionResponseSchema.parse(
-    (await axios.post(`/agent/api/delete/${sessionId}/`)).data,
+    await postJSON(`/agent/api/delete/${sessionId}/`),
   )
 }
 
@@ -60,15 +58,8 @@ export async function getSessionTranscript(
   sessionId: string,
   opts: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<Part[]> {
-  // Build the config conditionally so we never pass `undefined` for signal /
-  // timeout (the project enables exactOptionalPropertyTypes).
-  const config: { signal?: AbortSignal; timeout?: number } = {}
-  if (opts.signal) config.signal = opts.signal
-  if (opts.timeoutMs) config.timeout = opts.timeoutMs
-  const resp = await axios.get(
-    `/agent/api/session/${sessionId}/transcript/`,
-    config,
-  )
-  const messages = z.array(SessionMessageSchema).parse(resp.data)
+  const messages = z
+    .array(SessionMessageSchema)
+    .parse(await getJSON(`/agent/api/session/${sessionId}/transcript/`, opts))
   return messages.filter((m) => m.info?.role !== "user").flatMap((m) => m.parts)
 }

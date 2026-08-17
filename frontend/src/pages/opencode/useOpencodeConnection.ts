@@ -1,5 +1,4 @@
 import { computed, onUnmounted, ref } from "vue"
-import axios from "axios"
 import { OpencodeEventSchema } from "../../schemas"
 import type { OpencodeEvent, Part } from "../../schemas"
 import {
@@ -11,6 +10,7 @@ import {
 import { parseSsePayloads } from "./parseSse"
 import type { PermissionReply } from "./types"
 import { showErrorToast } from "../../utils/sweetalert"
+import { streamPost } from "../../utils/http"
 
 // localStorage key for the active opencode session id. Persisted across
 // refreshes so a mid-turn reload reuses the session instead of orphaning it
@@ -102,8 +102,8 @@ export function useOpencodeConnection() {
   // Plain `let` (no reactivity needed; never read in a template/computed).
   let controller: AbortController | null = null
   // AbortController for the in-flight recovery poll, so stop/clear/reset/unmount
-  // can cancel a hung fetch (e.g. during an application reload) instead of waiting
-  // on axios's default (no) timeout.
+  // can cancel a hung poll (e.g. during an application reload) instead of
+  // waiting out its timeout.
   let recoveryController: AbortController | null = null
   // Lifecycle flag so events arriving after unmount (the fetch is still
   // resolving) don't fire hooks on a dead composable.
@@ -138,16 +138,12 @@ export function useOpencodeConnection() {
     let recovered = false
     let timedOut = false
     try {
-      const resp = await axios.post(
+      const resp = await streamPost(
         "/agent/api/prompt/",
         { message: text, session_id: sessionId.value },
-        {
-          adapter: "fetch",
-          responseType: "stream",
-          signal: controller.signal,
-        },
+        { signal: controller.signal },
       )
-      const body = resp.data as ReadableStream<Uint8Array> | null
+      const body = resp.body
       if (!body) throw new Error("agent returned no stream")
       for await (const payload of parseSsePayloads(body)) {
         if (!isAlive) return

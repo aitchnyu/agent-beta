@@ -6,13 +6,13 @@ immediately, bypassing the queue) — no consumer process is needed. The periodi
 scheduling itself is exercised only when ``./run hueydev`` is running.
 """
 
-from django.test import TestCase
+from djangoapp.tests._base import BaseTestCase
 
 from ourapp.models import Fact, FactOfTheDay, Topic
 from ourapp.tasks import choose_fact_of_the_day
 
 
-class FactOfTheDayTaskTests(TestCase):
+class FactOfTheDayTaskTests(BaseTestCase):
     """The daily cron task creates today's pick via the model classmethod.
 
     - test_task_creates_today_pick, call_local() creates one FactOfTheDay for today

@@ -1,14 +1,13 @@
 """Tests for the todos views (``GET /todos``, create, toggle)."""
 
-from django.contrib.auth import get_user_model
-from django.test import Client, TestCase
+from django.test import Client
 
+from djangoapp.tests._base import BaseTestCase
 from ourapp.models import Todo
 
-User = get_user_model()
 
 
-class TodosViewTests(TestCase):
+class TodosViewTests(BaseTestCase):
     """The /todos page + create/toggle endpoints (pk-free, owner-scoped).
 
     - test_todos_page_404_anonymous, anon GET /todos is 404 (private)

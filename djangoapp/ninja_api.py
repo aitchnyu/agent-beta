@@ -15,10 +15,12 @@ body:
   exception is logged with a traceback server-side; the body never echoes it).
 """
 
+import http
 from typing import TYPE_CHECKING
 
 from django.core.exceptions import PermissionDenied
 from django.http import Http404, HttpRequest, HttpResponse
+from django.shortcuts import render
 from ninja import NinjaAPI, Router
 from ninja.errors import HttpError
 
@@ -59,12 +61,28 @@ class ApiError(HttpError):
         self.payload = payload
 
 
+def _wants_html(request: HttpRequest) -> bool:
+    """Return True for a browser navigation, False for API/XHR clients.
+
+    Browsers send ``Accept: text/html, …`` on navigations; every API client
+    this app has (Inertia visits, ky, useHttp) sends ``application/json``.
+    Django's test client sends ``*/*``, so tests keep exercising the JSON
+    contract unchanged.
+    """
+    return "text/html" in request.headers.get("Accept", "") and not request.headers.get("X-Inertia")
+
+
 def register_api_error_handlers(api: NinjaAPI) -> None:
     """Register friendly, leak-free JSON handlers on ``api``."""
 
     @api.exception_handler(ApiError)
     def on_api_error(request: HttpRequest, exc: ApiError) -> HttpResponse:
         # str(exc) will return exc.message, thanks to HttpError __str__.
+        if exc.status_code == http.HTTPStatus.NOT_FOUND and _wants_html(request):
+            # ApiError messages are developer-authored and client-facing (the
+            # class contract), so a browser navigation shows the message on
+            # the HTML 404 page instead of raw JSON.
+            return render(request, "404.html", {"message": str(exc)}, status=exc.status_code)
         body: DictStrAny = exc.payload if exc.payload is not None else {"detail": str(exc)}
         return api.create_response(request, body, status=exc.status_code)
 
@@ -74,7 +92,12 @@ def register_api_error_handlers(api: NinjaAPI) -> None:
         # leak) so a 404 names what wasn't found; never str(exc), which a message-
         # carrying Http404 could use to leak internals (use ApiError(404, …) for a
         # fully custom message).
-        return api.create_response(request, {"detail": f"{_NOT_FOUND}: {request.path}"}, status=404)
+        detail = f"{_NOT_FOUND}: {request.path}"
+        if _wants_html(request):
+            # A browser navigation (Accept: text/html) gets the same message
+            # rendered on the HTML 404 page instead of raw JSON.
+            return render(request, "404.html", {"message": detail}, status=404)
+        return api.create_response(request, {"detail": detail}, status=404)
 
     @api.exception_handler(PermissionDenied)
     def on_permission_denied(request: HttpRequest, _exc: Exception) -> HttpResponse:

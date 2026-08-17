@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { Link } from "@inertiajs/vue3"
-import Layout from "../../components/Layout.vue"
 import PageTitle from "../../components/PageTitle.vue"
 import { FactPagePropsSchema } from "../schemas"
 import "../style.scss"
@@ -12,7 +11,6 @@ const p = computed(() => FactPagePropsSchema.parse(props.props))
 </script>
 
 <template>
-  <Layout>
     <PageTitle value="Fact" />
     <div class="ours-facts-page">
       <h1>Fact</h1>
@@ -29,5 +27,4 @@ const p = computed(() => FactPagePropsSchema.parse(props.props))
         </li>
       </ul>
     </div>
-  </Layout>
 </template>

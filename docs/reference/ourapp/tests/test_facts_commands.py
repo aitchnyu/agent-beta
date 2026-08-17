@@ -3,14 +3,14 @@
 from io import StringIO
 
 from django.core.management import call_command
-from django.test import TestCase
+from djangoapp.tests._base import BaseTestCase
 
 from djangoapp.models import User
 from ourapp.management.commands.seedfacts import FACTS
 from ourapp.models import Fact, Topic
 
 
-class SeedFactsCommandTests(TestCase):
+class SeedFactsCommandTests(BaseTestCase):
     """seedfacts seeds 10 topics × 20 facts, idempotently and audit-logged.
 
     - test_seed_creates_topics_and_facts, seedfacts creates 10 topics and 200 facts

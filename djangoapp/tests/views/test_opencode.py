@@ -334,7 +334,7 @@ class OpencodeAbortTests(_OpencodeProxyMixin, BaseTestCase):
 class OpencodeDeleteSessionTests(_OpencodeProxyMixin, BaseTestCase):
     """Session-delete endpoint POST /agent/api/delete/<sid>/.
 
-    The proxy stays POST (CSRF/axios consistency) and translates to opencode's
+    The proxy stays POST (CSRF/HTTP-client consistency) and translates to opencode's
     ``DELETE /session/:id``. Inherits non-superuser-404, wrong-method-405,
     transport-error-502 from the mixin.
 

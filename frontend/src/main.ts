@@ -1,7 +1,8 @@
 import { createApp, h } from "vue"
 import type { App as VueApp, DefineComponent } from "vue"
-import { createInertiaApp } from "@inertiajs/vue3"
-import axios from "axios"
+import { HttpResponseError } from "@inertiajs/core"
+import { createInertiaApp, router } from "@inertiajs/vue3"
+import Layout from "./components/Layout.vue"
 import {
   reportErrorEvent,
   reportRejection,
@@ -13,12 +14,6 @@ import "vue-multiselect/dist/vue-multiselect.css"
 // Eager styles for the lazy JS chunks, otherwise these pages flash of unstyled content.
 import "quill/dist/quill.snow.css"
 import "highlight.js/styles/github.css"
-
-// Configure axios CSRF token when DOM is ready
-document.addEventListener("DOMContentLoaded", () => {
-  axios.defaults.xsrfCookieName = "csrftoken"
-  axios.defaults.xsrfHeaderName = "X-CSRFTOKEN"
-})
 
 // Global safety net: surface errors that escape component try/catch as toasts,
 // AND ship them to the backend (POST /client-errors) with the source location,
@@ -49,35 +44,23 @@ window.addEventListener(
 
 // Framework pages bundle from ./pages/; the user app's pages bundle from
 // ./ours/pages/ (Inertia component name "ours/<Name>"). Both eager into main.js
-// (one entry, no per-page chunks). Pages must NOT do a cold dynamic import()
-// in onMounted — that makes Inertia v2 silently roll the navigation back. The
-// heavy page deps (hljs/marked via filePreview, quill via RichTextEditor) are
-// separate lazy chunks, pre-warmed into the cache here at boot so a later swap
-// resolves them from cache (a cache-hit import has no async gap, so no rollback).
+// (one entry, no per-page chunks).
 const pages = import.meta.glob(["./pages/**/*.vue", "./ours/pages/**/*.vue"], {
   eager: true,
 }) as Record<string, { default: DefineComponent }>
 
-// TODO this could be simpler when we do Inertia v3.
-// Pull the heavy (render-critical) lazy chunks into the module cache after boot.
-// The user has already loaded the app shell (a hard load, not a swap), so these
-// imports are swap-safe; once cached, onMounted/async-component imports during a
-// later swap resolve instantly. Deferred to idle to avoid competing with first
-// paint. Both are fire-and-forget.
-const preloadHeavyChunks = () => {
-  void import("./utils/filePreview")
-  void import("./components/RichTextEditor.vue")
-}
-function schedulePreload() {
-  if (typeof window.requestIdleCallback === "function") {
-    window.requestIdleCallback(preloadHeavyChunks)
-  } else {
-    setTimeout(preloadHeavyChunks, 1000)
-  }
-}
-
 createInertiaApp({
+  // Required, not cosmetic: v3's built-in HTTP client defaults to Laravel's
+  // XSRF-TOKEN cookie / X-XSRF-TOKEN header; Django expects csrftoken /
+  // X-CSRFToken (set by InertiaMiddleware on every response). With the
+  // defaults, every mutating visit fails Django's CSRF check (403).
+  http: {
+    xsrfCookieName: "csrftoken",
+    xsrfHeaderName: "X-CSRFToken",
+  },
   title: (title) => `Instant - ${title}`,
+  // Default layout: every page renders inside Layout.vue (navbar + slot); reads shared props via usePage()
+  layout: () => Layout,
   resolve: (name) => {
     // "ours/<Name>" → ./ours/pages/<Name>.vue; everything else → ./pages/<name>.vue
     const key = name.startsWith("ours/")
@@ -98,7 +81,30 @@ createInertiaApp({
       reportVueError(err, info)
       showErrorToast(err, "Something went wrong")
     }
+    // Inertia v3 visit failures as toasts, closing the gap in the app's
+    // "every error toasts" contract (the handlers above only catch JS/Vue
+    // errors, not failed page visits). httpException: preventDefault keeps
+    // the user on the current page (Inertia would otherwise swap to an
+    // error page) and the toast carries the response's detail; networkError
+    // means the server was unreachable mid-visit.
+    router.on("httpException", (event) => {
+      event.preventDefault()
+      const { status, data } = event.detail.response
+      showErrorToast(
+        new HttpResponseError(`Request failed with status ${status}`, {
+          status,
+          // Already-parsed object bodies (HttpExceptionResponse) re-serialize
+          // so the toast's JSON-detail extraction sees a string either way.
+          data: typeof data === "string" ? data : JSON.stringify(data),
+          headers: {},
+        }),
+        "Request failed",
+      )
+    })
+    router.on("networkError", (event) => {
+      event.preventDefault()
+      showErrorToast(event.detail.error, "Could not reach the server")
+    })
     app.use(plugin).mount(el)
-    schedulePreload()
   },
 })

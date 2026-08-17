@@ -7,7 +7,7 @@ from typing import ClassVar
 from unittest.mock import patch
 
 from django.http import Http404
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, override_settings
 
 from djangoapp.models import User
 from djangoapp.tests._base import BaseInertiaTestCase
@@ -187,6 +187,9 @@ class FilesViewTests(BaseInertiaTestCase):
         self.assertIn("linked image", props["text"])
 
 
+# SimpleTestCase because these are pure-unit tests (tempdir + patched
+# _REPO_ROOT, no DB) inside the Django suite
+@override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
 class PathWrapperTests(SimpleTestCase):
     """``PathWrapper`` confinement + classification, unit-tested on a tempdir.
 

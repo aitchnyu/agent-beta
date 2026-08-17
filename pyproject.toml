@@ -10,7 +10,7 @@ dependencies = [
     "gitpython>=3.1", # /git viewer reads the project repo
     "httpx>=0.28", # talks to the local opencode daemon
     "huey>=2.5", # Redis-backed background tasks + cron (RedisHuey via the existing redis dep)
-    "inertia-django>=1.2.0", # Inertia.js backend
+    "inertia-django>=2.0.0", # Inertia.js backend (v3 protocol)
     "nh3>=0.2.21", # HTML sanitization
     "psycopg2-binary>=2.9.10", # Postgres driver
     "pydantic>=2.11.10",
@@ -103,7 +103,8 @@ exclude = [".venv"]
 
 [tool.mypy]
 strict = true
-# Local PEP 561 stub overlays (stubs/inertia, …).
+# Local PEP 561 stub overlays (stubs/huey; the inertia ones went away with
+# inertia-django 2.0 shipping py.typed).
 mypy_path = "stubs"
 # Each exclude is a directory that isn't part of the type-checked app code:
 exclude = [
@@ -128,6 +129,13 @@ plugins = ["mypy_django_plugin.main"]
 [[tool.mypy.overrides]]
 module = ["allauth.*"]
 ignore_missing_imports = true
+
+# inertia-django 2.0 ships py.typed, but its inertia.test helpers are untyped
+# internals; our test suites call them everywhere, so tests opt out of
+# untyped-call strictness (production code stays strict).
+[[tool.mypy.overrides]]
+module = ["djangoapp.tests.*", "ourapp.tests.*"]
+disallow_untyped_calls = false
 
 
 [tool.django-stubs]

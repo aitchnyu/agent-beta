@@ -71,23 +71,21 @@ export default defineConfig({
     outDir: "../djangoapp/static/djangoapp",
     sourcemap: true,
     emptyOutDir: true, // outDir lives outside the frontend root, tell Vite toclean up old artifacts
+    // Emit .vite/manifest.json mapping logical entry names to the hashed
+    // output files; djangoapp.templatetags.app_static reads it to resolve
+    // main.js/main.css in templates.
+    manifest: true,
     rolldownOptions: {
       input: {
         main: "src/main.ts",
       },
       output: {
-        entryFileNames: "main.js",
-        // Pin the entry CSS to "main.css" (base.html references it by that
-        // name). CSS emitted by async chunks keeps its own name instead of all
-        // collapsing to "main.css" and colliding into "main2.css".
-        assetFileNames: (assetInfo) => {
-          if (assetInfo.name && assetInfo.name.endsWith(".css")) {
-            return assetInfo.name === "main.css"
-              ? "main.css"
-              : "assets/[name][extname]"
-          }
-          return "[name].[ext]"
-        },
+        // Hashed entry: self-busts the cache, and a stable module URL is
+        // correctness — lazy chunks import back into the entry, and a
+        // query-string buster instead would execute main.js twice (second
+        // createInertiaApp boot rolls swaps back). Templates resolve both
+        // entry files via .vite/manifest.json (hashed_entry filter).
+        entryFileNames: "main-[hash].js",
         // Two Mermaid chunks: core (entry+shared+ER/state+dagre/d3) loads on
         // first diagram render; uncommon (rare diagrams+cytoscape/katex/roughjs)
         // loads only if a rare type renders (never, for us). See helpers above.

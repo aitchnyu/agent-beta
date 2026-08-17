@@ -2,12 +2,12 @@
 
 from typing import Any
 
-from django.test import TestCase
+from djangoapp.tests._base import BaseTestCase
 
 from ourapp.models import Fact, Topic
 
 
-class FactsViewTests(TestCase):
+class FactsViewTests(BaseTestCase):
     """The /facts pages: random fact + topic list, plus per-topic random fact.
 
     - test_facts_page_renders_with_fact, GET /facts renders FactsPage with one fact + topics

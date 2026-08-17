@@ -93,23 +93,12 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
     def test_diff_opens_via_click(self) -> None:
         """A file-diff link opened by a click (Inertia client-side swap) renders.
 
-        Context: opening a commit's file-diff page broke twice, both times only
-        on the client-side navigation path (a link click), never on a hard load:
-
-        1. GitDiff highlighted its diff via a dynamic ``import()`` inside
-           ``onMounted``. Firing a dynamic import during an Inertia v2 swap made
-           Inertia silently roll the navigation back — the URL reverted to the
-           commit page and the diff never showed (no console error, so it was
-           invisible to the goto-based tests).
-        2. Making GitDiff a lazy page chunk then caused ``page.props`` to be
-           transiently undefined during Inertia's async component resolution, so
-           Layout's shared-prop parse (and the slot render) threw.
-
         The other diff tests use ``goto`` (a hard load), which never exercises
-        the swap, so neither regression was caught. This test clicks the link
-        instead: the URL must advance to the diff page (not roll back), the
-        highlighted diff must render, and tearDown's console-error check guards
-        the transient-prop crashes.
+        the swap — this is the only coverage of the client-side navigation
+        path, where module/graph regressions land (e.g. an entry URL mismatch
+        double-booting the app and rolling the swap back). Asserts the URL
+        advances (no rollback), the highlighted diff renders, and tearDown's
+        console-error check guards render-time crashes.
         """
         page = self.page
         # Land on the commit's file list (loads the Inertia app + main.js).

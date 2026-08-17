@@ -4,8 +4,7 @@ import { unifiedHunk } from "../../utils/diff"
 
 // Renders an old→new edit as a unified diff coloured by highlight.js's `diff`
 // grammar. Both heavy deps are lazy chunks kept out of the host bundle: jsdiff
-// inside utils/diff, and hljs via utils/filePreview (pre-warmed at boot in
-// main.ts).
+// inside utils/diff, and hljs via utils/filePreview.
 const props = defineProps<{ old: string; new: string }>()
 
 const rendered = ref("")

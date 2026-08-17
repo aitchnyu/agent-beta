@@ -21,7 +21,7 @@ from django.core.paginator import Paginator
 from django.db import models
 from django.http import Http404, HttpRequest, HttpResponse
 from inertia import InertiaResponse
-from inertia.utils import optional
+from inertia.utils import defer
 from ninja import (
     Query,
     Router,
@@ -304,10 +304,10 @@ def _row_logs(model_cls: type[BaseModel], pk: int) -> list[dict[str, Any]]:
     """Return one row's audit entries as JSON-safe dicts (newest-first via -performed_at).
 
     Takes the integer pk, not the instance — that's all the audit query needs, and
-    capturing the pk (not the whole row) in the lazy prop's lambda is all that
-    must outlive the request. Called from inside a lazy Inertia prop
-    (``optional(lambda: …)``), so it only runs on the ``only:["logs"]`` partial
-    reload — never on first page load.
+    capturing the pk (not the whole row) in the deferred prop's lambda is all
+    that must outlive the request. Called from inside ``defer(lambda: …)``: the
+    query runs right after first paint (the Inertia v3 client fetches the
+    deferred prop automatically), and on every subsequent full load of the page.
     """
     return [
         log.to_entry_item().model_dump(mode="json")
@@ -404,17 +404,18 @@ def row_detail_page(
     ).model_dump()
 
     # ``logs`` is a sibling top-level prop, deliberately NOT nested inside the
-    # "props" wrapper: inertia's lazy machinery (IgnoreOnFirstLoadProp deletion,
-    # and the only:["logs"] partial filter) keys off top-level prop names, so a
-    # nested logs would be invisible to it (evaluated on every load, and the
-    # partial would return empty). ``optional()`` drops it on first load (no
-    # audit query); the client requests it on mount via router.reload(only:["logs"]).
+    # "props" wrapper: partial reloads (only: ["logs"]) key off top-level prop
+    # names, so a nested logs would be invisible to them. ``defer()`` drops it
+    # from the first paint (the page renders before the audit query runs) and
+    # lists it in the page's deferredProps metadata — the Inertia v3 client
+    # requests it automatically right after the swap, replacing the old
+    # hand-rolled client-side onMounted router.reload handshake.
     return InertiaResponse(
         request,
         "RowDetail",
         {
             "props": core,
-            "logs": optional(lambda: _row_logs(model_cls, instance.pk)),
+            "logs": defer(lambda: _row_logs(model_cls, instance.pk)),
         },
     )
 

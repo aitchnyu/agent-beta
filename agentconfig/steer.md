@@ -273,7 +273,9 @@ through them is logged to `BaseModelUpdateLog`:
   `created_by`/`last_updated_by`/`last_updated_at` and writes one `created` log
   (old values empty, new values = the full row). On update it diffs against the
   pre-edit row and writes one `updated` log holding only the changed columns; a
-  no-op edit writes no log.
+  no-op edit writes no log. Fields only — many-to-many sets are NOT diffed or
+  logged (an m2m-only change writes no log row), so keep m2m mutations next to
+  a field change or log them explicitly.
 - `instance.delete_with_logs(actor=…)` — writes a `deleted` log (old/new values
   both empty — a delete only records that the row was removed, not a snapshot)
   then deletes; the log outlives the row.
@@ -420,19 +422,26 @@ For every **Inertia page**, all five must hold:
 - **views** — bullet points of **all** endpoints.
 - **tests** — bullet points of **each** test and what it is checking.
 
-### axios (frontend)
-Every `axios` call is wrapped in `try/catch` + `showErrorToast`, and the response
-is parsed with a zod schema. POST a JSON body to a ninja Schema endpoint:
+### HTTP (frontend)
+There is no axios. Standalone JSON calls go through the framework's
+`utils/http.ts` (`postJSON`/`getJSON` — CSRF handled by a shared hook, errors
+normalized to `@inertiajs/core` classes so `showErrorToast` understands them),
+and the response is parsed with a zod schema. POST a JSON body to a ninja
+Schema endpoint:
 
 ```typescript
     try {
-      const resp = await axios.post("/notes/create", { title, body })
-      const note = NoteOutSchema.parse(resp.data)
+      const note = NoteOutSchema.parse(
+        await postJSON("/notes/create", { title, body }),
+      )
       // …use note…
     } catch (e) {
       showErrorToast(e, "Could not create note")
     }
 ```
+
+Streaming (SSE) responses use `streamPost` from the same module; form-shaped
+state may use Inertia v3's `useHttp`.
 
 ### Frontend
 One Vue+Inertia app. The user app's frontend is a self-contained module at
@@ -440,8 +449,9 @@ One Vue+Inertia app. The user app's frontend is a self-contained module at
 `ours/<Name>`), components in `ours/components/`, helpers in `ours/utils/`, zod
 sub-schemas in `ours/schemas.ts`, and styles in `ours/style.scss` (imported as a
 side-effect by the page component, so the feature is self-contained). Parse
-every server payload with a zod schema;
-wrap every `axios` call in `try/catch` + `showErrorToast`. **Edit only `ours/`
+every server payload with a zod schema; make standalone HTTP calls via the
+framework's `utils/http.ts` and wrap every call in `try/catch` +
+`showErrorToast`. **Edit only `ours/`
 where possible** — keep the app out of the framework's `pages/`, `components/`,
 shared `schemas.ts`, and `styles/` (those hold framework code; the app's own
 schemas/styles live inside `ours/`).
@@ -492,7 +502,8 @@ stream — never `print()` for diagnostics.
   catch something; a silent catch is a
   prod-invisible problem.
 
-- **Frontend** — keep the `ours/` axios convention (`try/catch` + `showErrorToast`,
+- **Frontend** — keep the `ours/` HTTP convention (`utils/http.ts` + zod parse,
+  `try/catch` + `showErrorToast`;
   above) for failures you handle. Anything you don't catch is captured by the
   global handlers (`window error` / `unhandledrejection` / Vue `errorHandler`) and
   POSTed to `/client-errors` via `frontend/src/utils/clientError.ts`, landing on
@@ -545,11 +556,14 @@ auto-discovers each installed app's `tasks` module. Redis is a **hard dependency
   start.)
 
 ## Writing tests
-- **Unit tests** cover **models and views**: regular Django tests
-  (`TestCase`/`SimpleTestCase`) in `ourapp/tests/`, one file per feature + layer
-  (`test_<feature>_models.py`, `test_<feature>_views.py`,
-  `test_<feature>_commands.py`). Seed inside the test; assert state and endpoint
-  return values (pk-free).
+- **Unit tests** cover **models and views** in `ourapp/tests/`, one file per
+  feature + layer (`test_<feature>_models.py`, `test_<feature>_views.py`,
+  `test_<feature>_commands.py`). Subclass the framework's bases —
+  `djangoapp.tests._base.BaseTestCase` (plain views) or
+  `BaseInertiaTestCase` (inertia-prop assertions) — they carry the fast MD5
+  `PASSWORD_HASHERS` override that `test_test_conventions` enforces on every
+  test class; a plain `TestCase` subclass fails that guard. Seed inside the
+  test; assert state and endpoint return values (pk-free).
 - **Playwright e2e tests** cover a feature end-to-end (real browser + live
   server). The framework's own e2e lives in `djangoapp/tests/playwright/` (tagged
   `playwright`). **Per-app e2e for `ourapp` lives in
@@ -583,7 +597,7 @@ and the single thing it asserts (so the suite reads like a spec). Keep the
 module docstring to a one-line label; the detail lives on the class.
 
 ```python
-class FactsViewTests(TestCase):
+class FactsViewTests(BaseTestCase):
     """The /facts pages: random fact + topic list, plus per-topic random fact.
 
     - test_facts_page_renders_with_fact, GET /facts renders FactsPage with one fact + topics

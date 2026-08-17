@@ -1,10 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
 import { router } from "@inertiajs/vue3"
-import axios from "axios"
-import Layout from "../../components/Layout.vue"
 import TodoForm from "../components/TodoForm.vue"
 import { TodosPagePropsSchema, type TodoOut } from "../schemas"
+import { postJSON } from "../../utils/http"
 import { showErrorToast } from "../../utils/sweetalert"
 import "../style.scss"
 
@@ -31,7 +30,7 @@ async function toggle(todo: TodoOut) {
   if (toggling.value !== null) return
   toggling.value = todo.public_id
   try {
-    await axios.post(`/todos/${todo.public_id}/toggle`)
+    await postJSON(`/todos/${todo.public_id}/toggle`)
     await reload()
   } catch (e) {
     showErrorToast(e, "Could not toggle todo")
@@ -42,7 +41,6 @@ async function toggle(todo: TodoOut) {
 </script>
 
 <template>
-  <Layout>
     <div class="ours-todos-page">
       <h1>Todos</h1>
       <TodoForm @created="onCreated" />
@@ -67,5 +65,4 @@ async function toggle(todo: TodoOut) {
       </ul>
       <p v-if="todos.length === 0" class="text-muted">Nothing to do yet.</p>
     </div>
-  </Layout>
 </template>

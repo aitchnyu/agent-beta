@@ -9,12 +9,12 @@ do not inflate the count - the budget reflects the view's actual reads.
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from unittest import TestCase
 
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
-from inertia.test import InertiaTestCase
 
-from djangoapp.tests._base import BaseTestCase
+from djangoapp.tests._base import BaseInertiaTestCase, BaseTestCase
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -27,8 +27,14 @@ def _is_read_query(sql: str) -> bool:
     return lowered.startswith(_READ_PREFIXES)
 
 
-class QueryBudgetMixin(BaseTestCase):
-    """Fails a test whose SELECT-query count exceeds `max_select_queries`."""
+class QueryBudgetMixin(TestCase):
+    """Fails a test whose SELECT-query count exceeds `max_select_queries`.
+
+    Plain-``unittest.TestCase`` cooperative mixin (no Django base, so no
+    ``client`` of its own): mix FIRST, before the real test base —
+    ``BaseTestCase`` for plain view tests, ``BaseInertiaTestCase`` for
+    inertia-prop assertions — so ``super().setUp()`` chains down the MRO.
+    """
 
     max_select_queries: int = 8
 
@@ -65,12 +71,16 @@ class QueryBudgetMixin(BaseTestCase):
         )
 
 
-class QueryBudgetTestCase(QueryBudgetMixin):
+class QueryBudgetTestCase(QueryBudgetMixin, BaseTestCase):
     """Query-budget base for view tests that don't need inertia assertions."""
 
 
-class QueryBudgetInertiaTestCase(
+class QueryBudgetInertiaTestCase(  # type: ignore[misc] # library-internal client clash; see _base.BaseInertiaTestCase
     QueryBudgetMixin,
-    InertiaTestCase,
+    BaseInertiaTestCase,
 ):
-    """Query-budget base for view tests that assert on inertia props."""
+    """Query-budget base for view tests that assert on inertia props.
+
+    The fast hasher is inherited through ``BaseInertiaTestCase`` →
+    ``BaseTestCase`` (no decorator of its own).
+    """

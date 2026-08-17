@@ -1,10 +1,10 @@
-import axios from "axios"
 import { usePage } from "@inertiajs/vue3"
 import { z } from "zod"
+import { postJSON } from "./http"
 
 // Backend sink for uncaught browser errors. CSRF is not required for this
-// endpoint (see djangoapp/views/client_errors.py), so both axios and the
-// sendBeacon fallback land without a csrftoken cookie.
+// endpoint (see djangoapp/views/client_errors.py), so both the Inertia client
+// POST and the sendBeacon fallback land without a csrftoken cookie.
 const ENDPOINT = "/client-errors"
 
 // Cap the stack before sending — must stay in sync with
@@ -73,7 +73,7 @@ export async function reportClientError(
   inFlightPayload = valid
   wirePageHide()
   try {
-    await axios.post(ENDPOINT, valid)
+    await postJSON(ENDPOINT, valid)
     // Delivered — drop the in-flight copy so the pagehide beacon doesn't
     // duplicate it. Keep it only while in flight / on failure.
     if (inFlightPayload === valid) inFlightPayload = null

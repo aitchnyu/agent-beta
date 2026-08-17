@@ -1,35 +1,32 @@
 <template>
-  <Layout>
-    <PageTitle value="Uncommitted changes" />
-    <GitNav />
-    <h1>Uncommitted changes</h1>
-    <section v-for="wt in sections" :key="wt.name" class="mb-4">
-      <h2 class="h6 mb-1">{{ wt.name }}</h2>
-      <ul v-if="wt.files.length" class="list-unstyled mb-0">
-        <li
-          v-for="f in wt.files"
-          :key="f.path"
-          class="d-flex align-items-baseline"
+  <PageTitle value="Uncommitted changes" />
+  <GitNav />
+  <h1>Uncommitted changes</h1>
+  <section v-for="wt in sections" :key="wt.name" class="mb-4">
+    <h2 class="h6 mb-1">{{ wt.name }}</h2>
+    <ul v-if="wt.files.length" class="list-unstyled mb-0">
+      <li
+        v-for="f in wt.files"
+        :key="f.path"
+        class="d-flex align-items-baseline"
+        :class="statusClass(f.status)"
+      >
+        <code class="git-letter">{{ statusLetter(f.status) }}</code>
+        <Link
           :class="statusClass(f.status)"
+          :href="`/git/uncommitted/${wt.name}/${f.path}`"
+          ><code>{{ f.path }}</code></Link
         >
-          <code class="git-letter">{{ statusLetter(f.status) }}</code>
-          <Link
-            :class="statusClass(f.status)"
-            :href="`/git/uncommitted/${wt.name}/${f.path}`"
-            ><code>{{ f.path }}</code></Link
-          >
-        </li>
-      </ul>
-      <p v-else class="text-muted mb-0">No changes.</p>
-    </section>
-  </Layout>
+      </li>
+    </ul>
+    <p v-else class="text-muted mb-0">No changes.</p>
+  </section>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue"
 import { Link } from "@inertiajs/vue3"
 import GitNav from "../components/GitNav.vue"
-import Layout from "../components/Layout.vue"
 import PageTitle from "../components/PageTitle.vue"
 import { GitUncommittedPropsSchema } from "../schemas"
 

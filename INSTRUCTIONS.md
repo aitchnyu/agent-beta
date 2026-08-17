@@ -142,7 +142,7 @@ When you run npm commands, do not `cd ..` or it will cause my harness to interru
 
 `npm run dev` shouldn't be run from an agent since it does not terminate.
 
-Every client-side `axios` call must be wrapped in `try/catch`, call `showErrorToast(e, fallback)` in the catch, and parse the response with a zod schema when the page has one. No silent `console.error`, no bare `catch {}` that swallows the error, and never `throw` after toasting (it double-toasts via the global handler).
+Every client-side HTTP call must go through the framework's `utils/http.ts` (`postJSON`/`getJSON`/`streamPost`), be wrapped in `try/catch`, call `showErrorToast(e, fallback)` in the catch, and parse the response with a zod schema when the page has one. No silent `console.error`, no bare `catch {}` that swallows the error, and never `throw` after toasting (it double-toasts via the global handler).
 
 ## Linting
 I have added linting commands in backend and frontend. When I ask you backend changes, run first backend lint command, make fixes and then run same command till it passes. Do not report something is fixed till the command succeeds. Then run second lint command the same way. Ensure all lint commands are done.  

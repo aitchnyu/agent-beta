@@ -166,8 +166,8 @@ def abort(request: HttpRequest, session_id: str) -> HttpResponse:
 def delete_session(request: HttpRequest, session_id: str) -> HttpResponse:
     """Delete the opencode session and all its data (history/context).
 
-    The proxy stays POST (CSRF/axios consistency with the other proxies) and
-    translates to opencode's ``DELETE /session/:id`` here.
+    The proxy stays POST (CSRF/HTTP-client consistency with the other proxies)
+    and translates to opencode's ``DELETE /session/:id`` here.
     """
     require_superuser(request)
     return _forward(f"/session/{_encode_path_segment(session_id)}", method="DELETE")
@@ -184,7 +184,7 @@ def session_transcript(request: HttpRequest, session_id: str) -> HttpResponse:
     stream never delivered. Forwards verbatim to the daemon's own
     ``/session/:id/message`` route (its name for the same data). Transport
     failures map to ``502 {"ok": false, detail}`` (matching ``_forward``) so the
-    frontend's axios throws and surfaces a toast.
+    frontend's HTTP layer throws and surfaces a toast.
     """
     require_superuser(request)
     path = f"/session/{_encode_path_segment(session_id)}/message"
@@ -228,7 +228,7 @@ def _forward(
 
     Success → ``200 {"ok": true}``. Failure → ``502 {"ok": false, "detail"}``
     so HTTP status alone distinguishes transport success from opencode
-    rejection (the frontend's axios throws on 502, surfacing a toast).
+    rejection (the frontend's HTTP layer throws on 502, surfacing a toast).
 
     ``method`` defaults to POST (permission/abort); the session-delete proxy
     passes ``DELETE`` — opencode's session removal is ``DELETE /session/:id``,

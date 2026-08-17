@@ -241,11 +241,11 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
     def tearDownClass(cls) -> None:
         # Kill the last test's document BEFORE the live server thread dies (in
         # super().tearDownClass): a stale document left alive across a class
-        # boundary — its timers, requestIdleCallback chunk preloads — would
-        # fetch from the previous class's now-dead server port and report the
-        # unhandled rejections against the NEXT class's tests. Within a class
-        # this can't happen (the server stays alive), so only classes pay this
-        # navigation. suppress: a dead page must not mask real failures.
+        # boundary — its timers, idle-time fetches — would fetch from the
+        # previous class's now-dead server port and report the unhandled
+        # rejections against the NEXT class's tests. Within a class this can't
+        # happen (the server stays alive), so only classes pay this navigation.
+        # suppress: a dead page must not mask real failures.
         page = _SHARED_BROWSER.page
         if page is not None:
             with suppress(Exception):

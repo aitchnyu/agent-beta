@@ -426,15 +426,39 @@ class BaseModel(models.Model):
         """FK column names to select_related when reading the pre-edit snapshot."""
         return [f.name for f in cls._log_fields() if isinstance(f, models.ForeignKey)]
 
-    def _log_values_snapshot(self) -> dict[str, Any]:
-        """Return the current supported-column values as JSON-safe audit data.
+    def _values_snapshot(self) -> dict[str, Any]:
+        """Return this row's audit snapshot (JSON-safe per-column values).
 
-        Builtins and user fields are treated identically; unsupported column
-        kinds (file/json/m2m/binary/...) are omitted via the ``_OMIT`` sentinel.
+        Read fresh from the DB by pk, never off ``self``: the in-memory
+        instance may hold stale relation caches, and both halves of the
+        update diff must come from the same source (pre-save read = pre-edit
+        state, post-save read = persisted state). The stale-cache case::
+
+            book = Book.objects.select_related("author").get(pk=1)
+            # book.author caches → Jesvin (pk 7)
+            book.author_id = 42   # assigns the FK COLUMN; the cached
+                                  # book.author still points at Jesvin
+            book.save_with_logs(actor=admin)
+
+        Snapshotting ``self`` would read the stale cached Jesvin for the
+        post-save half, the diff against the (also Jesvin) pre-edit row would
+        be empty, and the real change (author 7 → 42) would be audited as a
+        no-op with no log row. Reading the row back from the DB snapshots
+        what ``save()`` actually persisted: author = {id: 42, …}.
+
+        Unsupported column kinds (file/json/m2m/binary/...) are omitted via
+        the ``_OMIT`` sentinel.
         """
+        fresh = (
+            type(self)
+            .objects.select_related(  # type: ignore[attr-defined] # concrete subclass carries objects; abstract BaseModel doesn't
+                *self._log_fk_field_names()
+            )
+            .get(pk=self.pk)
+        )
         out: dict[str, Any] = {}
         for f in self._log_fields():
-            v = self._log_field_value(f)
+            v = fresh._log_field_value(f)  # noqa: SLF001 # peer-instance audit snapshot
             if v is not _OMIT:
                 out[f.name] = v
         return out
@@ -443,14 +467,22 @@ class BaseModel(models.Model):
         """Map this row's column value to its JSON-safe audit shape, or ``_OMIT``.
 
         Shapes: bool→bool; char/text→str; int/decimal/float→str (string carries
-        big ints/decimals losslessly); datetime/date→ISO str; FK→{id,url,name}.
+        big ints/decimals losslessly; decimals are normalized so an in-memory
+        ``Decimal("4.5")`` and its DB round-trip ``Decimal("4.50")`` snapshot
+        equal — no spurious diffs); datetime/date→ISO str; FK→{id,url,name}.
         """
         value = getattr(self, field.name)
         if isinstance(field, models.BooleanField):
             return None if value is None else bool(value)
         if isinstance(field, (models.CharField, models.TextField)):
             return None if value is None else str(value)
-        if isinstance(field, (models.IntegerField, models.DecimalField, models.FloatField)):
+        if isinstance(field, models.IntegerField):
+            return None if value is None else str(value)
+        if isinstance(field, models.DecimalField):
+            if value is None:
+                return None
+            return format(value.normalize(), "f")
+        if isinstance(field, models.FloatField):
             return None if value is None else str(value)
         if isinstance(field, models.DateTimeField):
             return None if value is None else value.isoformat()
@@ -473,7 +505,10 @@ class BaseModel(models.Model):
         one transaction (no audit-less writes). It calls ``super().save()`` (not
         ``self.save()``): this avoids recursing back into ``save_with_logs`` if a
         subclass overrides ``save()``, so subclass domain side-effects belong in a
-        dedicated method rather than a ``save()`` override.
+        dedicated method rather than a ``save()`` override. Never call it from a
+        signal receiver (``post_save`` still fires and would re-enter unguarded).
+        Both snapshots are read fresh from the DB (post-save), so stale in-memory
+        FK caches (e.g. after setting ``fk_id`` directly) can't skew the diff.
         """
         now = timezone.now()
         if self._state.adding:
@@ -489,25 +524,18 @@ class BaseModel(models.Model):
                     model_pk=self.pk,
                     action="created",
                     old_values={},
-                    new_values=self._log_values_snapshot(),
+                    new_values=self._values_snapshot(),
                 )
             return
         self.last_updated_by = actor
         self.last_updated_at = now
         with transaction.atomic():
-            # Read the pre-edit snapshot inside the txn so a concurrent edit
+            # Pre-edit snapshot read inside the txn so a concurrent edit
             # between read and save can't slip in un-logged — the audit's
             # before/after must match the row state at save time.
-            old = (
-                type(self)
-                .objects.select_related(  # type: ignore[attr-defined] # concrete subclass carries objects; abstract BaseModel doesn't
-                    *self._log_fk_field_names()
-                )
-                .get(pk=self.pk)
-            )
-            old_values = old._log_values_snapshot()  # noqa: SLF001 # peer-instance audit snapshot
+            old_values = self._values_snapshot()
             super().save()
-            new_values = self._log_values_snapshot()
+            new_values = self._values_snapshot()
             diff_old, diff_new = _diff_snapshots(old_values, new_values)
             # last_updated_at/by are always re-stamped above (and recorded
             # separately as performed_at/performed_by), so drop them from the

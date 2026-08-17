@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import axios from "axios"
 import { ref } from "vue"
+import { postJSON } from "../../utils/http"
 import { showErrorToast } from "../../utils/sweetalert"
 import { type TodoOut } from "../schemas"
 
@@ -12,7 +12,7 @@ const text = ref(props.todo?.text ?? "")
 
 async function submit() {
   try {
-    await axios.post("/todos/create", { text: text.value })
+    await postJSON("/todos/create", { text: text.value })
     text.value = ""
     emit("created")
   } catch (e) {

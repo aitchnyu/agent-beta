@@ -1,12 +1,12 @@
 """Tests for the facts models (``Topic``, ``Fact``, ``FactOfTheDay``)."""
 
 from django.db import IntegrityError, transaction
-from django.test import TestCase
+from djangoapp.tests._base import BaseTestCase
 
 from ourapp.models import Fact, FactOfTheDay, Topic
 
 
-class FactModelTests(TestCase):
+class FactModelTests(BaseTestCase):
     """Topic/Fact behaviour: __str__, URLs, random pick (scoped and unscoped).
 
     - test_topic_str_and_url, __str__ is the name; get_absolute_url is /facts/<slug>
@@ -51,7 +51,7 @@ class FactModelTests(TestCase):
         self.assertEqual(picks, {self.f1, self.f2})
 
 
-class FactOfTheDayModelTests(TestCase):
+class FactOfTheDayModelTests(BaseTestCase):
     """FactOfTheDay singleton behaviour: read-only current(), single-row upsert.
 
     - test_current_is_none_until_chosen, current() is None and writes no row before the cron runs

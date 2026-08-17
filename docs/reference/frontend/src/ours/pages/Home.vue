@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { Link } from "@inertiajs/vue3"
-// Framework layout sits at frontend/src/components/Layout.vue; from
-// src/ours/pages/ that is two levels up to src/ then into components/.
-import Layout from "../../components/Layout.vue"
 import { getCsrfToken } from "../../utils/csrf"
 import { HomePropsSchema } from "../schemas"
 // Side-effect import: the app ships its own styles from ours/style.scss, so the
@@ -17,7 +14,6 @@ const csrfToken = computed(() => getCsrfToken())
 </script>
 
 <template>
-  <Layout>
     <div class="home-container">
       <h1>Instant</h1>
 
@@ -76,5 +72,4 @@ const csrfToken = computed(() => getCsrfToken())
         <button class="home-logout-btn" type="submit">Sign out</button>
       </form>
     </div>
-  </Layout>
 </template>

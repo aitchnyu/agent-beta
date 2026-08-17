@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { Link } from "@inertiajs/vue3"
-import Layout from "../../components/Layout.vue"
 import { FactsPagePropsSchema } from "../schemas"
 import "../style.scss"
 
@@ -11,7 +10,6 @@ const p = computed(() => FactsPagePropsSchema.parse(props.props))
 </script>
 
 <template>
-  <Layout>
     <div class="ours-facts-page">
       <h1>Random Fact</h1>
       <p v-if="p.fact" class="ours-fact-text">{{ p.fact.text }}</p>
@@ -28,5 +26,4 @@ const p = computed(() => FactsPagePropsSchema.parse(props.props))
         </li>
       </ul>
     </div>
-  </Layout>
 </template>

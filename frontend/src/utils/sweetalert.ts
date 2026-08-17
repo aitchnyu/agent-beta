@@ -1,4 +1,4 @@
-import type { AxiosError } from "axios"
+import { HttpNetworkError, HttpResponseError } from "@inertiajs/core"
 
 type ToastIcon = "success" | "error" | "warning" | "info" | "question"
 
@@ -38,16 +38,13 @@ export const showErrorToast = async (
 ): Promise<void> => {
   let title = fallback
   let detail = e instanceof Error ? e.constructor.name : ""
-  if (e && typeof e === "object" && "isAxiosError" in e) {
-    const ax = e as AxiosError
-    if (ax.response) {
-      const msg = extractErrorMessage(ax.response.data)
-      if (msg) title = msg
-      if (ax.response.status) detail = `HTTP ${ax.response.status}`
-    } else {
-      title = "Could not reach the server"
-      detail = "Check your internet connection and try again."
-    }
+  if (e instanceof HttpResponseError) {
+    const msg = extractErrorMessage(safeParseJson(e.response.data))
+    if (msg) title = msg
+    if (e.response.status) detail = `HTTP ${e.response.status}`
+  } else if (e instanceof HttpNetworkError) {
+    title = "Could not reach the server"
+    detail = "Check your internet connection and try again."
   }
   const toast = await loadToast()
   await toast.fire({ icon: "error", title, text: detail || undefined })
@@ -67,4 +64,13 @@ const extractErrorMessage = (body: unknown): string => {
     if (typeof obj.message === "string") return obj.message
   }
   return ""
+}
+
+/** Parse a response body string as JSON, returning null for empty/invalid. */
+const safeParseJson = (data: string): unknown => {
+  try {
+    return data ? (JSON.parse(data) as unknown) : null
+  } catch {
+    return null
+  }
 }
