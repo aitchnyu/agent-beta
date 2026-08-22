@@ -1,0 +1,51 @@
+# The VM's caddy site — rendered HOST-SIDE by ./testvm provision into
+# /etc/caddy/sites/app.caddy (shipped in the tree; the main Caddyfile's
+# "import sites/*.caddy" picks it up).
+#
+# ONE mDNS hostname (app.local — avahi's hostname claim, the mechanism that
+# reliably works across clients), ONE port:
+#   https://app.local/        — the Django app: static file_server + proxy
+#                               to granian.
+#   https://app.local/agent/  — the ttyd web terminal (console_ttyd,
+#                               loopback 7681) behind handle_path, which
+#                               strips the /agent prefix. The operator/
+#                               agent surface: run `./run agent`, restart
+#                               services (console has full sudo). No ttyd
+#                               auth by decision (LAN-trusted).
+# Login on the app site is NOT Google OAuth (.local isn't registrable): mint
+# one-time /login-for-test/by-key/... links via `manage.py makeloginlink`
+# (multipass exec on the host). TLS via caddy's internal CA: browsers show a
+# click-through warning and that is the supported mode.
+#
+# Caddy is also the static file server: collectstatic fills main/staticfiles/
+# and hashed bundles get immutable long-cache headers.
+app.local {
+	tls internal
+
+	# Content-hashed bundles (vite output: name-Ab12Cd34.js) — cache forever.
+	@hashed path_regexp ^/static/.*-[A-Za-z0-9_-]{8,}\.(js|mjs|css|woff2?|png|jpg|svg)$
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	# handle_path STRIPS the /static prefix: collectstatic writes to
+	# STATIC_ROOT/djangoapp/... (no "static/" level — STATIC_URL is the URL
+	# prefix only). A plain `handle` here 404s every asset (root + unstripped
+	# /static/... path). The maps guard lives INSIDE this block (paths here
+	# are post-strip): a site-level `respond` is unreachable — caddy orders
+	# handle_path before respond, and vite emits sourcemaps.
+	handle_path /static/* {
+		@maps path /djangoapp/*.map
+		respond @maps 404
+		root * /srv/app/main/staticfiles
+		file_server
+	}
+
+	# No-slash /agent would fall through to the Django catch-all handle —
+	# bounce it to the terminal first.
+	redir /agent /agent/ 308
+	handle_path /agent/* {
+		reverse_proxy 127.0.0.1:7681
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:8000
+	}
+}

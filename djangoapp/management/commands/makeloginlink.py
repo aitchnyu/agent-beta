@@ -43,6 +43,10 @@ class Command(BaseCommand):
         email: str = options["email"]
         minutes: int = options["minutes"]
         base_url: str | None = options["base_url"]
+        # 0/negative would mint an already-dead link and print it as success.
+        if minutes <= 0:
+            msg = f"--minutes must be > 0 (got {minutes})."
+            raise CommandError(msg)
         # email__iexact so "User@x.com" matches "user@x.com". The User model does
         # not enforce a unique email, so guard against 0 / >1 matches explicitly.
         matches = User.objects.filter(email__iexact=email)

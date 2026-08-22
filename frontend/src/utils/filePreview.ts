@@ -1,6 +1,6 @@
 // Rich preview: markdown (via marked) + syntax highlighting (highlight.js).
-// This module is only ever dynamically imported (GitDiff, FileViewer, DiffBody)
-// and pre-warmed at boot in main.ts, so Vite keeps it (+ its deps and theme CSS)
+// This module is only ever dynamically imported (GitDiff, FileViewer) and
+// pre-warmed at boot in main.ts, so Vite keeps it (+ its deps and theme CSS)
 // as a separate lazy chunk out of the host bundle.
 //
 // Only specific languages are registered (not the full `highlight.js`, which bundles

@@ -17,7 +17,7 @@ from djangoapp.logging import configure_logging, json_formatter
 # Environment comes from the caller, not python-dotenv: dev processes are
 # launched via ./run (which shell-sources .env: `set -a; . ./.env; set +a`),
 # and on the VM every systemd unit carries
-# EnvironmentFile=/etc/credentials/<appname>/.env.vm.
+# EnvironmentFile=/etc/credentials/app/.env.vm (single fixed app).
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -26,18 +26,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-_UNSET = "DANGEROUSLYUNSET"
-
-SECRET_KEY = os.environ.get("SECRET_KEY", _UNSET)
+SECRET_KEY = os.environ["SECRET_KEY"]
 
 DEBUG = os.environ["DEBUG"] == "True"
-
-if SECRET_KEY == _UNSET:
-    msg = (
-        "SECRET_KEY is DANGEROUSLYUNSET — generate one with `openssl rand -hex 32`"
-        " and put it in .env (dev) / .env.vm (VM)."
-    )
-    raise RuntimeError(msg)
 
 if not DEBUG and SECRET_KEY == "fake":  # noqa: S105
     msg = "Do not use `fake` secret key in production"
@@ -53,7 +44,7 @@ ALLOWED_HOSTS = [host.strip() for host in os.environ["ALLOWED_HOSTS"].split(",")
 # The ttyd web-terminal URL — drives the superuser-only "Console" nav link
 # (shared prop `console_url`). Dev: http://localhost:7681 (./run dev runs
 # ttyd). VM: https://app.local/agent. Empty hides the link.
-CONSOLE_URL = os.environ.get("CONSOLE_URL", "")
+CONSOLE_URL = os.environ["CONSOLE_URL"]
 
 
 # Application definition
@@ -128,18 +119,11 @@ DATABASES = {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ["DB_NAME"],
         "USER": os.environ["DB_USER"],
-        "PASSWORD": os.environ.get("DB_PASSWORD", _UNSET),
+        "PASSWORD": os.environ["DB_PASSWORD"],
         "HOST": os.environ["DB_HOST"],
         "PORT": os.environ["DB_PORT"],
     }
 }
-
-if DATABASES["default"]["PASSWORD"] == _UNSET:
-    msg = (
-        "DB_PASSWORD is DANGEROUSLYUNSET — generate one with `openssl rand -hex 32`"
-        " and put it in .env (dev) / .env.vm (VM)."
-    )
-    raise RuntimeError(msg)
 
 
 # Password validation
@@ -178,14 +162,15 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
-# Where `collectstatic` gathers files for the serving layer (granian mounts
-# this at /static on the test VM — Django serves nothing under /static when
-# DEBUG=False). Unused in dev (runserver serves app static dirs directly).
-STATIC_ROOT = Path(os.environ.get("STATIC_ROOT") or (BASE_DIR / "staticfiles"))
+# Where `collectstatic` gathers files for the serving layer (caddy serves
+# /static/* from it on the test VM — Django serves nothing under /static
+# when DEBUG=False). Unused in dev (runserver serves app static dirs
+# directly).
+STATIC_ROOT = Path(os.environ["STATIC_ROOT"])
 
 # Origins trusted for secure POSTs, DERIVED from ALLOWED_HOSTS (no env knob):
 # the app is always reached over HTTPS at its allowed hosts — behind caddy on
-# the VM (https://app1.<ip>.sslip.io), plain runserver in dev (where the
+# the VM (https://app.local), plain runserver in dev (where the
 # https://localhost origins are simply unused). ALLOWED_HOSTS validates the
 # Host header; this gates the CSRF Origin/Referer match, which needs scheme.
 CSRF_TRUSTED_ORIGINS = [f"https://{host}" for host in ALLOWED_HOSTS]
@@ -276,7 +261,7 @@ else:
 # Logging
 # https://docs.djangoproject.com/en/6.0/topics/logging/
 
-# One JSON object per line. Every logger (django.*, allauth, httpx, ninja, ours)
+# One JSON object per line. Every logger (django.*, allauth, ninja, ours)
 # propagates to the root handler, which renders via the formatter from
 # djangoapp.logging — so the whole process emits one uniform, jq-filterable
 # NDJSON stream. See djangoapp/logging.py for the contract.
@@ -316,5 +301,5 @@ HUEY = {
     "store_none": False,
     "immediate": False,
     "utc": False,
-    "connection": {"url": os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")},
+    "connection": {"url": os.environ["REDIS_URL"]},
 }

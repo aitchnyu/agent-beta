@@ -4,10 +4,12 @@ A Django **single-app template**: clone it, build your app in `ourapp/`, and dri
 changes through an agent that edits a throwaway.
 
 ## Features
-
-- **Agent-driven development** — an in-app [`opencode`](https://opencode.ai/) chat
-  edits a throwaway `scratch/` copy of the repo; you review, then `mergescratch`
-  deploys to `main/` (server auto-reloads). See [Edit → test → deploy workflow](#edit--test--deploy-workflow).
+- **Agent-driven development** — an [`opencode`](https://opencode.ai/) TUI
+  edits a throwaway `scratch/` copy of the repo; you review, then
+  `mergescratch` deploys to `main/` (server auto-reloads). Start it with
+  `./run agent` — in production ONLY inside the VM's web terminal
+  (`https://app.local/agent/`, where it runs the same command). See
+  [Edit → test → deploy workflow](#edit--test--deploy-workflow).
 - **Async tasks + cron (Huey)** — Redis-backed background tasks and scheduled
   jobs via `huey.contrib.djhuey` (reusing the same Redis as the error rate
   limiter). Run the consumer with `./run hueydev` (or `./run dev`). The reference
@@ -32,22 +34,103 @@ changes through an agent that edits a throwaway.
 
 **Prerequisites** (install once): Python 3.14+ with [`uv`](https://docs.astral.sh/uv/),
 Node.js + npm, PostgreSQL, and Redis. [`opencode`](https://opencode.ai/) is only
-needed for the in-app agent chat (the `./run dev` stack still starts without it —
-it just refuses with a message). No `screen`/`tmux` required.
+needed for the agent (`./run agent`; the `./run dev` stack runs without it —
+the agent helper just refuses with a message). [`ttyd`](https://github.com/tsl0922/ttyd)
+is optional (the web console; `brew install ttyd` on macOS). No
+`screen`/`tmux` required.
+
+Environment: `./run init` offers to copy `.env.example` → `.env`; the run
+script shell-sources `.env` for every process (no python-dotenv). Generate
+`SECRET_KEY`/`DB_PASSWORD` with `openssl rand -hex 32` (`./run init` fills
+the key; set the DB password to your local postgres). For a test VM instead
+of local services, see [VM (test server)](#vm-test-server).
 
 ```bash
 ./run init                          # one-time: uv sync, npm install, create+migrate DB, build frontend
-./run dev                           # runserver + vite watch + opencode + huey (one terminal, color-coded)
+./run dev                           # runserver + vite watch + huey + ttyd console (one terminal)
+./run console                       # the web console alone: ttyd on http://localhost:7681
+./run agent                         # the agent: opencode TUI with the .env environment loaded
 ```
 
-`./run dev` runs all four processes via [`concurrently`](https://github.com/open-cli-tools/concurrently)
-with color-prefixed output (`[runserver]` `[vite]` `[opencode]` `[huey]`); **Ctrl-C
-stops all four**. Then open http://127.0.0.1:8000/ — the live `ourapp/` is a
-placeholder landing page; the **facts** feature (a daily Fact of the Day chosen by
-a Huey cron) is the copyable example in `docs/reference/`.
+`./run dev` runs four processes via [`concurrently`](https://github.com/open-cli-tools/concurrently)
+with color-prefixed output (`[runserver]` `[vite]` `[huey]` `[console]`);
+**Ctrl-C stops all four**. The console (also started alone by
+`./run console`) serves **http://localhost:7681**: shells land in the repo
+with the shared banner (deploy/console-bashrc) and inherit the `.env`
+environment — run `./run agent` inside it for the agent. Set
+`CONSOLE_URL="http://localhost:7681"` in `.env` and the superuser
+**Console** nav link in the app points there. ttyd is optional
+(`brew install ttyd` on macOS; without it the other three start).
+
+Then open http://127.0.0.1:8000/ — the live `ourapp/` is a placeholder
+landing page; `docs/reference/` holds the copyable example app (facts with a
+daily Huey cron, plus todos) the agent consults when adding features.
 
 Individual processes are also runnable on their own: `./run runserver`,
-`./run opencode`, `./run hueydev`, and `cd frontend && npm run dev`.
+`./run hueydev`, and `cd frontend && npm run dev`.
+
+## VM (test server)
+
+The whole loop can run on a Linux VM (multipass) instead of your local
+machine; the workstation becomes just a browser + ssh client. All VM config
+lives in one env file — copy the template first:
+
+```bash
+cp .env.vm.example .env.vm    # then fill in generated secrets
+```
+
+- **Secrets**: `SECRET_KEY` and `DB_PASSWORD` ship as `DANGEROUSLYUNSET`
+  and provisioning refuses to build on that value (validated host-side by
+  `./testvm provision`, before anything ships). Generate high-entropy
+  values with `openssl rand -hex 32`.
+- Database names are fixed (`app_db`/`app_user` from the env values) — one
+  app per VM by design.
+
+Then one command builds everything (1G RAM + 2G swap, postgres + redis
+localhost-only, caddy TLS, `/srv/app/main` (a `scratch/` sibling appears
+when you run `./run createscratch` there), systemd units
+`app_granian` + `app_huey` under the **less powerful `app` user**, and
+`console_ttyd` under the **powerful `console` user** — huey omitted when
+`HUEY_WORKERS=0`):
+
+```bash
+./testvm provision              # builds and prints access + login steps
+```
+
+One hostname, one HTTPS port, direct over the LAN (no tunnel); the
+terminal rides the same origin at `/agent/`. The internal-CA cert means a
+click-through warning (the supported mode):
+
+- **`https://app.local/`** — the app. Login is **not Google OAuth**
+  (`.local` isn't registrable): mint a one-time link for an existing user —
+
+  ```bash
+  multipass exec app -- sudo -u app -H bash -c \
+    'set -a; . /etc/credentials/app/.env.vm; set +a; cd /srv/app/main; .venv/bin/python manage.py makeloginlink <email>'
+  ```
+
+  — open the printed `/login-for-test/by-key/…` URL once (single use,
+  15-min expiry), then `makesuperuser <email>` to unlock admin pages and
+  the "Console" nav link.
+
+**Everything else happens on the VM**: `./run createscratch` → `./run
+agent` (in the console terminal) edits `scratch/` → `./run checkscratch`
+→ `./run mergescratch` (runs collectstatic — static is live immediately;
+code changes need `sudo systemctl restart app_granian app_huey`, printed
+by the merge). The env on the VM is a single file all services share
+(`/etc/credentials/app/.env.vm`, staged from the root `.env.vm`).
+
+Provisioning is **build-or-destroy**: it refuses when the VM exists — to
+apply changes, delete and rebuild.
+
+```bash
+./testvm delete                 # multipass delete+purge — destructive, no backup step
+```
+
+The VM's `.git` is its own history — copy anything you need off it
+(tar via `multipass transfer`, `pg_dump` via `multipass exec`) before
+deleting. Plan + full manifest of
+everything provisioning touches: `prompts/20260818-vm-provisioning-multipass.md`.
 
 ## Google OAuth (social login)
 
@@ -62,7 +145,9 @@ This creates (or updates) a `SocialApp` for `provider="google"` linked to the
 current `SITE_ID`, with `scope=["profile","email"]` and
 `auth_params={"access_type":"online"}` — the equivalent of the old
 `SOCIALACCOUNT_PROVIDERS` block. Re-run it to rotate credentials; no duplicate
-row is created.
+row is created. This is for DEV (or any deployment whose hostname Google
+accepts); the test VM skips Google OAuth entirely and logs in via one-time
+`makeloginlink` URLs — see [VM (test server)](#vm-test-server).
 
 ## Promote a user to superuser
 
@@ -127,17 +212,18 @@ browseable rows. A foreign-key cell links to the referenced row via that row's
 
 ## Edit → test → deploy workflow
 
-The repo is `main/` (with `.git`); `scratch/` is a throwaway sibling under the same
-parent. For every change:
+The repo is `main/` (with `.git`); `scratch/` is a throwaway sibling (the
+agent reaches it via `../scratch` — pre-approved in agentconfig). For every
+change:
 
-1. `main/run createscratch` — copy `main/` (minus `.git`/`node_modules`/`.venv`/caches)
-   into a fresh `scratch/`, bootstrap its own env (`uv sync` + `npm install`), and
+1. `./run createscratch` (from `main/`) — copy `main/` (minus `.git`/`node_modules`/`.venv`/caches)
+   into a fresh `../scratch/`, bootstrap its own env (`uv sync` + `npm install`), and
    `git init` it.
-2. Edit `scratch/`.
-3. `( cd scratch && ./run checkscratch )` — ruff + mypy + `ourapp` tests + frontend
+2. Edit `../scratch/`.
+3. `( cd ../scratch && ./run checkscratch )` — ruff + mypy + `ourapp` tests + frontend
    lint/type-check/build (the fast loop: the framework suite and Playwright stay
    in `main/`). Must finish green. Run `checkall` in `main/` for the full gate.
-4. `main/run mergescratch` — deploy `scratch/` into `main/` (never overwriting
+4. `./run mergescratch` (from `main/`) — deploy `../scratch/` into `main/` (never overwriting
    `main/.env`). This does **not** commit.
 
 In dev the server auto-reloads `main/` after a deploy, so the user sees the
@@ -161,10 +247,16 @@ superuser count can never fall to zero through the UI.
 
 ## Commands
 
-All via the `run` script: `init`, `runserver`, `test`, `typecheck`, `lintfix`,
-`playwrighttest`, `checkscratch`, `checkall`, `checkproject`, `createscratch`,
-`mergescratch`, `cleanscratch`, plus `djangomanage`/`python` passthroughs (e.g.
+App/dev via the `run` script: `init`, `runserver`, `dev`, `console`,
+`agent`, `test`,
+`typecheck`, `lintfix`, `playwrighttest`, `checkscratch`, `checkall`,
+`checkproject`, `createscratch`, `mergescratch`, `cleanscratch`,
+`hueydev` (background consumer alone), `coverage`,
+plus `djangomanage`/`python` passthroughs (e.g.
 `./run djangomanage makemigrations`, `./run python manage.py …`).
+
+Test-VM lifecycle via the `testvm` script: `./testvm provision [--release …]`,
+`./testvm delete`.
 
 
 ## Logging
@@ -177,7 +269,7 @@ it once in `djangoapp/logging.py`; `LoggingContextMiddleware` (in
 ### Backend
 
 Every logger flows through one structlog `ProcessorFormatter`, so Django's own
-loggers (`django.request`/`django.security`), third-party libs (allauth, httpx,
+loggers (`django.request`/`django.security`), third-party libs (allauth,
 ninja, …) and our code all come out with the same shape. Import the logger from
 `djangoapp.logging`, never `structlog` directly. Pass key/value fields (not an
 f-string) so each line stays `jq`-filterable:
@@ -215,8 +307,9 @@ reporter's `public_id`; the backend re-derives the authoritative identity from
 `navigator.sendBeacon` fallback fires on `pagehide` only while a POST is in
 flight, so an error caught right before navigation isn't lost (and isn't re-sent
 once delivered). Redis is a hard dependency for the per-identity rate limit:
-`REDIS_URL` (defaults to the local redis) + `CLIENT_ERROR_RATE_LIMIT` (in
-`.env.example`) drive it, and if redis is unreachable the endpoint **fails
+`REDIS_URL` (required) + `CLIENT_ERROR_RATE_LIMIT` (optional, commented in
+`.env.example`; default 30 per 60s) drive it, and if redis is unreachable
+the endpoint **fails
 closed** (500 — the redis error propagates to the global handler) rather than
 accepting an unbounded stream.
 

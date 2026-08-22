@@ -9,7 +9,6 @@ dependencies = [
     "django-ninja>=1.6.2", # API scaffolding
     "gitpython>=3.1", # /git viewer reads the project repo
     "granian>=2.5", # Rust ASGI server (VM prod serving; see deploy/)
-    "httpx>=0.28", # talks to the local opencode daemon
     "huey>=2.5", # Redis-backed background tasks + cron (RedisHuey via the existing redis dep)
     "inertia-django>=2.0.0", # Inertia.js backend (v3 protocol)
     "nh3>=0.2.21", # HTML sanitization

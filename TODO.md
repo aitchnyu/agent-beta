@@ -1,25 +1,51 @@
-/srv/app1 (server could have multiple apps in it)
-    main
-    scratch
-Services
-    app1-uvicorn
-    app1-opencode
+Auth for ttyd
+hash links in md view dont work
+How to support multiple apps?
+Extend playwright tests, test after building vm too
+createsuperuser - should be promote, create user for 
+Add agent command to repo only
+Replace agent?
+Redis size?
+../djangoapp/static/djangoapp/assets/rolldown-runtime-QTnfLwEv.js      0.69 kB │ gzip:   0.42 kB
 
-Our process has sudo access?
-It has create db access too
+Have a mockup laf?
+./run checkscratch
 
-Our repo has provision script that executes on a given server.
-VM should have a 1gb limit
-Install htop in it.
+No more ssh related stuff
 
-Limit Redis size
+apply --3way
+./run importtemplate <github-url> <tag> 
+import from git repo tags?
+
+Accelerate file serving with Caddy - have FileResponse
+postgres username and password
+Set git user, set opencode credentials
+Worker count for granian and huey config
+
+LoadCredential for storing stuff
+Have an env for provisioning
+OPENCODE_AUTH_CONTENT
+EnvironmentFile
+
+CSRF_TRUSTED_ORIGINS diverge
+
+Env file has:
+    opencode provider
+    opencode key
+    worker counts
+
+Opencode has all env vars and can call any site?
+
+-------------
+
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.
 
 checkall vs checkscratch - run if anything outside of ours/ and ourapp/ is changed. Run a subset of tests.
 Test with changing site theme. Generate color schemes.
+Decimal fields for money
 Command to test one backend/playwright test, command to test python
-```python
+```bash
 uv run ruff format 2>&1 | tail -1 && uv run ruff check --color=never 2>&1 | tail -1 && uv run mypy --no-color-output . 2>&1 | tail -1 && uv run manage.py shell -c "
 from django.template import Template, Context
 import pathlib
@@ -29,29 +55,49 @@ for u in out.split(): print(u, pathlib.Path('djangoapp/static', u.lstrip('/stati
 " 2>&1 | grep -v "objects imported"
 ```
 
+```bash
+ssh app1 'cd /srv/app1/main && .venv/bin/python manage.py shell -c "from djangoapp.models import User; [print(u.pk, u.username, u.email, u.is_superuser) for u in User.objects.all()]"'
+```
+
+New agent
+    command permission model
+    interactive over network
+    lower memory usage
+    subagents to review
+    can specify auth secrets path
+    No more pty_shim
+    No need of .git for parent
+
+https://github.com/anomalyco/opentui/issues/1333
+
+# Relative cutoff: only releases from the last 7 days are eligible
+exclude-newer = "P7D"
+
+_UNSET caught earlier stage
+ttyd MemoryMax too low
+rename back to AGENTS.md
+
 Log m2m changes too
-Decimal fields for money
+
+Google login change
+Templates for Allauth
+Buttons and stuff may be hardcoded for Google
 
 Upload files in chat or files. We will have to copy files to scratch again.
 Can agent render color changes and adding logos?
 
 Buttons spill for agent text box in responsive mode.
 
-Review using agents after finishing coding?
-
 Run all tests in checkproject and merge coverage from both stages. Improve test coverage
+Django 6.1 fetch modes? New Mypy plugin - https://github.com/typeddjango/django-stubs
 
 ## Deployment
-Tool to analyse error logs and stacktraces, both backend and map stacktraces
-Opencode as service
+Tool to analyse error logs and stacktraces, both backend and sourcemap stacktraces
 Serve files in fs, accelerate using Caddy
 Who is committing to git
-Require rsync, redis, log analysis, sourcemap tool
 Backup regularly - https://www.pghardstorage.org/examples
 Whitelist services for outbound connections
-How to configure provider and model for Opencode?
-
-Django 6.1 fetch modes? New Mypy plugin - https://github.com/typeddjango/django-stubs
+Provision in vm with curl|bash
 
 ## Notification center
 Service worker and PWA?

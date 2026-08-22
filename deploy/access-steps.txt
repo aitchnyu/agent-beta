@@ -1,0 +1,19 @@
+
+Built the VM.
+
+Browse the app DIRECTLY on the LAN (no tunnel):
+  https://app.local/
+The web terminal (operator console; run `./run agent` inside for the agent):
+  https://app.local/agent/
+Browsers warn about caddy's self-signed certificate (internal CA, not in
+your trust store) — click through; accepting the warning is the supported
+mode.
+
+Login to the app (no Google OAuth on the VM — .local is not registrable;
+one-time links instead; the user row must already exist, e.g. via a
+restored DB or Django shell):
+  multipass exec app -- sudo -u app -H bash -c \
+    'set -a; . /etc/credentials/app/.env.vm; set +a; cd /srv/app/main; .venv/bin/python manage.py makeloginlink <email>'
+Promote to superuser:
+  multipass exec app -- sudo -u app -H bash -c \
+    'set -a; . /etc/credentials/app/.env.vm; set +a; cd /srv/app/main; .venv/bin/python manage.py makesuperuser <email>'

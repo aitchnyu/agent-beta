@@ -1,7 +1,8 @@
-# Web chat steering
+# Agent steering
 
-You are the assistant behind a web chat for this app. You build and edit the
-**single user app** (`ourapp/`) and its frontend (`frontend/src/ours/`).
+You are the opencode TUI agent (`./run agent`) for this app. You build and
+edit the **single user app** (`ourapp/`) and its frontend
+(`frontend/src/ours/`).
 
 ## Role & scope
 This repo is a **template with one user app**, `ourapp/` — a normal Django app
@@ -27,34 +28,35 @@ Change only:
   - `schemas.ts`
   - `style.scss`
 
-## Layout: parent / main / scratch
-The repo is `main/` (it holds `.git`); `scratch/` is a throwaway sibling, and both
-sit under `parent/` (any folder name — it's just the dir containing the two).
-opencode's working directory is `parent/` — `./run opencode` launches the daemon
-from there (and keeps `parent/` a git repo, which opencode uses as its worktree),
-so `scratch/` sits inside the workspace and editing it doesn't prompt. Always `cd`
-to an absolute path (`cd /abs/path/scratch`), never `cd ..`.
-- Fresh scratch tree: `main/run createscratch` (run from `parent/`).
-- Edit + test in `scratch/`: `cd /abs/path/scratch` then `./run checkscratch`.
-- Deploy `scratch/` → `main/`: `main/run mergescratch` (run from `parent/`).
+## Layout: main / scratch
+The repo is `main/` — opencode's working directory (the agent runs from
+the repo root, so paths here are repo-relative). `scratch/` is a throwaway
+SIBLING of `main/` (at `../scratch`); it's pre-approved via
+`external_directory` in agentconfig/opencode.json, so editing it doesn't
+prompt. Always use the allowlisted relative form (`cd ../scratch`), never
+`cd /abs/path` (absolute paths aren't allowlisted and prompt).
+- Fresh scratch tree: `./run createscratch` (run from `main/`).
+- Edit + test in scratch: `cd ../scratch` then `./run checkscratch`.
+- Deploy `scratch/` → `main/`: back in `main/`, `./run mergescratch`.
 
 ## Feature workflow
 
 You build features through four phases, each gated by my explicit approval
 ("approved" / "go ahead" / "build it" / "ship it"); anything less clear ("ok",
-"sure", silence) → re-ask before advancing. I run the daemon, Django, and the dev
-server myself — your job is to edit `scratch/` and deploy via `mergescratch`, and
+"sure", silence) → re-ask before advancing. I run the TUI session, Django,
+and the dev server myself — your job is to edit `scratch/` and deploy via
+`mergescratch`, and
 only once I've said to start, so don't begin building before the Design phase is
 approved (starting early wastes a fresh `scratch/` and an env bootstrap I didn't
-ask for). Within a phase keep going (ending a turn flips the chat to "awaiting
-your reply") — stop only at a real decision that needs me, or at a phase's
-approval gate. Any phase can be sent back to the drawing board (Design): if I say
+ask for). Within a phase keep going — stop only at a real decision that needs
+me, or at a phase's approval gate. Any phase can be sent back to the drawing
+board (Design): if I say
 rethink it, or the build shows the design is wrong, drop back to phase 1,
 re-discuss, update the diagrams/mockups, and get fresh approval before coding
 further — don't keep building against a design that's been rejected or changed.
 
 - [ ] **1. Design — discuss; no `scratch/`, no edits.** Produce these for
-      approval (the chat renders them): an **ER diagram** whenever DB
+      approval (the TUI renders them): an **ER diagram** whenever DB
       tables/models are involved (see [Models](#models)), a **state diagram** for
       any lifecycle, and **mockups** of each page (see [Frontend](#frontend)). How
       to emit them (markers, mermaid, Bootstrap): see
@@ -115,8 +117,8 @@ line. Put a `python -c` script on its own lines inside the quotes, and break
 pipes/chains with `\` continuations, so the whole command reads clearly (the
 permission prompt renders it multiline and syntax-highlights it).
 
-**Never `git -C`.** It's globally deny-listed and will fail or prompt. `cd` into
-the directory first (`cd /abs/path/scratch`) then run `git …`, or use an
+**Never `git -C`.** It matches no allowlist rule (falls to ask → prompts).
+`cd` into the directory first (`cd ../scratch`) then run `git …`, or use an
 allowlisted `git` form from the current dir — never `git -C <dir> …`.
 
 **`./run lintfix` is safe to run repo-wide.** It only normalizes formatting to
@@ -133,29 +135,29 @@ bare `git …` that fall outside the rules and prompt every time.
 ## The scratch workflow
 You never edit `main/` directly — the [Feature workflow](#feature-workflow) phases
 drive the sequence; these are the mechanics of the three commands (run from
-`parent/`).
+`main/`, the repo root — your working directory).
 
-**`main/run createscratch`** — copies `main/` (minus `.git`, `.kilo/`,
-`node_modules`, `.venv`, caches, build output) into a fresh `scratch/`, bootstraps
+**`./run createscratch`** — copies `main/` (minus `.git`, `.kilo/`,
+`node_modules`, `.venv`, caches, build output) into a fresh `../scratch/`, bootstraps
 its own env (`uv sync` + `npm install`), and `git init`s it (a baseline commit, no
 shared history with `main/`) so you can review changes via `/git/uncommitted/`.
-An existing `scratch/` is wiped — **if one already exists, ask first whether to
+An existing `../scratch/` is wiped — **if one already exists, ask first whether to
 delete it**, during planning / before the go-ahead (it may hold uncommitted work
-from a prior task; `main/run cleanscratch` wipes it).
+from a prior task; `./run cleanscratch` wipes it).
 
-**`( cd scratch && ./run checkscratch )`** — ruff + mypy + **ourapp's own tests**
+**`( cd ../scratch && ./run checkscratch )`** — ruff + mypy + **ourapp's own tests**
 + frontend lint/type-check/build. It does NOT re-run the framework backend suite
 (`djangoapp/tests/`, identical to `main/`) or the Playwright pass — those belong
 in `main/`'s `checkall`. Iterate on the failing command (see `INSTRUCTIONS.md`);
 `checkscratch` must finish green.
 
-**`main/run mergescratch`** — rsyncs `scratch/` → `main/` (never overwriting
-`main/.env`); does **not** commit. (Migrations + frontend rebuild are the Deploy
+**`./run mergescratch`** (from `main/`) — rsyncs `../scratch/` → `main/` (never
+overwriting `main/.env`); does **not** commit. (Migrations + frontend rebuild are the Deploy
 phase's last step; in dev the server then auto-reloads `main/`.)
 
-`scratch/` is disposable — re-running `createscratch` wipes it. Review in-progress
-edits with `cd scratch && git diff` or the web viewer at `/git/uncommitted/`
-(`main/`'s pending files, then `scratch/`'s — your `scratch/` edits show **live**,
+`../scratch/` is disposable — re-running `createscratch` wipes it. Review in-progress
+edits with `cd ../scratch && git diff` or the web viewer at `/git/uncommitted/`
+(`main/`'s pending files, then `../scratch/`'s — your scratch edits show **live**,
 no deploy needed; they reach `main/`'s commit views only after `mergescratch`).
 
 ## User communication
@@ -177,7 +179,7 @@ blocks. Even if you get input in markdown, always reply in HTML unless asked.
 
 ### Asking the user questions
 Do **not** use the question tool — it is disabled (`question: deny`) and any
-call is rejected server-side. When you need information, ask in plain HTML prose
+call is rejected. When you need information, ask in plain HTML prose
 and **stop** (end your turn). Ask one focused question (or a short numbered list)
 and stop; don't proceed on assumptions. If an answer is ambiguous, re-ask.
 
@@ -244,14 +246,14 @@ or a blank line splits it and corrupts the content). **Title every marker**: a
 one-line **bold title** immediately above it, and an optional one-line caption
 below, so the reader knows what they're looking at before the render.
 
-- **`<div class="opencode-diagram">…mermaid…</div>`** — Mermaid source inside:
+- **`<div class="rich-diagram">…mermaid…</div>`** — Mermaid source inside:
   - `erDiagram` whenever models / DB tables come up (entities, fields, FKs,
     ownership) — one field per line as `type name`.
   - `stateDiagram-v2` for a lifecycle / state machine.
   - No `<`, `>`, or `&` in labels — the block is parsed as HTML so they break.
     Use the HTML-safe lookalikes `‹` `›` `∧` instead (`count ‹ 5 ∧ active`, not
     `count < 5 && active`; `≤`/`≥`/`+`/`＆` also work).
-- **`<div class="opencode-mockup">…</div>`** — the page's real Bootstrap markup
+- **`<div class="rich-mockup">…</div>`** — the page's real Bootstrap markup
   + our CSS classes (read an existing page like `Home.vue` to match the look —
   same containers, `row`/`col`, buttons, badges). It's responsive and view-only,
   so lay it out with the grid and omit real `action`/`href`.
@@ -544,7 +546,7 @@ auto-discovers each installed app's `tasks` module. Redis is a **hard dependency
 - **Fat task, thin wrapper**: put the real logic on the model (a classmethod) and
   make the task a one-line call, so it's testable without a consumer.
 - **Run the consumer** with `./run hueydev`, or `./run dev` (which starts it alongside
-  runserver/vite/opencode). Without a running consumer, enqueued tasks queue up and
+  runserver/vite/the web console). Without a running consumer, enqueued tasks queue up and
   periodic tasks don't fire — so make user-facing paths degrade gracefully (e.g.
   `FactOfTheDay.current()` reads the last cron pick without writing, so a dead
   consumer shows a stale-but-present fact or an empty state; a `GET` never creates
@@ -615,39 +617,40 @@ class FactsViewTests(BaseTestCase):
       of the method name.
 
 ## Commands, tools & permissions
-You may read any file in the project and edit files under `scratch/`. Edits
-outside `scratch/` need approval. Permissions are defined in
+You may read any file in the project and edit files under `../scratch/`. Edits
+outside it need approval. Permissions are defined in
 `agentconfig/opencode.json`.
 **Prefer the allowlisted commands** — they run with no prompt; anything else
 interrupts the turn to ask. Map your intent onto them (e.g. `./run checkscratch`,
-`./run djangomanage makemigrations`, `main/run createscratch`) rather than
+`./run djangomanage makemigrations`, `./run createscratch`) rather than
 hand-rolling an equivalent that will prompt.
 **Never pipe or redirect** — don't append `| head`, `2>&1`, or `>`.
 opencode treats `|`/`>` as command-chaining and prompts **regardless of the
 allowlist** (a wildcard can't match them), and it already captures full tool
 output, so the pipe buys nothing.  
 The allowlisted commands (defined in `agentconfig/opencode.json`):
-- `main/run createscratch` — fresh `scratch/` from `main/`
-- `main/run mergescratch` — deploy `scratch/` → `main/` (no commit)
-- `main/run cleanscratch` — remove `scratch/` outright. **Prefer this over
+- `./run createscratch` — fresh `../scratch/` from `main/`
+- `./run mergescratch` — deploy `../scratch/` → `main/` (no commit)
+- `./run cleanscratch` — remove the scratch tree outright. **Prefer this over
   `rm -rf`.**
   Never `rm -rf /abs/path/scratch` — absolute paths aren't allowlisted and will
-  prompt. (`rm -rf scratch`, relative, also works — the daemon runs from the
-  parent.)
-- `main/run checkproject` — full validation (overlays the test/reference apps +
+  prompt. (`rm -rf ../scratch`, relative to `main/`, also works — that's the
+  allowlisted form; the TUI's cwd is the repo root.)
+- `./run checkproject` — full validation (overlays the test/reference apps +
   runs the project tests via `RUN_PROJECT_TESTS=1`); run before promoting a
   framework change
 - `./run checkscratch` — the **scratch/ fast loop**: ruff + mypy + `ourapp`'s own
   tests + frontend lint/type-check/build (no framework backend suite, no browser)
-- `./run checkall` — the **full gate** (framework backend suite + Playwright).
-  NOT allowlisted for the agent — it's a human-run, `main/`-only check; the agent
-  uses `./run checkscratch` in `scratch/`.
-- `./run typecheck`, `./run test`, `./run lintfix`
-- `./run djangomanage makemigrations` / `migrate` / `findstatic` (`findstatic`
+- `./run typecheck`, `./run test *`, `./run lintfix`
+- `./run djangomanage makemigrations *` / `migrate` / `findstatic *` (`findstatic`
   is read-only — prints the on-disk file a static URL resolves to)
 - `npm run build` (from `frontend/`) — rebuild the frontend bundle
-- `cd scratch …` then read-only `git status` / `diff` / `log` / `show`
+- `cd ../scratch …` then read-only `git status` / `diff` / `log` / `show`
 - `websearch`
+
+`./run checkall` (the **full gate**: framework backend suite + Playwright) is
+deliberately NOT in that list — it's a human-run, `main/`-only check; the agent
+uses `./run checkscratch` in scratch.
 
 ### Debugging build / serve issues
 When a page 404s client-side ("Inertia page not found: … — rebuild the

@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "instructions": ["main/agentconfig/steer.md"],
+  "instructions": ["agentconfig/steer.md"],
   "permission": {
     "read": "allow",
     "glob": "allow",
@@ -8,7 +8,12 @@
     "list": "allow",
     "edit": {
       "*": "ask",
-      "scratch/**": "allow"
+      "scratch/**": "allow",
+      "/srv/app/scratch/**": "allow"
+    },
+    "external_directory": {
+      "$HOME/**/scratch/**": "allow",
+      "/srv/app/scratch/**": "allow"
     },
     "bash": {
       "*": "ask",
@@ -17,12 +22,12 @@
       "ls -la *": "allow",
       "ls -d": "allow",
       "ls -d *": "allow",
-      "main/run createscratch": "allow",
-      "main/run mergescratch": "allow",
-      "main/run cleanscratch": "allow",
-      "main/run djangomanage migrate": "allow",
-      "main/run djangomanage migrate *": "allow",
-      "main/run checkproject": "allow",
+      "./run createscratch": "allow",
+      "./run mergescratch": "allow",
+      "./run cleanscratch": "allow",
+      "./run djangomanage migrate": "allow",
+      "./run djangomanage migrate *": "allow",
+      "./run checkproject": "allow",
       "./run checkscratch": "allow",
       "./run typecheck": "allow",
       "./run test *": "allow",
@@ -30,12 +35,14 @@
       "./run playwrighttest": "allow",
       "./run playwrighttest *": "allow",
       "./run djangomanage makemigrations *": "allow",
-      "./run djangomanage migrate *": "allow",
       "./run djangomanage findstatic *": "allow",
       "npm run build": "allow",
       "cd scratch *": "allow",
+      "cd ../scratch *": "allow",
       "rm -rf scratch": "allow",
       "rm -rf scratch/*": "allow",
+      "rm -rf ../scratch": "allow",
+      "rm -rf ../scratch/*": "allow",
       "git status": "allow",
       "git diff *": "allow",
       "git log": "allow",

@@ -6,15 +6,15 @@ import { HttpNetworkError, HttpResponseError } from "@inertiajs/core"
 // zero-dependency fetch wrapper (~3KB gzip; axios would cost ~4x for features
 // this codebase doesn't use). Inertia page visits keep using Inertia's own
 // internal client; UserList's search box uses the useHttp hook. ky is
-// fetch-based, so the same layer also serves the opencode SSE stream (XHR
-// clients buffer the whole response and cannot stream).
+// fetch-based, so the same layer can serve streaming responses (XHR clients
+// buffer the whole response and cannot stream) should one be needed again.
 //
 // CSRF: Django's csrftoken cookie -> X-CSRFToken header on every request via
 // the beforeRequest hook (the cookie is set on every response by
 // inertia.middleware.InertiaMiddleware).
 //
-// retry: 0 and no default timeout — the opencode recovery loop owns its own
-// re-poll/backoff timing, and an SSE stream must never be cut by a timer.
+// retry: 0 and no default timeout — callers own their re-poll/backoff timing,
+// and a long-lived stream must never be cut by a timer.
 //
 // Rejections are normalized to @inertiajs/core's error classes
 // (HttpResponseError / HttpNetworkError), so callers and showErrorToast see

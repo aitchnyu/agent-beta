@@ -1,4 +1,4 @@
-// Lazy Mermaid rendering for `.opencode-diagram` blocks. Mermaid is large
+// Lazy Mermaid rendering for `.rich-diagram` blocks. Mermaid is large
 // (~2.5 MB), so it is dynamically imported on first use and stays a separate
 // chunk out of the main bundle. The module-level promise caches both the import
 // and the one-time initialize(), so repeated diagrams pay the cost only once.
@@ -43,7 +43,7 @@ let idSeq = 0
  *  caller can fall back to showing the raw source. */
 export async function renderDiagram(source: string): Promise<string> {
   const mermaid = await getMermaid()
-  const id = `opencode-mermaid-${idSeq++}`
+  const id = `rich-mermaid-${idSeq++}`
   // mermaid.render appends a throwaway <div id="<id>"> to the body while
   // measuring, then removes it. Each call needs a unique id or it collides.
   try {

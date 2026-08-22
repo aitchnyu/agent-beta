@@ -6,8 +6,8 @@ import DOMPurify from "dompurify"
 // an explicit FORBID list for the embedding/active tags DOMPurify leaves alone
 // by default (iframe/object/embed/link/…), plus a hook that drops
 // protocol-relative (//host) URLs on every URL-bearing attribute. `class` and
-// `style` are allowed on all tags (the two marker classes .opencode-diagram /
-// .opencode-mockup, Bootstrap row/col/btn…, and highlight.js hljs-* spans all
+// `style` are allowed on all tags (the two marker classes .rich-diagram /
+// .rich-mockup, Bootstrap row/col/btn…, and highlight.js hljs-* spans all
 // survive). Mockup interactivity is neutered separately in RichTextViewer.
 const FORBID_TAGS = [
   "script",

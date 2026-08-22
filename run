@@ -20,9 +20,24 @@ else
 fi
 
 setenv() {
-  if [ ! -f .env ]; then
-    echo "Warning: .env file not found, relying on python-dotenv to load defaults or environment"
+  # Load the environment by shell-sourcing (no python-dotenv): `set -a`
+  # exports every assignment; only plain KEY="value" lines + comments (no
+  # command substitution). Dev: ./.env; on the VM the single source is the
+  # credentials file the units also read (/etc/credentials/app/.env.vm).
+  if [ -f .env ]; then
+    set -a
+    . ./.env
+    set +a
+    return 0
   fi
+  # ie, we are inside vm
+  if [ -f /etc/credentials/app/.env.vm ]; then
+    set -a
+    . /etc/credentials/app/.env.vm
+    set +a
+    return 0
+  fi
+  echo "Warning: no .env (dev) or /etc/credentials/app/.env.vm (VM) — relying on ambient environment." >&2
 }
 
 python() {
@@ -40,7 +55,13 @@ init() {
     read -r response
     if [[ "$response" =~ ^[Yy]$ ]]; then
       cp .env.example .env
-      echo "Review .env and add necessary vars"
+      # Generate a real SECRET_KEY (sessions/password-reset need one);
+      # DB_PASSWORD stays sentinel for the operator (it must match their
+      # local postgres).
+      if command -v openssl >/dev/null 2>&1; then
+        sed -i.bak "s#^SECRET_KEY=.*#SECRET_KEY=\"$(openssl rand -hex 32)\"#" .env && rm -f .env.bak
+      fi
+      echo "Created .env with a generated SECRET_KEY — set DB_PASSWORD (your local postgres password) next."
     fi
   fi
   setenv
@@ -48,8 +69,8 @@ init() {
   uv sync
   # We have E2E tests
   uv run playwright install firefox
-  # Create the database
-  psql -U postgres -c "CREATE DATABASE instant;" || echo "Database 'instant' already exists or creation failed"
+  # Create the database (name/user come from .env — convention <appname>_db)
+  psql -U postgres -c "CREATE DATABASE $DB_NAME;" || echo "Database '$DB_NAME' already exists or creation failed"
   # Run Django migrations
   djangomanage migrate
   # Install frontend dependencies and build once
@@ -62,105 +83,92 @@ runserver() {
 }
 
 hueydev() {
-  # Huey consumer for DEV (djhuey's runhuey), run in the foreground. Auto-
-  # discovers each installed app's tasks.py (ourapp.tasks) and runs periodic +
-  # enqueued tasks. Redis must be running (REDIS_URL — shared with the client-
-  # error rate limiter). For prod, run the consumer as a managed service
-  # (systemd/supervisord/container) with workers — not via this helper.
+  # Huey consumer for dev run in the foreground. Auto-discovers each installed app's
+  # tasks.py (ourapp.tasks) and runs periodic + enqueued tasks. Redis must be
+  # running (REDIS_URL). For prod, its run with systemd.
   setenv
-  djangomanage runhuey "$@"
+  djangomanage run_huey "$@"
 }
 
 dev() {
-  # Run the whole dev stack in one terminal via `concurrently` (color-coded,
-  # interleaved output): runserver + vite watch + opencode + huey. Ctrl-C stops
-  # all four (concurrently forwards the signal). Idempotent: kills any stale
-  # instance first. Not --kill-others-on-fail, so an opencode preflight refusal
-  # doesn't tear down runserver/vite/huey.
+  # The whole dev stack in one terminal via `concurrently`: runserver + vite
+  # watch + huey + ttyd console (Ctrl-C stops all). The console at
+  # http://localhost:7681 spawns shells in the repo with the shared banner
+  # rcfile (`./run console` runs it standalone). The start command is
+  # required — bare ttyd exits 254 per connection and reconnect-loops.
   setenv
-  # Kill any stale instance of the same dev stack (idempotent relaunch).
-  pkill -f "concurrently.*-n runserver,vite,opencode,huey" 2>/dev/null || true
-  frontend/node_modules/.bin/concurrently -n runserver,vite,opencode,huey -c blue,green,magenta,cyan \
+  if ! command -v ttyd >/dev/null 2>&1; then
+    echo "ttyd not found — install it (macOS: brew install ttyd) for the dev console; starting the rest." >&2
+    frontend/node_modules/.bin/concurrently -n runserver,vite,huey -c blue,green,cyan \
+      "./run runserver" \
+      "cd frontend && npm run dev" \
+      "./run hueydev"
+    return 0
+  fi
+  frontend/node_modules/.bin/concurrently -n runserver,vite,huey,console -c blue,green,cyan,magenta \
     "./run runserver" \
     "cd frontend && npm run dev" \
-    "./run opencode --print-logs --log-level DEBUG" \
-    "./run hueydev"
+    "./run hueydev" \
+    "./run console"
 }
 
-opencode() {
-  # Bind address for the daemon. 4196, not opencode's default 4096: 4096
-  # collides with the Kilo extension's random `kilo serve` server in this
-  # session. A single knob — OPENCODE_BASE_URL (default below) — drives both
-  # this launcher and Django's /agent/api/* proxy (djangoapp/views/
-  # opencode.py)
-  local base_url="${OPENCODE_BASE_URL:-http://127.0.0.1:4196}"
-  local stripped="${base_url#http://}"; stripped="${stripped#https://}"
-  stripped="${stripped%%/*}"
-  local hostname="${stripped%%:*}"
-  local port="${stripped##*:}"
-  # Resolve paths from this script's location (the repo root = main/), not $PWD,
-  # so `./run opencode` works no matter which directory it's invoked from.
+console() {
+  # The web console ALONE: ttyd on http://localhost:7681 (also part of
+  # `./run dev`). Shells land IN THE REPO and read deploy/console-bashrc
+  # (the banner + the normal bashrc chain) — the same rcfile the VM's
+  # console_ttyd unit uses. The start command is required: bare ttyd
+  # exits 254 per connection and reconnect-loops. Run `./run agent` (or
+  # opencode) inside the browser terminal for the agent.
   local repo_root
   repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  # Point opencode at agentconfig/ for the web-chat agent + permission rules.
+  command -v ttyd >/dev/null 2>&1 || {
+    echo "ttyd not found — install it first (macOS: brew install ttyd)" >&2
+    return 1
+  }
+  # Kill a stale console (this dev stack's or standalone) — idempotent relaunch.
+  pkill -f "ttyd -W -i 127.0.0.1 -p 7681" 2>/dev/null || true
+  setenv
+  ttyd -W -i 127.0.0.1 -p 7681 -w "$repo_root" \
+    -- /bin/bash --rcfile "$repo_root/deploy/console-bashrc"
+}
+
+agent() {
+  # The agent: exec the opencode TUI with the .env environment (auth/model,
+  # git identity) exported by setenv — dev and VM alike. Preflight: config
+  # exists, no competing config, binary present, config valid.
+  setenv
+  local repo_root
+  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   local config_dir="${OPENCODE_CONFIG_DIR:-$repo_root/agentconfig}"
   local config_file="${OPENCODE_CONFIG:-$repo_root/agentconfig/opencode.json}"
 
-  # opencode scopes its workspace to the nearest enclosing git worktree, so run
-  # the daemon from the PARENT of repo_root (the dir holding both main/ and
-  # scratch/). scratch/ is a sibling of main/: when the daemon ran from main/ (its
-  # git worktree), every read/edit of scratch/ tripped `external_directory` and
-  # the relative `edit scratch/**` rule never matched (scratch/ was outside the
-  # worktree). From parent/ as the worktree, scratch/ and main/ are both inside it
-  # — scratch/** matches the allow rule, and no external_directory prompt fires. A
-  # non-git parent would fall back to opencode's global "/" project, so parent/ is
-  # made a git repo below. Paths above stay repo-root-relative (BASH_SOURCE), so
-  # the `cd` only sets the daemon's cwd; opencode.json's `instructions` path is
-  # parent-relative ("main/agentconfig/steer.md") to match.
-  local parent_dir
-  parent_dir="$(dirname "$repo_root")"
-  cd "$parent_dir"
-  # Ensure parent/ is its own git worktree (idempotent; no commit is needed —
-  # opencode only wants the boundary, verified on opencode 1.18's project model).
-  if [[ "$(git rev-parse --show-toplevel 2>/dev/null)" != "$parent_dir" ]]; then
-    git init -q
-  fi
+  # Run from the REPO ROOT (main/): the TUI's pwd is the actual repo, and
+  # permission paths in agentconfig/opencode.json are working-dir-relative
+  # (instructions: agentconfig/steer.md; scratch/ is a SIBLING and is
+  # allowed via external_directory there). No parent-cd, no parent git-init
+  # — main/ is its own repo everywhere; scratch/ rides the external allows.
+  cd "$repo_root"
 
-  # Preflight — fail fast before serving, in order:
-  #   (1) the agentconfig/ config file exists,
-  #   (2) no competing opencode config would override it,
-  #   (3) the opencode binary is on PATH,
-  #   (4) the config validates (`opencode debug config`),
-  #   (5) the port is free to bind.
-  # Each check prints why it refuses and returns 1.
-
-  # (1) Config file exists — without it the daemon runs with no agent/permissions.
+  # (1) Config file exists — without it the agent runs with no permissions.
   [[ -f "$config_file" ]] || {
     echo "Refusing to start: $config_file not found" >&2
     return 1
   }
 
-  # (2) No competing config — opencode merges every config it finds, which would
-  #     override agentconfig/. Delete the other one so only $config_file is used.
-  #     opencode also auto-creates an empty global ~/.config/opencode/opencode.jsonc
-  #     (just $schema) on first run — that stub merges nothing, so discard it and
-  #     continue; refuse only on a config with real content.
-  # Where opencode stores its global (user-level) config.
+  # (2) No competing config — opencode merges every config it finds, which
+  #     would override agentconfig/. opencode also auto-creates an empty
+  #     global stub (just $schema) on first run; that merges nothing, so
+  #     discard it and continue — refuse only on a config with real content.
   local global_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
-
-  # Walk the two global config names opencode uses. opencode auto-creates an
-  # empty stub (just $schema) on first run — it merges nothing, so discard it;
-  # a config with real content would override agentconfig/, so refuse to start.
   local global_config_file
   for global_config_file in \
     "$global_config_dir/opencode.json" \
     "$global_config_dir/opencode.jsonc"
   do
     [[ -f "$global_config_file" ]] || continue
-    # Key-aware stub check: it's opencode's empty auto-stub only if $schema is
-    # the sole top-level key. A minified one-liner with real keys (e.g.
-    # {"$schema":"…","permission":…}) must NOT be deleted — the old line-based
-    # sed deleted the whole $schema line and mis-classified those as empty.
+    # Key-aware stub check: it's the empty auto-stub only if $schema is the
+    # sole top-level key (a minified one-liner with real keys must NOT be
+    # deleted).
     if grep -oE '"[^"]+"\s*:' "$global_config_file" | grep -qvE '"\$schema"\s*:'; then
       echo "Refusing to start: a real global opencode config exists at" \
         "$global_config_file; delete it so only $config_file is used." >&2
@@ -168,54 +176,42 @@ opencode() {
     fi
     rm -f "$global_config_file"   # only $schema (or no keys) — empty stub
   done
-
-  # Any other real config opencode would also merge — the parent_dir ones
-  # matter because the daemon runs from there.
   local found_competing=0
   [[ -f "$global_config_dir/config.json" ]] && found_competing=1
   [[ -f "$repo_root/opencode.json" ]] && found_competing=1
-  [[ -f "$parent_dir/opencode.json" ]] && found_competing=1
-  [[ -f "$parent_dir/opencode.jsonc" ]] && found_competing=1
+  [[ -f "$repo_root/opencode.jsonc" ]] && found_competing=1
+  [[ -f "$repo_root/../opencode.json" ]] && found_competing=1
+  [[ -f "$repo_root/../opencode.jsonc" ]] && found_competing=1
   [[ -n "${OPENCODE_CONFIG_CONTENT:-}" ]] && found_competing=1
   if (( found_competing )); then
     echo "Refusing to start: another opencode config exists (global" \
-      "config.json, the daemon's working directory $parent_dir, or" \
+      "config.json, the repo or its parent, or" \
       "\$OPENCODE_CONFIG_CONTENT); delete it so only $config_file is used." >&2
     return 1
   fi
 
-  # (3) Binary on PATH — check before `debug config` so a missing binary isn't
-  #     misreported as "config invalid".
-  if ! command -v opencode >/dev/null 2>&1; then
+  # (3) Binary on PATH — check before `debug config` so a missing binary
+  #     isn't misreported as "config invalid".
+  command -v opencode >/dev/null 2>&1 || {
     echo "opencode binary not found on PATH — install it first" >&2
     return 1
-  fi
+  }
 
-  # (4) Config valid — `opencode serve` starts even on an invalid config and
-  #     only 400s per request, so validate first and refuse to serve if broken.
+  # (4) Config valid — the TUI starts even on an invalid config and only
+  #     errors per request, so validate first and refuse if broken.
   local check_output
   if ! check_output=$(
     OPENCODE_CONFIG_DIR="$config_dir" OPENCODE_CONFIG="$config_file" \
       command opencode debug config 2>&1
   ); then
-    echo "opencode config is invalid — refusing to serve:" >&2
+    echo "opencode config is invalid — refusing to start:" >&2
     echo "$check_output" >&2
     return 1
   fi
 
-  # (5) Port free — fail fast so the error names the cause instead of relying on
-  #     opencode's bind-time failure (which can leave a half-started process).
-  #     `lsof` is present on macOS.
-  if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
-    echo "Refusing to start: port $port is already in use (change OPENCODE_BASE_URL to override)." >&2
-    return 1
-  fi
-
-  # All checks passed — announce and serve. If `serve` fails to bind
-  # (permissions) opencode prints its own error and exits non-zero.
-  echo "Starting opencode serve on ${hostname}:${port} (Ctrl+C to stop)…"
+  # All checks passed — hand the terminal over to the TUI.
   OPENCODE_CONFIG_DIR="$config_dir" OPENCODE_CONFIG="$config_file" \
-    command opencode serve --hostname "$hostname" --port "$port" "$@"
+    command opencode "$@"
 }
 
 test() {
@@ -316,6 +312,7 @@ _SCRATCH_EXCLUDES=(
   --exclude='.ruff_cache/'
   --exclude='dist/'
   --exclude='build/'
+  --exclude='staticfiles/'   # collectstatic output (VM serving); regenerated, never source
   --exclude='.DS_Store'
 )
 
@@ -337,8 +334,9 @@ _new_scratch() {
     npm install
   )
   git -C "$_SCRATCH_DIR" init -q
-  git -C "$_SCRATCH_DIR" config user.email "scratch@local"
-  git -C "$_SCRATCH_DIR" config user.name "scratch"
+  # NO local git identity: commits take GIT_AUTHOR_*/GIT_COMMITTER_* from the
+  # environment (.env / .env.vm set "Opencode Agent" with no email) — a local
+  # user.name/user.email here would override those env vars.
   git -C "$_SCRATCH_DIR" add -A
   git -C "$_SCRATCH_DIR" commit -q -m "scratch baseline"
 }
@@ -358,17 +356,25 @@ mergescratch() {
   # Deploy scratch/ into main/ (rsync --delete; same excludes + .env so main's env
   # is never overwritten). Does NOT commit — committing is a separate step the
   # user does later. In dev, runserver auto-reloads main/ so the change is live.
+  # On the test VM there is no auto-restart (decision: no restart rule): static
+  # is refreshed (collectstatic, live immediately) and the restart command is
+  # printed for the operator/agent to run via console's sudo.
   [ -d "$_SCRATCH_DIR" ] || { echo "Refusing: $_SCRATCH_DIR not found. Run createscratch first." >&2; return 1; }
   echo "Deploying $_SCRATCH_DIR/ → $_MAIN_DIR/ (--delete, excluding .env + generated dirs)…"
   rsync -a --delete "${_SCRATCH_EXCLUDES[@]}" --exclude='.env' "$_SCRATCH_DIR/" "$_MAIN_DIR/"
+  if [ -f /etc/credentials/app/.env.vm ]; then
+    echo "VM detected: collectstatic (static live immediately)…"
+    ( cd "$_MAIN_DIR" && .venv/bin/python manage.py collectstatic --noinput --clear )
+    echo "Code changes need a restart: sudo systemctl restart app_granian app_huey"
+  fi
   echo "Deployed scratch/ → main/ (uncommitted). Commit in main/ when ready."
 }
 
 cleanscratch() {
   # Remove scratch/ outright (discard the scratch tree). Portable: uses
-  # _SCRATCH_DIR (parent/scratch), so the agent calls `main/run cleanscratch`
-  # without computing an absolute path — an absolute `rm -rf /…/scratch` isn't
-  # allowlisted and prompts.
+  # _SCRATCH_DIR (../scratch relative to this script), so the agent calls
+  # `./run cleanscratch` from the repo without computing an absolute path —
+  # an absolute `rm -rf /…/scratch` isn't allowlisted and prompts.
   if [ -d "$_SCRATCH_DIR" ]; then
     rm -rf "$_SCRATCH_DIR"
     echo "Removed $_SCRATCH_DIR."

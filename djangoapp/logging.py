@@ -10,7 +10,7 @@ the stream can be sliced with jq::
 Per-request fields (``method``, ``path``, ``user_public_id``, ``username``)
 are bound into contextvars by
 ``LoggingContextMiddleware`` and merged into every record. Because Django and its
-ecosystem (``django.request``/``django.security``, allauth, httpx, ninja, ...)
+ecosystem (``django.request``/``django.security``, allauth, ninja, ...)
 emit through stdlib ``logging``, those records flow through the same
 ``ProcessorFormatter`` and come out as the same JSON shape as our own structlog
 loggers — one uniform stream, no bridge quirks.

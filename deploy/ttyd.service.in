@@ -1,0 +1,55 @@
+[Unit]
+Description=console ttyd (web terminal)
+After=network.target
+
+[Service]
+# The powerful console user: the terminal it serves is where the operator
+# (and the opencode agent, run BY the operator inside this terminal) works.
+# console has full NOPASSWD sudo (see /etc/sudoers.d/console), so the agent
+# can restart services / read journals from in here.
+User=console
+Group=console
+
+# cwd = main/ (the repo): shells land among the files and `./run agent`
+# works from the prompt; the rcfile chains the user's bashrc + the shared
+# banner (deploy/console-bashrc, same file as dev). -W: clients write to
+# the TTY (required for TUIs). Loopback only — caddy is the sole front.
+# The start command is REQUIRED: bare ttyd spawns exit-254 per WS
+# connection and the browser reconnect-loops forever (observed).
+ExecStart=/usr/bin/ttyd -W -i 127.0.0.1 -p 7681 -w /srv/app/main -- /bin/bash --rcfile /srv/app/main/deploy/console-bashrc
+
+# The single shared env file (root .env.vm staged by provisioning): ttyd
+# passes its environment to every shell (and to opencode launched inside) —
+# OPENCODE_AUTH_CONTENT / OPENCODE_MODEL / OPENCODE_PROVIDER (the agent
+# authenticates with NO auth.json file) + the GIT_AUTHOR_*/GIT_COMMITTER_*
+# identity (agent commits as "Opencode Agent", no email).
+EnvironmentFile=/etc/credentials/app/.env.vm
+
+# Point the opencode CLI (when launched in the terminal) at the repo's
+# agentconfig/ tool-permission rules.
+Environment=OPENCODE_CONFIG_DIR=/srv/app/main/agentconfig
+Environment=OPENCODE_CONFIG=/srv/app/main/agentconfig/opencode.json
+
+Restart=always
+RestartSec=3
+
+# Hardening.
+NoNewPrivileges=yes
+ProtectSystem=strict
+# read-only /home so the spawned shell can read ~/.bashrc / ~/.profile;
+# writables are the app tree (scratch edits, opencode state) + the home.
+ProtectHome=read-only
+ReadWritePaths=/srv/app /home/console
+PrivateTmp=yes
+
+# commented out
+# MemoryMax 512M: the opencode TUI (bun runtime) needs FAR more than a
+# shell — at 96M the cgroup never OOM-kills, it just reclaims/thrashes
+# forever and the TUI stalls on its loading screen (root cause of the
+# long-standing "agent not launching in the web console" bug; peak usage
+# with the TUI alive reaches the cap, mostly page cache). Still bounds a
+# runaway console process on the 1G VM.
+#MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

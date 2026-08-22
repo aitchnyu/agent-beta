@@ -29,10 +29,10 @@ const sanitizedHtml = computed(() => {
   return sanitizeHtml(source)
 })
 
-// `.opencode-mockup` holds view-only Bootstrap markup: strip every link/form
+// `.rich-mockup` holds view-only Bootstrap markup: strip every link/form
 // action and disable all controls so the preview can't navigate or submit.
 function neuterMockups(el: HTMLElement) {
-  for (const box of el.querySelectorAll<HTMLElement>(".opencode-mockup")) {
+  for (const box of el.querySelectorAll<HTMLElement>(".rich-mockup")) {
     box.querySelectorAll("a").forEach((a) => a.removeAttribute("href"))
     box.querySelectorAll("form").forEach((f) => f.removeAttribute("action"))
     box
@@ -41,16 +41,16 @@ function neuterMockups(el: HTMLElement) {
   }
 }
 
-// `.opencode-diagram` holds raw Mermaid source; render it to SVG lazily. Mark
+// `.rich-diagram` holds raw Mermaid source; render it to SVG lazily. Mark
 // the node so a re-run over the same DOM (onUpdated) doesn't kick off a second
 // render; Vue replaces innerHTML wholesale on each change, so new content is
 // always fresh and gets rendered once.
 function renderDiagrams(el: HTMLElement) {
-  for (const node of el.querySelectorAll<HTMLElement>(".opencode-diagram")) {
-    if (node.dataset.opencodeRendered) continue
+  for (const node of el.querySelectorAll<HTMLElement>(".rich-diagram")) {
+    if (node.dataset.richRendered) continue
     const source = (node.textContent ?? "").trim()
     if (!source) continue
-    node.dataset.opencodeRendered = "1"
+    node.dataset.richRendered = "1"
     renderDiagram(source)
       .then((svg) => {
         node.innerHTML = svg
@@ -58,7 +58,7 @@ function renderDiagrams(el: HTMLElement) {
       .catch(() => {
         // Leave the raw source visible (it already reads as plain text) and flag
         // the failure so the stylesheet can deemphasize it.
-        node.classList.add("opencode-diagram-error")
+        node.classList.add("rich-diagram-error")
       })
   }
 }

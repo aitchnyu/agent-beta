@@ -1,0 +1,254 @@
+#!/bin/bash
+# testvm — host-side driver for the test VM (multipass). The repo ships to
+# the VM via the seed tarball; machine phases live in deploy/inside-vm.sh.
+#
+# Usage: ./testvm provision [--release 26.04|24.04]
+#        ./testvm delete
+#
+# provision BUILDS a fresh VM (refuses if the instance exists — delete,
+# then rebuild): /srv/app/{main,scratch}, units app_granian/app_huey/
+# console_ttyd, caddy at https://app.local/ (ttyd terminal at /agent/),
+# postgres + redis. ALL config comes from the root .env.vm, validated
+# FAIL-HARD here before anything ships.
+#
+# delete is destructive with no backup: the VM's `.git` and database are
+# gone — copy anything you need off first (tar via multipass transfer,
+# pg_dump via multipass exec).
+#
+# Never touches the host's ssh config: use `multipass shell app` or your
+# own alias. Plan + manifest: prompts/20260818-vm-provisioning-multipass.md.
+
+# ── The file tree provisioning writes on the VM ──────────────────────────
+# Built LOCALLY in $t/tree (mirroring absolute VM paths), shipped as ONE
+# tarball, extracted at / by inside-vm.sh provision_app. Every leaf is
+# tagged `tree: <path>` at its build line here and at its consumption site
+# in inside-vm.sh — searchable both directions. Stock configs that need
+# mutation (redis, caddy) are FETCHED from the VM after its packages
+# install, then appended to locally. System phases (users, apt, postgres,
+# ufw, swap) stay in deploy/inside-vm.sh. The repo seed + first commit
+# (/srv/app/main) land AFTER the tree.
+#
+#   /
+#   └── etc/
+#       ├── credentials/app/
+#       │   └── .env.vm                  shared env — every unit's EnvironmentFile
+#       ├── systemd/system/
+#       │   ├── app_granian.service
+#       │   ├── app_huey.service         only when HUEY_WORKERS > 0
+#       │   └── console_ttyd.service
+#       ├── caddy/
+#       │   ├── Caddyfile                stock + "import sites/*.caddy"
+#       │   └── sites/app.caddy          the app.local site (app + /agent/)
+#       ├── redis/redis.conf             stock + maxmemory block
+#       └── sudoers.d/console            console's full passwordless sudo
+#   /
+#   └── srv/app/main/deploy/
+#       └── console-bashrc               console banner rcfile (seed excludes deploy/)
+#   /
+#   └── tmp/
+#       ├── vm-seed-commit.sh            one-shot: git init + first commit (run as app)
+#       └── vm-bootstrap.sh              one-shot: uv sync, build, migrate, collectstatic
+
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # repo root (main/)
+deploy_dir="$here/deploy"
+t="/tmp/provision-vm-app"
+
+usage() {
+  echo "Usage: $0 {provision|delete}" >&2
+  [[ -n "${1:-}" ]] && echo "  $1" >&2
+  exit 1
+}
+
+# Read a KEY="value" from the root .env.vm (first match wins; missing →
+# empty — the `|| true` keeps set -e/pipefail from aborting BEFORE the
+# friendly refusal paths that consume missing keys).
+envval() {
+  { grep -E "^$1=" "$here/.env.vm" | head -1 | cut -d= -f2- | tr -d '"'; } || true
+}
+
+provision() {
+  local release="26.04"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --release) release="$2"; shift 2 ;;
+      *) usage "unknown flag: $1" ;;
+    esac
+  done
+
+  if ! command -v multipass >/dev/null 2>&1; then
+    echo "multipass not found — install it first (https://multipass.run)" >&2
+    exit 1
+  fi
+
+  # Root .env.vm is required (secrets + knobs).
+  [[ -f "$here/.env.vm" ]] || {
+    echo ".env.vm not found — cp .env.vm.example .env.vm and fill it in first." >&2
+    exit 1
+  }
+
+  # ── fail-hard validation of .env.vm (host-side, before anything ships) ──
+  # ANY value still carrying the DANGEROUSLYUNSET sentinel refuses the
+  # build — scanned generically over every KEY=value line, because the set
+  # of env vars isn't fixed (new keys must inherit the tripwire for free).
+  local sentinel_lines
+  sentinel_lines="$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=.*DANGEROUSLYUNSET' "$here/.env.vm" || true)"
+  if [[ -n "$sentinel_lines" ]]; then
+    echo "REFUSING: these .env.vm values are still DANGEROUSLYUNSET — fill them in (secrets: openssl rand -hex 32):" >&2
+    printf '%s\n' "$sentinel_lines" >&2
+    exit 1
+  fi
+
+  # Worker knobs (baked into the units at render). No defaults.
+  local granian_workers granian_threads huey_workers
+  granian_workers="$(envval GRANIAN_WORKERS)"
+  granian_threads="$(envval GRANIAN_THREADS)"
+  huey_workers="$(envval HUEY_WORKERS)"
+  if [[ -z "$granian_workers" || -z "$granian_threads" || -z "$huey_workers" ]]; then
+    echo "REFUSING: GRANIAN_WORKERS/GRANIAN_THREADS/HUEY_WORKERS must be set explicitly in .env.vm (0 disables huey)." >&2
+    exit 1
+  fi
+  # Knobs are baked into unit files via sed and arithmetic — digits only
+  # (a `/` or `&` would corrupt the render; junk would silently skip huey).
+  local knob
+  for knob in "$granian_workers" "$granian_threads" "$huey_workers"; do
+    if [[ ! "$knob" =~ ^[0-9]+$ ]]; then
+      echo "REFUSING: worker knobs must be non-negative integers in .env.vm (got: '$knob')." >&2
+      exit 1
+    fi
+  done
+  if ! grep -qE '^ALLOWED_HOSTS=.*app\.local' "$here/.env.vm"; then
+    echo "WARNING: ALLOWED_HOSTS in .env.vm does not include app.local — Django will reject requests!" >&2
+  fi
+
+  # ── 1. launch the instance (refuse if it exists — build only) ────────────
+  if multipass info app >/dev/null 2>&1; then
+    echo "REFUSING: instance 'app' already exists — provisioning builds only." >&2
+    echo "  ./testvm delete && ./testvm provision  # to rebuild" >&2
+    exit 1
+  fi
+  # en0 = the primary (bridged) interface on a macOS host — the locked deploy
+  # target. On another host OS, substitute its bridged interface name.
+  echo "==> multipass launch app (bridged en0, DHCP, 1G ram, 20G disk, $release)"
+  multipass launch --name app --network en0 --memory 1G --disk 20G "$release"
+
+  # ── 2. machine phases inside (users, apt, node, opencode, caddy, swap…) ──
+  multipass transfer "$deploy_dir/inside-vm.sh" app:/tmp/inside-vm.sh
+  multipass exec app -- sudo bash /tmp/inside-vm.sh provision_vm
+
+  # ── 3. build the file tree locally (see the tree comment up top) ─────────
+  rm -rf "$t"; mkdir -p "$t"
+
+  # Stock configs to mutate: fetch them from the freshly installed VM.
+  multipass exec app -- sudo cat /etc/redis/redis.conf > "$t/redis.conf"
+  multipass exec app -- sudo cat /etc/caddy/Caddyfile > "$t/Caddyfile"
+
+  echo "==> build the provisioned tree in $t/tree"
+  local tree="$t/tree"
+  mkdir -p "$tree/etc/credentials/app" \
+    "$tree/etc/systemd/system" \
+    "$tree/etc/caddy/sites" "$tree/etc/redis" "$tree/etc/sudoers.d" \
+    "$tree/srv/app/main/deploy"
+  render() {
+    sed -e "s/@GRANIAN_WORKERS@/$granian_workers/g" \
+        -e "s/@GRANIAN_THREADS@/$granian_threads/g" \
+        -e "s/@HUEY_WORKERS@/$huey_workers/g" "$1"
+  }
+
+  # tree: /etc/credentials/app/.env.vm
+  install -m640 "$here/.env.vm" "$tree/etc/credentials/app/.env.vm"
+  chmod 750 "$tree/etc/credentials/app"
+
+  # tree: /etc/systemd/system/app_granian.service
+  render "$deploy_dir/granian.service.in" > "$tree/etc/systemd/system/app_granian.service"
+  # tree: /etc/systemd/system/console_ttyd.service
+  render "$deploy_dir/ttyd.service.in" > "$tree/etc/systemd/system/console_ttyd.service"
+  # tree: /etc/systemd/system/app_huey.service (HUEY_WORKERS > 0 only)
+  if (( huey_workers > 0 )); then
+    render "$deploy_dir/huey.service.in" > "$tree/etc/systemd/system/app_huey.service"
+  fi
+
+  # tree: /etc/caddy/Caddyfile — stock + the sites import (one line).
+  printf '\nimport sites/*.caddy\n' >> "$t/Caddyfile"
+  install -m644 "$t/Caddyfile" "$tree/etc/caddy/Caddyfile"
+  # tree: /etc/caddy/sites/app.caddy
+  render "$deploy_dir/Caddyfile.site.in" > "$tree/etc/caddy/sites/app.caddy"
+
+  # tree: /etc/redis/redis.conf — stock + the maxmemory block.
+  cat "$deploy_dir/redis-append.conf" >> "$t/redis.conf"
+  install -m644 "$t/redis.conf" "$tree/etc/redis/redis.conf"
+
+  # tree: /etc/sudoers.d/console
+  printf 'console ALL=(ALL) NOPASSWD: ALL\n' > "$tree/etc/sudoers.d/console"
+  chmod 0440 "$tree/etc/sudoers.d/console"
+
+  # tree: /srv/app/main/deploy/console-bashrc
+  install -m644 "$deploy_dir/console-bashrc" "$tree/srv/app/main/deploy/console-bashrc"
+
+  # tree: /tmp/vm-seed-commit.sh + /tmp/vm-bootstrap.sh — one-shot scripts
+  # this driver invokes below (single-line execs instead of inline bash -c).
+  mkdir -p "$tree/tmp"
+  install -m755 "$deploy_dir/vm-seed-commit.sh" "$tree/tmp/vm-seed-commit.sh"
+  install -m755 "$deploy_dir/vm-bootstrap.sh" "$tree/tmp/vm-bootstrap.sh"
+
+  # Ship the whole tree as ONE tarball (ownership is fixed inside after
+  # extraction — the host can't know VM gids).
+  tar czf "$t/tree.tgz" -C "$tree" .
+  multipass transfer "$t/tree.tgz" app:/tmp/tree.tgz
+
+  # ── 4. app phases inside (extract tree, postgres, enable, caddy) ─────────
+  multipass exec app -- sudo bash /tmp/inside-vm.sh provision_app
+
+  # ── 5. seed the repo ─────────────────────────────────────────────────────
+  echo "==> seed /srv/app/main (tarball over multipass transfer, from $here)"
+  multipass exec app -- sudo install -d -o app -g app /srv/app/main
+  tar czf /tmp/app-seed.tgz -C "$here" \
+    --exclude='.git' --exclude='.venv' --exclude='node_modules' \
+    --exclude='__pycache__' --exclude='.mypy_cache' --exclude='.ruff_cache' \
+    --exclude='staticfiles' --exclude='scratch' --exclude='.env' --exclude='.env.vm' \
+    --exclude='deploy' --exclude='.playwright-mcp' --exclude='.kilo' \
+    --exclude='.DS_Store' --exclude='db.sqlite3' .
+  multipass transfer /tmp/app-seed.tgz app:/tmp/app-seed.tgz
+  multipass exec app -- sudo bash -c \
+    "tar xzf /tmp/app-seed.tgz -C /srv/app/main && chown -R app:app /srv/app/main"
+
+  # main/ is its OWN repo (the seed ships no .git; the parent /srv/app is
+  # NOT a repo — the agent uses external_directory for scratch/). The
+  # script makes the first commit marking the provisioned baseline.
+  echo "==> git init + first commit in /srv/app/main"
+  multipass exec app -- sudo -u app -H bash /tmp/vm-seed-commit.sh
+
+  # ── 6. bootstrap the app as app (env via the credentials file) ───────────
+  echo "==> bootstrap (uv sync, npm build, migrate, collectstatic)"
+  multipass exec app -- sudo -u app -H bash /tmp/vm-bootstrap.sh
+
+  echo "==> start services"
+  # Huey only when its unit exists (HUEY_WORKERS=0 skips it in the tree).
+  local huey_exists
+  huey_exists=$(multipass exec app -- sudo sh -c \
+    "[ -f /etc/systemd/system/app_huey.service ] && echo yes || echo no")
+  local restart_units=("app_granian.service" "console_ttyd.service")
+  [[ "$huey_exists" == "yes" ]] && restart_units+=("app_huey.service")
+  multipass exec app -- sudo systemctl restart "${restart_units[@]}"
+  multipass exec app -- sudo systemctl restart caddy
+
+  # ── 7. print the access steps ────────────────────────────────────────────
+  cat "$deploy_dir/access-steps.txt"
+  rm -rf "$t"
+}
+
+delete() {
+  multipass delete app
+  multipass purge
+  echo "Deleted VM 'app'. Recreate: ./testvm provision (fresh seed from the local repo)."
+}
+
+# Check if function exists and call it with all arguments except $1
+cmd="${1:-}"
+if [[ -n "$cmd" ]] && declare -F "$cmd" >/dev/null; then
+  shift
+  "$cmd" "$@"
+else
+  usage
+fi

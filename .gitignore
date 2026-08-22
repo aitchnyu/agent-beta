@@ -1,5 +1,7 @@
 .venv
+# Filled env files (from .env.example / .env.vm.example); never commit secrets.
 .env
+.env.vm
 *.pyc
 db.sqlite3
 .DS_Store

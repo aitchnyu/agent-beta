@@ -1,0 +1,30 @@
+[Unit]
+Description=app huey consumer
+After=network.target postgresql.service redis-server.service
+
+[Service]
+# The less powerful app user (same as app_granian).
+User=app
+Group=app
+WorkingDirectory=/srv/app/main
+
+# Worker count baked at build time from .env.vm (HUEY_WORKERS; 0 means this
+# unit is not rendered/enabled at all).
+ExecStart=/srv/app/main/.venv/bin/python manage.py run_huey -w @HUEY_WORKERS@
+
+# The single shared env file (root .env.vm staged by provisioning).
+EnvironmentFile=/etc/credentials/app/.env.vm
+
+Restart=always
+RestartSec=3
+
+# Hardening.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/srv/app
+PrivateTmp=yes
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

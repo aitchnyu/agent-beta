@@ -1,0 +1,22 @@
+# console-bashrc — sourced by console shells in BOTH dev and the VM.
+# ttyd spawns an interactive NON-login bash; `--rcfile` REPLACES ~/.bashrc,
+# so chain to the user's own bashrc first (prompt, aliases), then print the
+# shared banner. Generic by decision: no machine-specific URLs or hosts.
+# Kept in deploy/ and staged/installed by provisioning like every other
+# template — one file is the single source for both machines.
+
+# Normal bashrc chain: the user's own, else the distro skel (macOS has
+# neither — bash defaults apply).
+if [[ -f "$HOME/.bashrc" && "$HOME/.bashrc" != "${BASH_SOURCE[0]}" ]]; then
+  # shellcheck disable=SC1091
+  . "$HOME/.bashrc"
+elif [[ -f /etc/skel/.bashrc ]]; then
+  # shellcheck disable=SC1091
+  . /etc/skel/.bashrc
+fi
+
+echo ""
+echo "App console — shells land in the repo."
+echo "  ./run agent   start the AI agent (opencode TUI)"
+echo "  ./run dev     runserver + vite + huey + this console"
+echo ""

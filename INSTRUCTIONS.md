@@ -1,5 +1,12 @@
 Use README.md as basic reference.
 
+## Environment files
+All env config lives in root `.env` (dev) and `.env.vm` (test VM), copied
+from the matched `.env.example` / `.env.vm.example` templates. If you find a
+LEGACY `deploy/env.vm` or `.env_vm` file, RENAME it to root `.env.vm` before
+provisioning. `SECRET_KEY` / `DB_PASSWORD` must never stay `DANGEROUSLYUNSET`
+— generate values with `openssl rand -hex 32`.
+
 Do not run commands like:
 ```bash
 python3 << 'EOF'
@@ -16,7 +23,7 @@ Do not run `rm` or `ls` in bash. Use the tool calls.
 Do not use curl to read urls. Use browser tool call.
 
 ## aihere
-If I mention `aihere`, grep for `aihere` in whole codebase except `.idea` dir, copy all of them into some todo list. The comments are instructions to modify the codebase. If you have lines with aihere in context and I mention aihere again, look at the new instances. Never remove the comments before addressing them. If you are not implementing them, write them down in existing md file.
+If I mention `aihere`, grep for `aihere` in whole codebase except `.idea` or prevproject dir, copy all of them into some todo list. They may not be comments — a marker can sit on any line of any file (code, strings, docs); treat the line it's on (plus its surroundings) as the instruction. The comments are instructions to modify the codebase. If you have lines with aihere in context and I mention aihere again, look at the new instances. Never remove the comments before addressing them. If you are not implementing them, write them down in existing md file.
 
 ## Prompts
 They are present in `prompts/` directory and have a filename format of `yyyymmdd-slug-slug.md`.
@@ -170,10 +177,12 @@ After changing TS/frontend code, run these in order:
 4. Final check: `./run checkall` (this checks backend and then frontend)
 
 Playwright tests are at: `./run playwrighttest`  
-Note that if you run `./run playwrighttest --keepdb djangoapp.tests.playwright.test_playwright.HookComponentE2eTestCase` it will still run entire test suite. Run the individual commands defined in `playwrighttest` function if you want to run an individual test.
+Note that `playwrighttest` takes no arguments — extra flags/module labels are ignored and the full tagged suite runs. To run one module (test_users, test_files, test_git, test_client_errors under `djangoapp/tests/playwright/`), invoke the underlying command directly with the label:
+
+    uv run manage.py test --tag playwright --noinput djangoapp.tests.playwright.test_users
 
 ### Playwright
-When you encounter Playwright tests failing, consider that a showstopper. Refer [this](docs/playwright-debugging.md) to isolate one failing test (it will be time consuming to run full test suite) and diagnose it.
+When you encounter Playwright tests failing, consider that a showstopper. Isolate one failing module with the direct command above (it will be time consuming to run the full suite) and diagnose it.
 
 Dont change any timeout settings for Playwright tests. Everything is expected to run before timeout. I dont want any statement like `timeout=5000` in my tests. 
 Use only `page.wait_for_url` or `page.wait_for_selector` for Playwright tests except to debug stuff. Add classes to the html elements to facilitate this. page.wait_for_event, page.wait_for_timeout, page.wait_for_function, page.wait_for_load_state will lead to fragile, hard to understand tests. Do not use them except temporarily.
