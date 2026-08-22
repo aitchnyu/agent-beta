@@ -17,6 +17,7 @@ JSON body by the registered error handlers). Mounted in :mod:`djangoapp.urls`.
 from __future__ import annotations
 
 import mimetypes
+import os  # noqa: TC003 # runtime annotation `os.stat_result` IS evaluated (NameError at /files/… when TYPE_CHECKING-only)
 import stat
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
@@ -32,7 +33,6 @@ from djangoapp.ninja_api import make_ninja_api
 from djangoapp.views import require_superuser
 
 if TYPE_CHECKING:
-    import os
     from typing import IO
 
 _REPO_ROOT = Path(str(settings.BASE_DIR)).resolve().parent

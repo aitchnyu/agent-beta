@@ -11,11 +11,13 @@ import os
 from pathlib import Path
 
 from django.utils.csp import CSP
-from dotenv import load_dotenv
 
 from djangoapp.logging import configure_logging, json_formatter
 
-load_dotenv(override=True)
+# Environment comes from the caller, not python-dotenv: dev processes are
+# launched via ./run (which shell-sources .env: `set -a; . ./.env; set +a`),
+# and on the VM every systemd unit carries
+# EnvironmentFile=/etc/credentials/<appname>/.env.vm.
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -24,9 +26,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-SECRET_KEY = os.environ["SECRET_KEY"]
+_UNSET = "DANGEROUSLYUNSET"
+
+SECRET_KEY = os.environ.get("SECRET_KEY", _UNSET)
 
 DEBUG = os.environ["DEBUG"] == "True"
+
+if SECRET_KEY == _UNSET:
+    msg = (
+        "SECRET_KEY is DANGEROUSLYUNSET — generate one with `openssl rand -hex 32`"
+        " and put it in .env (dev) / .env.vm (VM)."
+    )
+    raise RuntimeError(msg)
 
 if not DEBUG and SECRET_KEY == "fake":  # noqa: S105
     msg = "Do not use `fake` secret key in production"
@@ -38,6 +49,11 @@ configure_logging()
 
 # Convert comma-separated string to list
 ALLOWED_HOSTS = [host.strip() for host in os.environ["ALLOWED_HOSTS"].split(",") if host.strip()]
+
+# The ttyd web-terminal URL — drives the superuser-only "Console" nav link
+# (shared prop `console_url`). Dev: http://localhost:7681 (./run dev runs
+# ttyd). VM: https://app.local/agent. Empty hides the link.
+CONSOLE_URL = os.environ.get("CONSOLE_URL", "")
 
 
 # Application definition
@@ -112,11 +128,18 @@ DATABASES = {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": os.environ["DB_NAME"],
         "USER": os.environ["DB_USER"],
-        "PASSWORD": os.environ["DB_PASSWORD"],
+        "PASSWORD": os.environ.get("DB_PASSWORD", _UNSET),
         "HOST": os.environ["DB_HOST"],
         "PORT": os.environ["DB_PORT"],
-    },
+    }
 }
+
+if DATABASES["default"]["PASSWORD"] == _UNSET:
+    msg = (
+        "DB_PASSWORD is DANGEROUSLYUNSET — generate one with `openssl rand -hex 32`"
+        " and put it in .env (dev) / .env.vm (VM)."
+    )
+    raise RuntimeError(msg)
 
 
 # Password validation
@@ -154,6 +177,18 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = "static/"
+
+# Where `collectstatic` gathers files for the serving layer (granian mounts
+# this at /static on the test VM — Django serves nothing under /static when
+# DEBUG=False). Unused in dev (runserver serves app static dirs directly).
+STATIC_ROOT = Path(os.environ.get("STATIC_ROOT") or (BASE_DIR / "staticfiles"))
+
+# Origins trusted for secure POSTs, DERIVED from ALLOWED_HOSTS (no env knob):
+# the app is always reached over HTTPS at its allowed hosts — behind caddy on
+# the VM (https://app1.<ip>.sslip.io), plain runserver in dev (where the
+# https://localhost origins are simply unused). ALLOWED_HOSTS validates the
+# Host header; this gates the CSRF Origin/Referer match, which needs scheme.
+CSRF_TRUSTED_ORIGINS = [f"https://{host}" for host in ALLOWED_HOSTS]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field

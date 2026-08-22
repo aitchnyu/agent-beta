@@ -8,6 +8,7 @@ dependencies = [
     "django-allauth[socialaccount]>=65.11.2", # OAuth and social login
     "django-ninja>=1.6.2", # API scaffolding
     "gitpython>=3.1", # /git viewer reads the project repo
+    "granian>=2.5", # Rust ASGI server (VM prod serving; see deploy/)
     "httpx>=0.28", # talks to the local opencode daemon
     "huey>=2.5", # Redis-backed background tasks + cron (RedisHuey via the existing redis dep)
     "inertia-django>=2.0.0", # Inertia.js backend (v3 protocol)
@@ -15,7 +16,6 @@ dependencies = [
     "psycopg2-binary>=2.9.10", # Postgres driver
     "pydantic>=2.11.10",
     "python-dateutil>=2.9.0.post0",
-    "python-dotenv>=1.2.1",
     "structlog>=26.1",
     "redis>=5.0",
     "types-python-dateutil>=2.9.0.20260124",
@@ -31,7 +31,12 @@ dev = [
 ]
 
 [tool.uv]
-exclude-newer = "7 days"
+# NOTE: the requested relative `exclude-newer = "P7D"` is currently
+# unsatisfiable — inertia-django 2.0.0 was published inside the last 7 days,
+# and exclude-newer EXCLUDES anything newer than the cutoff (a longer span
+# makes it worse). Once 2.0.0 is older than 7 days, flip this back to "P7D".
+# Until then: absolute cutoff = today, i.e. everything published as of now.
+exclude-newer = "2026-08-21T00:00:00Z"
 
 [tool.ruff]
 # Explicit (not .gitignore-based) so the same config works in a gitless scratch/

@@ -6,20 +6,31 @@ type ToastIcon = "success" | "error" | "warning" | "info" | "question"
 // chunk and out of the host bundle. Each helper fire-and-forgets after load.
 type SwalDefault = (typeof import("sweetalert2"))["default"]
 type SweetAlertToast = ReturnType<SwalDefault["mixin"]>
-let toastPromise: Promise<SweetAlertToast> | null = null
+let toastPromise: Promise<SweetAlertToast | null> | null = null
 
-async function loadToast(): Promise<SweetAlertToast> {
+async function loadToast(): Promise<SweetAlertToast | null> {
   if (!toastPromise) {
-    toastPromise = (async () => {
-      const mod = await import("sweetalert2")
-      return mod.default.mixin({
-        toast: true,
-        position: "bottom",
-        showConfirmButton: false,
-        timer: 3000,
-        timerProgressBar: true,
+    toastPromise = import("sweetalert2")
+      .then((mod) =>
+        mod.default.mixin({
+          toast: true,
+          position: "bottom",
+          showConfirmButton: false,
+          timer: 3000,
+          timerProgressBar: true,
+        }),
+      )
+      .catch((err: unknown) => {
+        // The toast chunk is a network fetch — it fails exactly when the app
+        // is already struggling (broken dev server, offline network), i.e.
+        // precisely when an error wants a toast. Swallow the failure (and
+        // drop the cache so a later call may retry) — a rejecting loadToast
+        // would turn every global error handler into an unhandled rejection
+        // and close the infinite error → toast-fail → error loop.
+        console.error("toast module failed to load:", err)
+        toastPromise = null
+        return null
       })
-    })()
   }
   return toastPromise
 }
@@ -29,7 +40,14 @@ export const showToast = async (
   title: string,
 ): Promise<void> => {
   const toast = await loadToast()
-  await toast.fire({ icon, title })
+  if (!toast) return
+  try {
+    await toast.fire({ icon, title })
+  } catch (err) {
+    // sweetalert2 itself may throw (broken DOM state) — never propagate.
+    // TODO alert the user?
+    console.error("toast fire failed:", err)
+  }
 }
 
 export const showErrorToast = async (
@@ -47,7 +65,14 @@ export const showErrorToast = async (
     detail = "Check your internet connection and try again."
   }
   const toast = await loadToast()
-  await toast.fire({ icon: "error", title, text: detail || undefined })
+  if (!toast) return
+  try {
+    await toast.fire({ icon: "error", title, text: detail || undefined })
+  } catch (err) {
+    // See showToast — the toast layer must never reject.
+    // TODO alert the user?
+    console.error("toast fire failed:", err)
+  }
 }
 
 /**

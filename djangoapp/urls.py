@@ -1,11 +1,10 @@
 from django.urls import include, path
 
-from djangoapp.views import login_for_test
+from djangoapp.views import login_for_test, login_for_test_by_key
 from djangoapp.views.client_errors import client_errors_api
 from djangoapp.views.files import files_api
 from djangoapp.views.git import git_api
 from djangoapp.views.manage import manage_api
-from djangoapp.views.opencode import opencode_api, opencode_page
 from djangoapp.views.users import users_api
 
 urlpatterns = [
@@ -13,14 +12,14 @@ urlpatterns = [
     # django-ninja API also registers a `default_home` at "" that raises 404, so
     # the app's home route must be tried before the framework NinjaAPIs. The app
     # has no framework-prefixed routes, so it never shadows /users, /manage,
-    # /agent, /files, /git (those fall through past it).
+    # /files, /git (those fall through past it).
+    # /agent is served under Caddy in vm
     path("", include("ourapp.urls")),
     path("", client_errors_api.urls),  # Frontend error capture sink
     path("", users_api.urls),
     path("", manage_api.urls),
     path("", git_api.urls),
     path("", files_api.urls),
-    path("agent/", opencode_page, name="opencode"),
-    path("agent/api/", opencode_api.urls),
     path("login-for-test/<int:userid>", login_for_test, name="login-for-test"),
+    path("login-for-test/by-key/<str:key>/", login_for_test_by_key, name="login-for-test-by-key"),
 ]

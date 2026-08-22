@@ -15,6 +15,29 @@ import "vue-multiselect/dist/vue-multiselect.css"
 import "quill/dist/quill.snow.css"
 import "highlight.js/styles/github.css"
 
+// Re-entrancy latch for the error pipeline: reporting and toasting are
+// themselves fallible (the toast chunk is a network fetch), so without this
+// guard a pipeline failure becomes an unhandled rejection → error → …
+// infinite loop. Cleared when the in-flight pipeline settles; errors raised
+// while busy are dropped, a pipeline's own failure is logged only.
+let errorPipelineBusy = false
+async function runErrorPipeline(
+  run: () => Promise<void> | void,
+): Promise<void> {
+  if (errorPipelineBusy) return
+  errorPipelineBusy = true
+  try {
+    await run()
+  } catch (pipelineErr: unknown) {
+    console.error(
+      "error pipeline itself failed:",
+      pipelineErr instanceof Error ? pipelineErr.stack : pipelineErr,
+    )
+  } finally {
+    errorPipelineBusy = false
+  }
+}
+
 // Global safety net: surface errors that escape component try/catch as toasts,
 // AND ship them to the backend (POST /client-errors) with the source location,
 // page url and reporter identity. Vue-caught errors go to app.config.errorHandler
@@ -26,8 +49,10 @@ window.addEventListener("error", (event: ErrorEvent) => {
   console.error("window error:", err?.stack ?? err ?? event.message)
   // reportErrorEvent returns false for resource-load failures (broken
   // <img>/<script>) — those aren't JS errors, so skip the user-facing toast too.
-  if (!reportErrorEvent(event)) return
-  showErrorToast(err ?? event.message, "Something went wrong")
+  runErrorPipeline(() => {
+    if (!reportErrorEvent(event)) return
+    return showErrorToast(err ?? event.message, "Something went wrong")
+  })
 })
 window.addEventListener(
   "unhandledrejection",
@@ -37,8 +62,10 @@ window.addEventListener(
       "unhandled rejection:",
       reason?.stack ?? reason?.message ?? reason,
     )
-    reportRejection(event)
-    showErrorToast(reason, "Something went wrong")
+    runErrorPipeline(() => {
+      reportRejection(event)
+      return showErrorToast(reason, "Something went wrong")
+    })
   },
 )
 
@@ -78,8 +105,10 @@ createInertiaApp({
     const app: VueApp = createApp({ render: () => h(App, props) })
     app.config.errorHandler = (err, _instance, info) => {
       console.error("Vue error:", err instanceof Error ? err.stack : err)
-      reportVueError(err, info)
-      showErrorToast(err, "Something went wrong")
+      runErrorPipeline(() => {
+        reportVueError(err, info)
+        return showErrorToast(err, "Something went wrong")
+      })
     }
     // Inertia v3 visit failures as toasts, closing the gap in the app's
     // "every error toasts" contract (the handlers above only catch JS/Vue
