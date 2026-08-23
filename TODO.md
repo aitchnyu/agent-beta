@@ -1,10 +1,9 @@
-postgres username and password
-Set git user, set opencode credentials
-Worker count for granian and huey config
-
 Django 6.1 fetch modes? New Mypy plugin - https://github.com/typeddjango/django-stubs
 
 Auth for ttyd
+Test ttyd security 
+Switch to Colima and Incus
+Switch to Debian for lower memory usage?
 hash links in md view dont work
 Extend playwright tests, test after building vm too
 Accelerate file serving with Caddy - have FileResponse
@@ -51,8 +50,6 @@ New agent
     lower memory usage
     subagents to review
     can specify auth secrets path
-    No more pty_shim
-    No need of .git for parent
 
 https://github.com/anomalyco/opentui/issues/1333
 

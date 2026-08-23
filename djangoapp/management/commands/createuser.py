@@ -10,7 +10,8 @@ from djangoapp.models import User
 class Command(BaseCommand):
     """Create a user by email, optionally with names and superuser flags.
 
-     ``--superuser`` grants staff + superuser at creation (audited via ``UserHistory`` like every user write)
+    ``--superuser`` grants staff + superuser at creation (audited via
+    ``UserHistory`` like every user write).
     """
 
     help = "Create a user by email (optionally --first-name/--last-name/--superuser)."

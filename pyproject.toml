@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A Django single-app template with an agent-driven edit/deploy loop"
 requires-python = ">=3.14"
 dependencies = [
-    "django>=6.0",
+    "django>=6.1,<6.2",
     "django-allauth[socialaccount]>=65.11.2", # OAuth and social login
     "django-ninja>=1.6.2", # API scaffolding
     "gitpython>=3.1", # /git viewer reads the project repo
@@ -18,13 +18,14 @@ dependencies = [
     "structlog>=26.1",
     "redis>=5.0",
     "types-python-dateutil>=2.9.0.20260124",
+    "django-stubs[compatible-mypy]>=6.1.0,<6.2",
+    "mypy>=2.3.1,<2.4",
+    "django-stubs-ext>=6.1.0,<6.2",
 ]
 
 [dependency-groups]
 dev = [
     "coverage>=7.10.7",
-    "django-stubs[compatible-mypy]>=6.0.2",
-    "mypy>=1.20",
     "playwright>=1.40",
     "ruff>=0.15.0",
 ]

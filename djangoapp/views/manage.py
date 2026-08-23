@@ -14,7 +14,7 @@ gets a 404.
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, assert_never, cast
 
 from django.apps import apps
 from django.core.paginator import Paginator
@@ -264,8 +264,9 @@ def _cell_value(kind: FieldKind, instance: models.Model, field_name: str) -> obj
         return user_profile(cast("User | None", getattr(instance, field_name)))
     if kind == FieldKind.FOREIGN_KEY:
         return _fk_value(cast("BaseModel | None", getattr(instance, field_name)))
-    msg = f"Unknown field kind: {kind}"
-    raise ValueError(msg)
+    # Exhaustiveness: if a new FieldKind member is ever added without a
+    # branch above, mypy flags this line as reachable again.
+    assert_never(kind)
 
 
 def _row_item(
