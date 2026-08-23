@@ -334,9 +334,16 @@ _new_scratch() {
     npm install
   )
   git -C "$_SCRATCH_DIR" init -q
-  # NO local git identity: commits take GIT_AUTHOR_*/GIT_COMMITTER_* from the
-  # environment (.env / .env.vm set "Opencode Agent" with no email) — a local
-  # user.name/user.email here would override those env vars.
+  # VM/CI fallback only: with no global git identity (the VM never sets
+  # one) git cannot derive an email from the .local hostname and commits
+  # would fail — seed the scratch repo with author + blank email. The
+  # agent marker still rides GIT_COMMITTER_NAME from the environment; on
+  # dev a global identity exists and is left untouched (the human authors).
+  if ! git -C "$_SCRATCH_DIR" config --get user.name >/dev/null 2>&1 \
+     && ! git config --get user.name >/dev/null 2>&1; then
+    git -C "$_SCRATCH_DIR" config user.name "$(id -un)"
+    git -C "$_SCRATCH_DIR" config user.email ""
+  fi
   git -C "$_SCRATCH_DIR" add -A
   git -C "$_SCRATCH_DIR" commit -q -m "scratch baseline"
 }

@@ -1612,3 +1612,31 @@ All 25 items implemented same day. Highlights/deviations from the plan text:
 > - Gates: ruff/mypy clean, 168 tests OK (+5); commands smoke-tested on
 >   the live VM (help output for both); old makesuperuser files removed
 >   there.
+
+> ### Follow-up 13 (2026-08-23 late): git identity reduced to ONE env var
+>
+> User: keep only GIT_COMMITTER_NAME out of the four identity vars; email
+> expected blank. The other three were LOAD-BEARING: with them gone, no
+> commit works on the VM — git cannot auto-derive an email from the
+> app.(none) hostname ("Author identity unknown" hard-fail), and a generic
+> EMAIL="" is treated as unset. Design that satisfies the ask:
+> - **Env (all files + live creds): GIT_COMMITTER_NAME="Opencode Agent"
+>   only** — the agent marker. Comments rewritten everywhere (env examples,
+>   inside-vm.sh, ttyd.service.in, run createscratch).
+> - **Author identity lives in the REPO config**: vm-seed-commit.sh sets
+>   user.name "console" + user.email "" (empty-string email is VALID via
+>   config — verified: author console <>, committer Opencode Agent <>).
+>   Dev keeps the human's own identity; run createscratch seeds a fallback
+>   ($(id -un) + blank email) ONLY when no global user.name resolves.
+> - Two pre-existing gaps this exposed, both fixed: (1) console couldn't
+>   work main/ at the FS level — seed extraction now group-writes the
+>   whole tree (find -exec chmod g+w) and the repo sets
+>   core.sharedRepository=group; (2) macOS AppleDouble ._ files rode the
+>   seed tarball into the first commit — seed now uses COPYFILE_DISABLE=1
+>   + --exclude='._*'; live VM's ._ files deleted + committed.
+> - safe.directory is BACK, scoped to /srv/app/main (system level) —
+>   console got "dubious ownership" without it (Follow-up 9 removed the
+>   parent-repo version; the need returns for the main/ repo itself).
+> - Verified live: console commits AND resets in main/ (author console <>,
+>   committer Opencode Agent <>); the sync commit itself was made through
+>   the new path.

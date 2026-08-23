@@ -41,9 +41,9 @@ provision_vm() {
   # (root:app 640) and write access to the group-writable /srv/app tree.
   # Not a power escalation: console already holds full sudo.
   usermod -aG app console
-  # Agent commit identity comes from GIT_AUTHOR_*/GIT_COMMITTER_* env vars
-  # (the shared credentials file) — a global git identity would OVERRIDE
-  # env vars, so none is ever set for the console user (who commits).
+  # The agent commit marker is the GIT_COMMITTER_NAME env var (the shared
+  # credentials file) — a global git identity would OVERRIDE env vars, so
+  # none is ever set for the console user (who commits).
 
   echo "==> [vm] apt packages"
   export DEBIAN_FRONTEND=noninteractive
@@ -217,6 +217,10 @@ SQL
   # Landed via the tree; the console_ttyd unit's --rcfile consumes it at
   # service start (the repo seed tarball excludes deploy/, so nothing
   # overwrites it when the seed extracts afterward).
+  # main/ is app-owned but the console user (agent/./run) works the repo
+  # too — git flags cross-user repos as dubious ownership regardless of
+  # groups; one system-level exception covers both users.
+  git config --system safe.directory "$appdir/main"
 
   echo "==> [app] build done (sites: app.local/ + app.local/agent/)"
 }

@@ -21,8 +21,8 @@ ExecStart=/usr/bin/ttyd -W -i 127.0.0.1 -p 7681 -w /srv/app/main -- /bin/bash --
 # The single shared env file (root .env.vm staged by provisioning): ttyd
 # passes its environment to every shell (and to opencode launched inside) —
 # OPENCODE_AUTH_CONTENT / OPENCODE_MODEL / OPENCODE_PROVIDER (the agent
-# authenticates with NO auth.json file) + the GIT_AUTHOR_*/GIT_COMMITTER_*
-# identity (agent commits as "Opencode Agent", no email).
+# authenticates with NO auth.json file) + GIT_COMMITTER_NAME (agent-made
+# commits are marked "Agent" as committer).
 EnvironmentFile=/etc/credentials/app/.env.vm
 
 # Point the opencode CLI (when launched in the terminal) at the repo's

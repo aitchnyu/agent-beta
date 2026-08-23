@@ -203,15 +203,20 @@ provision() {
   # ── 5. seed the repo ─────────────────────────────────────────────────────
   echo "==> seed /srv/app/main (tarball over multipass transfer, from $here)"
   multipass exec app -- sudo install -d -o app -g app /srv/app/main
-  tar czf /tmp/app-seed.tgz -C "$here" \
+  # (._* excludes macOS AppleDouble files — bsdtar would otherwise smuggle
+  # them into the seed and the repo's first commit.)
+  COPYFILE_DISABLE=1 tar czf /tmp/app-seed.tgz -C "$here" \
     --exclude='.git' --exclude='.venv' --exclude='node_modules' \
     --exclude='__pycache__' --exclude='.mypy_cache' --exclude='.ruff_cache' \
     --exclude='staticfiles' --exclude='scratch' --exclude='.env' --exclude='.env.vm' \
     --exclude='deploy' --exclude='.playwright-mcp' --exclude='.kilo' \
-    --exclude='.DS_Store' --exclude='db.sqlite3' .
+    --exclude='.DS_Store' --exclude='._*' --exclude='db.sqlite3' .
   multipass transfer /tmp/app-seed.tgz app:/tmp/app-seed.tgz
+  # Group-write the extracted tree (like the enclosing /srv/app 775): the
+  # console user (agent/./run) must be able to edit main/ — mergescratch,
+  # git resets — not just read it.
   multipass exec app -- sudo bash -c \
-    "tar xzf /tmp/app-seed.tgz -C /srv/app/main && chown -R app:app /srv/app/main"
+    "tar xzf /tmp/app-seed.tgz -C /srv/app/main && chown -R app:app /srv/app/main && find /srv/app/main -exec chmod g+w {} +"
 
   # main/ is its OWN repo (the seed ships no .git; the parent /srv/app is
   # NOT a repo — the agent uses external_directory for scratch/). The

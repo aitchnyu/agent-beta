@@ -1,9 +1,11 @@
-createsuperuser - should be promote, create user for 
+postgres username and password
+Set git user, set opencode credentials
+Worker count for granian and huey config
+
 Django 6.1 fetch modes? New Mypy plugin - https://github.com/typeddjango/django-stubs
 
 Auth for ttyd
 hash links in md view dont work
-How to support multiple apps?
 Extend playwright tests, test after building vm too
 Accelerate file serving with Caddy - have FileResponse
 Add agent command to repo only
@@ -18,9 +20,6 @@ apply --3way
 ./run importtemplate <github-url> <tag> 
 import from git repo tags?
 
-postgres username and password
-Set git user, set opencode credentials
-Worker count for granian and huey config
 
 CSRF_TRUSTED_ORIGINS diverge
 
@@ -96,3 +95,4 @@ Have a sequence generator for tables
 Central tasks - track chats etc
 rate limiting for http requests?
 Readonly mode for whole system, disable get requests too if it mutates data. Send toast. Do it at middleware level. How to do it for tasks?
+Support multiple apps in same server
