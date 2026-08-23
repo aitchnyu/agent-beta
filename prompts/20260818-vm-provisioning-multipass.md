@@ -1640,3 +1640,68 @@ All 25 items implemented same day. Highlights/deviations from the plan text:
 > - Verified live: console commits AND resets in main/ (author console <>,
 >   committer Opencode Agent <>); the sync commit itself was made through
 >   the new path.
+
+> ### Follow-up 14 (2026-08-24): glm-4.7 AGAIN — the env "model" keys were
+> never real
+>
+> - User observed `./run agent` still prompting with glm-4.8/4.7 locally
+> despite Follow-up 8's fix. Root cause: **OPENCODE_MODEL and
+> OPENCODE_PROVIDER do not exist** — `strings` on the opencode binary
+> shows no such env vars (only OPENCODE_AUTH_CONTENT/CONFIG/CONFIG_DIR/…
+> are real). The two keys added to .env in Follow-up 8 were inert
+> no-ops; opencode fell back to the provider's models.dev default.
+>   Follow-up 8's "verified" was false — it checked that the debug
+>   command RAN, never the resolved `model` field.
+> - Fix: `"model": "zai-coding-plan/glm-5.2"` added to
+>   agentconfig/opencode.json (the one real knob); the dead keys deleted
+>   from .env/.env.example/.env.vm/.env.vm.example + the live VM creds
+>   file (comments now say: model is NOT an env knob).
+> - Verified BOTH machines via `opencode debug config`: model resolves to
+>   zai-coding-plan/glm-5.2 (dev + VM); units restarted with the cleaned
+>   env.
+
+> ### Follow-up 15 (2026-08-24, minutes later): Follow-up 14's env-var
+> conclusion was ITSELF wrong — final state: config-file model only
+>
+> User challenged the removal of OPENCODE_PROVIDER/OPENCODE_MODEL; retest
+> showed the qualified env form resolving ONCE (`zai-coding-plan/glm-5.2`)
+> — so I restored env keys and removed the config field. That one success
+> then proved UNREPRODUCIBLE (identical command → undefined minutes
+> later; catalog refreshed and still undefined — `debug config` does not
+> reliably reflect env model overrides in 1.18.0), while a PRECEDENCE
+> test proved config-file "model" SHADOWS the env var regardless.
+> FINAL DESIGN (verified local + VM): "model":
+> "zai-coding-plan/glm-5.2" in agentconfig/opencode.json — the single,
+> deterministic knob; NO OPENCODE_MODEL/OPENCODE_PROVIDER anywhere (env
+> comments explain why). Lesson recorded twice now: verify the RESOLVED
+> value, reproducibly, not that a command merely ran.
+
+> ### Follow-up 16 (2026-08-24): DEFINITIVE resolution — env-driven model
+> via config substitution; Follow-ups 14/15 both wrong in opposite ways
+>
+> User asked to disable the JSON model pin and restore the env knob.
+> Controlled experiments (opencode 1.18.15) settled everything:
+> - Follow-up 14 was RIGHT for the WRONG reason: there is no native
+>   OPENCODE_MODEL/OPENCODE_PROVIDER env var (per docs — the `strings`
+>   "evidence" was worthless either way). Proven: env-only OPENCODE_MODEL
+>   (any value) → live run still used glm-4.7 fallback.
+> - Follow-up 15's "debug config is unreliable" was FALSE: `debug config`
+>   only ever shows the merged config FILES — an env-only model NEVER
+>   appears there, so its "undefined" results were the tool working
+>   correctly. Its one "reproducible-then-lost success" must have had a
+>   model key in the config under test. And the "precedence" test was
+>   really: config value wins because the env var never existed.
+> - The DOCUMENTED mechanism (Config → Variables → Env vars): config values
+>   support `{env:NAME}` substitution. So the env CAN be the single knob:
+>   `"model": "{env:OPENCODE_MODEL}"` in opencode.json is a pass-through,
+>   not a pin.
+> - FINAL DESIGN (user's choice): opencode.json model =
+>   "{env:OPENCODE_MODEL}"; OPENCODE_MODEL="zai-coding-plan/glm-5.2"
+>   (provider-qualified, required) in .env/.env.vm (+ examples, commented).
+>   Unset resolves to "" → opencode SILENTLY falls back to a provider
+>   default → new `./run agent` preflight check (5) refuses on
+>   unset/empty instead.
+> - Verified: `debug config` shows model=zai-coding-plan/glm-5.2 (env
+>   sourced); live `opencode run` request used `> build · glm-5.2`; guard
+>   refuses when unset; .env.vm exports it (VM gets it via existing
+>   staging — units/source path unchanged). VM sync pending next provision.

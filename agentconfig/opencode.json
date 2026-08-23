@@ -1,5 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "model": "{env:OPENCODE_MODEL}",
   "instructions": ["agentconfig/steer.md"],
   "permission": {
     "read": "allow",

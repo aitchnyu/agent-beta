@@ -1,4 +1,3 @@
-Django 6.1 fetch modes? New Mypy plugin - https://github.com/typeddjango/django-stubs
 
 Auth for ttyd
 Test ttyd security 
@@ -19,7 +18,7 @@ apply --3way
 ./run importtemplate <github-url> <tag> 
 import from git repo tags?
 
-
+Questions and subagents can be bought back
 CSRF_TRUSTED_ORIGINS diverge
 
 -------------
@@ -50,14 +49,12 @@ New agent
     lower memory usage
     subagents to review
     can specify auth secrets path
+    We can pass api keys and model/provider config from env vars
 
 https://github.com/anomalyco/opentui/issues/1333
 
 # Relative cutoff: only releases from the last 7 days are eligible
 exclude-newer = "P7D"
-
-_UNSET caught earlier stage
-ttyd MemoryMax too low
 
 Log m2m changes too
 
