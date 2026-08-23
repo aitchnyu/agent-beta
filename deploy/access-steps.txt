@@ -16,4 +16,4 @@ restored DB or Django shell):
     'set -a; . /etc/credentials/app/.env.vm; set +a; cd /srv/app/main; .venv/bin/python manage.py makeloginlink <email>'
 Promote to superuser:
   multipass exec app -- sudo -u app -H bash -c \
-    'set -a; . /etc/credentials/app/.env.vm; set +a; cd /srv/app/main; .venv/bin/python manage.py makesuperuser <email>'
+    'set -a; . /etc/credentials/app/.env.vm; set +a; cd /srv/app/main; .venv/bin/python manage.py promotetosuperuser <email>'

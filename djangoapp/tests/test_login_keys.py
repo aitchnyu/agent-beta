@@ -78,7 +78,7 @@ class MakeLoginLinkCommandTests(BaseTestCase):
     """`makeloginlink` end to end: command output drives a working login.
 
     Mirrors the VM operator flow — run over multipass exec, paste the
-    printed URL — including the failure guards shared with makesuperuser.
+    printed URL — including the failure guards shared with promotetosuperuser.
 
     - test_prints_working_one_time_url, printed URL logs the user in once
     - test_printed_url_honors_base_url, --base-url prefixes the printed path

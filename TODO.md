@@ -1,8 +1,11 @@
+createsuperuser - should be promote, create user for 
+Django 6.1 fetch modes? New Mypy plugin - https://github.com/typeddjango/django-stubs
+
 Auth for ttyd
 hash links in md view dont work
 How to support multiple apps?
 Extend playwright tests, test after building vm too
-createsuperuser - should be promote, create user for 
+Accelerate file serving with Caddy - have FileResponse
 Add agent command to repo only
 Replace agent?
 Redis size?
@@ -11,33 +14,17 @@ Redis size?
 Have a mockup laf?
 ./run checkscratch
 
-No more ssh related stuff
-
 apply --3way
 ./run importtemplate <github-url> <tag> 
 import from git repo tags?
 
-Accelerate file serving with Caddy - have FileResponse
 postgres username and password
 Set git user, set opencode credentials
 Worker count for granian and huey config
 
-LoadCredential for storing stuff
-Have an env for provisioning
-OPENCODE_AUTH_CONTENT
-EnvironmentFile
-
 CSRF_TRUSTED_ORIGINS diverge
 
-Env file has:
-    opencode provider
-    opencode key
-    worker counts
-
-Opencode has all env vars and can call any site?
-
 -------------
-
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.
 
@@ -75,7 +62,6 @@ exclude-newer = "P7D"
 
 _UNSET caught earlier stage
 ttyd MemoryMax too low
-rename back to AGENTS.md
 
 Log m2m changes too
 
@@ -89,7 +75,6 @@ Can agent render color changes and adding logos?
 Buttons spill for agent text box in responsive mode.
 
 Run all tests in checkproject and merge coverage from both stages. Improve test coverage
-Django 6.1 fetch modes? New Mypy plugin - https://github.com/typeddjango/django-stubs
 
 ## Deployment
 Tool to analyse error logs and stacktraces, both backend and sourcemap stacktraces

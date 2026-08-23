@@ -1590,3 +1590,25 @@ All 25 items implemented same day. Highlights/deviations from the plan text:
 - Concurrent-redemption test harness, `npm ci` vs `install` in bootstrap,
   journald persistence config, `/tmp` fixed paths for concurrent runs —
   noted by reviewers, accepted as-is for now.
+
+> ### Follow-up 12 (2026-08-23 night): user commands + Quick start rewrite
+>
+> - **`createuser`** (new): email + `--first-name`/`--last-name`/
+>   `--superuser`; username derives from the email local part; duplicate
+>   email (iexact) refuses; `--superuser` routes through `User.update` so
+>   the grant is audited in UserHistory; stdout points at makeloginlink.
+>   5 tests (test_createuser.py). There is no signup flow — this is how
+>   user rows come to exist on the VM (and dev without Google login).
+> - **`makesuperuser` renamed `promotetosuperuser`** (git mv command +
+>   test file; all refs swept: tests, README, access-steps.txt,
+>   .env.vm.example, local .env.vm comment).
+> - **README Quick start** (the evening's aihere: "make this a bullet list,
+>   just mention why with no caveats"): converted to why-only bullets —
+>   prerequisites, environment, run, first user (createuser +
+>   makeloginlink + promotetosuperuser), Google login (addgoogleoauth),
+>   agent (points the operator's AI agent at INSTRUCTIONS.md), test-VM
+>   pointer. The console URL/CONSOLE_URL nav-link note the old prose
+>   carried moved to the Commands section (info preserved, not lost).
+> - Gates: ruff/mypy clean, 168 tests OK (+5); commands smoke-tested on
+>   the live VM (help output for both); old makesuperuser files removed
+>   there.

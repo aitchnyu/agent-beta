@@ -31,43 +31,30 @@ changes through an agent that edits a throwaway.
   app's own under `frontend/src/ours/`.
 
 ## Quick start
-
-**Prerequisites** (install once): Python 3.14+ with [`uv`](https://docs.astral.sh/uv/),
-Node.js + npm, PostgreSQL, and Redis. [`opencode`](https://opencode.ai/) is only
-needed for the agent (`./run agent`; the `./run dev` stack runs without it —
-the agent helper just refuses with a message). [`ttyd`](https://github.com/tsl0922/ttyd)
-is optional (the web console; `brew install ttyd` on macOS). No
-`screen`/`tmux` required.
-
-Environment: `./run init` offers to copy `.env.example` → `.env`; the run
-script shell-sources `.env` for every process (no python-dotenv). Generate
-`SECRET_KEY`/`DB_PASSWORD` with `openssl rand -hex 32` (`./run init` fills
-the key; set the DB password to your local postgres). For a test VM instead
-of local services, see [VM (test server)](#vm-test-server).
-
-```bash
-./run init                          # one-time: uv sync, npm install, create+migrate DB, build frontend
-./run dev                           # runserver + vite watch + huey + ttyd console (one terminal)
-./run console                       # the web console alone: ttyd on http://localhost:7681
-./run agent                         # the agent: opencode TUI with the .env environment loaded
-```
-
-`./run dev` runs four processes via [`concurrently`](https://github.com/open-cli-tools/concurrently)
-with color-prefixed output (`[runserver]` `[vite]` `[huey]` `[console]`);
-**Ctrl-C stops all four**. The console (also started alone by
-`./run console`) serves **http://localhost:7681**: shells land in the repo
-with the shared banner (deploy/console-bashrc) and inherit the `.env`
-environment — run `./run agent` inside it for the agent. Set
-`CONSOLE_URL="http://localhost:7681"` in `.env` and the superuser
-**Console** nav link in the app points there. ttyd is optional
-(`brew install ttyd` on macOS; without it the other three start).
-
-Then open http://127.0.0.1:8000/ — the live `ourapp/` is a placeholder
-landing page; `docs/reference/` holds the copyable example app (facts with a
-daily Huey cron, plus todos) the agent consults when adding features.
-
-Individual processes are also runnable on their own: `./run runserver`,
-`./run hueydev`, and `cd frontend && npm run dev`.
+- **Prerequisites** — Python 3.14+ with [`uv`](https://docs.astral.sh/uv/),
+  Node.js + npm, PostgreSQL, and Redis run the app;
+  [`opencode`](https://opencode.ai/) runs the agent;
+  [`ttyd`](https://github.com/tsl0922/ttyd) serves the web console.
+- **Environment** — `./run init` copies `.env.example` → `.env`, generates
+  `SECRET_KEY`, creates + migrates the database, and builds the frontend;
+  set `DB_PASSWORD` to your local postgres afterwards.
+- **Run** — `./run dev` starts runserver + vite + huey + the web console in
+  one terminal (Ctrl-C stops all four); then open
+  http://127.0.0.1:8000/ — `ourapp/` is a placeholder landing page, and
+  `docs/reference/` holds the copyable example app (facts + todos).
+- **First user** — there is no signup flow: create the row and sign in via a
+  one-time link —
+  `./run djangomanage createuser you@example.com --first-name You --last-name Name --superuser`
+  then `./run djangomanage makeloginlink you@example.com` (opens
+  `/login-for-test/by-key/…`, single use; `promotetosuperuser <email>`
+  promotes an existing user later).
+- **Google login** (dev) — register OAuth credentials and store them with
+  `./run djangomanage addgoogleoauth <client_id> <secret>`.
+- **Agent** — point your AI agent at this repo and have it read
+  `INSTRUCTIONS.md` (the operating manual: workflows, conventions,
+  command allowlist); start it with `./run agent`.
+- **Test VM instead** — the whole loop can run on a Linux VM (multipass):
+  see [VM (test server)](#vm-test-server).
 
 ## VM (test server)
 
@@ -110,7 +97,7 @@ click-through warning (the supported mode):
   ```
 
   — open the printed `/login-for-test/by-key/…` URL once (single use,
-  15-min expiry), then `makesuperuser <email>` to unlock admin pages and
+  15-min expiry), then `promotetosuperuser <email>` to unlock admin pages and
   the "Console" nav link.
 
 **Everything else happens on the VM**: `./run createscratch` → `./run
@@ -149,6 +136,21 @@ row is created. This is for DEV (or any deployment whose hostname Google
 accepts); the test VM skips Google OAuth entirely and logs in via one-time
 `makeloginlink` URLs — see [VM (test server)](#vm-test-server).
 
+## Sign in (one-time login link)
+
+There is no signup flow and (in dev) possibly no Google login yet — sign in
+by minting a one-time link for an existing user (e.g. one created with
+`createuser`):
+
+```bash
+./run python manage.py makeloginlink alice@example.com
+```
+
+Open the printed `/login-for-test/by-key/…` URL once — single use,
+15-minute expiry (`--minutes N` to change), and only the SHA-256 of the key
+is stored. On the test VM the same command runs via `multipass exec` — see
+[VM (test server)](#vm-test-server).
+
 ## Promote a user to superuser
 
 Social-login users can't be superuser at creation. Promote an existing user by
@@ -156,7 +158,7 @@ email (matched case-insensitively; sets both `is_superuser` and `is_staff` so
 `/admin` works):
 
 ```bash
-./run python manage.py makesuperuser alice@example.com
+./run python manage.py promotetosuperuser alice@example.com
 ```
 
 Once promoted, that user can reach the management routes below.
@@ -254,6 +256,13 @@ App/dev via the `run` script: `init`, `runserver`, `dev`, `console`,
 `hueydev` (background consumer alone), `coverage`,
 plus `djangomanage`/`python` passthroughs (e.g.
 `./run djangomanage makemigrations`, `./run python manage.py …`).
+User/management commands (via the passthrough):
+`createuser <email> [--first-name …] [--last-name …] [--superuser]`,
+`makeloginlink <email>` (one-time login URL),
+`promotetosuperuser <email>`, `addgoogleoauth <client_id> <secret>`.
+`./run console` serves the web terminal at http://localhost:7681 (also part
+of `./run dev`); set `CONSOLE_URL` in `.env` to point the superuser
+**Console** nav link at it.
 
 Test-VM lifecycle via the `testvm` script: `./testvm provision [--release …]`,
 `./testvm delete`.
