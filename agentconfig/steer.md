@@ -684,9 +684,7 @@ theorize**: run `npm run build` and have the user hard-refresh **before**
 speculating about static-file serving, caching, or shadow paths — the error
 message names the fix. To confirm which file a static URL actually resolves to,
 `./run djangomanage findstatic <name>` (e.g. `findstatic djangoapp/main.js`)
-prints the exact on-disk path. `prevproject/` is vendored legacy (reference
-only): it is **not** in `INSTALLED_APPS` and the dev server never serves its
-`static/` — don't chase shadow-path theories involving it.
+prints the exact on-disk path.
 
 Anything else — including any git on `main/` — needs approval; for
 read/list/search, use the `read`/`glob`/`grep` tools instead of

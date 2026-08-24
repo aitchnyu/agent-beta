@@ -47,7 +47,6 @@ exclude = [
   ".kilo",
   "djangoapp/migrations",
   "ourapp/migrations",
-  "prevproject",
   "node_modules",
   "dist",
   "build",
@@ -126,7 +125,6 @@ strict = true
 mypy_path = "stubs"
 # Each exclude is a directory that isn't part of the type-checked app code:
 exclude = [
-  "prevproject/",  # vendored legacy/reference project, not shipped code
   "docs/reference/",  # reference example apps used only in documentation
   "djangoapp/tests/testapp/",  # synthetic test-app fixture, not app source
   "node_modules/",  # frontend deps (only stray .py, never ours)

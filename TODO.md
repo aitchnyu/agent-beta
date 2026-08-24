@@ -6,19 +6,16 @@ Accelerate file serving with Caddy - have FileResponse - test with checkframewor
 Redis size?
 ../djangoapp/static/djangoapp/assets/rolldown-runtime-QTnfLwEv.js      0.69 kB │ gzip:   0.42 kB
 
-
-
 apply --3way
 ./run importtemplate <github-url> <tag> 
 import from git repo tags?
 
-Questions and subagents can be bought back
 CSRF_TRUSTED_ORIGINS diverge
 
-Remove prevproject and its references
 No more login-for-test
 
-We were assuming 
+We were assuming a web ui.
+Questions, todos and subagents were banned with opencode. Lets bring them back.
 Have a mockup laf? No more mermaid and mockups.
 ------------
 
@@ -50,9 +47,7 @@ Run all tests in checkproject and merge coverage from both stages. Improve test 
 ## Deployment
 Tool to analyse error logs and stacktraces, both backend and sourcemap stacktraces
 Serve files in fs, accelerate using Caddy
-Who is committing to git
 Backup regularly - https://www.pghardstorage.org/examples
-Whitelist services for outbound connections
 Provision in vm with curl|bash
 
 ## Notification center
@@ -70,3 +65,4 @@ Readonly mode for whole system, disable get requests too if it mutates data. Sen
 Support multiple apps in same server
 Model logs should store FK name, link, url and M2M changes too
 Comments and deadlines
+Whitelist services for outbound connections

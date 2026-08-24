@@ -23,7 +23,7 @@ Do not run `rm` or `ls` in bash. Use the tool calls.
 Do not use curl to read urls. Use browser tool call.
 
 ## aihere
-If I mention `aihere`, grep for `aihere` in whole codebase except `.idea` or prevproject dir, copy all of them into some todo list. They may not be comments — a marker can sit on any line of any file (code, strings, docs); treat the line it's on (plus its surroundings) as the instruction. The comments are instructions to modify the codebase. If you have lines with aihere in context and I mention aihere again, look at the new instances. Never remove the comments before addressing them. If you are not implementing them, write them down in existing md file.
+If I mention `aihere`, grep for `aihere` in whole codebase except `.idea`, copy all of them into some todo list. They may not be comments — a marker can sit on any line of any file (code, strings, docs); treat the line it's on (plus its surroundings) as the instruction. The comments are instructions to modify the codebase. If you have lines with aihere in context and I mention aihere again, look at the new instances. Never remove the comments before addressing them. If you are not implementing them, write them down in existing md file.
 
 ## Prompts
 They are present in `prompts/` directory and have a filename format of `yyyymmdd-slug-slug.md`.
