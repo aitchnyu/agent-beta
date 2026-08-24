@@ -16,13 +16,6 @@ class HomeAuthE2e(BasePlaywrightTestCase):
     - test_logout_flow_returns_to_signed_out, Sign out logs out and lands on signed-out home
     """
 
-    def setUp(self) -> None:
-        super().setUp()
-        # The base harness's 1s default is too tight for Inertia reloads; 5s
-        # matches the framework e2e suites.
-        self.page = self.logged_in_page
-        self.page.set_default_timeout(5000)
-
     def test_anon_home_shows_signed_out(self) -> None:
         """Anon / shows signed-out status and a Google login link, no logout button."""
         with self.anon_page() as page:

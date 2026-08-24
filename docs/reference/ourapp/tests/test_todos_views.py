@@ -2,9 +2,9 @@
 
 from django.test import Client
 
+from djangoapp.models import User
 from djangoapp.tests._base import BaseTestCase
 from ourapp.models import Todo
-
 
 
 class TodosViewTests(BaseTestCase):

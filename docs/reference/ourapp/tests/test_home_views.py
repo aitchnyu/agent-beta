@@ -2,11 +2,14 @@
 
 from http import HTTPStatus
 
+from django.test import override_settings
+
 from djangoapp.models import User
 from djangoapp.tests._base import BaseInertiaTestCase
 from ourapp.models import Fact, FactOfTheDay, Topic
 
 
+@override_settings(CONSOLE_URL="")
 class HomeViewTests(BaseInertiaTestCase):
     """The landing page renders for anonymous and authenticated viewers (pk-free).
 
@@ -16,6 +19,9 @@ class HomeViewTests(BaseInertiaTestCase):
     - test_no_integer_pk_in_props, public_id present but no integer id/pk leaks
     - test_home_get_does_not_create_pick, GET / with facts but no cron write leaves fact_of_day None (GET never writes)
     - test_home_shows_fact_of_the_day, once the cron has picked, GET / carries it in props (pk-free)
+
+    Shared props carry console_url ("" here via override_settings — a dev
+    .env may set CONSOLE_URL for the nav link, tests must not see it).
     """
 
     def test_anonymous_home(self) -> None:
@@ -33,6 +39,7 @@ class HomeViewTests(BaseInertiaTestCase):
                 # Shared viewer props (SharedPropsMiddleware) are anonymous here.
                 "user": None,
                 "viewer_is_superuser": False,
+                "console_url": "",
             },
         )
 
@@ -56,6 +63,7 @@ class HomeViewTests(BaseInertiaTestCase):
                 },
                 "user": {"public_id": user.public_id, "title": "Alice Smith"},
                 "viewer_is_superuser": False,
+                "console_url": "",
             },
         )
 

@@ -14,7 +14,8 @@ class TodosE2e(BasePlaywrightTestCase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.page = self.logged_in_page
+        # The base harness's 1s default is too tight for Inertia reloads; 5s
+        # matches the framework e2e suites.
         self.page.set_default_timeout(5000)
 
     def test_create_todo_renders(self) -> None:
