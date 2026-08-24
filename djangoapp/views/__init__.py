@@ -21,6 +21,21 @@ def require_superuser(request: HttpRequest) -> None:
         raise Http404
 
 
+def agent_auth(request: HttpRequest) -> HttpResponse:
+    """Caddy forward_auth verdict for /agent/* (the ttyd console).
+
+    Caddy rewrites every /agent request (page fetch AND the WebSocket
+    handshake — a GET) to this endpoint with the original headers, so
+    the session cookie rides along and the viewer resolves exactly as on
+    any app page. 2xx → caddy proxies to ttyd; the 404 from
+    ``require_superuser`` → caddy relays it to the client. Anonymous and
+    non-superuser both 404 (house gate: existence stays hidden, never
+    403). Route is deliberately SLASHLESS (``agent/auth``).
+    """
+    require_superuser(request)
+    return HttpResponse("")
+
+
 def login_for_test_by_key(request: HttpRequest, key: str) -> HttpResponse:
     """Log in a user via a one-time key issued by ``makeloginlink``.
 

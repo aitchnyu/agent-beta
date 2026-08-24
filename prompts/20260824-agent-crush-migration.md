@@ -551,3 +551,32 @@ add `.crush/` to `.gitignore` AND to `_SCRATCH_EXCLUDES` in `run`
 > survives unlink). testvm keeps only a pointer comment. The live VM's
 > build-time leftovers (incl. my session's debug outputs) were rm'd by
 > hand; future builds self-clean.
+
+> ### Follow-up (2026-08-24, night 2): "initialize this project" dialog suppressed
+>
+> The TUI's first-open ask ("Would you like to initialize this project?")
+> is crush's PROJECT INIT offer: internal/config/init.go's
+> ProjectNeedsInitialization returns true when the project data dir has
+> no `init` flag file AND no default context file (CRUSH.md & friends)
+> sits at the repo root. Answering yes creates the flag + generates a
+> CRUSH.md (named by `option initialize-as`). We ship no CRUSH.md on
+> purpose (steer.md via context-path is the sole instructions file), so
+> the ask would appear on every fresh clone/machine. Fix: `run agent()`
+> preflight step (5) pre-creates `.crush/` + the empty `.crush/init`
+> flag — byte-identical to what "yes" produces, minus the CRUSH.md
+> (which would double-steer). Gitignored, idempotent; flag created on
+> both machines (VM's as console, the .crush/ owner).
+
+> ### Follow-up (2026-08-24, night 2b): tracked .crush/init replaces the run touch
+>
+> User decision: instead of run agent() preflight step (5) touching the
+> flag per-machine, TRACK the empty `.crush/init` itself (gitignore
+> exceptions `.crush/*` + `!.crush/README.md` + `!.crush/init`; both
+> force-added — crush writes its own `.crush/.gitignore` with `*`, which
+> can't shadow tracked files). Fresh clones/VMs ship self-sufficient:
+> the dialog can never ask. run reverted to pre-step-(4) state. Known
+> minor gap (accepted): a mid-machine wipe of .crush/ removes the flag
+> until a checkout restores it — the dialog would re-ask once; a "yes"
+> would also generate an untracked CRUSH.md (decline it, or delete +
+> `git checkout -- .crush/init`). .crush/README.md (tracked alongside)
+> documents the whole story.

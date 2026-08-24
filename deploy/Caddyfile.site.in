@@ -10,8 +10,12 @@
 #                               loopback 7681) behind handle_path, which
 #                               strips the /agent prefix. The operator/
 #                               agent surface: run `./run agent`, restart
-#                               services (console has full sudo). No ttyd
-#                               auth by decision (LAN-trusted).
+#                               services (console has full sudo). Gated by
+#                               forward_auth: EVERY request (page fetch +
+#                               the WebSocket handshake) is first sent to
+#                               the app's /agent/auth (slashless) with the
+#                               original headers — a superuser session is
+#                               the only 2xx.
 # Login on the app site is NOT Google OAuth (.local isn't registrable): mint
 # one-time /login-for-test/by-key/... links via `manage.py makeloginlink`
 # (multipass exec on the host). TLS via caddy's internal CA: browsers show a
@@ -42,6 +46,10 @@ app.local {
 	# bounce it to the terminal first.
 	redir /agent /agent/ 308
 	handle_path /agent/* {
+		# Superuser gate: the auth request goes straight to granian with the original request's headers (session cookie included) and expects 2xx before proceeding.
+		forward_auth 127.0.0.1:8000 {
+			uri /agent/auth
+		}
 		reverse_proxy 127.0.0.1:7681
 	}
 
