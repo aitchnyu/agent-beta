@@ -12,8 +12,6 @@ import from git repo tags?
 
 CSRF_TRUSTED_ORIGINS diverge
 
-No more login-for-test
-
 We were assuming a web ui.
 Questions, todos and subagents were banned with opencode. Lets bring them back.
 Have a mockup laf? No more mermaid and mockups.

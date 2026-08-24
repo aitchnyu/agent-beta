@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from http import HTTPStatus
 
-from django.test import override_settings
-
 from djangoapp.models import User
 from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 
@@ -11,18 +9,8 @@ from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 class LoginForTestGateE2eTestCase(BasePlaywrightTestCase):
     """Auth-infrastructure gates.
 
-    - test_login_for_test_forbidden_when_not_debug, with DEBUG off the login-for-test URL is 404
     - test_set_up_injects_session_cookie, ensures login_as works (cookie in context)
     """
-
-    @override_settings(DEBUG=False)
-    def test_login_for_test_forbidden_when_not_debug(self) -> None:
-        """With DEBUG off the login-for-test URL is 404."""
-        with self.anon_page() as page:
-            response = page.request.get(
-                f"{self.live_server_url}/login-for-test/{self.user.pk}",
-            )
-            self.assertEqual(response.status, HTTPStatus.NOT_FOUND)
 
     def test_set_up_injects_session_cookie(self) -> None:
         """Ensure login_as works as expected: an authenticated round trip.

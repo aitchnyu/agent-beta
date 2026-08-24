@@ -139,10 +139,8 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
     per-test isolation comes from wiping the context's cookies in setUp and
     injecting this test's session (``login_as``) — no login navigation, no
     per-test page. Tests that need a genuinely separate viewer use
-    ``anon_page`` (its own context). The DEBUG-only ``/login-for-test/<pk>``
-    view remains for ad-hoc manual debugging and its own gate test.
-    ``tearDown`` fails the test on any browser console error so regressions
-    surface loudly.
+    ``anon_page`` (its own context). ``tearDown`` fails the test on any
+    browser console error so regressions surface loudly.
 
     Subclasses set up their own model fixtures in ``setUp`` and may re-auth
     via ``login_as`` (it replaces the session cookie) — e.g. superuser-only
@@ -171,9 +169,8 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
     def login_as(self, user: User) -> None:
         """Authenticate the shared context as ``user`` — no HTTP round trip.
 
-        Mirrors what ``/login-for-test`` does server-side (``login(request,
-        user, backend=ModelBackend)``) but in-process: a fresh session store,
-        ``auth_login`` fills/rotates it, one save, then the session cookie is
+        In-process ``login(request, user, backend=ModelBackend)``: a fresh
+        session store, ``auth_login`` fills/rotates it, one save, then the session cookie is
         injected straight into the browser context. The next navigation (any
         test goto) is already authenticated. A second call with a different
         user REPLACES the cookie (same name); setUp clears cookies first so

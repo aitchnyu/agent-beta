@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from djangoapp.views import login_for_test, login_for_test_by_key
+from djangoapp.views import login_for_test_by_key
 from djangoapp.views.client_errors import client_errors_api
 from djangoapp.views.files import files_api
 from djangoapp.views.git import git_api
@@ -20,6 +20,5 @@ urlpatterns = [
     path("", manage_api.urls),
     path("", git_api.urls),
     path("", files_api.urls),
-    path("login-for-test/<int:userid>", login_for_test, name="login-for-test"),
     path("login-for-test/by-key/<str:key>/", login_for_test_by_key, name="login-for-test-by-key"),
 ]
