@@ -4,7 +4,8 @@ A Django **single-app template**: clone it, build your app in `ourapp/`, and dri
 changes through an agent that edits a throwaway.
 
 ## Features
-- **Agent-driven development** — an [`opencode`](https://opencode.ai/) TUI
+- **Agent-driven development** — a [Crush](https://github.com/charmbracelet/crush)
+  TUI
   edits a throwaway `scratch/` copy of the repo; you review, then
   `mergescratch` deploys to `main/` (server auto-reloads). Start it with
   `./run agent` — in production ONLY inside the VM's web terminal
@@ -33,7 +34,8 @@ changes through an agent that edits a throwaway.
 ## Quick start
 - **Prerequisites** — Python 3.14+ with [`uv`](https://docs.astral.sh/uv/),
   Node.js + npm, PostgreSQL, and Redis run the app;
-  [`opencode`](https://opencode.ai/) runs the agent;
+  [Crush](https://github.com/charmbracelet/crush) runs the agent
+  (`npm install -g @charmland/crush`);
   [`ttyd`](https://github.com/tsl0922/ttyd) serves the web console.
 - **Environment** — `./run init` copies `.env.example` → `.env`, generates
   `SECRET_KEY`, creates + migrates the database, and builds the frontend;

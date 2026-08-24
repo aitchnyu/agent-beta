@@ -98,6 +98,19 @@ ignore = [
     "N802",  # third-party API names cannot be renamed
     "N818",  # exception names mirror the library
 ]
+# deploy/ holds executable tooling (Crush PreToolUse hooks), not an importable package.
+"deploy/**/*.py" = [
+    "INP001",  # deploy/ is a scripts directory, deliberately not a package
+]
+# The hooks' stdout/stderr IS their protocol (Crush reads JSON/exit codes from it).
+"deploy/crush_*.py" = [
+    "T201",  # print() is the hook's output channel, not a debug leftover
+]
+# The Crush hook tests execute the hooks as subprocesses — that IS the
+# contract (stdout JSON / exit codes), not untrusted input.
+"deploy/tests/**/*.py" = [
+    "S603",  # subprocess is the point: the hook runs exactly as Crush runs it
+]
 
 [tool.ruff.lint.pycodestyle]
 max-doc-length = 200

@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 # The powerful console user: the terminal it serves is where the operator
-# (and the opencode agent, run BY the operator inside this terminal) works.
+# (and the Crush agent, run BY the operator inside this terminal) works.
 # console has full NOPASSWD sudo (see /etc/sudoers.d/console), so the agent
 # can restart services / read journals from in here.
 User=console
@@ -19,36 +19,32 @@ Group=console
 ExecStart=/usr/bin/ttyd -W -i 127.0.0.1 -p 7681 -w /srv/app/main -- /bin/bash --rcfile /srv/app/main/deploy/console-bashrc
 
 # The single shared env file (root .env.vm staged by provisioning): ttyd
-# passes its environment to every shell (and to opencode launched inside) —
-# OPENCODE_AUTH_CONTENT / OPENCODE_MODEL / OPENCODE_PROVIDER (the agent
-# authenticates with NO auth.json file) + GIT_COMMITTER_NAME (agent-made
-# commits are marked "Agent" as committer).
+# passes its environment to every shell (and to crush launched inside) —
+# AGENT_MODEL plus the provider's NATIVE auth var (ZAI_API_KEY for z.ai;
+# the repo-root .crushrc uses crush's built-in providers) +
+# GIT_COMMITTER_NAME (agent-made commits are marked "Agent" as
+# committer). Nothing else to point: crush discovers the project .crushrc
+# from its cwd (/srv/app/main).
 EnvironmentFile=/etc/credentials/app/.env.vm
-
-# Point the opencode CLI (when launched in the terminal) at the repo's
-# agentconfig/ tool-permission rules.
-Environment=OPENCODE_CONFIG_DIR=/srv/app/main/agentconfig
-Environment=OPENCODE_CONFIG=/srv/app/main/agentconfig/opencode.json
 
 Restart=always
 RestartSec=3
 
-# Hardening.
-NoNewPrivileges=yes
+# Hardening. EXCEPTION: NoNewPrivileges must be no HERE — sudo is a
+# setuid binary and NNP (inherited by every child of this unit) makes
+# each sudo from the terminal fail with "the 'no new privileges' flag
+# is set", killing the NOPASSWD workflow this console exists for. The
+# app units (granian/huey) correctly keep NNP=yes — they never sudo.
+NoNewPrivileges=no
 ProtectSystem=strict
 # read-only /home so the spawned shell can read ~/.bashrc / ~/.profile;
-# writables are the app tree (scratch edits, opencode state) + the home.
+# writables are the app tree (scratch edits, crush state) + the home.
 ProtectHome=read-only
 ReadWritePaths=/srv/app /home/console
 PrivateTmp=yes
 
 # commented out
-# MemoryMax 512M: the opencode TUI (bun runtime) needs FAR more than a
-# shell — at 96M the cgroup never OOM-kills, it just reclaims/thrashes
-# forever and the TUI stalls on its loading screen (root cause of the
-# long-standing "agent not launching in the web console" bug; peak usage
-# with the TUI alive reaches the cap, mostly page cache). Still bounds a
-# runaway console process on the 1G VM.
+# MemoryMax 512M: the agent TUI needs more than a shell
 #MemoryMax=512M
 
 [Install]

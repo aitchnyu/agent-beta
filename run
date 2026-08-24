@@ -118,7 +118,7 @@ console() {
   # (the banner + the normal bashrc chain) — the same rcfile the VM's
   # console_ttyd unit uses. The start command is required: bare ttyd
   # exits 254 per connection and reconnect-loops. Run `./run agent` (or
-  # opencode) inside the browser terminal for the agent.
+  # crush) inside the browser terminal for the agent.
   local repo_root
   repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
   command -v ttyd >/dev/null 2>&1 || {
@@ -133,85 +133,81 @@ console() {
 }
 
 agent() {
-  # The agent: exec the opencode TUI with the .env environment (auth/model,
-  # git identity) exported by setenv — dev and VM alike. Preflight: config
-  # exists, no competing config, binary present, config valid.
+  # The agent: exec the Crush TUI with the .env environment (model, the
+  # provider's native auth var, git identity) exported by setenv — dev and
+  # VM alike. Config is the repo-root .crushrc (Bash — built-in providers
+  # only; it reads AGENT_MODEL straight from this environment); the
+  # bash/edit permission policy lives in deploy/crush_*_guard.py, wired
+  # from .crushrc as PreToolUse hooks.
   setenv
   local repo_root
   repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  local config_dir="${OPENCODE_CONFIG_DIR:-$repo_root/agentconfig}"
-  local config_file="${OPENCODE_CONFIG:-$repo_root/agentconfig/opencode.json}"
+  local config_file="$repo_root/.crushrc"
 
   # Run from the REPO ROOT (main/): the TUI's pwd is the actual repo, and
-  # permission paths in agentconfig/opencode.json are working-dir-relative
-  # (instructions: agentconfig/steer.md; scratch/ is a SIBLING and is
-  # allowed via external_directory there). No parent-cd, no parent git-init
-  # — main/ is its own repo everywhere; scratch/ rides the external allows.
+  # .crushrc's relative paths (agentconfig/steer.md, the guard hooks) are
+  # working-dir-relative. No parent-cd, no parent git-init — main/ is its
+  # own repo everywhere; scratch/ is a SIBLING, reachable via the
+  # sanctioned compounds and scratch paths the guards allow.
   cd "$repo_root"
 
-  # (1) Config file exists — without it the agent runs with no permissions.
+  # (1) Binary on PATH.
+  command -v crush >/dev/null 2>&1 || {
+    echo "crush binary not found on PATH — install it first" \
+      "(npm install -g @charmland/crush)" >&2
+    return 1
+  }
+
+  # (2) Config file exists and parses — without it the agent runs with no
+  #     permissions; with a syntax error crush may start half-configured.
   [[ -f "$config_file" ]] || {
     echo "Refusing to start: $config_file not found" >&2
     return 1
   }
-
-  # (2) No competing config — opencode merges every config it finds, which
-  #     would override agentconfig/. opencode also auto-creates an empty
-  #     global stub (just $schema) on first run; that merges nothing, so
-  #     discard it and continue — refuse only on a config with real content.
-  local global_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/opencode"
-  local global_config_file
-  for global_config_file in \
-    "$global_config_dir/opencode.json" \
-    "$global_config_dir/opencode.jsonc"
-  do
-    [[ -f "$global_config_file" ]] || continue
-    # Key-aware stub check: it's the empty auto-stub only if $schema is the
-    # sole top-level key (a minified one-liner with real keys must NOT be
-    # deleted).
-    if grep -oE '"[^"]+"\s*:' "$global_config_file" | grep -qvE '"\$schema"\s*:'; then
-      echo "Refusing to start: a real global opencode config exists at" \
-        "$global_config_file; delete it so only $config_file is used." >&2
-      return 1
-    fi
-    rm -f "$global_config_file"   # only $schema (or no keys) — empty stub
-  done
-  local found_competing=0
-  [[ -f "$global_config_dir/config.json" ]] && found_competing=1
-  [[ -f "$repo_root/opencode.json" ]] && found_competing=1
-  [[ -f "$repo_root/opencode.jsonc" ]] && found_competing=1
-  [[ -f "$repo_root/../opencode.json" ]] && found_competing=1
-  [[ -f "$repo_root/../opencode.jsonc" ]] && found_competing=1
-  [[ -n "${OPENCODE_CONFIG_CONTENT:-}" ]] && found_competing=1
-  if (( found_competing )); then
-    echo "Refusing to start: another opencode config exists (global" \
-      "config.json, the repo or its parent, or" \
-      "\$OPENCODE_CONFIG_CONTENT); delete it so only $config_file is used." >&2
+  local syntax_output
+  if ! syntax_output=$(bash -n "$config_file" 2>&1); then
+    echo "Refusing to start: .crushrc has a syntax error:" >&2
+    echo "$syntax_output" >&2
     return 1
   fi
 
-  # (3) Binary on PATH — check before `debug config` so a missing binary
-  #     isn't misreported as "config invalid".
-  command -v opencode >/dev/null 2>&1 || {
-    echo "opencode binary not found on PATH — install it first" >&2
-    return 1
-  }
+  # (3) No competing config — crush MERGES everything it finds (project
+  #     .crushrc + ./crushrc + legacy .crush.json/crush.json + the global
+  #     ~/.config/crush/ equivalents); any of those would layer settings
+  #     over ours. Refuse on every one we don't ship ourselves.
+  #     (Also /etc/crush/crush.json — a root-owned system-wide slot that
+  #     normally doesn't exist; refuse if someone created one.)
+  local global_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/crush"
+  local competitor
+  for competitor in \
+    /etc/crush/crush.json \
+    "$repo_root/crushrc" \
+    "$repo_root/.crush.json" \
+    "$repo_root/crush.json" \
+    "$global_config_dir/crushrc" \
+    "$global_config_dir/crush.json" \
+    "$global_config_dir/.crush.json"
+  do
+    if [[ -f "$competitor" ]]; then
+      echo "Refusing to start: a competing crush config exists at" \
+        "$competitor; delete it so only $config_file is used." >&2
+      return 1
+    fi
+  done
 
-  # (4) Config valid — the TUI starts even on an invalid config and only
-  #     errors per request, so validate first and refuse if broken.
-  local check_output
-  if ! check_output=$(
-    OPENCODE_CONFIG_DIR="$config_dir" OPENCODE_CONFIG="$config_file" \
-      command opencode debug config 2>&1
-  ); then
-    echo "opencode config is invalid — refusing to start:" >&2
-    echo "$check_output" >&2
+  # (4) Model knob set — .crushrc's :? line also enforces it, but with a
+  #     bash error inside the TUI; refuse up front with a clear message.
+  #     Auth is NOT checked here: it rides the provider's NATIVE env var
+  #     (ZAI_API_KEY etc.), whose name varies by provider — crush itself
+  #     fails loudly when it's missing.
+  if [[ -z "${AGENT_MODEL:-}" ]]; then
+    echo "Refusing to start: AGENT_MODEL is unset/empty — provider-qualified" \
+      "built-in id, e.g. \"zai/glm-5.3\" (list with \`crush models\`)." >&2
     return 1
   fi
 
   # All checks passed — hand the terminal over to the TUI.
-  OPENCODE_CONFIG_DIR="$config_dir" OPENCODE_CONFIG="$config_file" \
-    command opencode "$@"
+  command crush "$@"
 }
 
 test() {
@@ -250,6 +246,8 @@ checkall() {
   uv run mypy $_MYPY_COLOR .
   echo "Running test"
   test --noinput
+  echo "Running deploy/ hook unit tests (Crush guards)"
+  uv run python -m unittest discover -s deploy/tests
   cd frontend
   echo "Running frontend linting"
   npm run lint
@@ -304,6 +302,7 @@ lintfix() {
 _SCRATCH_EXCLUDES=(
   --exclude='.git/'
   --exclude='.kilo/'
+  --exclude='.crush/'
   --exclude='scratch/'
   --exclude='node_modules/'
   --exclude='.venv/'

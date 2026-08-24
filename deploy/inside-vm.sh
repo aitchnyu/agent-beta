@@ -21,9 +21,9 @@ phase="${1:?usage: inside-vm.sh provision_vm|provision_app}"
 appdir="/srv/app"
 creds_dir="/etc/credentials/app"
 creds_env="$creds_dir/.env.vm"
-# opencode CLI version for the npm -g install (keep in lockstep with dev's
-# brew opencode).
-_OPENCODE_NPM_VERSION="1.18.0"
+# Crush CLI version for the npm -g install (keep in lockstep with dev's
+# npm install -g @charmland/crush).
+_CRUSH_NPM_VERSION="0.91.0"
 
 provision_vm() {
   echo "==> [vm] users: app (less powerful) + console (powerful)"
@@ -60,11 +60,10 @@ provision_vm() {
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
 
-  # The agent (opencode CLI) started via `./run agent` from the console.
-  # Version-pinned to match dev (brew opencode 1.18.0 = npm opencode-ai
-  # 1.18.0).
-  echo "==> [vm] opencode CLI (npm -g)"
-  npm install -g "opencode-ai@$_OPENCODE_NPM_VERSION"
+  # The agent (Crush CLI) started via `./run agent` from the console.
+  # Version-pinned to match dev (npm @charmland/crush on both).
+  echo "==> [vm] Crush CLI (npm -g)"
+  npm install -g "@charmland/crush@$_CRUSH_NPM_VERSION"
 
   echo "==> [vm] caddy (official apt repo)"
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
@@ -120,13 +119,17 @@ provision_app() {
 #       ├── redis/redis.conf
 #       └── sudoers.d/console
 #   /
-#   └── srv/app/main/deploy/console-bashrc
-#   /
 #   └── tmp/vm-seed-commit.sh + tmp/vm-bootstrap.sh   (one-shots the driver runs later)
+#   (srv/app/main/* — including deploy/ — lands via the SEED tarball in
+#    the driver's next phase, not via this tree)
+# The tree carries CONTENT only; every mode/ownership pin happens in the
+# block right after extraction below (see testvm's tree comment).
   # --no-same-owner: everything lands root:root; the ownership the host
   # can't compute (app group gid) is fixed right below.
   echo "==> [app] extract the provisioned file tree (built host-side; see testvm's tree comment)"
   tar --no-same-owner -C / -xzf /tmp/tree.tgz
+
+  chmod 644 /etc/caddy/Caddyfile /etc/caddy/sites/app.caddy /etc/redis/redis.conf
 
   # ── file: /etc/credentials/app/.env.vm ────────────────────────────────
   # Shared env (every unit's EnvironmentFile). root:app 640 — root parses
@@ -214,9 +217,8 @@ SQL
   systemctl reload caddy
 
   # ── file: /srv/app/main/deploy/console-bashrc ─────────────────────────
-  # Landed via the tree; the console_ttyd unit's --rcfile consumes it at
-  # service start (the repo seed tarball excludes deploy/, so nothing
-  # overwrites it when the seed extracts afterward).
+  # Landed via the SEED tarball (deploy/ ships with it); the console_ttyd
+  # unit's --rcfile consumes it at service start.
   # main/ is app-owned but the console user (agent/./run) works the repo
   # too — git flags cross-user repos as dubious ownership regardless of
   # groups; one system-level exception covers both users.

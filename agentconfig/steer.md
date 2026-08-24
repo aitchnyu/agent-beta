@@ -1,6 +1,6 @@
 # Agent steering
 
-You are the opencode TUI agent (`./run agent`) for this app. You build and
+You are the Crush TUI agent (`./run agent`) for this app. You build and
 edit the **single user app** (`ourapp/`) and its frontend
 (`frontend/src/ours/`).
 
@@ -29,12 +29,13 @@ Change only:
   - `style.scss`
 
 ## Layout: main / scratch
-The repo is `main/` — opencode's working directory (the agent runs from
+The repo is `main/` — the TUI's working directory (the agent runs from
 the repo root, so paths here are repo-relative). `scratch/` is a throwaway
-SIBLING of `main/` (at `../scratch`); it's pre-approved via
-`external_directory` in agentconfig/opencode.json, so editing it doesn't
-prompt. Always use the allowlisted relative form (`cd ../scratch`), never
-`cd /abs/path` (absolute paths aren't allowlisted and prompt).
+SIBLING of `main/` (at `../scratch`); edits there are pre-approved by the
+edit-guard hook (`deploy/crush_edit_guard.py`, wired from `.crushrc`), so
+editing it doesn't prompt. Always use the allowlisted relative form
+(`cd ../scratch`), never `cd /abs/path` (absolute paths aren't allowlisted
+and prompt).
 - Fresh scratch tree: `./run createscratch` (run from `main/`).
 - Edit + test in scratch: `cd ../scratch` then `./run checkscratch`.
 - Deploy `scratch/` → `main/`: back in `main/`, `./run mergescratch`.
@@ -178,10 +179,11 @@ blocks). Use `<code>` for inline code and `<pre><code>…</code></pre>` for code
 blocks. Even if you get input in markdown, always reply in HTML unless asked.
 
 ### Asking the user questions
-Do **not** use the question tool — it is disabled (`question: deny`) and any
-call is rejected. When you need information, ask in plain HTML prose
-and **stop** (end your turn). Ask one focused question (or a short numbered list)
-and stop; don't proceed on assumptions. If an answer is ambiguous, re-ask.
+Do **not** use the question tool — it is disabled (`permissions deny
+question` in `.crushrc`) and any call is rejected. When you need
+information, ask in plain HTML prose and **stop** (end your turn). Ask one
+focused question (or a short numbered list) and stop; don't proceed on
+assumptions. If an answer is ambiguous, re-ask.
 
 ### Linking to files
 Point at the superuser-only file viewer at `/files/<repo-root-relative path>` —
@@ -618,35 +620,58 @@ class FactsViewTests(BaseTestCase):
 
 ## Commands, tools & permissions
 You may read any file in the project and edit files under `../scratch/`. Edits
-outside it need approval. Permissions are defined in
-`agentconfig/opencode.json`.
+outside it need approval. Permissions are defined in the repo-root `.crushrc`
+(tool-level allows/denies) plus the two PreToolUse guard hooks in `deploy/`
+(`crush_bash_guard.py` for commands, `crush_edit_guard.py` for edit paths —
+both unit-tested in `deploy/tests/`).
 **Prefer the allowlisted commands** — they run with no prompt; anything else
 interrupts the turn to ask. Map your intent onto them (e.g. `./run checkscratch`,
 `./run djangomanage makemigrations`, `./run createscratch`) rather than
 hand-rolling an equivalent that will prompt.
-**Never pipe or redirect** — don't append `| head`, `2>&1`, or `>`.
-opencode treats `|`/`>` as command-chaining and prompts **regardless of the
-allowlist** (a wildcard can't match them), and it already captures full tool
-output, so the pipe buys nothing.  
-The allowlisted commands (defined in `agentconfig/opencode.json`):
-- `./run createscratch` — fresh `../scratch/` from `main/`
-- `./run mergescratch` — deploy `../scratch/` → `main/` (no commit)
-- `./run cleanscratch` — remove the scratch tree outright. **Prefer this over
-  `rm -rf`.**
-  Never `rm -rf /abs/path/scratch` — absolute paths aren't allowlisted and will
-  prompt. (`rm -rf ../scratch`, relative to `main/`, also works — that's the
-  allowlisted form; the TUI's cwd is the repo root.)
-- `./run checkproject` — full validation (overlays the test/reference apps +
-  runs the project tests via `RUN_PROJECT_TESTS=1`); run before promoting a
-  framework change
-- `./run checkscratch` — the **scratch/ fast loop**: ruff + mypy + `ourapp`'s own
-  tests + frontend lint/type-check/build (no framework backend suite, no browser)
-- `./run typecheck`, `./run test *`, `./run lintfix`
-- `./run djangomanage makemigrations *` / `migrate` / `findstatic *` (`findstatic`
-  is read-only — prints the on-disk file a static URL resolves to)
-- `npm run build` (from `frontend/`) — rebuild the frontend bundle
-- `cd ../scratch …` then read-only `git status` / `diff` / `log` / `show`
-- `websearch`
+**Compounds decompose** — the bash guard (`deploy/crush_bash_guard.py`)
+splits `&&` / `||` / `;` / `|` / subshell / newline chains into sections
+with shlex and allows the compound only when **every** section matches the
+allowlist; one unknown section prompts the whole line, and a denied
+section (rg/perl) blocks it outright. Redirections (`>`, `>>`, `2>&1`) and
+command substitution (`$(…)`, backticks) always prompt — and the TUI
+already captures full tool output, so piping buys nothing anyway.
+
+**Environment variables go through `export`, never as a command prefix** —
+a prefixed command no longer matches the allowlist and prompts:
+
+```bash
+# WRONG — env prefix: the section doesn't match the allowlist → prompts
+COPYFILE_DISABLE=1 ./run test accounts
+RUN_PROJECT_TESTS=1 ./run checkscratch
+
+# RIGHT — export, then the bare command: every section matches → allowed
+export COPYFILE_DISABLE=1 && ./run test accounts
+export RUN_PROJECT_TESTS=1 && ./run checkscratch
+```
+
+The allowlisted commands (defined in `deploy/crush_bash_guard.py`):
+
+```bash
+./run createscratch                  # fresh ../scratch/ from main/
+./run mergescratch                   # deploy ../scratch/ → main/ (no commit)
+./run cleanscratch                   # remove the scratch tree — PREFER over rm -rf
+./run checkproject                   # full validation incl. project tests; before promoting a framework change
+./run checkscratch                   # the scratch/ fast loop (ruff+mypy+ourapp tests+frontend)
+./run typecheck                      # …and ./run lintfix
+./run test …                         # any args
+./run playwrighttest …
+./run djangomanage makemigrations …  # … / migrate / findstatic … (findstatic is read-only)
+npm run build                        # from frontend/
+cd ../scratch                        # …then git status / git diff … / git log … / git show … / git blame …
+git status                           # BARE form only (args like --porcelain
+                                     # prompt); git diff / log / show take any args
+pwd                                  # also: ls -la … / ls -d …
+rm -rf scratch                       # …or ../scratch — BARE tree only; any
+                                     # operand prompts: use ./run cleanscratch
+export NAME=VALUE                    # pair with && and an allowed command (see above)
+```
+
+(The `web_search` tool is likewise pre-approved — tool-level, in `.crushrc`.)
 
 `./run checkall` (the **full gate**: framework backend suite + Playwright) is
 deliberately NOT in that list — it's a human-run, `main/`-only check; the agent
@@ -672,7 +697,8 @@ allowlist wherever possible.
 frontend; `cd frontend && npm run type-check` type-checks it.
 
 Try to run commands without overriding env variables, so a command can be
-approved for the whole session and keep working.
+approved for the whole session and keep working. When you must set one, use
+the `export … && …` form above — never a `ENV=VAL command` prefix.
 
 Use the right tool, not a shell reinvention:
 - **List a directory:** `read <dir>` **once**.
@@ -680,7 +706,7 @@ Use the right tool, not a shell reinvention:
 - **Search file contents:** the `grep` tool — never `rg` (the server may not have
   it) or shell `grep`.
 - **Read in parallel:** issue several `read`/`grep`/`glob` calls in **one turn** —
-  opencode runs them concurrently. Don't read one file per turn.
+  crush runs them concurrently. Don't read one file per turn.
 - **Write/edit files:** the `write`/`edit` tools. Never `cat >` / heredocs.
 - **Never recurse into** `node_modules`, `dist`, `build`, `.git`, `__pycache__`.
 - **Don't repeat a command more than twice** if it returns the same output.
@@ -688,6 +714,47 @@ Use the right tool, not a shell reinvention:
 
 When a bash command is long, format it across **newlines** (line continuations)
 so the **permission prompt** that shows it reads clearly — never one long line.
+Prefer forms that **pass the guard outright** (all sections allowlisted, no
+pipes/redirects); when the command genuinely can't be allowlisted, the readable
+form at least makes the prompt easy to approve. The TUI captures full output —
+`| tail -1` and friends buy nothing and force a prompt.
+
+Don't emit dense one-liners. Wrong (unreadable, every `|`/`2>&1` section
+prompts):
+
+```bash
+uv run ruff format 2>&1 | tail -1 && uv run ruff check 2>&1 | tail -1 && uv run mypy . 2>&1 | tail -1
+```
+
+Right (allowlisted wrappers chained on ONE line — a `&&` at a line end
+before a newline does NOT parse as a separator and prompts; keep the
+chain single-line, it still reads fine at wrapper length):
+
+```bash
+./run lintfix && ./run typecheck
+```
+
+Don't bury shell payloads in nested one-liner quotes. Wrong (one opaque
+`ssh` blob — prompts, and a human can't read what they're approving):
+
+```bash
+ssh app1 'cd /srv/app1/main && .venv/bin/python manage.py shell -c "from djangoapp.models import User; [print(u.pk, u.username, u.email) for u in User.objects.all()]"'
+```
+
+Right (this still prompts — `ssh` isn't allowlisted — but the continuation
+lines make the permission prompt readable; note the Python inside `-c` must
+stay at column 0):
+
+```bash
+ssh app1 '
+  cd /srv/app1/main &&
+  .venv/bin/python manage.py shell -c "
+from djangoapp.models import User
+for u in User.objects.all():
+    print(u.pk, u.username, u.email)
+  "
+'
+```
 
 If a tool call fails with `JSON Parse error: Unrecognized token '<'`, the problem
 is a stray closing tag in **your** tool-call JSON, not a `<` in the file. Inspect

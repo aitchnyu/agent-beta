@@ -1705,3 +1705,26 @@ All 25 items implemented same day. Highlights/deviations from the plan text:
 >   sourced); live `opencode run` request used `> build · glm-5.2`; guard
 >   refuses when unset; .env.vm exports it (VM gets it via existing
 >   staging — units/source path unchanged). VM sync pending next provision.
+
+> ### Follow-up 17 (2026-08-24): opencode → Crush cutover COMPLETE
+>
+> Executed prompts/20260824-agent-crush-migration.md in full (that file
+> is the as-built record; this entry is the cross-reference). VM now
+> provisions @charmland/crush@0.91.0 (npm, lockstep with dev; the
+> brew formula doesn't exist). Memory motivation CONFIRMED: crush peak
+> RSS ~81 MB on the VM vs opencode's ~493 MB (~6×; swap pressure gone).
+> The seed tarball now also ships deploy/crush_{bash,edit}_guard.py (+ their
+> tests) — the PreToolUse hooks implementing the old opencode.json
+> permission policy — and the seed tarball excludes `.crush/` (a stale
+> Mac-side state dir shipped once, hand-cleaned; `.crush/` is per-project
+> state, never seeded). ttyd.service.in lost its OPENCODE_* Environment
+> lines (crush finds the repo .crushrc from its cwd; auth/model ride the
+> shared .env.vm via ZAI_API_KEY/AGENT_MODEL). Ops gotchas discovered:
+> `crush run` non-interactive READS STDIN until EOF — scripted harnesses
+> must `< /dev/null` (a nested-sudo pipe without EOF looks exactly like
+> "crush hangs", zero output, cost an hour); the npm wrapper spawns the
+> Go binary with cwd = process.cwd(), so run it from the repo dir a user
+> can traverse (else EACCES red herring); first build died to a transient
+> npm registry ETIMEDOUT — clean retry, nothing to fix. Tool-name
+> spellings verified against the 0.91.0 binary, not docs: the search
+> tool is `web_search` (docs say `websearch` — wrong for this version).

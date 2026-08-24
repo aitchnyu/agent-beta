@@ -17,6 +17,6 @@ fi
 
 echo ""
 echo "App console — shells land in the repo."
-echo "  ./run agent   start the AI agent (opencode TUI)"
+echo "  ./run agent   start the AI agent (Crush TUI)"
 echo "  ./run dev     runserver + vite + huey + this console"
 echo ""

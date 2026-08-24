@@ -41,13 +41,21 @@
 #       │   └── sites/app.caddy          the app.local site (app + /agent/)
 #       ├── redis/redis.conf             stock + maxmemory block
 #       └── sudoers.d/console            console's full passwordless sudo
-#   /
-#   └── srv/app/main/deploy/
-#       └── console-bashrc               console banner rcfile (seed excludes deploy/)
+#   /srv/app  (pre-created by provision_vm; group-app-writable)
+#     └── main/ contents = the SEED TARBALL (the TRACKED working tree —
+#         git ls-files driven, so the git index is the exclude authority;
+#         deploy/ ships WITH it — guards, console-bashrc, tests included)
 #   /
 #   └── tmp/
 #       ├── vm-seed-commit.sh            one-shot: git init + first commit (run as app)
 #       └── vm-bootstrap.sh              one-shot: uv sync, build, migrate, collectstatic
+#
+# The tree carries CONTENT only — extraction is `tar --no-same-owner`
+# (everything lands root:root, the host's umask rides through in the file
+# modes), so every mode/ownership pin lives in ONE place: inside-vm.sh
+# provision_app, right after extraction. The single exception is tmp/'s
+# 1777, which must ride in the archive itself (tar stamps the extracted
+# dir with the archived mode).
 
 set -euo pipefail
 
@@ -69,6 +77,12 @@ envval() {
 }
 
 provision() {
+  # Pin the umask host-side: tree + seed tarballs carry file/dir modes
+  # through extraction, so a stricter dev shell (027/077) would land
+  # /etc/redis 700 (redis user can't traverse) and /tmp one-shots 600
+  # (`sudo -u app bash /tmp/…` denied). 022 is the base the inside-vm
+  # mode pins assume.
+  umask 022
   local release="26.04"
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -133,7 +147,7 @@ provision() {
   echo "==> multipass launch app (bridged en0, DHCP, 1G ram, 20G disk, $release)"
   multipass launch --name app --network en0 --memory 1G --disk 20G "$release"
 
-  # ── 2. machine phases inside (users, apt, node, opencode, caddy, swap…) ──
+  # ── 2. machine phases inside (users, apt, node, crush, caddy, swap…) ──
   multipass transfer "$deploy_dir/inside-vm.sh" app:/tmp/inside-vm.sh
   multipass exec app -- sudo bash /tmp/inside-vm.sh provision_vm
 
@@ -148,17 +162,16 @@ provision() {
   local tree="$t/tree"
   mkdir -p "$tree/etc/credentials/app" \
     "$tree/etc/systemd/system" \
-    "$tree/etc/caddy/sites" "$tree/etc/redis" "$tree/etc/sudoers.d" \
-    "$tree/srv/app/main/deploy"
+    "$tree/etc/caddy/sites" "$tree/etc/redis" "$tree/etc/sudoers.d"
   render() {
     sed -e "s/@GRANIAN_WORKERS@/$granian_workers/g" \
         -e "s/@GRANIAN_THREADS@/$granian_threads/g" \
         -e "s/@HUEY_WORKERS@/$huey_workers/g" "$1"
   }
 
-  # tree: /etc/credentials/app/.env.vm
-  install -m640 "$here/.env.vm" "$tree/etc/credentials/app/.env.vm"
-  chmod 750 "$tree/etc/credentials/app"
+  # tree: /etc/credentials/app/.env.vm — content only; root:app + 750/640
+  # are pinned inside (inside-vm.sh, after --no-same-owner extraction).
+  cp "$here/.env.vm" "$tree/etc/credentials/app/.env.vm"
 
   # tree: /etc/systemd/system/app_granian.service
   render "$deploy_dir/granian.service.in" > "$tree/etc/systemd/system/app_granian.service"
@@ -171,26 +184,31 @@ provision() {
 
   # tree: /etc/caddy/Caddyfile — stock + the sites import (one line).
   printf '\nimport sites/*.caddy\n' >> "$t/Caddyfile"
-  install -m644 "$t/Caddyfile" "$tree/etc/caddy/Caddyfile"
+  cp "$t/Caddyfile" "$tree/etc/caddy/Caddyfile"
   # tree: /etc/caddy/sites/app.caddy
   render "$deploy_dir/Caddyfile.site.in" > "$tree/etc/caddy/sites/app.caddy"
 
   # tree: /etc/redis/redis.conf — stock + the maxmemory block.
   cat "$deploy_dir/redis-append.conf" >> "$t/redis.conf"
-  install -m644 "$t/redis.conf" "$tree/etc/redis/redis.conf"
+  cp "$t/redis.conf" "$tree/etc/redis/redis.conf"
 
-  # tree: /etc/sudoers.d/console
+  # tree: /etc/sudoers.d/console — content only; the 0440 mode sudo
+  # requires is pinned inside (inside-vm.sh, with visudo validation).
   printf 'console ALL=(ALL) NOPASSWD: ALL\n' > "$tree/etc/sudoers.d/console"
-  chmod 0440 "$tree/etc/sudoers.d/console"
 
-  # tree: /srv/app/main/deploy/console-bashrc
-  install -m644 "$deploy_dir/console-bashrc" "$tree/srv/app/main/deploy/console-bashrc"
 
   # tree: /tmp/vm-seed-commit.sh + /tmp/vm-bootstrap.sh — one-shot scripts
-  # this driver invokes below (single-line execs instead of inline bash -c).
+  # this driver invokes below via `bash /tmp/…` (never executed directly,
+  # so no exec bit needed; mode pinned nowhere on purpose).
+  # tmp/'s 1777 must ride IN the archive (not be re-applied inside) because
+  # tar stamps the EXTRACTED directory with the archived mode — and the
+  # tmpfs-mounted /tmp is the one dir an outside-file chmod can't fix after
+  # the fact (a plain 755 here strips the sticky bit and every later
+  # multipass transfer, running as ubuntu, hits Permission denied).
   mkdir -p "$tree/tmp"
-  install -m755 "$deploy_dir/vm-seed-commit.sh" "$tree/tmp/vm-seed-commit.sh"
-  install -m755 "$deploy_dir/vm-bootstrap.sh" "$tree/tmp/vm-bootstrap.sh"
+  chmod 1777 "$tree/tmp"
+  cp "$deploy_dir/vm-seed-commit.sh" "$tree/tmp/vm-seed-commit.sh"
+  cp "$deploy_dir/vm-bootstrap.sh" "$tree/tmp/vm-bootstrap.sh"
 
   # Ship the whole tree as ONE tarball (ownership is fixed inside after
   # extraction — the host can't know VM gids).
@@ -203,14 +221,14 @@ provision() {
   # ── 5. seed the repo ─────────────────────────────────────────────────────
   echo "==> seed /srv/app/main (tarball over multipass transfer, from $here)"
   multipass exec app -- sudo install -d -o app -g app /srv/app/main
-  # (._* excludes macOS AppleDouble files — bsdtar would otherwise smuggle
-  # them into the seed and the repo's first commit.)
-  COPYFILE_DISABLE=1 tar czf /tmp/app-seed.tgz -C "$here" \
-    --exclude='.git' --exclude='.venv' --exclude='node_modules' \
-    --exclude='__pycache__' --exclude='.mypy_cache' --exclude='.ruff_cache' \
-    --exclude='staticfiles' --exclude='scratch' --exclude='.env' --exclude='.env.vm' \
-    --exclude='deploy' --exclude='.playwright-mcp' --exclude='.kilo' \
-    --exclude='.DS_Store' --exclude='._*' --exclude='db.sqlite3' .
+  # The seed = the TRACKED working tree: `git ls-files` drives tar, so the
+  # git index is the single source of truth — gitignored artifacts (.env*,
+  # .crush/, staticfiles/, caches…) and untracked clutter (editor state,
+  # AppleDouble junk, empty dirs) can never ship, and no hand-maintained
+  # exclude list can drift (it did: .coverage/static/uploads/.idea all
+  # leaked at some point before this). Tracked-but-deleted files make tar
+  # fail loudly — desired. Mode bits come from the filesystem, as before.
+  (cd "$here" && git ls-files -z) | COPYFILE_DISABLE=1 tar czf /tmp/app-seed.tgz -C "$here" --null -T -
   multipass transfer /tmp/app-seed.tgz app:/tmp/app-seed.tgz
   # Group-write the extracted tree (like the enclosing /srv/app 775): the
   # console user (agent/./run) must be able to edit main/ — mergescratch,
@@ -237,6 +255,10 @@ provision() {
   [[ "$huey_exists" == "yes" ]] && restart_units+=("app_huey.service")
   multipass exec app -- sudo systemctl restart "${restart_units[@]}"
   multipass exec app -- sudo systemctl restart caddy
+
+  # NOTE: provisioning leftovers (/tmp/tree.tgz — which embeds the
+  # credentials env — + the seed tarball + the one-shots) are cleaned from
+  # INSIDE, as the last step of vm-bootstrap.sh.
 
   # ── 7. print the access steps ────────────────────────────────────────────
   cat "$deploy_dir/access-steps.txt"

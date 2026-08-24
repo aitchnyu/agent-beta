@@ -27,3 +27,10 @@ djangoapp/static/
 
 # Playwright MCP (browser tooling) artifacts: snapshots, console logs
 .playwright-mcp/
+
+# crush agent state directory (sessions; config .crushrc IS versioned)
+.crush/
+
+# collectstatic output (STATIC_ROOT is repo-relative; seed ships none,
+# the VM builds its own — never commit it)
+staticfiles/
