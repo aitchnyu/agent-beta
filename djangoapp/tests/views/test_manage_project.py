@@ -18,9 +18,9 @@ class ManageProjectTests(BaseInertiaTestCase):
     """Real models-management coverage against the test app's models.
 
     Runs only under ``checkproject`` (sets ``RUN_PROJECT_TESTS`` and overlays the
-    test app onto ``ourapp/``); self-skips in ``checkall`` (the var is unset and
+    test app onto ``ourapp/``); self-skips in ``checkframework1`` (the var is unset and
     ``ourapp/`` is empty). Models are fetched via ``apps.get_model`` so the module
-    imports safely when collected in checkall (no top-level ``ourapp`` import).
+    imports safely when collected in checkframework1 (no top-level ``ourapp`` import).
 
     - test_model_list_lists_testapp_models, /manage/models lists Author + Book
     - test_book_list, /manage/models/Book/list columns + both FK cell kinds
@@ -29,7 +29,7 @@ class ManageProjectTests(BaseInertiaTestCase):
     - test_author_list_renders, /manage/models/Author/list renders rows
     """
 
-    # Model classes resolved lazily in setUpTestData (ourapp is empty in checkall,
+    # Model classes resolved lazily in setUpTestData (ourapp is empty in checkframework1,
     # so they can't be imported at module load — the class is skipped there).
     Author: ClassVar[type[Any]]
     Book: ClassVar[type[Any]]
@@ -40,9 +40,13 @@ class ManageProjectTests(BaseInertiaTestCase):
 
     @classmethod
     def setUpTestData(cls) -> None:
+        # Locally typed type[Any]: AppConfig.get_model returns type[Model],
+        # which would narrow cls.Author/Book and fail .objects access below.
         ourapp = apps.get_app_config("ourapp")
-        cls.Author = ourapp.get_model("Author")
-        cls.Book = ourapp.get_model("Book")
+        author_model: type[Any] = ourapp.get_model("Author")
+        book_model: type[Any] = ourapp.get_model("Book")
+        cls.Author = author_model
+        cls.Book = book_model
         cls.superuser = User.objects.create_user(username="admin", is_superuser=True, is_staff=True)
         cls.author = cls.Author.objects.create(
             name="Ada", bio="Mathematician", rating="4.50", active=True

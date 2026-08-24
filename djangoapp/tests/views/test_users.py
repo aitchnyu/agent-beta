@@ -1,5 +1,7 @@
 import json
 
+from django.test import tag
+
 from djangoapp.models import User, UserHistory
 from djangoapp.tests.query_budget import (
     QueryBudgetInertiaTestCase,
@@ -52,6 +54,7 @@ class UserListViewTests(QueryBudgetInertiaTestCase):
         response = self.client.get("/users/list")
         self.assertEqual(response.status_code, 404)
 
+    @tag("framework-subset")
     def test_list_superuser_ok(self) -> None:
         self.allow_more_queries(9)  # frozen baseline incl. auth/session overhead
         "superuser gets 200 rendering the UserList component"

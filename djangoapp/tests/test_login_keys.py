@@ -6,6 +6,7 @@ from io import StringIO
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.test import tag
 from django.utils import timezone
 
 from djangoapp.models import TestLoginKey, User
@@ -48,6 +49,7 @@ class TestLoginKeyTests(BaseTestCase):
         self.assertEqual(TestLoginKey.objects.count(), 1)
         self.assertIsNone(TestLoginKey.redeem(raw))
 
+    @tag("framework-subset")
     def test_redeem_consumed_after_success(self) -> None:
         """A valid key returns its user once, then None forever after."""
         raw = TestLoginKey.issue(self.user, minutes=15)

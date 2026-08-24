@@ -236,7 +236,7 @@ playwrighttest() {
   uv run manage.py test $_DJANGO_NO_COLOR --tag playwright --noinput
 }
 
-checkall() {
+checkframework1() {
   setenv
   echo "Running ruff format --check (formatting drift)"
   uv run ruff format $_RUFF_COLOR --check
@@ -258,12 +258,170 @@ checkall() {
   playwrighttest
 }
 
+# The deployment gate: rebuild the test VM FROM SCRATCH (destructive — the
+# old VM's git + database are gone), deploy the Books test app
+# (djangoapp/tests/testapp) over the VM's ourapp/, then smoke the LIVE
+# stack over HTTPS from the host (caddy TLS, granian, postgres, login
+# links, the /agent forward_auth superuser gate) — what only a real
+# deployment shows.
+#
+# Organized as Setup 1-4 (build/deploy/mint) then Assert 1-6 (the
+# HTTP smoke, one banner per assertion, first failure aborts).
+checkframework2() {
+  setenv
+  local vm_base="https://app.local"
+
+  # Source the credentials env and enter the repo — embedded into every
+  # vm_app invocation below via `declare -f`, so the body stays ordinary
+  # (highlighted, lintable) shell.
+  _vm_env() {
+    set -a
+    . /etc/credentials/app/.env.vm
+    set +a
+    cd /srv/app/main
+  }
+
+  # Run a command in the VM as the app user, with env sourced and the repo
+  # as cwd. $1 embeds verbatim — pass single-quoted literals only (no $,
+  # backticks, or embedded quotes in the payload).
+  vm_app() {
+    multipass exec app -- sudo -u app -H bash -c "$(declare -f _vm_env); _vm_env; $1"
+  }
+
+  # assert <expected[ expected...]> <got> <what-is-being-asserted> — a single
+  # value ("404") or space-separated alternatives ("302 200"). NB: a
+  # case-pattern CANNOT take its | alternation from an expanded variable
+  # (parse-time construct), hence the loop. Failures name the assertion and
+  # abort under set -e, like every other check in this script.
+  assert() {
+    local alt
+    for alt in $1; do
+      [ "$alt" = "$2" ] && return 0
+    done
+    echo "FAILED: $3 (expected $1, got $2)" >&2
+    return 1
+  }
+
+  # assert_contains <file> <pattern> <what-is-being-asserted>
+  assert_contains() {
+    grep -q "$2" "$1" || { echo "FAILED: $3 ($1 lacks '$2')" >&2; return 1; }
+  }
+
+  # Extract the shipped testapp tarball over the VM's ourapp/ (full
+  # replace), fix ownership/group-write, remove the tarball. Runs as root
+  # via `sudo bash -c "$(declare -f deploy_ourapp); deploy_ourapp"`.
+  deploy_ourapp() {
+    tar xzf /tmp/testapp-ourapp.tgz -C /srv/app/main
+    chown -R app:app /srv/app/main/ourapp
+    find /srv/app/main/ourapp -exec chmod g+w {} +
+    rm -f /tmp/testapp-ourapp.tgz
+  }
+
+  # ── Setup 1/4: rebuild the VM from scratch ─────────────────────────────
+  # Delete any existing 'app' VM (destructive), provision a fresh one via
+  # ./testvm. Gated by provision's own set -e: every phase it runs
+  # (packages, tree, seed, bootstrap, services) must exit 0.
+  echo "=== Setup 1/4: rebuild the VM from scratch (destructive) ==="
+  if multipass info app >/dev/null 2>&1; then
+    "$_MAIN_DIR/testvm" delete
+  fi
+  "$_MAIN_DIR/testvm" provision
+
+  # ── Setup 2/4: deploy the Books test app ───────────────────────────────
+  # Tar the testapp's ourapp/, ship it, then extract over the VM's
+  # /srv/app/main/ourapp (full replace) as root — the body lives in
+  # deploy_ourapp below (embedded via `declare -f`). Gated by each
+  # command's exit code.
+  echo "=== Setup 2/4: deploy the Books test app over the VM's ourapp/ ==="
+  (cd "$_MAIN_DIR/djangoapp/tests/testapp" && COPYFILE_DISABLE=1 tar czf /tmp/testapp-ourapp.tgz ourapp)
+  multipass transfer /tmp/testapp-ourapp.tgz app:/tmp/testapp-ourapp.tgz
+  multipass exec app -- sudo bash -c "$(declare -f deploy_ourapp); deploy_ourapp"
+
+  # ── Setup 3/4: migrate, restart the app ─────────────────────────────────
+  # Migrate the fresh database, create the smoke superuser
+  # (framework@example.com, "Framework Smoke"), restart granian on the new
+  # code. Gated by each command's exit code.
+  echo "=== Setup 3/4: migrate, create the smoke superuser ==="
+  vm_app '.venv/bin/python manage.py migrate --noinput'
+  vm_app '.venv/bin/python manage.py createuser framework@example.com --first-name Framework --last-name Smoke --superuser'
+  multipass exec app -- sudo systemctl restart app_granian.service
+
+  # ── Setup 4/4: mint the one-time superuser login link ──────────────────
+  # makeloginlink inside the VM, extract the URL; the cookie jar captures
+  # the session the assertions below ride on.
+  echo "=== Setup 4/4: mint the one-time superuser login link ==="
+  local link
+  link=$(vm_app '.venv/bin/python manage.py makeloginlink framework@example.com --base-url https://app.local' \
+    | grep -oE "https://app\.local/login-for-test/[^ ]+/" | head -1) || true
+  [ -n "$link" ] || { echo "FAILED: no login link minted" >&2; return 1; }
+  local cookie_jar
+  cookie_jar="$(mktemp)"
+  trap 'rm -f "$cookie_jar"' RETURN
+
+  local code body agent_dump agent_anon_dump
+
+  # ── Assert 1/6: the login link redeems ─────────────────────────────────
+  # 302 (redirect after login; 200 also fine) and leaves a session cookie
+  # in the jar.
+  echo "=== Assert 1/6: login link redeems ==="
+  code=$(curl -k -sS -o /dev/null -w '%{http_code}' -c "$cookie_jar" "$link")
+  assert "302 200" "$code" "login link redemption status"
+
+  # ── Assert 2/6: /users/list gate, anonymous ────────────────────────────
+  # The framework superuser route hides from anonymous viewers: 404.
+  echo "=== Assert 2/6: anonymous /users/list → 404 ==="
+  code=$(curl -k -sS -o /dev/null -w '%{http_code}' "$vm_base/users/list")
+  assert 404 "$code" "anonymous /users/list"
+
+  # ── Assert 3/6: /users/list gate, superuser session ────────────────────
+  # 200 proves the redeemed cookie is a real superuser session.
+  echo "=== Assert 3/6: authed /users/list → 200 (session proof) ==="
+  code=$(curl -k -sS -o /dev/null -w '%{http_code}' -b "$cookie_jar" "$vm_base/users/list")
+  assert 200 "$code" "authed /users/list (session proof)"
+
+  # ── Assert 4/6: home renders the test app ──────────────────────────────
+  # The home page shows the smoke user's display name "Framework Smoke".
+  echo "=== Assert 4/6: home shows the smoke user ==="
+  body=$(curl -k -sS -b "$cookie_jar" "$vm_base/")
+  grep -q "Framework Smoke" <<<"$body" \
+    || { echo "FAILED: home does not show the smoke user" >&2; return 1; }
+
+  # ── Assert 5/6: /agent gate, anonymous ─────────────────────────────────
+  # Caddy forward_auth (→ /agent/auth): anonymous/non-superuser → 404,
+  # relayed verbatim. The body must render OUR 404 template with the AUTH
+  # SUBREQUEST's path (/agent/auth) — the fingerprint of the verdict
+  # actually flowing through agent_auth. A plain Django catch-all 404
+  # (caddy block missing) would render "/agent/" instead; a caddy-native
+  # respond would be text/plain.
+  echo "=== Assert 5/6: anonymous /agent → 404 via forward_auth ==="
+  agent_anon_dump="$(mktemp)"
+  code=$(curl -k -sS -o "$agent_anon_dump" -w '%{http_code}' "$vm_base/agent/")
+  assert 404 "$code" "anonymous /agent (forward_auth gate)"
+  assert_contains "$agent_anon_dump" "/agent/auth" "anonymous /agent 404 came from agent_auth (not a catch-all)"
+  rm -f "$agent_anon_dump"
+
+  # ── Assert 6/6: /agent gate, superuser session ─────────────────────────
+  # 2xx verdict → caddy proxies to ttyd, whose terminal page serves. The
+  # markers are ttyd's own title + an xterm renderer class from its JS
+  # bundle — not merely the string "ttyd", which an error page echoing
+  # the request could satisfy.
+  echo "=== Assert 6/6: superuser /agent → 200, ttyd terminal page ==="
+  agent_dump="$(mktemp)"
+  code=$(curl -k -sS -o "$agent_dump" -w '%{http_code}' -b "$cookie_jar" "$vm_base/agent/")
+  assert 200 "$code" "superuser /agent (forward_auth passed)"
+  assert_contains "$agent_dump" "<title>ttyd - Terminal</title>" "/agent serves ttyd's page (ttyd title)"
+  assert_contains "$agent_dump" "BaseRenderLayer" "/agent serves ttyd's xterm bundle"
+  rm -f "$agent_dump"
+
+  echo "checkframework2 green."
+}
+
 # The scratch/ fast loop: validate the agent's ourapp/ edits without re-running the
 # unchanged framework suite or the slow browser pass. ruff + mypy (whole codebase
 # — the agent's Python must pass), ourapp's OWN tests only (not djangoapp/tests/,
 # which is identical to main/), and the frontend lint/typecheck/build (the build
 # confirms the agent's frontend compiles; the browser pass is skipped). The full
-# backend suite + Playwright stay in checkall, run in main/.
+# backend suite + Playwright stay in checkframework1, run in main/.
 checkscratch() {
   setenv
   echo "Running ruff format --check (formatting drift)"
@@ -282,6 +440,29 @@ checkscratch() {
   echo "Running frontend build"
   npm run build
   cd ..
+  # Framework-file watch: diff the working tree (committed-since-baseline,
+  # staged, unstaged, untracked) against scratch's seeded baseline commit.
+  # Edits OUTSIDE the agent's app surface (ourapp/, frontend/src/ours/) mean
+  # framework code changed → run the framework-subset smoke tests: the
+  # view tests tagged `framework-subset` + the one browser smoke class,
+  # a ~5-10s fraction of checkframework1 as an early-warning gate. The
+  # FULL suite still gates in main/ via checkframework1.
+  local baseline outside
+  baseline=$(git -C "$_SCRATCH_DIR" rev-list --max-parents=0 HEAD)
+  outside=$(
+    {
+      git -C "$_SCRATCH_DIR" diff --name-only "$baseline"
+      git -C "$_SCRATCH_DIR" ls-files --others --exclude-standard
+    } | sort -u | grep -vE '^(ourapp/|frontend/src/ours/)' || true
+  )
+  if [ -n "$outside" ]; then
+    echo "=== framework files changed — running framework-subset smoke tests ==="
+    printf '  %s\n' $(grep -c . <<<"$outside") files:
+    printf '  %s\n' $outside
+    uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=framework-subset
+  else
+    echo "No framework-file changes (outside ourapp/ + frontend/src/ours/) — skipping framework-subset smoke."
+  fi
 }
 
 lintfix() {
@@ -391,7 +572,7 @@ cleanscratch() {
 
 checkproject() {
   # The project tests need a real app; they self-skip unless RUN_PROJECT_TESTS is
-  # set (so checkall skips them). Relies on set -e: a failure aborts and leaves scratch/ for inspection.
+  # set (so checkframework1 skips them). Relies on set -e: a failure aborts and leaves scratch/ for inspection.
   
   echo "=== checkproject cycle 1: test app (lint + typecheck + project tests) ==="
   _new_scratch

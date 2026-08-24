@@ -18,6 +18,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import git
+from django.test import tag
 
 from djangoapp.models import User
 from djangoapp.tests._base import BaseInertiaTestCase
@@ -122,6 +123,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         self.assertIn("+x = 1", props["diff"])
         self.assertEqual(props["title"], "Uncommitted (scratch): TodoApp/scratch_only.py")
 
+    @tag("framework-subset")
     def test_commit_list(self) -> None:
         """``/git/commits`` lists 3 commits newest-first with pagination."""
         self.client.get("/git/commits")

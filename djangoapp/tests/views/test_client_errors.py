@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 import redis
+from django.test import tag
 
 from djangoapp.logging import json_formatter
 from djangoapp.models import User
@@ -78,6 +79,7 @@ class ClientErrorViewTests(BaseTestCase):
     response status; identity always comes from request.user, never the body.
     """
 
+    @tag("framework-subset")
     def test_authed_report_logs_client_error(self) -> None:
         """Authed POST → 204 with source=client + row/col/url + the user."""
         user = User.objects.create_user(username="alice", password="x", first_name="Alice")

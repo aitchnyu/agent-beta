@@ -149,7 +149,10 @@ from a prior task; `./run cleanscratch` wipes it).
 **`( cd ../scratch && ./run checkscratch )`** — ruff + mypy + **ourapp's own tests**
 + frontend lint/type-check/build. It does NOT re-run the framework backend suite
 (`djangoapp/tests/`, identical to `main/`) or the Playwright pass — those belong
-in `main/`'s `checkall`. Iterate on the failing command (see `INSTRUCTIONS.md`);
+in `main/`'s `checkframework1`. If scratch edits touch framework files (anything
+outside `ourapp/` + `frontend/src/ours/`), it additionally runs the tagged
+`framework-subset` smoke tests (~5-10s: one view test per feature + one browser
+smoke class). Iterate on the failing command (see `INSTRUCTIONS.md`);
 `checkscratch` must finish green.
 
 **`./run mergescratch`** (from `main/`) — rsyncs `../scratch/` → `main/` (never
@@ -673,7 +676,7 @@ export NAME=VALUE                    # pair with && and an allowed command (see 
 
 (The `web_search` tool is likewise pre-approved — tool-level, in `.crushrc`.)
 
-`./run checkall` (the **full gate**: framework backend suite + Playwright) is
+`./run checkframework1` (the **full gate**: framework backend suite + Playwright) is
 deliberately NOT in that list — it's a human-run, `main/`-only check; the agent
 uses `./run checkscratch` in scratch.
 

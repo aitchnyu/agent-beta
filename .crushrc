@@ -25,7 +25,7 @@ option metrics false
 
 # Read-only tools run unprompted; the bash + edit policy lives in the
 # PreToolUse hooks below (deploy/crush_*_guard.py, unit-tested in
-# deploy/tests/, wired into ./run checkall). Hook paths are RELATIVE and
+# deploy/tests/, wired into ./run checkframework1). Hook paths are RELATIVE and
 # crush 0.91 only loads this file when cwd IS the project root (probed:
 # hooks don't fire from subdirectories), so `./deploy/…` always resolves —
 # `./run agent` enforces the root cwd; running bare `crush` from a subdir

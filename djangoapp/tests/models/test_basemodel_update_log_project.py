@@ -14,9 +14,9 @@ class BaseModelUpdateLogTests(BaseTestCase):
     """``BaseModel.save_with_logs`` / ``delete_with_logs`` against the real Book model.
 
     Runs only under ``checkproject`` (sets ``RUN_PROJECT_TESTS`` and overlays the
-    test app onto ``ourapp/``); self-skips in ``checkall`` (the var is unset and
+    test app onto ``ourapp/``); self-skips in ``checkframework1`` (the var is unset and
     ``ourapp/`` is empty). Models are fetched via ``apps.get_model`` so the module
-    imports safely when collected in checkall (no top-level ``ourapp`` import).
+    imports safely when collected in checkframework1 (no top-level ``ourapp`` import).
 
     - test_create_logs_created_with_full_new_values, create log: old={}, new=all columns
     - test_update_logs_changed_values, update log old/new reflect the changed field

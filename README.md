@@ -226,7 +226,9 @@ change:
 2. Edit `../scratch/`.
 3. `( cd ../scratch && ./run checkscratch )` — ruff + mypy + `ourapp` tests + frontend
    lint/type-check/build (the fast loop: the framework suite and Playwright stay
-   in `main/`). Must finish green. Run `checkall` in `main/` for the full gate.
+   in `main/`). Must finish green. When scratch edits touch framework files
+   (outside `ourapp/` + `frontend/src/ours/`), it also runs the tagged
+   `framework-subset` smoke tests. Run `checkframework1` in `main/` for the full gate.
 4. `./run mergescratch` (from `main/`) — deploy `../scratch/` into `main/` (never overwriting
    `main/.env`). This does **not** commit.
 
@@ -253,8 +255,8 @@ superuser count can never fall to zero through the UI.
 
 App/dev via the `run` script: `init`, `runserver`, `dev`, `console`,
 `agent`, `test`,
-`typecheck`, `lintfix`, `playwrighttest`, `checkscratch`, `checkall`,
-`checkproject`, `createscratch`, `mergescratch`, `cleanscratch`,
+`typecheck`, `lintfix`, `playwrighttest`, `checkscratch`, `checkframework1`,
+`checkframework2`, `checkproject`, `createscratch`, `mergescratch`, `cleanscratch`,
 `hueydev` (background consumer alone), `coverage`,
 plus `djangomanage`/`python` passthroughs (e.g.
 `./run djangomanage makemigrations`, `./run python manage.py …`).
@@ -335,14 +337,19 @@ under `/static/djangoapp/` so they never reach clients.
 
 ## Testing
 
-Three tiers:
+Four tiers:
 
 - **`checkscratch`** — the fast loop, run in `scratch/` while editing. ruff +
   mypy (whole codebase), `ourapp`'s own tests only, and the frontend
   lint/type-check/build. Skips the framework suite and Playwright (those run in
-  `main/`).
-- **`checkall`** — the full gate, run in `main/`. ruff + mypy + the whole backend
+  `main/`) — unless the edit touches framework files (outside `ourapp/` +
+  `frontend/src/ours/`), which adds the tagged `framework-subset` smoke tests.
+- **`checkframework1`** — the full gate, run in `main/`. ruff + mypy + the whole backend
   suite + frontend lint/type-check + Playwright.
+- **`checkframework2`** — the deployment gate. Rebuilds the test VM from scratch
+  (`./testvm`), deploys the Books test app over the VM's `ourapp/`, and smokes
+  the live stack over HTTPS from the host (login link → session, superuser
+  gates, the `/agent` forward_auth gate). Destructive: the previous VM is deleted.
 - **`checkproject`** — overlay validation against a real app. Two `createscratch`
   cycles:
   1. Overlays the **test app** (`djangoapp/tests/testapp/`) → runs the full suite

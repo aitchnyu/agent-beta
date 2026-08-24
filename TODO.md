@@ -1,10 +1,15 @@
-checkall - rename to checkframework1
-We will have a checkframework2 which builds vm and tests our test app
-It tests /agent is accessible only by superuser
+Test `createscratch`, `mergescratch`, `cleanscratch`
+deploy_ourapp
 
-checkscratch - it will check if files outside ourapp/ and ours are changed. If outside files are changed it will trigger more tests.
-We will run a subset of framework views and playwright tests.
-Identify and tag those tests. It will test existing stuff is not broken, but will not add too much time
+Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.
+
+We were assuming a web ui, so thats why we were returning html markup in our agent
+Go back to returning .md markup
+We can deploy mockups to the application.
+We will have a mockup 
+Feature lifecycle?
+Questions, todos and subagents were banned with opencode. Lets bring them back.
+No more mermaid and mockups within agent.
 
 Test with changing site theme. Generate color schemes.
 
@@ -23,17 +28,7 @@ import from git repo tags?
 
 CSRF_TRUSTED_ORIGINS diverge
 
-We were assuming a web ui.
-Questions, todos and subagents were banned with opencode. Lets bring them back.
-Have a mockup laf? No more mermaid and mockups.
--------------
-
-Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.
-
 Decimal fields for money
-
-# Relative cutoff: only releases from the last 7 days are eligible
-exclude-newer = "P7D"
 
 Google login change
 Templates for Allauth
@@ -43,7 +38,6 @@ Run all tests in checkproject and merge coverage from both stages. Improve test 
 
 ## Deployment
 Tool to analyse error logs and stacktraces, both backend and sourcemap stacktraces
-Serve files in fs, accelerate using Caddy
 Backup regularly - https://www.pghardstorage.org/examples
 Provision in vm with domain with curl|bash
 

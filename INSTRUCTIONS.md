@@ -22,6 +22,45 @@ Try not to generate multiline bash commands. My agent thinks each line is a comm
 Do not run `rm` or `ls` in bash. Use the tool calls.
 Do not use curl to read urls. Use browser tool call.
 
+## Bash helper functions over inline `bash -c` scripts
+For multi-command remote scripts (`multipass exec ... -- sudo bash -c`), do not
+inline the script as a quoted string. Define a real function and embed it with
+`declare -f` — the body stays ordinary shell (highlighted, lintable, reusable
+across calls). See `vm_app` / `deploy_ourapp` inside `checkframework2` in `run`.
+
+Right:
+```bash
+deploy_ourapp() {
+  tar xzf /tmp/testapp-ourapp.tgz -C /srv/app/main
+  chown -R app:app /srv/app/main/ourapp
+  find /srv/app/main/ourapp -exec chmod g+w {} +
+  rm -f /tmp/testapp-ourapp.tgz
+}
+
+multipass exec app -- sudo bash -c "$(declare -f deploy_ourapp); deploy_ourapp"
+```
+
+Wrong — one illegible line, no editor support, and nested `python -c` calls
+grow a `\"` escape per level:
+```bash
+multipass exec app -- sudo bash -c \
+  "tar xzf /tmp/testapp-ourapp.tgz -C /srv/app/main && chown -R app:app /srv/app/main/ourapp && find /srv/app/main/ourapp -exec chmod g+w {} + && rm -f /tmp/testapp-ourapp.tgz"
+```
+
+`$` and other symbols:
+- `$(declare -f fn)` output is never re-expanded, so `$VAR`, `"$1"`, quotes and
+  backticks inside the function body are safe — they evaluate on the remote
+  side only.
+- Keep the double-quoted string to exactly `$(declare -f fn); fn`. A `$NAME`
+  or backtick TYPED there expands/runs HOST-side (wrong machine, wrong values).
+  A `$var` whose VALUE carries `$`/backticks inserts verbatim and is then
+  evaluated as remote shell — quoting and injection bugs. If you must append a
+  variable like `vm_app` does (`"; $1"`), pass single-quoted literals only.
+- Fixed literal arguments go in single quotes inside the double quotes:
+  `"$(declare -f fn); fn 'literal'"`. The literal must contain no `$`,
+  backticks, or quotes; if it does, restructure the function to need no
+  argument instead of escaping.
+
 ## aihere
 If I mention `aihere`, grep for `aihere` in whole codebase except `.idea`, copy all of them into some todo list. They may not be comments — a marker can sit on any line of any file (code, strings, docs); treat the line it's on (plus its surroundings) as the instruction. The comments are instructions to modify the codebase. If you have lines with aihere in context and I mention aihere again, look at the new instances. Never remove the comments before addressing them. If you are not implementing them, write them down in existing md file.
 
@@ -174,7 +213,7 @@ After changing TS/frontend code, run these in order:
 1. Lint fix `cd frontend && npm run lint:fix`  
 2. Type check: `cd frontend && npm run type-check`  
 3. Lint: `cd frontend && npm run lint`  
-4. Final check: `./run checkall` (this checks backend and then frontend)
+4. Final check: `./run checkframework1` (this checks backend and then frontend)
 
 Playwright tests are at: `./run playwrighttest`  
 Note that `playwrighttest` takes no arguments — extra flags/module labels are ignored and the full tagged suite runs. To run one module (test_users, test_files, test_git, test_client_errors under `djangoapp/tests/playwright/`), invoke the underlying command directly with the label:
@@ -204,13 +243,13 @@ page.on("console", handle_console)
 
 ### Finally
 
-`./run checkall`
+`./run checkframework1`
 
-The checkall runs all the individual commands. For example, if playwright tests fail, run playwright test command only, preferably run only the failing tests till they pass, then run checkall.
+The checkframework1 runs all the individual commands. For example, if playwright tests fail, run playwright test command only, preferably run only the failing tests till they pass, then run checkframework1.
 
 To save time, iterate and run the failing commands. Running failing command will take a fraction of the time.
 
-For example, when this happens, keep fixing and running `npm run lint` many times before running checkall.
+For example, when this happens, keep fixing and running `npm run lint` many times before running checkframework1.
 
 ```bash
 Running frontend linting
@@ -227,7 +266,7 @@ Running frontend linting
 ```
 
 
-Only after `./run checkall` succeeds till the finish, you can say the task is complete. If there are errors, you must fix them and keep iterating till checkall passes.
+Only after `./run checkframework1` succeeds till the finish, you can say the task is complete. If there are errors, you must fix them and keep iterating till checkframework1 passes.
 
 ## Review
 I may ask you to review code. If its a commit or a set of commits, check the changed prompts file. Verify each checklist item is correctly reflected in code, especially when conflicting checklist items exist. Check the code itself. Find any security issues and put them as high priority.
