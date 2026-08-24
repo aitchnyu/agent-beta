@@ -31,12 +31,8 @@ dev = [
 ]
 
 [tool.uv]
-# NOTE: the requested relative `exclude-newer = "P7D"` is currently
-# unsatisfiable — inertia-django 2.0.0 was published inside the last 7 days,
-# and exclude-newer EXCLUDES anything newer than the cutoff (a longer span
-# makes it worse). Once 2.0.0 is older than 7 days, flip this back to "P7D".
-# Until then: absolute cutoff = today, i.e. everything published as of now.
-exclude-newer = "2026-08-21T00:00:00Z"
+# Relative cutoff: only releases from the last 7 days are eligible
+exclude-newer = "P7D"
 
 [tool.ruff]
 # Explicit (not .gitignore-based) so the same config works in a gitless scratch/

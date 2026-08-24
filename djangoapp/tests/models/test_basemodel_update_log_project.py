@@ -33,8 +33,9 @@ class BaseModelUpdateLogTests(BaseTestCase):
 
     @classmethod
     def setUpTestData(cls) -> None:
-        cls.Book = apps.get_model("ourapp", "Book")
-        cls.Author = apps.get_model("ourapp", "Author")
+        ourapp = apps.get_app_config("ourapp")
+        cls.Book = ourapp.get_model("Book")
+        cls.Author = ourapp.get_model("Author")
         cls.actor = User.objects.create_user(username="actor", is_superuser=True, is_staff=True)
 
     def setUp(self) -> None:

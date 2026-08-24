@@ -399,7 +399,7 @@ checkproject() {
   ( cd "$_SCRATCH_DIR"
     ./run lintfix
     ./run typecheck
-    RUN_PROJECT_TESTS=1 uv run manage.py test $_DJANGO_NO_COLOR --exclude-tag playwright --noinput
+    RUN_PROJECT_TESTS=1 ./run test --noinput
   )
 
   echo "=== checkproject cycle 2: reference app (its own tests) ==="
@@ -412,7 +412,7 @@ checkproject() {
   rsync -a "$_MAIN_DIR/docs/reference/frontend/src/ours/" "$_SCRATCH_DIR/frontend/src/ours/"
   ( cd "$_SCRATCH_DIR"
     ( cd frontend && npm run build )
-    uv run manage.py test $_DJANGO_NO_COLOR ourapp --noinput
+    ./run test --noinput ourapp
   )
 
   rm -rf "$_SCRATCH_DIR"

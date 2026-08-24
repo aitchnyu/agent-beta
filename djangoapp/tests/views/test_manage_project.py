@@ -40,8 +40,9 @@ class ManageProjectTests(BaseInertiaTestCase):
 
     @classmethod
     def setUpTestData(cls) -> None:
-        cls.Author = apps.get_model("ourapp", "Author")
-        cls.Book = apps.get_model("ourapp", "Book")
+        ourapp = apps.get_app_config("ourapp")
+        cls.Author = ourapp.get_model("Author")
+        cls.Book = ourapp.get_model("Book")
         cls.superuser = User.objects.create_user(username="admin", is_superuser=True, is_staff=True)
         cls.author = cls.Author.objects.create(
             name="Ada", bio="Mathematician", rating="4.50", active=True

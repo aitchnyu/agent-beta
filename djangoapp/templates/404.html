@@ -8,9 +8,11 @@
   <body>
     <main>
       <h1>Page not found</h1>
-      {# `message` comes only from ninja_api's HTML rendering of API 404s;
-         Django's default handler404 (plain page navigations) renders this
-         template without it, so the generic branch below is the fallback. #}
+      {% comment %}
+        `message` comes only from ninja_api's HTML rendering of API 404s;
+        Django's default handler404 (plain page navigations) renders this
+        template without it, so the generic branch below is the fallback.
+      {% endcomment %}
       {% if message %}
         <p>{{ message }}</p>
       {% else %}
