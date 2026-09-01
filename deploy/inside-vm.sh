@@ -48,8 +48,11 @@ provision_vm() {
   echo "==> [vm] apt packages"
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
-  apt-get install -y curl rsync git htop ufw avahi-daemon ttyd \
+  apt-get install -y curl rsync git htop ufw avahi-daemon ttyd ripgrep \
     postgresql postgresql-client redis-server ca-certificates gnupg
+  # ripgrep: crush's internal grep TOOL shells out to rg when present (its
+  # log warns "grep features might be limited or slower" without it). The
+  # bash guard still DENIES the agent TYPING rg — it forces the grep tool.
   # The ttyd package auto-enables ITS unit (root, `-O login` PAM gate) which
   # steals port 7681 from our console_ttyd. Disable + mask it — our unit
   # (user console, shared env, caddy-fronted) is the only ttyd that runs.
@@ -73,10 +76,12 @@ provision_vm() {
   apt-get update -y
   apt-get install -y caddy
 
-  echo "==> [vm] per-user uv for app"
-  sudo -u app -H bash -c 'curl -fsSL https://astral.sh/uv/install.sh | bash'
+  # uv SYSTEM-WIDE (/usr/local/bin — on every user's default PATH)
+  echo "==> [vm] uv system-wide (/usr/local/bin)"
+  UV_INSTALL_DIR=/usr/local/bin \
+    bash -c 'curl -fsSL https://astral.sh/uv/install.sh | sh'
 
-  echo "==> [vm] 2G swapfile + swappiness (1G RAM cap absorbs build spikes)"
+  echo "==> [vm] 2G swapfile + swappiness (2G RAM absorbs build spikes)"
   fallocate -l 2G /swapfile
   chmod 600 /swapfile
   mkswap /swapfile

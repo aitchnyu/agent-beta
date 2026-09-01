@@ -19,10 +19,11 @@ overall verdict is the strictest one:
 
 A section is allowed if it is an `export NAME=VALUE…` assignment or
 matches the exact/prefix allowlist ported from opencode.json. Redirects
-(`>` `<` `>>`…) and command substitution (`$(…)` / backticks) always
-prompt their section. An `ENV=VAL command` prefix does NOT match the
-allowlist — the passing form is `export ENV=VAL && command` (steer.md
-documents both).
+(`>` `<` `>>`…, INCLUDING the discard forms `2>/dev/null` / `2>&1`) and
+command substitution (`$(…)` / backticks) always prompt their section —
+steer.md tells the agent not to append redirects unless truly needed. An
+`ENV=VAL command` prefix does NOT match the allowlist — the passing form
+is `export ENV=VAL && command` (steer.md documents both).
 
 Standalone-testable: CRUSH_TOOL_INPUT_COMMAND="git status" ./deploy/crush_bash_guard.py
 Unit tests: deploy/tests/test_crush_guards.py.
@@ -38,7 +39,7 @@ EXIT_DENY = 2
 
 # Operators that separate one section from the next: bash command
 # separators plus subshell parens (splitting on parens lets the sanctioned
-# `( cd ../scratch && ./run checkscratch )` form decompose into its inner
+# `( cd ../scratch && ./run deployscratch )` form decompose into its inner
 # sections). Quoted spans stay whole — shlex never splits inside quotes.
 SPLIT_OPS = frozenset({"&&", "||", ";", "|", "&", "(", ")", "|&", ";;"})
 
@@ -56,27 +57,22 @@ NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 ALLOW_EXACT = frozenset(
     {
         "pwd",
-        "ls -la",
-        "ls -d",
         "cd scratch",
         "cd ../scratch",
         "./run createscratch",
-        "./run mergescratch",
+        "./run deployscratch",
         "./run cleanscratch",
         "./run djangomanage migrate",
         "./run checkproject",
-        "./run checkscratch",
         "./run typecheck",
         "./run lintfix",
         "./run playwrighttest",
         "npm run build",
         "rm -rf scratch",
         "rm -rf ../scratch",
-        "git status",
         "git diff",
         "git log",
         "git show",
-        "git ls-files",
     }
 )
 
@@ -85,8 +81,7 @@ ALLOW_EXACT = frozenset(
 # boundary (`rm -rf scratch/ /etc` would ride `rm -rf scratch/`); path
 # operands like rm's get dedicated containment checks instead.
 ALLOW_PREFIX = (
-    "ls -la",
-    "ls -d",
+    "ls",
     "./run djangomanage migrate",
     "./run test",
     "./run playwrighttest",
@@ -98,7 +93,44 @@ ALLOW_PREFIX = (
     "git log",
     "git show",
     "git blame",
+    "git status",
+    "git grep",
+    "git check-ignore",
+    "git rev-parse",
+    "git ls-tree",
+    "git ls-files",
+    "cat",
+    "find",  # guarded by FIND_DANGEROUS below (-exec/-delete write/execute)
+    "grep",
+    "head",
+    "tail",
+    "wc",
+    "sort",
+    "uniq",
+    "cut",
+    "tr",
+    "jq",
+    "diff",
+    "echo",  # redirects/substitution still force a prompt (REDIRECT/SUBST)
+    "printf",
+    "stat",
+    "file",
+    "du",
+    "date",
+    "which",
+    "ps",
+    "pgrep",
+    "lsof",
+    "bash -n",  # syntax-check only — parses, never executes
+    "zsh -n",  # syntax-check only — parses, never executes
 )
+
+
+# find's action flags execute commands or write files from INSIDE its
+# argument list (no shell operators for the section splitter to see), so a
+# prefix rule alone would let `find . -exec rm {} \;` ride through.
+FIND_DANGEROUS_EXACT = frozenset({"-exec", "-execdir", "-ok", "-okdir", "-delete"})
+FIND_DANGEROUS_PREFIX = ("-fprint", "-fprintf", "-fls")
 
 DENY_PREFIX = ("rg", "perl")
 
@@ -151,6 +183,13 @@ def _classify(tokens: list[str]) -> str:
         ASSIGN_RE.match(token) or NAME_RE.match(token) for token in tokens[1:]
     ):
         return "allow"
+    # find's action flags execute/write from inside its argument list —
+    # check them BEFORE the prefix rule can match the bare `find` base.
+    if tokens[0] == "find" and any(
+        token in FIND_DANGEROUS_EXACT or token.startswith(FIND_DANGEROUS_PREFIX)
+        for token in tokens[1:]
+    ):
+        return "prompt"
     section = " ".join(tokens)
     if section in ALLOW_EXACT or _prefix_match(section):
         return "allow"

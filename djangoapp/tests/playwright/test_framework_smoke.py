@@ -2,7 +2,7 @@
 
 When scratch/ edits touch framework files (anything outside ``ourapp/`` +
 ``frontend/src/ours/``), ``./run checkscratch`` runs the
-``framework-subset``-tagged tests: the tagged view methods plus this ONE
+``scratch-test-subset``-tagged tests: the tagged view methods plus this ONE
 browser class — a single browser launch (~5-10s total) proving the
 framework's user-facing surfaces still render end-to-end. An early-warning
 fraction of checkframework1's full browser pass, not a replacement.
@@ -23,10 +23,11 @@ from djangoapp.tests._git_fixtures import GitRepoMixin
 from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 
 
-@tag("framework-subset")
+@tag("scratch-test-subset")
 class FrameworkSmokeE2e(GitRepoMixin, BasePlaywrightTestCase):
     """One smoke per framework feature, one browser launch (superuser session).
 
+    - test_homepage_smoke, the homepage loads (status 200) for a session
     - test_users_edit_smoke, the superuser edit form renders (users feature)
     - test_git_commits_smoke, /git/commits lists the fixture's commits (git feature)
     - test_client_errors_smoke, an uncaught error POSTs to /client-errors (error pipeline)
@@ -47,6 +48,19 @@ class FrameworkSmokeE2e(GitRepoMixin, BasePlaywrightTestCase):
             last_name="Target",
         )
         self.login_as(self.smoke_root)
+
+    def test_homepage_smoke(self) -> None:
+        """The homepage loads (HTTP 200) and the Inertia app mounts.
+
+        Content is app-owned (ourapp home page), so the stable signals are
+        the STATUS plus the Inertia root div (#app) proving the SPA shell
+        actually rendered.
+        """
+        response = self.page.goto(f"{self.live_server_url}/")
+        self.assertIsNotNone(response)
+        assert response is not None
+        self.assertEqual(response.status, 200)
+        self.page.wait_for_selector("#app")
 
     def test_users_edit_smoke(self) -> None:
         """The superuser edit form renders for a target user."""

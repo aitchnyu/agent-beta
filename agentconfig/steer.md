@@ -37,16 +37,18 @@ editing it doesn't prompt. Always use the allowlisted relative form
 (`cd ../scratch`), never `cd /abs/path` (absolute paths aren't allowlisted
 and prompt).
 - Fresh scratch tree: `./run createscratch` (run from `main/`).
-- Edit + test in scratch: `cd ../scratch` then `./run checkscratch`.
-- Deploy `scratch/` → `main/`: back in `main/`, `./run mergescratch`.
+- Edit + check + deploy, all one command: `cd ../scratch` then
+  `./run deployscratch` (runs the full check battery in scratch; if green,
+  rsyncs to `main/`, migrates, and on the VM collectstatic + restarts
+  granian/huey so it's LIVE).
 
 ## Feature workflow
 
-You build features through four phases, each gated by my explicit approval
-("approved" / "go ahead" / "build it" / "ship it"); anything less clear ("ok",
-"sure", silence) → re-ask before advancing. I run the TUI session, Django,
-and the dev server myself — your job is to edit `scratch/` and deploy via
-`mergescratch`, and
+You build features through two phases, each gated by my explicit approval
+("approved" / "go ahead" / "build it"); anything less clear ("ok", "sure",
+silence) → re-ask before advancing. I run the TUI session, Django, and the
+dev server myself — your job is to edit `scratch/` and deploy via
+`deployscratch`,
 only once I've said to start, so don't begin building before the Design phase is
 approved (starting early wastes a fresh `scratch/` and an env bootstrap I didn't
 ask for). Within a phase keep going — stop only at a real decision that needs
@@ -56,41 +58,52 @@ rethink it, or the build shows the design is wrong, drop back to phase 1,
 re-discuss, update the diagrams/mockups, and get fresh approval before coding
 further — don't keep building against a design that's been rejected or changed.
 
-- [ ] **1. Design — discuss; no `scratch/`, no edits.** Produce these for
-      approval (the TUI renders them): an **ER diagram** whenever DB
-      tables/models are involved (see [Models](#models)), a **state diagram** for
-      any lifecycle, and **mockups** of each page (see [Frontend](#frontend)). How
-      to emit them (markers, mermaid, Bootstrap): see
+- [ ] **1. Design — discuss, then demo.** Produce, for approval:
+      - the **models-first plan** (see [User communication](#user-communication));
+      - the **design doc** `ourapp/docs/<feature>.md` — an **ER diagram**
+        (mermaid) whenever DB tables/models are involved (see
+        [Models](#models)) and a **state diagram** for any lifecycle;
+      - the feature's **pages built as crosshatched static mockups** at
+        their real URLs, so I open the real thing in the browser.
+      Both live in `scratch/` and deploy together:
+      - `createscratch` (allowlisted — no permission round-trip);
+      - write the doc + mocked-up pages in `../scratch/`;
+      - `deployscratch` (check battery + deploy, allowlisted);
+      - **share the links at the END of your message, as ABSOLUTE URLs** —
+        e.g. `https://app.local/files/ourapp/docs/<feature>.md` and
+        `https://app.local/<page-url>` (dev base: `http://localhost:8000`).
+      I review, give feedback, you edit in scratch and redeploy — as many
+      rounds as the design needs. Mechanics:
       [Mockups and diagrams](#mockups-and-diagrams).
-- [ ] **2. Build — only after the design is explicitly approved.** The fast loop
-      is `createscratch` → edit → `checkscratch` → Playwright; see
-      [The scratch workflow](#the-scratch-workflow) for the mechanics and the
-      [feature checklist](#checklist--adding-or-changing-a-feature) for what to
-      build. Run it straight through; don't stop to report progress.
-- [ ] **3. Verify — tests pass + a short walkthrough** of what changed; see
-      [Writing tests](#writing-tests).
-- [ ] **4. Deploy — ask before `mergescratch`.** Only after approval:
-      `mergescratch` → `djangomanage migrate` → rebuild the frontend (see
-      [The scratch workflow](#the-scratch-workflow)), then the
-      [Final message](#final-message).
-- [ ] **Persist the design.** During Build, write the approved ER/state diagrams
-      + mockups into `ourapp/docs/<feature>.md`, so viewing the doc renders them.
+- [ ] **2. Build — only after the design is explicitly approved.** Continue in
+      the SAME `../scratch/` (Design already created it — don't re-run
+      `createscratch`; only a design rejected back to the drawing board starts
+      a fresh one). The loop is edit → `cd ../scratch && ./run deployscratch`
+      **once per edit batch** (not per file) — the battery gates every deploy,
+      and every green batch goes LIVE (continuous deploy; `djangomanage
+      migrate`/collectstatic/service restarts are folded in). Run it straight
+      through; don't stop to report progress. Evolve the mocked-up pages into
+      the real implementation as you build (see
+      [Mockups and diagrams](#mockups-and-diagrams)). When done: a short
+      walkthrough + the [Final message](#final-message) with absolute links.
+- [ ] **Keep the design doc current.** The doc was written during Design (in
+      scratch); during Build, update it whenever the approved design changes,
+      so viewing it always renders the live diagrams.
 
 **Phase gates — run only the commands listed for your current phase.** Before
 any scratch/deploy command, name the phase you're in; if the command isn't
 allowed there, you're in the wrong phase (go back, or ask for the approval that
 unlocks the next one). The agent drifts when it re-derives these per turn, so
 treat this map as the hard rule, not prose to interpret:
-- **1. Design** — read/grep/glob, discussion, emit diagrams + mockups. **No
-  `createscratch`, no edits, no `checkscratch`, no `mergescratch`.**
-- **2. Build** (after design approval) — `createscratch` **once** → edit in
-  `scratch/` → `checkscratch` **once per edit batch** (not per file) → `lintfix`
-  if formatting is flagged. **No `mergescratch`; no editing `main/`.**
-- **3. Verify** — `playwrighttest` + one full `checkscratch`. **No `mergescratch`
-  until I approve deploy.**
-- **4. Deploy** (after approval) — `mergescratch` **once** → `djangomanage
-  migrate` → frontend rebuild. **No further edits** — go back to Build instead.
-  Never loop `mergescratch`; it's a single deploy, not a save button.
+- **1. Design** — read/grep/glob, discussion; `createscratch` **once** → write
+  the design doc + the feature's pages as static mockups in `../scratch/` →
+  `deployscratch` (allowlisted; iterate as rounds of feedback) → **share the
+  links at the end of the message as absolute URLs** — never deploy a design
+  artifact silently.
+- **2. Build** (after design approval) — continue in the SAME `scratch/`
+  (no second `createscratch` unless sent back to Design) → edit →
+  `deployscratch` **once per edit batch** → `lintfix` if the battery flags
+  formatting. No editing `main/` directly; commits in main/ stay mine.
 
 **Work fast — don't spin on the trivial.** For low-stakes choices (a selector
 style, whether an import is runtime vs annotation-only), follow what the
@@ -124,45 +137,75 @@ allowlisted `git` form from the current dir — never `git -C <dir> …`.
 
 **`./run lintfix` is safe to run repo-wide.** It only normalizes formatting to
 the committed ruff config — never changes logic — so run it the moment
-`checkscratch` flags formatting, on any file (framework included). Don't stop to
+`deployscratch` flags formatting, on any file (framework included). Don't stop to
 debate whether formatting a file is "allowed"; drift in `main` is exactly what
 it's there to clear.
 
 **Use the exact allowlisted command forms** so you don't trigger prompts:
-`./run test …`, `./run checkscratch`, `./run lintfix`, `./run playwrighttest …`,
-`git status` / `git diff …` — not near-misses like `djangomanage test --t…` or a
-bare `git …` that fall outside the rules and prompt every time.
+
+```bash
+# GOOD — exact/prefix rules: run unprompted
+( cd ../scratch && ./run deployscratch )
+./run lintfix
+./run playwrighttest ourapp.tests.test_chores_playwright
+git diff
+git log --oneline -3
+
+# BAD — near-misses and raw tools: prompt every time (or are denied)
+./run djangomanage test --tag=foo   # not an allowlisted subcommand
+git                                 # bare `git` matches no rule
+uv run python -c '…'                # use the ./run wrappers
+python3 -c '…'                      # same
+npm install                         # only `npm run build` is allowed
+rg pattern                          # DENIED outright — use the grep tool
+```
+
+Related traps (observed burning a real session): shell `grep`/`find`/`ps`
+instead of the read/glob/grep tools; redirects (`2>&1`, `2>/dev/null` — ALL
+of them) and command substitution bolted onto otherwise-allowed commands —
+**don't append redirects unless absolutely necessary**: the TUI captures
+full tool output (stderr included), discarding buys nothing, and an
+avoidable `2>/dev/null` turns an allowlisted line into a permission prompt.
 
 ## The scratch workflow
 You never edit `main/` directly — the [Feature workflow](#feature-workflow) phases
-drive the sequence; these are the mechanics of the three commands (run from
+drive the sequence; these are the mechanics of the commands (run from
 `main/`, the repo root — your working directory).
 
-**`./run createscratch`** — copies `main/` (minus `.git`, `.kilo/`,
-`node_modules`, `.venv`, caches, build output) into a fresh `../scratch/`, bootstraps
-its own env (`uv sync` + `npm install`), and `git init`s it (a baseline commit, no
-shared history with `main/`) so you can review changes via `/git/uncommitted/`.
-An existing `../scratch/` is wiped — **if one already exists, ask first whether to
-delete it**, during planning / before the go-ahead (it may hold uncommitted work
-from a prior task; `./run cleanscratch` wipes it).
+**`./run createscratch`** — copies `main/` (minus `.kilo/`, caches, build
+output) into a fresh `../scratch/`, **including `.git`**: scratch shares
+main's real history (`git log` there is meaningful), and the seeded main
+HEAD is frozen as the `scratch-baseline` ref — the framework-file watch
+diffs against THAT ref, so commits in scratch can never blind it. The
+heavy env dirs (`.venv`, `frontend/node_modules`) are hardlink-copied from
+main (instant, ~free disk), so the `uv sync` + `npm install` bootstrap runs
+incremental. An existing `../scratch/` is wiped — **if one already exists,
+ask first whether to delete it**, during planning / before the go-ahead (it
+may hold uncommitted work from a prior task; `./run cleanscratch` wipes it).
 
-**`( cd ../scratch && ./run checkscratch )`** — ruff + mypy + **ourapp's own tests**
-+ frontend lint/type-check/build. It does NOT re-run the framework backend suite
-(`djangoapp/tests/`, identical to `main/`) or the Playwright pass — those belong
-in `main/`'s `checkframework1`. If scratch edits touch framework files (anything
-outside `ourapp/` + `frontend/src/ours/`), it additionally runs the tagged
-`framework-subset` smoke tests (~5-10s: one view test per feature + one browser
-smoke class). Iterate on the failing command (see `INSTRUCTIONS.md`);
-`checkscratch` must finish green.
+**`( cd ../scratch && ./run deployscratch )`** — the ONE command: the full
+check battery, then the deploy tail. The battery: ruff + mypy + **ourapp's
+own tests** + frontend lint/type-check/build (it does NOT re-run the
+framework backend suite, `djangoapp/tests/`, identical to `main/`, or the
+full Playwright pass — those belong in `main/`'s `checkframework1`). If
+scratch edits touch framework files (anything outside `ourapp/` +
+`frontend/src/ours/`, diffed against `scratch-baseline`), it additionally
+runs the tagged `scratch-test-subset` smoke tests (~5-10s: one view test
+per feature + one browser smoke class incl. a homepage-load). Nothing
+deploys while the battery is red. The tail: rsync `../scratch/` → `main/`
+with `--delete` (`.git` and `.env` excluded — main's repo and env are never
+overwritten), `migrate`, and on the VM collectstatic + restart
+granian/huey — **deployed routes are live immediately**. Does **not**
+commit; commits in `main/` stay the human's.
 
-**`./run mergescratch`** (from `main/`) — rsyncs `../scratch/` → `main/` (never
-overwriting `main/.env`); does **not** commit. (Migrations + frontend rebuild are the Deploy
-phase's last step; in dev the server then auto-reloads `main/`.)
+**On the VM, Playwright browsers are preinstalled** — one shared cache
+(`PLAYWRIGHT_BROWSERS_PATH`, exported by `./run`'s env) with firefox's system
+libs in place.
 
 `../scratch/` is disposable — re-running `createscratch` wipes it. Review in-progress
 edits with `cd ../scratch && git diff` or the web viewer at `/git/uncommitted/`
 (`main/`'s pending files, then `../scratch/`'s — your scratch edits show **live**,
-no deploy needed; they reach `main/`'s commit views only after `mergescratch`).
+no deploy needed; they reach `main/`'s commit views only after `deployscratch`).
 
 ## User communication
 
@@ -175,43 +218,51 @@ the user to sanity-check before you start; keep it a tight list, not prose.
   pages that build on those models, plus any notable model/manager methods.
 
 ### Reply format
-Always reply using safe HTML tags only — p, br, strong, em, code, pre, kbd, samp,
-blockquote, ul, ol, li, a, h1, h2, h3, h4, h5, h6, table, thead, tbody, tr, th,
-td. Never use markdown (no **bold**, no # headings, no `quotes`, no fenced code
-blocks). Use `<code>` for inline code and `<pre><code>…</code></pre>` for code
-blocks. Even if you get input in markdown, always reply in HTML unless asked.
+Reply in **markdown** — headings, lists, fenced code blocks, `` `inline
+code` ``, tables and links. Diagrams live in the design doc and mockups
+are deployed pages — both shared as absolute links (see
+[Mockups and diagrams](#mockups-and-diagrams)).
 
 ### Asking the user questions
-Do **not** use the question tool — it is disabled (`permissions deny
-question` in `.crushrc`) and any call is rejected. When you need
-information, ask in plain HTML prose and **stop** (end your turn). Ask one
-focused question (or a short numbered list) and stop; don't proceed on
-assumptions. If an answer is ambiguous, re-ask.
+Use the **question tool** when a decision needs me — its options make the
+choice concrete. Ask **one** focused question per call and stop (end your
+turn) for the answer. Plain-markdown prose questions are fine for
+open-ended ones. Don't proceed on assumptions; if an answer is ambiguous,
+re-ask.
 
-### Linking to files
-Point at the superuser-only file viewer at `/files/<repo-root-relative path>` —
-e.g. `<a href="/files/ourapp/urls.py">urls.py</a>` or
-<a href="/files/djangoapp/views/manage.py">manage.py</a>. For an inline image
-use `/files/raw/<path>` (real Content-Type, for `<img>`); for a download use
-`/files/download/<path>`. Paths are repo-root-relative; the viewer is
-superuser-only.
+### Todos and subagents
+Track multi-step work with the **todos tool** — one item per step, statuses
+kept current as you go, so I can watch progress in the TUI. The **agent
+tool** (subagents) is allowed; use it for genuinely parallel independent
+research, and to **review your work** — before reporting done, spawn one
+to re-read the diff against the requirement and catch what you missed. Not
+for a single lookup (do that yourself). Subagent bash calls bypass the
+guards and hit the normal permission prompt — keep their commands to the
+allowlisted forms.
 
-### Linking to git
-Superuser-only; link the most specific view to back a claim with evidence. URL patterns:
-- `/git/uncommitted/` — uncommitted files for both worktrees (main, then scratch)
-- `/git/uncommitted/main/<path>` — a `main` file's uncommitted diff
-- `/git/uncommitted/scratch/<path>` — a `scratch` file's uncommitted diff
-- `/git/commits` — commit list, paginated (`?page=N`); `main` only
-- `/git/commits/<sha>` — a commit's changed files; `main` only
-- `/git/commits/<sha>/<path>` — a file's diff in a commit; `main` only
+### Linking (absolute URLs, markdown only)
+The TUI hyperlinks **absolute** URLs — relative paths and HTML `<a>` anchors
+are NOT clickable in chat. Always link as markdown
+`[label](<absolute-url>)`. Base URL: `https://app.local` on the test VM,
+`http://localhost:8000` in dev. When you deploy design artifacts (mockups,
+design doc), put their links at the **END of the message**.
 
-`<path>` is repo-relative; `<sha>` is a full or short (≥4 hex) commit id. Prefer
-the most specific link (a diff over the list, a commit link over the list).
-`/git/uncommitted/` shows both worktrees' pending files on one page
-(`scratch/`'s edits are visible live, no `mergescratch` needed). Commits read
-`main` only — `scratch/`'s own history is just its throwaway baseline, so link
-`scratch/` edits via `/git/uncommitted/scratch/<path>`; they reach `main/`'s
-commit views only after `mergescratch` deploys them.
+- **Files** — superuser-only viewer: `https://app.local/files/<repo-root-relative path>`
+  (e.g. `[urls.py](https://app.local/files/ourapp/urls.py)`); inline image =
+  `/files/raw/<path>`, download = `/files/download/<path>`.
+- **Git** — superuser-only; link the most specific view to back a claim:
+  - `/git/uncommitted/` — uncommitted files for both worktrees (main, then scratch)
+  - `/git/uncommitted/main/<path>` — a `main` file's uncommitted diff
+  - `/git/uncommitted/scratch/<path>` — a `scratch` file's uncommitted diff
+  - `/git/commits` — commit list, paginated (`?page=N`); `main` only
+  - `/git/commits/<sha>` — a commit's changed files; `main` only
+  - `/git/commits/<sha>/<path>` — a file's diff in a commit; `main` only
+
+`<path>` is repo-relative; `<sha>` is a full or short (≥4 hex) commit id.
+Prefer the most specific link (a diff over the list, a commit link over the
+list). Commits read `main/` only — scratch shares main's history but its
+commits never flow back (`.git` is excluded from deployscratch), so link
+`scratch/` edits via `/git/uncommitted/scratch/<path>`.
 
 ### Completion
 A step isn't done until the **network request succeeds** — the actual call runs
@@ -219,14 +270,18 @@ and returns (the endpoint responds, the command exits 0). "The code looks right"
 is not done; verify by executing it.
 
 ### Final message
-When the work is done and the suite is green, close with a short HTML summary:
+When the work is done and the suite is green, close with a short markdown
+summary:
 - **Requirement** — one line restating what was asked.
 - **What changed** — the feature/behavior added or fixed.
 - **Endpoints** — each new or changed URL (from `ourapp/views/`) with its path
   and HTTP verb.
-- **Tests** — the test names you added and confirmation that `./run checkscratch`
+- **Tests** — the test names you added and confirmation that `./run deployscratch`
   passes.
-- **Links** — link the running feature (its URL) and key files via `/files/…`.
+- **Links** — at the END, a checklist of absolute URLs to share:
+  - [ ] the design doc — `https://app.local/files/ourapp/docs/<feature>.md`
+  - [ ] the homepage — `https://app.local/`
+  - [ ] the feature's page(s) — `https://app.local/<page-url>`
 
 Keep it tight. For a trivial change a single sentence is enough; don't pad.
 
@@ -242,26 +297,47 @@ Read code in this priority order:
    behaviour, not to rework. Change it only when the user explicitly asks.
 
 ### Mockups and diagrams
+The Design phase's artifacts live in **files**, not chat: diagrams render
+in the browser (the `/files` viewer), mockups are real deployed pages.
+Everything lives in `../scratch/` and reaches `main/` only via
+`deployscratch` — allowlisted, so design demos deploy without prompts; the
+agent MUST share the deployed links in chat immediately after each deploy.
 
-The Design phase produces ER/state diagrams and page mockups. Emit them as raw
-HTML (not code fences) — the chat and the feature `.md` docs both render them,
-view-only. Put each marker block on its own lines with **no indentation and no
-blank lines inside it** (marked treats the marker as a raw-HTML block; indenting
-or a blank line splits it and corrupts the content). **Title every marker**: a
-one-line **bold title** immediately above it, and an optional one-line caption
-below, so the reader knows what they're looking at before the render.
-
-- **`<div class="rich-diagram">…mermaid…</div>`** — Mermaid source inside:
-  - `erDiagram` whenever models / DB tables come up (entities, fields, FKs,
-    ownership) — one field per line as `type name`.
-  - `stateDiagram-v2` for a lifecycle / state machine.
-  - No `<`, `>`, or `&` in labels — the block is parsed as HTML so they break.
-    Use the HTML-safe lookalikes `‹` `›` `∧` instead (`count ‹ 5 ∧ active`, not
-    `count < 5 && active`; `≤`/`≥`/`+`/`＆` also work).
-- **`<div class="rich-mockup">…</div>`** — the page's real Bootstrap markup
-  + our CSS classes (read an existing page like `Home.vue` to match the look —
-  same containers, `row`/`col`, buttons, badges). It's responsive and view-only,
-  so lay it out with the grid and omit real `action`/`href`.
+- **Design doc — `../scratch/ourapp/docs/<feature>.md`** (after deploy, link
+  it in chat as `/files/ourapp/docs/<feature>.md`). Write the mermaid
+  **`erDiagram`** whenever models / DB tables come up (entities, fields, FKs,
+  ownership — one field per line as `type name`) and a **`stateDiagram-v2`**
+  for any lifecycle, inside `<div class="rich-diagram">…</div>` markers —
+  the doc viewer renders them. Marker formatting: each block on its own lines
+  with **no indentation and no blank lines inside it** (marked treats the
+  marker as a raw-HTML block; indenting or a blank line splits it and
+  corrupts the content), a **bold title** line immediately above, and no
+  `<`, `>`, `&` in labels — use the HTML-safe lookalikes `‹` `›` `∧`
+  instead.
+- **Mockups — the feature's real files, mocked.** There is NO special mockup
+  module, directory, or URL prefix: build each page exactly where it will
+  live, following the normal conventions (route in
+  `ourapp/views/<feature>.py` registered in `views/__init__.py`, page in
+  `frontend/src/ours/pages/<Page>.vue`, zod schema in `ours/schemas.ts`),
+  at its **final URL**. A mockup carries **close-to-final markup, but not
+  final components** — static props stand in for real queries and no tests
+  exist yet; it MAY include interactivity or links to other pages when I
+  ask for it. Three markers make it a mockup — all three come off
+  when the page becomes real:
+  1. **Superuser-only gate** — `require_superuser` from `djangoapp.views`
+     (404, never 403): an unreleased page stays hidden.
+  2. **Static props hardcoded in the view** — the page never reads the DB
+     while it's a mockup.
+  3. **Root `div.mockup` wrapper** — `.mockup` and `.mockup *` carry a
+     semi-transparent diagonal-stripe crosshatch overlay (defined in
+     `ours/style.scss`): an element's real colors stay visible underneath,
+     but nothing passes for a finished page.
+  No tests while it's a mockup — the real implementation writes them.
+  **Becoming real** (during Build): swap the static props for real queries,
+  set the feature's real access rules, drop the `div.mockup` wrapper, and
+  write the tests — the files evolve in place, nothing to delete. (A feature
+  abandoned after its mockup deployed: delete its files from scratch; the
+  next `deployscratch`'s rsync `--delete` retires them from `main/`.)
 
 ### Models
 Concrete models live in `ourapp/models/<feature>.py` (imported in
@@ -338,8 +414,10 @@ Run through every box; the order is the order you build in.
 
 - [ ] **README** — update `ourapp/README.md` to describe the feature (what it
       does, its URLs/pages), not its internal implementation. One or two lines.
-- [ ] **Feature doc** — add `ourapp/docs/<feature>.md` cataloguing the feature
-      (models, endpoints, pages, command, data shape) and link it from the README.
+- [ ] **Feature doc** — the design doc written in the Design phase
+      (`ourapp/docs/<feature>.md`) grows into the feature catalogue (models,
+      endpoints, pages, command, data shape — keep its diagrams current);
+      link it from the README.
 - [ ] **Model module** — add `ourapp/models/<feature>.py` (subclass
       `BaseModel`, give it a docstring) and import it in `ourapp/models/__init__.py`,
       **adding each name to `__all__`** there. mypy runs with
@@ -622,22 +700,30 @@ class FactsViewTests(BaseTestCase):
       of the method name.
 
 ## Commands, tools & permissions
-You may read any file in the project and edit files under `../scratch/`. Edits
-outside it need approval. Permissions are defined in the repo-root `.crushrc`
+You may read any file in the project and edit files under `../scratch/`. All
+other edits need approval. Permissions are defined in the repo-root `.crushrc`
 (tool-level allows/denies) plus the two PreToolUse guard hooks in `deploy/`
 (`crush_bash_guard.py` for commands, `crush_edit_guard.py` for edit paths —
 both unit-tested in `deploy/tests/`).
 **Prefer the allowlisted commands** — they run with no prompt; anything else
-interrupts the turn to ask. Map your intent onto them (e.g. `./run checkscratch`,
+interrupts the turn to ask. Map your intent onto them (e.g. `./run deployscratch`,
 `./run djangomanage makemigrations`, `./run createscratch`) rather than
 hand-rolling an equivalent that will prompt.
 **Compounds decompose** — the bash guard (`deploy/crush_bash_guard.py`)
 splits `&&` / `||` / `;` / `|` / subshell / newline chains into sections
 with shlex and allows the compound only when **every** section matches the
 allowlist; one unknown section prompts the whole line, and a denied
-section (rg/perl) blocks it outright. Redirections (`>`, `>>`, `2>&1`) and
-command substitution (`$(…)`, backticks) always prompt — and the TUI
-already captures full tool output, so piping buys nothing anyway.
+section (rg/perl) blocks it outright. Redirections (`>`, `>>`, `2>&1`,
+`2>/dev/null` — ALL of them) and command substitution (`$(…)`, backticks)
+always prompt — so **don't append redirects unless absolutely necessary**:
+the TUI captures full tool output (stderr included), discarding or merging
+buys nothing, and an avoidable `2>/dev/null` turns an allowlisted line
+into a permission prompt.
+
+**`deploy/crush_bash_guard.py` IS the allowlist.** When a command
+unexpectedly prompts, read its rules — exact + prefix groups, per-section
+compound checks — and restate the command in the exact form it expects
+(the full list is quoted below).
 
 **Environment variables go through `export`, never as a command prefix** —
 a prefixed command no longer matches the allowlist and prompts:
@@ -645,40 +731,45 @@ a prefixed command no longer matches the allowlist and prompts:
 ```bash
 # WRONG — env prefix: the section doesn't match the allowlist → prompts
 COPYFILE_DISABLE=1 ./run test accounts
-RUN_PROJECT_TESTS=1 ./run checkscratch
+RUN_PROJECT_TESTS=1 ./run checkproject
 
 # RIGHT — export, then the bare command: every section matches → allowed
 export COPYFILE_DISABLE=1 && ./run test accounts
-export RUN_PROJECT_TESTS=1 && ./run checkscratch
+export RUN_PROJECT_TESTS=1 && ./run checkproject
 ```
 
 The allowlisted commands (defined in `deploy/crush_bash_guard.py`):
 
 ```bash
 ./run createscratch                  # fresh ../scratch/ from main/
-./run mergescratch                   # deploy ../scratch/ → main/ (no commit)
+./run deployscratch                  # check battery + deploy ../scratch/ → main/ (live; no commit)
 ./run cleanscratch                   # remove the scratch tree — PREFER over rm -rf
 ./run checkproject                   # full validation incl. project tests; before promoting a framework change
-./run checkscratch                   # the scratch/ fast loop (ruff+mypy+ourapp tests+frontend)
 ./run typecheck                      # …and ./run lintfix
 ./run test …                         # any args
 ./run playwrighttest …
 ./run djangomanage makemigrations …  # … / migrate / findstatic … (findstatic is read-only)
 npm run build                        # from frontend/
-cd ../scratch                        # …then git status / git diff … / git log … / git show … / git blame …
-git status                           # BARE form only (args like --porcelain
-                                     # prompt); git diff / log / show take any args
-pwd                                  # also: ls -la … / ls -d …
+cd ../scratch                        # …then git status / git diff … / git log … / git show …
+git status …                         # any args, like git diff / log / show / blame / grep /
+                                     # ls-files / ls-tree / rev-parse / check-ignore
+pwd
 rm -rf scratch                       # …or ../scratch — BARE tree only; any
                                      # operand prompts: use ./run cleanscratch
 export NAME=VALUE                    # pair with && and an allowed command (see above)
-```
 
 (The `web_search` tool is likewise pre-approved — tool-level, in `.crushrc`.)
 
+`./run deployscratch` IS allowlisted (in the list above) — design demo
+deploys (docs + mockup pages) run without a permission round-trip so the
+demo loop stays fast; the compensating rule is that every deploy's links
+are shared in chat immediately (§ Feature workflow, phase 1). The REAL
+feature's Deploy stays gated conversationally: ask before phase-4
+`deployscratch`, always.
+
 `./run checkframework1` (the **full gate**: framework backend suite + Playwright) is
 deliberately NOT in that list — it's a human-run, `main/`-only check; the agent
-uses `./run checkscratch` in scratch.
+uses `./run deployscratch` in scratch.
 
 ### Debugging build / serve issues
 When a page 404s client-side ("Inertia page not found: … — rebuild the

@@ -12,8 +12,8 @@ mode.
 Login to the app (no Google OAuth on the VM — .local is not registrable;
 one-time links instead; the user row must already exist, e.g. via a
 restored DB or Django shell):
-  multipass exec app -- sudo -u app -H bash -c \
-    'set -a; . /etc/credentials/app/.env.vm; set +a; cd /srv/app/main; .venv/bin/python manage.py makeloginlink <email>'
+  multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
+    app .venv/bin/python manage.py makeloginlink <email>
 Promote to superuser:
-  multipass exec app -- sudo -u app -H bash -c \
-    'set -a; . /etc/credentials/app/.env.vm; set +a; cd /srv/app/main; .venv/bin/python manage.py promotetosuperuser <email>'
+  multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
+    app .venv/bin/python manage.py promotetosuperuser <email>

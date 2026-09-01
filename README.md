@@ -7,7 +7,7 @@ changes through an agent that edits a throwaway.
 - **Agent-driven development** — a [Crush](https://github.com/charmbracelet/crush)
   TUI
   edits a throwaway `scratch/` copy of the repo; you review, then
-  `mergescratch` deploys to `main/` (server auto-reloads). Start it with
+  `deployscratch` checks + deploys to `main/` (server auto-reloads). Start it with
   `./run agent` — in production ONLY inside the VM's web terminal
   (`https://app.local/agent/`, where it runs the same command). See
   [Edit → test → deploy workflow](#edit--test--deploy-workflow).
@@ -75,7 +75,7 @@ cp .env.vm.example .env.vm    # then fill in generated secrets
 - Database names are fixed (`app_db`/`app_user` from the env values) — one
   app per VM by design.
 
-Then one command builds everything (1G RAM + 2G swap, postgres + redis
+Then one command builds everything (2G RAM + 2G swap, postgres + redis
 localhost-only, caddy TLS, `/srv/app/main` (a `scratch/` sibling appears
 when you run `./run createscratch` there), systemd units
 `app_granian` + `app_huey` under the **less powerful `app` user**, and
@@ -94,8 +94,8 @@ click-through warning (the supported mode):
   (`.local` isn't registrable): mint a one-time link for an existing user —
 
   ```bash
-  multipass exec app -- sudo -u app -H bash -c \
-    'set -a; . /etc/credentials/app/.env.vm; set +a; cd /srv/app/main; .venv/bin/python manage.py makeloginlink <email>'
+  multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
+    app .venv/bin/python manage.py makeloginlink <email>
   ```
 
   — open the printed `/login-for-test/by-key/…` URL once (single use,
@@ -103,8 +103,8 @@ click-through warning (the supported mode):
   the "Console" nav link.
 
 **Everything else happens on the VM**: `./run createscratch` → `./run
-agent` (in the console terminal) edits `scratch/` → `./run checkscratch`
-→ `./run mergescratch` (runs collectstatic — static is live immediately;
+agent` (in the console terminal) edits `scratch/` → `./run deployscratch`
+→ (check battery + deploy + migrate; on the VM collectstatic + service restart
 code changes need `sudo systemctl restart app_granian app_huey`, printed
 by the merge). The env on the VM is a single file all services share
 (`/etc/credentials/app/.env.vm`, staged from the root `.env.vm`).
@@ -224,12 +224,12 @@ change:
    into a fresh `../scratch/`, bootstrap its own env (`uv sync` + `npm install`), and
    `git init` it.
 2. Edit `../scratch/`.
-3. `( cd ../scratch && ./run checkscratch )` — ruff + mypy + `ourapp` tests + frontend
+3. `( cd ../scratch && ./run deployscratch )` — the check battery: ruff + mypy + `ourapp` tests + frontend
    lint/type-check/build (the fast loop: the framework suite and Playwright stay
    in `main/`). Must finish green. When scratch edits touch framework files
    (outside `ourapp/` + `frontend/src/ours/`), it also runs the tagged
    `framework-subset` smoke tests. Run `checkframework1` in `main/` for the full gate.
-4. `./run mergescratch` (from `main/`) — deploy `../scratch/` into `main/` (never overwriting
+4. the same command's tail — deploy `../scratch/` into `main/` (never overwriting
    `main/.env`). This does **not** commit.
 
 In dev the server auto-reloads `main/` after a deploy, so the user sees the
@@ -255,8 +255,8 @@ superuser count can never fall to zero through the UI.
 
 App/dev via the `run` script: `init`, `runserver`, `dev`, `console`,
 `agent`, `test`,
-`typecheck`, `lintfix`, `playwrighttest`, `checkscratch`, `checkframework1`,
-`checkframework2`, `checkproject`, `createscratch`, `mergescratch`, `cleanscratch`,
+`typecheck`, `lintfix`, `playwrighttest`, `checkframework1`,
+`checkframework2`, `checkproject`, `createscratch`, `deployscratch`, `cleanscratch`,
 `hueydev` (background consumer alone), `coverage`,
 plus `djangomanage`/`python` passthroughs (e.g.
 `./run djangomanage makemigrations`, `./run python manage.py …`).
@@ -339,7 +339,7 @@ under `/static/djangoapp/` so they never reach clients.
 
 Four tiers:
 
-- **`checkscratch`** — the fast loop, run in `scratch/` while editing. ruff +
+- **`deployscratch`** — the ONE command, run in `scratch/` once per edit batch: ruff +
   mypy (whole codebase), `ourapp`'s own tests only, and the frontend
   lint/type-check/build. Skips the framework suite and Playwright (those run in
   `main/`) — unless the edit touches framework files (outside `ourapp/` +

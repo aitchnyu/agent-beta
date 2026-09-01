@@ -65,7 +65,8 @@ class BashGuardAllows(GuardAssertions):
         for cmd in (
             "pwd",
             "ls -la",
-            "cd ../scratch",
+            "cd scratch",
+            "./run deployscratch",
             "npm run build",
             "rm -rf scratch",
             "git ls-files",
@@ -93,10 +94,10 @@ class BashGuardAllows(GuardAssertions):
 
     def test_scratch_loop_compound(self) -> None:
         for cmd in (
-            "cd scratch && ./run checkscratch",
-            "cd ../scratch && ./run checkscratch",
-            "( cd scratch && ./run checkscratch )",
-            "( cd ../scratch && ./run checkscratch )",
+            "cd scratch && ./run deployscratch",
+            "cd ../scratch && ./run deployscratch",
+            "( cd scratch && ./run deployscratch )",
+            "( cd ../scratch && ./run deployscratch )",
             "cd ../scratch && git diff",
         ):
             with self.subTest(cmd=cmd):
@@ -117,10 +118,82 @@ class BashGuardAllows(GuardAssertions):
             run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND="git status | pwd")
         )
 
+    def test_readonly_filters(self) -> None:
+        # head/tail/wc prefix rules let inspection pipelines of allowlisted
+        # commands run unprompted (2026-08-31 VM-session autopsy: `… | head -5`
+        # lines prompted section-wise).
+        for cmd in (
+            "ls -la /srv/app | head -5",
+            "git log | tail -20",
+            "git diff | wc -l",
+            "head -3 file.txt",
+        ):
+            with self.subTest(cmd=cmd):
+                self.assert_allows(run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=cmd))
+
+    def test_kilo_mined_inspection_allows(self) -> None:
+        # Read-only inspection commands mined from the user's kilo.jsonc
+        # allowlist (2026-08-31), filtered for this guard's philosophy.
+        for cmd in (
+            "ls /srv/app/main/.venv/bin",
+            "cat README.md",
+            "find . -name uv -type f",
+            "grep -n pattern run",
+            "git status --porcelain",
+            "git grep pattern",
+            "git check-ignore .crush/init",
+            "git rev-parse HEAD",
+            "git ls-tree HEAD",
+            "git ls-files -z",
+            "sort names.txt",
+            "uniq -c",
+            "cut -d: -f2",
+            "tr a-z A-Z",
+            "jq . package.json",
+            "diff a.txt b.txt",
+            "echo $HOME",
+            "printf %s hi",
+            "stat run",
+            "file run",
+            "du -sh frontend",
+            "date",
+            "which uv",
+            "ps aux",
+            "pgrep granian",
+            "lsof -i :8000",
+            "bash -n run",
+            "zsh -n deploy/vm-bootstrap.sh",
+        ):
+            with self.subTest(cmd=cmd):
+                self.assert_allows(run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=cmd))
+
+    def test_kilo_filtered_write_and_exec_prompts(self) -> None:
+        # kilo.jsonc also allows these; DELIBERATELY excluded here — they
+        # write files or execute subcommands, routing around the edit-scope
+        # guard or the bash-tool trust boundary.
+        for cmd in (
+            "sed -i s/a/b/ run",  # sed -i writes
+            'awk BEGIN{system("ls")}',  # awk system() executes
+            "echo x | xargs rm",  # xargs executes
+            "tee /srv/app/main/run",  # tee writes
+            "cp a /srv/app/main/b",  # cp routes around edit scoping
+            "mv a b",
+            "mkdir /srv/app/main/x",
+            "uv run python -c 1",  # arbitrary execution
+            "python3 -c 1",
+            "npm exec some-package",  # arbitrary package execution
+            "printenv",  # would expose the provider key in crush's env
+            "find . -exec rm -rf {} ;",  # find's action flags execute
+            "find / -delete",
+            "find . -fprintf /tmp/out %p",
+        ):
+            with self.subTest(cmd=cmd):
+                self.assert_prompts(run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=cmd))
+
     def test_export_form(self) -> None:
         for cmd in (
             "export COPYFILE_DISABLE=1 && ./run test accounts",
-            "export RUN_PROJECT_TESTS=1 && ./run checkscratch",
+            "export RUN_PROJECT_TESTS=1 && ./run deployscratch",
             "export FOO=1 BAR=2 && git status",  # multiple assignments
             "export FOO",  # bare name export — harmless
             "export",  # no-op
@@ -183,7 +256,7 @@ class BashGuardFailsClosed(GuardAssertions):
             run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND="ls -la x | sh")
         )
         self.assert_prompts(
-            run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND="git log | head")
+            run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND="git log | nl")
         )
 
     def test_semicolon_prompts(self) -> None:
@@ -192,7 +265,16 @@ class BashGuardFailsClosed(GuardAssertions):
         )
 
     def test_redirect_prompts(self) -> None:
-        for cmd in ("git log > /tmp/x", "ls -la >> out.txt", "./run test x 2>&1"):
+        # EVERY redirect prompts — including the discard forms (2>/dev/null,
+        # 2>&1): policy is fail-closed on redirects, and steer.md tells the
+        # agent not to append them unless truly necessary.
+        for cmd in (
+            "git log > /tmp/x",
+            "ls -la >> out.txt",
+            "./run test x 2>&1",
+            "ls /tmp/x 2>/dev/null",
+            "./run test x 2>/tmp/err",
+        ):
             with self.subTest(cmd=cmd):
                 self.assert_prompts(run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=cmd))
 
@@ -210,7 +292,7 @@ class BashGuardFailsClosed(GuardAssertions):
         self.assert_prompts(
             run_hook(
                 "crush_bash_guard.py",
-                CRUSH_TOOL_INPUT_COMMAND="cd ../scratch && ./run checkscratch && rm -rf /",
+                CRUSH_TOOL_INPUT_COMMAND="cd ../scratch && ./run deployscratch && rm -rf /",
             )
         )
 
@@ -238,7 +320,7 @@ class BashGuardFailsClosed(GuardAssertions):
             "./run testx foo",
             "rm -rf scratchx",
             "npm run buildx",
-            "ls -lab",
+            "lsx -la",  # lookalike BASE (flags after a real base are just args)
         ):
             with self.subTest(cmd=cmd):
                 self.assert_prompts(run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=cmd))
@@ -252,7 +334,7 @@ class BashGuardFailsClosed(GuardAssertions):
         for cmd in (
             "git status#; rm -rf /",
             "git status# ; rm -rf /",
-            "git status # rm -rf /",  # trailing tokens keep the section off the allowlist
+            "cat file; rm -rf /",  # second section smuggled after an allowed base
         ):
             with self.subTest(cmd=cmd):
                 self.assert_prompts(run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=cmd))
@@ -260,10 +342,15 @@ class BashGuardFailsClosed(GuardAssertions):
     def test_comment_forms_degrade_safely(self) -> None:
         # With commenters disabled, `#` is a literal token. Word-initial
         # `#…` IS a bash comment — bash drops it, so `ls -la #x` runs bare
-        # `ls -la`; the guard's allow matches what bash executes. Mid-word
-        # `rg#` splits to `rg` + `#` — deny fires on the rg word; bash
-        # would only run `rg#` (not found), so the deny is conservative.
+        # `ls -la`; the guard's allow matches what bash executes. Same for
+        # prefix bases: `git status # rm -rf /` runs bare `git status` in
+        # bash (comment dropped), so allowing it matches bash semantics.
+        # Mid-word `rg#` splits to `rg` + `#` — deny fires on the rg word;
+        # bash would only run `rg#` (not found), so the deny is conservative.
         self.assert_allows(run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND="ls -la #x"))
+        self.assert_allows(
+            run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND="git status # rm -rf /")
+        )
         self.assert_denies(run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND="rg# foo"))
 
     def test_rm_operand_containment_prompts(self) -> None:

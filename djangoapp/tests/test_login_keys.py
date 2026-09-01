@@ -49,7 +49,7 @@ class TestLoginKeyTests(BaseTestCase):
         self.assertEqual(TestLoginKey.objects.count(), 1)
         self.assertIsNone(TestLoginKey.redeem(raw))
 
-    @tag("framework-subset")
+    @tag("scratch-test-subset")
     def test_redeem_consumed_after_success(self) -> None:
         """A valid key returns its user once, then None forever after."""
         raw = TestLoginKey.issue(self.user, minutes=15)

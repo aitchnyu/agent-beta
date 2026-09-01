@@ -206,6 +206,13 @@ agent() {
     return 1
   fi
 
+  # (5) Suppress crush's first-open "Would you like to initialize this
+  #     project?" dialog: it fires when the project data dir has no `init`
+  #     flag AND no default context file (CRUSH.md & friends) sits at the
+  #     repo root.
+  mkdir -p "$repo_root/.crush"
+  [[ -f "$repo_root/.crush/init" ]] || : > "$repo_root/.crush/init"
+
   # All checks passed — hand the terminal over to the TUI.
   command crush "$@"
 }
@@ -265,27 +272,18 @@ checkframework1() {
 # links, the /agent forward_auth superuser gate) — what only a real
 # deployment shows.
 #
-# Organized as Setup 1-4 (build/deploy/mint) then Assert 1-6 (the
+# Organized as Setup 1-4 (build/deploy/mint) then Assert 1-7 (the
 # HTTP smoke, one banner per assertion, first failure aborts).
 checkframework2() {
   setenv
   local vm_base="https://app.local"
 
-  # Source the credentials env and enter the repo — embedded into every
-  # vm_app invocation below via `declare -f`, so the body stays ordinary
-  # (highlighted, lintable) shell.
-  _vm_env() {
-    set -a
-    . /etc/credentials/app/.env.vm
-    set +a
-    cd /srv/app/main
-  }
-
-  # Run a command in the VM as the app user, with env sourced and the repo
-  # as cwd. $1 embeds verbatim — pass single-quoted literals only (no $,
-  # backticks, or embedded quotes in the payload).
+  # Run a command in the VM as the app user — one thin wrapper over the
+  # guest-side helper library deploy/vm.sh (env sourced, repo cwd, uv on
+  # PATH), so call sites stay one-liners (INSTRUCTIONS.md § Multipass
+  # helpers in deploy/vm.sh).
   vm_app() {
-    multipass exec app -- sudo -u app -H bash -c "$(declare -f _vm_env); _vm_env; $1"
+    multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh app "$@"
   }
 
   # assert <expected[ expected...]> <got> <what-is-being-asserted> — a single
@@ -307,16 +305,6 @@ checkframework2() {
     grep -q "$2" "$1" || { echo "FAILED: $3 ($1 lacks '$2')" >&2; return 1; }
   }
 
-  # Extract the shipped testapp tarball over the VM's ourapp/ (full
-  # replace), fix ownership/group-write, remove the tarball. Runs as root
-  # via `sudo bash -c "$(declare -f deploy_ourapp); deploy_ourapp"`.
-  deploy_ourapp() {
-    tar xzf /tmp/testapp-ourapp.tgz -C /srv/app/main
-    chown -R app:app /srv/app/main/ourapp
-    find /srv/app/main/ourapp -exec chmod g+w {} +
-    rm -f /tmp/testapp-ourapp.tgz
-  }
-
   # ── Setup 1/4: rebuild the VM from scratch ─────────────────────────────
   # Delete any existing 'app' VM (destructive), provision a fresh one via
   # ./testvm. Gated by provision's own set -e: every phase it runs
@@ -330,20 +318,19 @@ checkframework2() {
   # ── Setup 2/4: deploy the Books test app ───────────────────────────────
   # Tar the testapp's ourapp/, ship it, then extract over the VM's
   # /srv/app/main/ourapp (full replace) as root — the body lives in
-  # deploy_ourapp below (embedded via `declare -f`). Gated by each
-  # command's exit code.
+  # deploy/vm.sh (deploy-ourapp).
   echo "=== Setup 2/4: deploy the Books test app over the VM's ourapp/ ==="
   (cd "$_MAIN_DIR/djangoapp/tests/testapp" && COPYFILE_DISABLE=1 tar czf /tmp/testapp-ourapp.tgz ourapp)
   multipass transfer /tmp/testapp-ourapp.tgz app:/tmp/testapp-ourapp.tgz
-  multipass exec app -- sudo bash -c "$(declare -f deploy_ourapp); deploy_ourapp"
+  multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh deploy-ourapp
 
   # ── Setup 3/4: migrate, restart the app ─────────────────────────────────
   # Migrate the fresh database, create the smoke superuser
   # (framework@example.com, "Framework Smoke"), restart granian on the new
   # code. Gated by each command's exit code.
   echo "=== Setup 3/4: migrate, create the smoke superuser ==="
-  vm_app '.venv/bin/python manage.py migrate --noinput'
-  vm_app '.venv/bin/python manage.py createuser framework@example.com --first-name Framework --last-name Smoke --superuser'
+  vm_app .venv/bin/python manage.py migrate --noinput
+  vm_app .venv/bin/python manage.py createuser framework@example.com --first-name Framework --last-name Smoke --superuser
   multipass exec app -- sudo systemctl restart app_granian.service
 
   # ── Setup 4/4: mint the one-time superuser login link ──────────────────
@@ -351,7 +338,7 @@ checkframework2() {
   # the session the assertions below ride on.
   echo "=== Setup 4/4: mint the one-time superuser login link ==="
   local link
-  link=$(vm_app '.venv/bin/python manage.py makeloginlink framework@example.com --base-url https://app.local' \
+  link=$(vm_app .venv/bin/python manage.py makeloginlink framework@example.com --base-url https://app.local \
     | grep -oE "https://app\.local/login-for-test/[^ ]+/" | head -1) || true
   [ -n "$link" ] || { echo "FAILED: no login link minted" >&2; return 1; }
   local cookie_jar
@@ -360,58 +347,72 @@ checkframework2() {
 
   local code body agent_dump agent_anon_dump
 
-  # ── Assert 1/6: the login link redeems ─────────────────────────────────
+  # ── Assert 1/7: the login link redeems ─────────────────────────────────
   # 302 (redirect after login; 200 also fine) and leaves a session cookie
   # in the jar.
-  echo "=== Assert 1/6: login link redeems ==="
+  echo "=== Assert 1/7: login link redeems ==="
   code=$(curl -k -sS -o /dev/null -w '%{http_code}' -c "$cookie_jar" "$link")
   assert "302 200" "$code" "login link redemption status"
 
-  # ── Assert 2/6: /users/list gate, anonymous ────────────────────────────
+  # ── Assert 2/7: /users/list gate, anonymous ────────────────────────────
   # The framework superuser route hides from anonymous viewers: 404.
-  echo "=== Assert 2/6: anonymous /users/list → 404 ==="
+  echo "=== Assert 2/7: anonymous /users/list → 404 ==="
   code=$(curl -k -sS -o /dev/null -w '%{http_code}' "$vm_base/users/list")
   assert 404 "$code" "anonymous /users/list"
 
-  # ── Assert 3/6: /users/list gate, superuser session ────────────────────
+  # ── Assert 3/7: /users/list gate, superuser session ────────────────────
   # 200 proves the redeemed cookie is a real superuser session.
-  echo "=== Assert 3/6: authed /users/list → 200 (session proof) ==="
+  echo "=== Assert 3/7: authed /users/list → 200 (session proof) ==="
   code=$(curl -k -sS -o /dev/null -w '%{http_code}' -b "$cookie_jar" "$vm_base/users/list")
   assert 200 "$code" "authed /users/list (session proof)"
 
-  # ── Assert 4/6: home renders the test app ──────────────────────────────
+  # ── Assert 4/7: home renders the test app ──────────────────────────────
   # The home page shows the smoke user's display name "Framework Smoke".
-  echo "=== Assert 4/6: home shows the smoke user ==="
+  echo "=== Assert 4/7: home shows the smoke user ==="
   body=$(curl -k -sS -b "$cookie_jar" "$vm_base/")
   grep -q "Framework Smoke" <<<"$body" \
     || { echo "FAILED: home does not show the smoke user" >&2; return 1; }
 
-  # ── Assert 5/6: /agent gate, anonymous ─────────────────────────────────
+  # ── Assert 5/7: /agent gate, anonymous ─────────────────────────────────
   # Caddy forward_auth (→ /agent/auth): anonymous/non-superuser → 404,
   # relayed verbatim. The body must render OUR 404 template with the AUTH
   # SUBREQUEST's path (/agent/auth) — the fingerprint of the verdict
   # actually flowing through agent_auth. A plain Django catch-all 404
   # (caddy block missing) would render "/agent/" instead; a caddy-native
   # respond would be text/plain.
-  echo "=== Assert 5/6: anonymous /agent → 404 via forward_auth ==="
+  echo "=== Assert 5/7: anonymous /agent → 404 via forward_auth ==="
   agent_anon_dump="$(mktemp)"
   code=$(curl -k -sS -o "$agent_anon_dump" -w '%{http_code}' "$vm_base/agent/")
   assert 404 "$code" "anonymous /agent (forward_auth gate)"
   assert_contains "$agent_anon_dump" "/agent/auth" "anonymous /agent 404 came from agent_auth (not a catch-all)"
   rm -f "$agent_anon_dump"
 
-  # ── Assert 6/6: /agent gate, superuser session ─────────────────────────
+  # ── Assert 6/7: /agent gate, superuser session ─────────────────────────
   # 2xx verdict → caddy proxies to ttyd, whose terminal page serves. The
   # markers are ttyd's own title + an xterm renderer class from its JS
   # bundle — not merely the string "ttyd", which an error page echoing
   # the request could satisfy.
-  echo "=== Assert 6/6: superuser /agent → 200, ttyd terminal page ==="
+  echo "=== Assert 6/7: superuser /agent → 200, ttyd terminal page ==="
   agent_dump="$(mktemp)"
   code=$(curl -k -sS -o "$agent_dump" -w '%{http_code}' -b "$cookie_jar" "$vm_base/agent/")
   assert 200 "$code" "superuser /agent (forward_auth passed)"
   assert_contains "$agent_dump" "<title>ttyd - Terminal</title>" "/agent serves ttyd's page (ttyd title)"
   assert_contains "$agent_dump" "BaseRenderLayer" "/agent serves ttyd's xterm bundle"
   rm -f "$agent_dump"
+
+  # ── Assert 7/7: playwright ready for the agent (shared browsers + deps) ─
+  # The console agent's scratch ./run playwrighttest needs: browsers in the
+  # SHARED cache (readable as console, via PLAYWRIGHT_BROWSERS_PATH from the
+  # credentials env) and a firefox that actually LAUNCHES headless as
+  # console — the acceptance probe, platform-agnostic by construction.
+  echo "=== Assert 7/7: playwright browsers launch as console ==="
+  local browsers
+  browsers=$(multipass exec app -- sudo -u console -H bash /srv/app/main/deploy/vm.sh console-browsers)
+  [ -n "$browsers" ] \
+    || { echo "FAILED: shared playwright browser cache empty/unreadable as console" >&2; return 1; }
+  multipass exec app -- sudo -u console -H bash /srv/app/main/deploy/vm.sh console-playwright-probe \
+    | grep -q "launch OK" \
+    || { echo "FAILED: headless firefox does not launch as console (deps or platform env missing)" >&2; return 1; }
 
   echo "checkframework2 green."
 }
@@ -422,8 +423,7 @@ checkframework2() {
 # which is identical to main/), and the frontend lint/typecheck/build (the build
 # confirms the agent's frontend compiles; the browser pass is skipped). The full
 # backend suite + Playwright stay in checkframework1, run in main/.
-checkscratch() {
-  setenv
+_scratch_checks() {
   echo "Running ruff format --check (formatting drift)"
   uv run ruff format $_RUFF_COLOR --check
   echo "Running ruff check (lint)"
@@ -440,15 +440,14 @@ checkscratch() {
   echo "Running frontend build"
   npm run build
   cd ..
-  # Framework-file watch: diff the working tree (committed-since-baseline,
-  # staged, unstaged, untracked) against scratch's seeded baseline commit.
-  # Edits OUTSIDE the agent's app surface (ourapp/, frontend/src/ours/) mean
-  # framework code changed → run the framework-subset smoke tests: the
-  # view tests tagged `framework-subset` + the one browser smoke class,
-  # a ~5-10s fraction of checkframework1 as an early-warning gate. The
-  # FULL suite still gates in main/ via checkframework1.
+  # Framework-file watch: diff the working tree against the frozen
+  # `scratch-baseline` ref (main's HEAD at seed time); edits outside
+  # ourapp/ + frontend/src/ours/ mean framework code changed → run the
+  # `scratch-test-subset` smoke (an early-warning fraction of
+  # checkframework1; the full suite still gates in main/).
   local baseline outside
-  baseline=$(git -C "$_SCRATCH_DIR" rev-list --max-parents=0 HEAD)
+  baseline=$(git -C "$_SCRATCH_DIR" rev-parse --verify scratch-baseline 2>/dev/null) \
+    || { echo "REFUSING: no scratch-baseline ref — re-run ./run createscratch" >&2; return 1; }
   outside=$(
     {
       git -C "$_SCRATCH_DIR" diff --name-only "$baseline"
@@ -456,12 +455,12 @@ checkscratch() {
     } | sort -u | grep -vE '^(ourapp/|frontend/src/ours/)' || true
   )
   if [ -n "$outside" ]; then
-    echo "=== framework files changed — running framework-subset smoke tests ==="
+    echo "=== framework files changed — running scratch-test-subset smoke tests ==="
     printf '  %s\n' $(grep -c . <<<"$outside") files:
     printf '  %s\n' $outside
-    uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=framework-subset
+    uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=scratch-test-subset
   else
-    echo "No framework-file changes (outside ourapp/ + frontend/src/ours/) — skipping framework-subset smoke."
+    echo "No framework-file changes (outside ourapp/ + frontend/src/ours/) — skipping scratch-test-subset smoke."
   fi
 }
 
@@ -473,15 +472,11 @@ lintfix() {
   npm run lint:fix
 }
 
-# Shared rsync exclude list for createscratch/mergescratch: skip git, the scratch
-# tree itself, virtualenvs, build-tool output (dist/build), caches, and
-# machine-local state. NOTE: djangoapp/static/ (the built frontend bundle) is
-# intentionally NOT excluded — it's gitignored, and deploying it carries the
-# agent's fresh build from scratch/ to main/ so the live server isn't left on a
-# stale bundle. ``.env`` is copied INTO scratch/ (same machine, same DB) but
-# never synced BACK to main/.
+# Shared rsync excludes — DIRECTIONAL: `.git` rides createscratch (scratch
+# shares main's history) but deployscratch re-excludes it (+ `.env`) so
+# main's repo and env stay untouched. djangoapp/static/ (the built bundle)
+# is deliberately carried deploy-ward: the fresh build ships with the deploy.
 _SCRATCH_EXCLUDES=(
-  --exclude='.git/'
   --exclude='.kilo/'
   --exclude='.crush/'
   --exclude='scratch/'
@@ -497,35 +492,26 @@ _SCRATCH_EXCLUDES=(
 )
 
 # main/ is this script's dir; scratch/ is its sibling (both under parent/).
-# Resolved once at load time so createscratch/mergescratch stay free of path
+# Resolved once at load time so createscratch/deployscratch stay free of path
 # boilerplate.
 _MAIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _SCRATCH_DIR="$(dirname "$_MAIN_DIR")/scratch"
 
-# Build a fresh scratch/ from main/: rsync (shared excludes), own env, own
-# throwaway git repo with a baseline commit. Shared by createscratch and
-# checkproject.
+# Build a fresh scratch/ from main/: tree rsync INCLUDING .git (shared
+# history), main's HEAD frozen as the `scratch-baseline` ref, and .venv +
+# node_modules hardlink-copied so the bootstrap runs incremental.
 _new_scratch() {
   rm -rf "$_SCRATCH_DIR"
   rsync -a "${_SCRATCH_EXCLUDES[@]}" "$_MAIN_DIR/" "$_SCRATCH_DIR/"
+  git -C "$_SCRATCH_DIR" tag -f scratch-baseline HEAD >/dev/null
+  [ -d "$_MAIN_DIR/.venv" ] && cp -al "$_MAIN_DIR/.venv" "$_SCRATCH_DIR/.venv"
+  [ -d "$_MAIN_DIR/frontend/node_modules" ] \
+    && cp -al "$_MAIN_DIR/frontend/node_modules" "$_SCRATCH_DIR/frontend/node_modules"
   ( cd "$_SCRATCH_DIR"
     uv sync
     cd frontend
     npm install
   )
-  git -C "$_SCRATCH_DIR" init -q
-  # VM/CI fallback only: with no global git identity (the VM never sets
-  # one) git cannot derive an email from the .local hostname and commits
-  # would fail — seed the scratch repo with author + blank email. The
-  # agent marker still rides GIT_COMMITTER_NAME from the environment; on
-  # dev a global identity exists and is left untouched (the human authors).
-  if ! git -C "$_SCRATCH_DIR" config --get user.name >/dev/null 2>&1 \
-     && ! git config --get user.name >/dev/null 2>&1; then
-    git -C "$_SCRATCH_DIR" config user.name "$(id -un)"
-    git -C "$_SCRATCH_DIR" config user.email ""
-  fi
-  git -C "$_SCRATCH_DIR" add -A
-  git -C "$_SCRATCH_DIR" commit -q -m "scratch baseline"
 }
 
 # Overlay an app's ourapp/ onto scratch/ourapp/ (full replace).
@@ -534,27 +520,33 @@ _overlay_app() {
 }
 
 createscratch() {
-  # Fresh scratch/ of main/ (own env + git baseline) for the agent to edit + diff.
+  # Fresh scratch/ of main/ (shared git history + frozen baseline ref, hardlinked
+  # env) for the agent to edit + diff.
   _new_scratch
-  echo "scratch/ ready at $_SCRATCH_DIR. Edit there, then run: ( cd $_SCRATCH_DIR && ./run checkscratch )"
+  echo "scratch/ ready at $_SCRATCH_DIR. Edit there, then run: ( cd $_SCRATCH_DIR && ./run deployscratch )"
 }
 
-mergescratch() {
-  # Deploy scratch/ into main/ (rsync --delete; same excludes + .env so main's env
-  # is never overwritten). Does NOT commit — committing is a separate step the
-  # user does later. In dev, runserver auto-reloads main/ so the change is live.
-  # On the test VM there is no auto-restart (decision: no restart rule): static
-  # is refreshed (collectstatic, live immediately) and the restart command is
-  # printed for the operator/agent to run via console's sudo.
+# The ONE command: the full check battery in scratch (nothing deploys
+# red), then rsync → main/ (.git/.env excluded), migrate, and on the VM
+# collectstatic + restart granian/huey so deploys go LIVE. Never commits.
+deployscratch() {
+  setenv
   [ -d "$_SCRATCH_DIR" ] || { echo "Refusing: $_SCRATCH_DIR not found. Run createscratch first." >&2; return 1; }
-  echo "Deploying $_SCRATCH_DIR/ → $_MAIN_DIR/ (--delete, excluding .env + generated dirs)…"
-  rsync -a --delete "${_SCRATCH_EXCLUDES[@]}" --exclude='.env' "$_SCRATCH_DIR/" "$_MAIN_DIR/"
+  ( cd "$_SCRATCH_DIR" && _scratch_checks )
+
+  echo "Deploying $_SCRATCH_DIR/ → $_MAIN_DIR/ (--delete, excluding .git + .env + generated dirs)…"
+  rsync -a --delete "${_SCRATCH_EXCLUDES[@]}" --exclude='.git/' --exclude='.env' "$_SCRATCH_DIR/" "$_MAIN_DIR/"
+  ( cd "$_MAIN_DIR" && .venv/bin/python manage.py migrate --noinput )
   if [ -f /etc/credentials/app/.env.vm ]; then
-    echo "VM detected: collectstatic (static live immediately)…"
+    echo "VM detected: collectstatic + restarting services…"
     ( cd "$_MAIN_DIR" && .venv/bin/python manage.py collectstatic --noinput --clear )
-    echo "Code changes need a restart: sudo systemctl restart app_granian app_huey"
+    if [ -f /etc/systemd/system/app_huey.service ]; then
+      sudo systemctl restart app_granian.service app_huey.service
+    else
+      sudo systemctl restart app_granian.service
+    fi
   fi
-  echo "Deployed scratch/ → main/ (uncommitted). Commit in main/ when ready."
+  echo "Deployed scratch/ → main/ (uncommitted, services live). Commit in main/ when ready."
 }
 
 cleanscratch() {

@@ -135,6 +135,9 @@ provision() {
   if ! grep -qE '^ALLOWED_HOSTS=.*app\.local' "$here/.env.vm"; then
     echo "WARNING: ALLOWED_HOSTS in .env.vm does not include app.local — Django will reject requests!" >&2
   fi
+  if ! grep -qE '^PLAYWRIGHT_BROWSERS_PATH=' "$here/.env.vm"; then
+    echo "WARNING: PLAYWRIGHT_BROWSERS_PATH unset in .env.vm — browsers land in per-user caches and the agent's scratch tests won't find them (.env.vm.example documents the key)." >&2
+  fi
 
   # ── 1. launch the instance (refuse if it exists — build only) ────────────
   if multipass info app >/dev/null 2>&1; then
@@ -144,12 +147,15 @@ provision() {
   fi
   # en0 = the primary (bridged) interface on a macOS host — the locked deploy
   # target. On another host OS, substitute its bridged interface name.
-  echo "==> multipass launch app (bridged en0, DHCP, 1G ram, 20G disk, $release)"
-  multipass launch --name app --network en0 --memory 1G --disk 20G "$release"
+  echo "==> multipass launch app (bridged en0, DHCP, 2G ram, 20G disk, $release)"
+  multipass launch --name app --network en0 --memory 2G --disk 20G "$release"
 
   # ── 2. machine phases inside (users, apt, node, crush, caddy, swap…) ──
   multipass transfer "$deploy_dir/inside-vm.sh" app:/tmp/inside-vm.sh
   multipass exec app -- sudo bash /tmp/inside-vm.sh provision_vm
+  # vm.sh rides along as /tmp/vm.sh: the seed (with its deploy/vm.sh copy)
+  # isn't extracted until step 5, and steps before it already need helpers.
+  multipass transfer "$deploy_dir/vm.sh" app:/tmp/vm.sh
 
   # ── 3. build the file tree locally (see the tree comment up top) ─────────
   rm -rf "$t"; mkdir -p "$t"
@@ -226,15 +232,14 @@ provision() {
   # .crush/, staticfiles/, caches…) and untracked clutter (editor state,
   # AppleDouble junk, empty dirs) can never ship, and no hand-maintained
   # exclude list can drift (it did: .coverage/static/uploads/.idea all
-  # leaked at some point before this). Tracked-but-deleted files make tar
-  # fail loudly — desired. Mode bits come from the filesystem, as before.
+  # leaked at some point). Tracked-but-deleted files make tar fail
+  # loudly — desired. Mode bits come from the filesystem, as before.
   (cd "$here" && git ls-files -z) | COPYFILE_DISABLE=1 tar czf /tmp/app-seed.tgz -C "$here" --null -T -
   multipass transfer /tmp/app-seed.tgz app:/tmp/app-seed.tgz
-  # Group-write the extracted tree (like the enclosing /srv/app 775): the
-  # console user (agent/./run) must be able to edit main/ — mergescratch,
-  # git resets — not just read it.
-  multipass exec app -- sudo bash -c \
-    "tar xzf /tmp/app-seed.tgz -C /srv/app/main && chown -R app:app /srv/app/main && find /srv/app/main -exec chmod g+w {} +"
+  # Extract + ownership/perms pin — the body lives in deploy/vm.sh
+  # (extract-app-seed); call sites stay one-liners (INSTRUCTIONS.md §
+  # Multipass helpers in deploy/vm.sh).
+  multipass exec app -- sudo bash /tmp/vm.sh extract-app-seed
 
   # main/ is its OWN repo (the seed ships no .git; the parent /srv/app is
   # NOT a repo — the agent uses external_directory for scratch/). The
@@ -246,19 +251,28 @@ provision() {
   echo "==> bootstrap (uv sync, npm build, migrate, collectstatic)"
   multipass exec app -- sudo -u app -H bash /tmp/vm-bootstrap.sh
 
+  # ── 6b. playwright: shared browsers + firefox system deps ────────────────
+  # CROSS-PLATFORM (any Ubuntu, any arch) — bodies + per-step rationale in
+  # deploy/vm.sh (playwright-setup: native install first, nearest-LTS
+  # fallback computed per-arch and persisted to the credentials env;
+  # playwright-deps: the system libs firefox actually dlopens).
+  echo "==> playwright browsers (shared cache, cross-platform)"
+  multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh playwright-setup
+  echo "==> playwright firefox system deps"
+  multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh playwright-deps
+
+  # Provisioning's /tmp leftovers — per-file rationale in deploy/vm.sh
+  # (cleanup-provision-tmp).
+  multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh cleanup-provision-tmp
+
   echo "==> start services"
   # Huey only when its unit exists (HUEY_WORKERS=0 skips it in the tree).
   local huey_exists
-  huey_exists=$(multipass exec app -- sudo sh -c \
-    "[ -f /etc/systemd/system/app_huey.service ] && echo yes || echo no")
+  huey_exists=$(multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh huey-unit-present)
   local restart_units=("app_granian.service" "console_ttyd.service")
   [[ "$huey_exists" == "yes" ]] && restart_units+=("app_huey.service")
   multipass exec app -- sudo systemctl restart "${restart_units[@]}"
   multipass exec app -- sudo systemctl restart caddy
-
-  # NOTE: provisioning leftovers (/tmp/tree.tgz — which embeds the
-  # credentials env — + the seed tarball + the one-shots) are cleaned from
-  # INSIDE, as the last step of vm-bootstrap.sh.
 
   # ── 7. print the access steps ────────────────────────────────────────────
   cat "$deploy_dir/access-steps.txt"

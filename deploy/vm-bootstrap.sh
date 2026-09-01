@@ -11,9 +11,3 @@ uv sync
 .venv/bin/python manage.py migrate --noinput
 .venv/bin/python manage.py collectstatic --noinput --clear
 
-# Provisioning leftovers out of /tmp (best-effort, last step): tree.tgz
-# embeds the credentials env and sat world-readable on the sticky /tmp;
-# the rest is one-shot clutter. Deleting this script itself is safe —
-# its open fd survives the unlink.
-rm -f /tmp/tree.tgz /tmp/app-seed.tgz /tmp/inside-vm.sh \
-  /tmp/vm-seed-commit.sh /tmp/vm-bootstrap.sh

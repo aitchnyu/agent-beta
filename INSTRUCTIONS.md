@@ -22,13 +22,23 @@ Try not to generate multiline bash commands. My agent thinks each line is a comm
 Do not run `rm` or `ls` in bash. Use the tool calls.
 Do not use curl to read urls. Use browser tool call.
 
-## Bash helper functions over inline `bash -c` scripts
-For multi-command remote scripts (`multipass exec ... -- sudo bash -c`), do not
-inline the script as a quoted string. Define a real function and embed it with
-`declare -f` — the body stays ordinary shell (highlighted, lintable, reusable
-across calls). See `vm_app` / `deploy_ourapp` inside `checkframework2` in `run`.
+## Multipass helpers in `deploy/vm.sh`
+Any multipass command longer than two lines — and every guest-side script,
+period — lives as a NAMED FUNCTION in `deploy/vm.sh` (the guest-side helper
+library with a dispatcher at the bottom). `vm.sh` ships with the repo (the
+seed lands it at `/srv/app/main/deploy/vm.sh`; `./testvm provision` also
+drops an early copy at `/tmp/vm.sh` for steps that run before the seed
+exists) and runs as whatever user invokes it — root, app, or console.
 
-Right:
+**Wrong** — inline `bash -c` string blob (nested `python -c` grows a `\"`
+per level, no editor support):
+```bash
+multipass exec app -- sudo bash -c \
+  "tar xzf /tmp/app-seed.tgz -C /srv/app/main && chown -R app:app /srv/app/main && find /srv/app/main -exec chmod g+w {} +"
+```
+
+**Wrong** — `declare -f` embedding (quoting traps; the body lives far from
+its call site):
 ```bash
 deploy_ourapp() {
   tar xzf /tmp/testapp-ourapp.tgz -C /srv/app/main
@@ -36,30 +46,46 @@ deploy_ourapp() {
   find /srv/app/main/ourapp -exec chmod g+w {} +
   rm -f /tmp/testapp-ourapp.tgz
 }
-
 multipass exec app -- sudo bash -c "$(declare -f deploy_ourapp); deploy_ourapp"
 ```
 
-Wrong — one illegible line, no editor support, and nested `python -c` calls
-grow a `\"` escape per level:
+**Wrong** — re-typing the env/cwd/PATH dance for every app command:
 ```bash
-multipass exec app -- sudo bash -c \
-  "tar xzf /tmp/testapp-ourapp.tgz -C /srv/app/main && chown -R app:app /srv/app/main/ourapp && find /srv/app/main/ourapp -exec chmod g+w {} + && rm -f /tmp/testapp-ourapp.tgz"
+multipass exec app -- sudo -u app -H bash -c \
+  'set -a; . /etc/credentials/app/.env.vm; set +a; cd /srv/app/main; .venv/bin/python manage.py makeloginlink <email>'
 ```
 
-`$` and other symbols:
-- `$(declare -f fn)` output is never re-expanded, so `$VAR`, `"$1"`, quotes and
-  backticks inside the function body are safe — they evaluate on the remote
-  side only.
-- Keep the double-quoted string to exactly `$(declare -f fn); fn`. A `$NAME`
-  or backtick TYPED there expands/runs HOST-side (wrong machine, wrong values).
-  A `$var` whose VALUE carries `$`/backticks inserts verbatim and is then
-  evaluated as remote shell — quoting and injection bugs. If you must append a
-  variable like `vm_app` does (`"; $1"`), pass single-quoted literals only.
-- Fixed literal arguments go in single quotes inside the double quotes:
-  `"$(declare -f fn); fn 'literal'"`. The literal must contain no `$`,
-  backticks, or quotes; if it does, restructure the function to need no
-  argument instead of escaping.
+**Right** — the body lives in `deploy/vm.sh`; call sites are one-liners:
+```bash
+# deploy/vm.sh gains the function (ordinary shell, lintable, reusable):
+deploy-ourapp() {
+  tar xzf /tmp/testapp-ourapp.tgz -C /srv/app/main
+  chown -R app:app /srv/app/main/ourapp
+  find /srv/app/main/ourapp -exec chmod g+w {} +
+  rm -f /tmp/testapp-ourapp.tgz
+}
+
+# …and every call site becomes:
+multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh deploy-ourapp
+```
+
+**Right** — one command as the app user goes through the `app` wrapper
+(env sourced, repo cwd, uv on PATH):
+```bash
+multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
+  app .venv/bin/python manage.py makeloginlink <email>
+```
+
+**Right** — host-side logic (decisions, arch probing, output parsing)
+stays host-side in `run`/`testvm`; only the guest body moves:
+```bash
+pw_arch="$(multipass exec app -- dpkg --print-architecture)"   # host decides
+multipass exec app -- sudo bash /tmp/vm.sh playwright-override-env "ubuntu24.04-$pw_arch"
+```
+
+Two lines or fewer may stay inline at the call site. Functions run under
+`set -euo pipefail` — the function's exit code is the multipass call's
+exit code, which call sites gate on (`if ! multipass exec … playwright-install; then …`).
 
 ## aihere
 If I mention `aihere`, grep for `aihere` in whole codebase except `.idea`, copy all of them into some todo list. They may not be comments — a marker can sit on any line of any file (code, strings, docs); treat the line it's on (plus its surroundings) as the instruction. The comments are instructions to modify the codebase. If you have lines with aihere in context and I mention aihere again, look at the new instances. Never remove the comments before addressing them. If you are not implementing them, write them down in existing md file.

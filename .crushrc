@@ -31,7 +31,6 @@ option metrics false
 # `./run agent` enforces the root cwd; running bare `crush` from a subdir
 # silently skips this whole file (including the hooks), not just paths.
 permissions allow view ls grep glob web_search
-permissions deny todos question
 permissions deny lsp_definition lsp_symbols lsp_call_hierarchy lsp_rename lsp_replace_symbol lsp_restart references
 
 hook add PreToolUse --matcher "^bash$" \

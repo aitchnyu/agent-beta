@@ -40,7 +40,7 @@ class ManageModelsViewTests(BaseInertiaTestCase):
         """Anonymous viewer gets 404 on /manage/models."""
         self.assertEqual(self.client.get("/manage/models").status_code, HTTPStatus.NOT_FOUND)
 
-    @tag("framework-subset")
+    @tag("scratch-test-subset")
     def test_model_list_renders(self) -> None:
         """/manage/models renders ModelList with a list of models (empty in checkframework1)."""
         self.client.force_login(self.superuser)
