@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, cast
 
-from django.conf import settings
 from inertia import share
 
 from djangoapp.logging import bind_log_context, clear_log_context, get_logger
@@ -91,6 +90,5 @@ class SharedPropsMiddleware:
             viewer_is_superuser=bool(
                 getattr(user, "is_authenticated", False) and getattr(user, "is_superuser", False)
             ),
-            console_url=settings.CONSOLE_URL,
         )
         return self.get_response(request)

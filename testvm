@@ -6,10 +6,9 @@
 #        ./testvm delete
 #
 # provision BUILDS a fresh VM (refuses if the instance exists — delete,
-# then rebuild): /srv/app/{main,scratch}, units app_granian/app_huey/
-# console_ttyd, caddy at https://app.local/ (ttyd terminal at /agent/),
-# postgres + redis. ALL config comes from the root .env.vm, validated
-# FAIL-HARD here before anything ships.
+# then rebuild): /srv/app/{main,scratch}, units app_granian/app_huey,
+# caddy at https://app.local/, postgres + redis. ALL config comes from the
+# root .env.vm, validated FAIL-HARD here before anything ships.
 #
 # delete is destructive with no backup: the VM's `.git` and database are
 # gone — copy anything you need off first (tar via multipass transfer,
@@ -34,17 +33,16 @@
 #       │   └── .env.vm                  shared env — every unit's EnvironmentFile
 #       ├── systemd/system/
 #       │   ├── app_granian.service
-#       │   ├── app_huey.service         only when HUEY_WORKERS > 0
-#       │   └── console_ttyd.service
+#       │   └── app_huey.service         only when HUEY_WORKERS > 0
 #       ├── caddy/
 #       │   ├── Caddyfile                stock + "import sites/*.caddy"
-#       │   └── sites/app.caddy          the app.local site (app + /agent/)
+#       │   └── sites/app.caddy          the app.local site (the app)
 #       ├── redis/redis.conf             stock + maxmemory block
-#       └── sudoers.d/console            console's full passwordless sudo
+#       └── sudoers.d/agent              agent's full passwordless sudo
 #   /srv/app  (pre-created by provision_vm; group-app-writable)
 #     └── main/ contents = the SEED TARBALL (the TRACKED working tree —
 #         git ls-files driven, so the git index is the exclude authority;
-#         deploy/ ships WITH it — guards, console-bashrc, tests included)
+#         deploy/ ships WITH it — guards, tests included)
 #   /
 #   └── tmp/
 #       ├── vm-seed-commit.sh            one-shot: git init + first commit (run as app)
@@ -181,8 +179,6 @@ provision() {
 
   # tree: /etc/systemd/system/app_granian.service
   render "$deploy_dir/granian.service.in" > "$tree/etc/systemd/system/app_granian.service"
-  # tree: /etc/systemd/system/console_ttyd.service
-  render "$deploy_dir/ttyd.service.in" > "$tree/etc/systemd/system/console_ttyd.service"
   # tree: /etc/systemd/system/app_huey.service (HUEY_WORKERS > 0 only)
   if (( huey_workers > 0 )); then
     render "$deploy_dir/huey.service.in" > "$tree/etc/systemd/system/app_huey.service"
@@ -198,9 +194,9 @@ provision() {
   cat "$deploy_dir/redis-append.conf" >> "$t/redis.conf"
   cp "$t/redis.conf" "$tree/etc/redis/redis.conf"
 
-  # tree: /etc/sudoers.d/console — content only; the 0440 mode sudo
+  # tree: /etc/sudoers.d/agent — content only; the 0440 mode sudo
   # requires is pinned inside (inside-vm.sh, with visudo validation).
-  printf 'console ALL=(ALL) NOPASSWD: ALL\n' > "$tree/etc/sudoers.d/console"
+  printf 'agent ALL=(ALL) NOPASSWD: ALL\n' > "$tree/etc/sudoers.d/agent"
 
 
   # tree: /tmp/vm-seed-commit.sh + /tmp/vm-bootstrap.sh — one-shot scripts
@@ -269,7 +265,7 @@ provision() {
   # Huey only when its unit exists (HUEY_WORKERS=0 skips it in the tree).
   local huey_exists
   huey_exists=$(multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh huey-unit-present)
-  local restart_units=("app_granian.service" "console_ttyd.service")
+  local restart_units=("app_granian.service")
   [[ "$huey_exists" == "yes" ]] && restart_units+=("app_huey.service")
   multipass exec app -- sudo systemctl restart "${restart_units[@]}"
   multipass exec app -- sudo systemctl restart caddy

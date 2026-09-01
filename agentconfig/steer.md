@@ -758,6 +758,9 @@ rm -rf scratch                       # …or ../scratch — BARE tree only; any
                                      # operand prompts: use ./run cleanscratch
 export NAME=VALUE                    # pair with && and an allowed command (see above)
 
+No multipass form is allowlisted — every multipass command prompts; VM
+checks ride ./testvm and ./run checkframework2 (both allowed above).
+
 (The `web_search` tool is likewise pre-approved — tool-level, in `.crushrc`.)
 
 `./run deployscratch` IS allowlisted (in the list above) — design demo

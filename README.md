@@ -8,8 +8,8 @@ changes through an agent that edits a throwaway.
   TUI
   edits a throwaway `scratch/` copy of the repo; you review, then
   `deployscratch` checks + deploys to `main/` (server auto-reloads). Start it with
-  `./run agent` — in production ONLY inside the VM's web terminal
-  (`https://app.local/agent/`, where it runs the same command). See
+  `./run agent` — on the VM from a multipass shell as the `agent` user
+  (`sudo -iu agent`, same command there). See
   [Edit → test → deploy workflow](#edit--test--deploy-workflow).
 - **Async tasks + cron (Huey)** — Redis-backed background tasks and scheduled
   jobs via `huey.contrib.djhuey` (reusing the same Redis as the error rate
@@ -35,13 +35,12 @@ changes through an agent that edits a throwaway.
 - **Prerequisites** — Python 3.14+ with [`uv`](https://docs.astral.sh/uv/),
   Node.js + npm, PostgreSQL, and Redis run the app;
   [Crush](https://github.com/charmbracelet/crush) runs the agent
-  (`npm install -g @charmland/crush`);
-  [`ttyd`](https://github.com/tsl0922/ttyd) serves the web console.
+  (`npm install -g @charmland/crush`).
 - **Environment** — `./run init` copies `.env.example` → `.env`, generates
   `SECRET_KEY`, creates + migrates the database, and builds the frontend;
   set `DB_PASSWORD` to your local postgres afterwards.
-- **Run** — `./run dev` starts runserver + vite + huey + the web console in
-  one terminal (Ctrl-C stops all four); then open
+- **Run** — `./run dev` starts runserver + vite + huey in
+  one terminal (Ctrl-C stops all); then open
   http://127.0.0.1:8000/ — `ourapp/` is a placeholder landing page, and
   `docs/reference/` holds the copyable example app (facts + todos).
 - **First user** — there is no signup flow: create the row and sign in via a
@@ -78,17 +77,15 @@ cp .env.vm.example .env.vm    # then fill in generated secrets
 Then one command builds everything (2G RAM + 2G swap, postgres + redis
 localhost-only, caddy TLS, `/srv/app/main` (a `scratch/` sibling appears
 when you run `./run createscratch` there), systemd units
-`app_granian` + `app_huey` under the **less powerful `app` user**, and
-`console_ttyd` under the **powerful `console` user** — huey omitted when
-`HUEY_WORKERS=0`):
+`app_granian` + `app_huey` under the **less powerful `app` user** — huey
+omitted when `HUEY_WORKERS=0`):
 
 ```bash
 ./testvm provision              # builds and prints access + login steps
 ```
 
-One hostname, one HTTPS port, direct over the LAN (no tunnel); the
-terminal rides the same origin at `/agent/`. The internal-CA cert means a
-click-through warning (the supported mode):
+One hostname, one HTTPS port, direct over the LAN (no tunnel). The
+internal-CA cert means a click-through warning (the supported mode):
 
 - **`https://app.local/`** — the app. Login is **not Google OAuth**
   (`.local` isn't registrable): mint a one-time link for an existing user —
@@ -264,9 +261,6 @@ User/management commands (via the passthrough):
 `createuser <email> [--first-name …] [--last-name …] [--superuser]`,
 `makeloginlink <email>` (one-time login URL),
 `promotetosuperuser <email>`, `addgoogleoauth <client_id> <secret>`.
-`./run console` serves the web terminal at http://localhost:7681 (also part
-of `./run dev`); set `CONSOLE_URL` in `.env` to point the superuser
-**Console** nav link at it.
 
 Test-VM lifecycle via the `testvm` script: `./testvm provision [--release …]`,
 `./testvm delete`.
@@ -349,7 +343,7 @@ Four tiers:
 - **`checkframework2`** — the deployment gate. Rebuilds the test VM from scratch
   (`./testvm`), deploys the Books test app over the VM's `ourapp/`, and smokes
   the live stack over HTTPS from the host (login link → session, superuser
-  gates, the `/agent` forward_auth gate). Destructive: the previous VM is deleted.
+  gates, agent-user readiness). Destructive: the previous VM is deleted.
 - **`checkproject`** — overlay validation against a real app. Two `createscratch`
   cycles:
   1. Overlays the **test app** (`djangoapp/tests/testapp/`) → runs the full suite

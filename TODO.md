@@ -1,17 +1,22 @@
-Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH
-Do we need /agent? No more slash-agent?
-Obscura for tests?
+No more /agent or ttyd service
+Rename console 
+
+multipass shell app
+sudo -u console -H bash -l
+Rename console user
 SSH is the real thing. Have a real tui to manage users?
 
+Avoid this app fn?
+multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
+    app .venv/bin/python manage.py promotetosuperuser <email>
+
+Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH
+Obscura for tests?
 --------------
 
 Why did agent ask me for baseline commit in base? Main was supposed to have a commit. And it should have been copied to scratch. Copy the venv and node modules for speed.
-
 Share the link of mockup and design docs at end of message. Why did it choose to share html link? Use absolute links only
-
-
 Rename framework-subset to scratch-test-subset. One smoke test should load homepage.
-
 
 Why did it create git user and commit?
 
@@ -21,20 +26,17 @@ How to notify?
 
 Designated mockup places?
 
-When does Crush log?
 Prevent overwrites of deployed stuff.
 When do we commit? Commit message?
 Caddy error message
 
+Outline of md files
+hash links in md view dont work
 https://daverupert.com/2026/08/microlighter/ - use native mermaid, no need of html in md
 
 Test `createscratch`, `deployscratch`, `cleanscratch`
 
-hash links in md view dont work
-
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.
-
-Need ssh access for phone backups?
 
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis.
 
@@ -60,7 +62,7 @@ Buttons and stuff may be hardcoded for Google
 Run all tests in checkproject and merge coverage from both stages. Improve test coverage
 
 ## Deployment
-Tool to analyse error logs and stacktraces, both backend and sourcemap stacktraces, mlr for logs
+Tool to analyse error logs and stacktraces, both backend and sourcemap stacktraces, mlr (miller) for logs
 Backup regularly - https://www.pghardstorage.org/examples
 Provision in vm with domain with curl|bash
 

@@ -12,7 +12,7 @@
 # ./testvm provision also drops an early copy at /tmp/vm.sh for steps that
 # run BEFORE the seed is extracted. Runs as whatever user invokes it —
 # pick the function to match (root: extract/deploy/deps; app: app,
-# playwright-install; console: console-*).
+# playwright-install; agent: agent-*).
 
 set -euo pipefail
 
@@ -29,8 +29,8 @@ _vm_env() {
 extract-app-seed() {
   tar xzf /tmp/app-seed.tgz -C /srv/app/main
   chown -R app:app /srv/app/main
-  # Group-write the tree (like the enclosing /srv/app 775): the console
-  # user (agent/./run) must be able to edit main/ — mergescratch, git
+  # Group-write the tree (like the enclosing /srv/app 775): the agent
+  # user (./run agent) must be able to edit main/ — mergescratch, git
   # resets — not just read it.
   find /srv/app/main -exec chmod g+w {} +
 }
@@ -123,22 +123,22 @@ playwright-install() {
   uv run playwright install firefox
 }
 
-# ── console user ──────────────────────────────────────────────────────────
+# ── agent user ─────────────────────────────────────────────────────────────
 
-console-browsers() {
+agent-browsers() {
   _vm_env
   ls "$PLAYWRIGHT_BROWSERS_PATH" | head -3
 }
 
-# The acceptance probe: firefox must LAUNCH headless as console (the user
-# the agent runs as) — platform-agnostic by construction.
-console-playwright-probe() {
+# The acceptance probe: firefox must LAUNCH headless as agent (the user
+# the crush CLI runs as) — platform-agnostic by construction.
+agent-playwright-probe() {
   _vm_env
   timeout 120 .venv/bin/python -c '
 from playwright.sync_api import sync_playwright
 p = sync_playwright().start()
 b = p.firefox.launch()
-print("console headless firefox launch OK")
+print("agent headless firefox launch OK")
 b.close(); p.stop()
 '
 }

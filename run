@@ -92,44 +92,13 @@ hueydev() {
 
 dev() {
   # The whole dev stack in one terminal via `concurrently`: runserver + vite
-  # watch + huey + ttyd console (Ctrl-C stops all). The console at
-  # http://localhost:7681 spawns shells in the repo with the shared banner
-  # rcfile (`./run console` runs it standalone). The start command is
-  # required — bare ttyd exits 254 per connection and reconnect-loops.
+  # watch + huey (Ctrl-C stops all). The agent runs in its own terminal via
+  # `./run agent` — no browser console anymore.
   setenv
-  if ! command -v ttyd >/dev/null 2>&1; then
-    echo "ttyd not found — install it (macOS: brew install ttyd) for the dev console; starting the rest." >&2
-    frontend/node_modules/.bin/concurrently -n runserver,vite,huey -c blue,green,cyan \
-      "./run runserver" \
-      "cd frontend && npm run dev" \
-      "./run hueydev"
-    return 0
-  fi
-  frontend/node_modules/.bin/concurrently -n runserver,vite,huey,console -c blue,green,cyan,magenta \
+  frontend/node_modules/.bin/concurrently -n runserver,vite,huey -c blue,green,cyan \
     "./run runserver" \
     "cd frontend && npm run dev" \
-    "./run hueydev" \
-    "./run console"
-}
-
-console() {
-  # The web console ALONE: ttyd on http://localhost:7681 (also part of
-  # `./run dev`). Shells land IN THE REPO and read deploy/console-bashrc
-  # (the banner + the normal bashrc chain) — the same rcfile the VM's
-  # console_ttyd unit uses. The start command is required: bare ttyd
-  # exits 254 per connection and reconnect-loops. Run `./run agent` (or
-  # crush) inside the browser terminal for the agent.
-  local repo_root
-  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  command -v ttyd >/dev/null 2>&1 || {
-    echo "ttyd not found — install it first (macOS: brew install ttyd)" >&2
-    return 1
-  }
-  # Kill a stale console (this dev stack's or standalone) — idempotent relaunch.
-  pkill -f "ttyd -W -i 127.0.0.1 -p 7681" 2>/dev/null || true
-  setenv
-  ttyd -W -i 127.0.0.1 -p 7681 -w "$repo_root" \
-    -- /bin/bash --rcfile "$repo_root/deploy/console-bashrc"
+    "./run hueydev"
 }
 
 agent() {
@@ -269,10 +238,9 @@ checkframework1() {
 # old VM's git + database are gone), deploy the Books test app
 # (djangoapp/tests/testapp) over the VM's ourapp/, then smoke the LIVE
 # stack over HTTPS from the host (caddy TLS, granian, postgres, login
-# links, the /agent forward_auth superuser gate) — what only a real
-# deployment shows.
+# links) — what only a real deployment shows.
 #
-# Organized as Setup 1-4 (build/deploy/mint) then Assert 1-7 (the
+# Organized as Setup 1-4 (build/deploy/mint) then Assert 1-6 (the
 # HTTP smoke, one banner per assertion, first failure aborts).
 checkframework2() {
   setenv
@@ -298,11 +266,6 @@ checkframework2() {
     done
     echo "FAILED: $3 (expected $1, got $2)" >&2
     return 1
-  }
-
-  # assert_contains <file> <pattern> <what-is-being-asserted>
-  assert_contains() {
-    grep -q "$2" "$1" || { echo "FAILED: $3 ($1 lacks '$2')" >&2; return 1; }
   }
 
   # ── Setup 1/4: rebuild the VM from scratch ─────────────────────────────
@@ -345,74 +308,59 @@ checkframework2() {
   cookie_jar="$(mktemp)"
   trap 'rm -f "$cookie_jar"' RETURN
 
-  local code body agent_dump agent_anon_dump
+  local code body
 
-  # ── Assert 1/7: the login link redeems ─────────────────────────────────
+  # ── Assert 1/6: the login link redeems ─────────────────────────────────
   # 302 (redirect after login; 200 also fine) and leaves a session cookie
   # in the jar.
-  echo "=== Assert 1/7: login link redeems ==="
+  echo "=== Assert 1/6: login link redeems ==="
   code=$(curl -k -sS -o /dev/null -w '%{http_code}' -c "$cookie_jar" "$link")
   assert "302 200" "$code" "login link redemption status"
 
-  # ── Assert 2/7: /users/list gate, anonymous ────────────────────────────
+  # ── Assert 2/6: /users/list gate, anonymous ────────────────────────────
   # The framework superuser route hides from anonymous viewers: 404.
-  echo "=== Assert 2/7: anonymous /users/list → 404 ==="
+  echo "=== Assert 2/6: anonymous /users/list → 404 ==="
   code=$(curl -k -sS -o /dev/null -w '%{http_code}' "$vm_base/users/list")
   assert 404 "$code" "anonymous /users/list"
 
-  # ── Assert 3/7: /users/list gate, superuser session ────────────────────
+  # ── Assert 3/6: /users/list gate, superuser session ────────────────────
   # 200 proves the redeemed cookie is a real superuser session.
-  echo "=== Assert 3/7: authed /users/list → 200 (session proof) ==="
+  echo "=== Assert 3/6: authed /users/list → 200 (session proof) ==="
   code=$(curl -k -sS -o /dev/null -w '%{http_code}' -b "$cookie_jar" "$vm_base/users/list")
   assert 200 "$code" "authed /users/list (session proof)"
 
-  # ── Assert 4/7: home renders the test app ──────────────────────────────
+  # ── Assert 4/6: home renders the test app ──────────────────────────────
   # The home page shows the smoke user's display name "Framework Smoke".
-  echo "=== Assert 4/7: home shows the smoke user ==="
+  echo "=== Assert 4/6: home shows the smoke user ==="
   body=$(curl -k -sS -b "$cookie_jar" "$vm_base/")
   grep -q "Framework Smoke" <<<"$body" \
     || { echo "FAILED: home does not show the smoke user" >&2; return 1; }
 
-  # ── Assert 5/7: /agent gate, anonymous ─────────────────────────────────
-  # Caddy forward_auth (→ /agent/auth): anonymous/non-superuser → 404,
-  # relayed verbatim. The body must render OUR 404 template with the AUTH
-  # SUBREQUEST's path (/agent/auth) — the fingerprint of the verdict
-  # actually flowing through agent_auth. A plain Django catch-all 404
-  # (caddy block missing) would render "/agent/" instead; a caddy-native
-  # respond would be text/plain.
-  echo "=== Assert 5/7: anonymous /agent → 404 via forward_auth ==="
-  agent_anon_dump="$(mktemp)"
-  code=$(curl -k -sS -o "$agent_anon_dump" -w '%{http_code}' "$vm_base/agent/")
-  assert 404 "$code" "anonymous /agent (forward_auth gate)"
-  assert_contains "$agent_anon_dump" "/agent/auth" "anonymous /agent 404 came from agent_auth (not a catch-all)"
-  rm -f "$agent_anon_dump"
+  # ── Assert 5/6: agent user ready (crush + credentials env) ─────────────
+  # The browser console is gone; the operator shells in via multipass and
+  # becomes the agent user (sudo -iu agent). The two `./run agent`
+  # preconditions: crush on PATH, and the credentials env (AGENT_MODEL)
+  # readable as agent via its app-group membership.
+  echo "=== Assert 5/6: agent user can run ./run agent ==="
+  multipass exec app -- sudo -u agent -H bash -c 'command -v crush >/dev/null' \
+    || { echo "FAILED: crush not on the agent user's PATH" >&2; return 1; }
+  multipass exec app -- sudo -u agent -H bash -c \
+    '. /etc/credentials/app/.env.vm 2>/dev/null; test -n "${AGENT_MODEL:-}"' \
+    || { echo "FAILED: AGENT_MODEL does not resolve as agent (credentials env unreadable)" >&2; return 1; }
 
-  # ── Assert 6/7: /agent gate, superuser session ─────────────────────────
-  # 2xx verdict → caddy proxies to ttyd, whose terminal page serves. The
-  # markers are ttyd's own title + an xterm renderer class from its JS
-  # bundle — not merely the string "ttyd", which an error page echoing
-  # the request could satisfy.
-  echo "=== Assert 6/7: superuser /agent → 200, ttyd terminal page ==="
-  agent_dump="$(mktemp)"
-  code=$(curl -k -sS -o "$agent_dump" -w '%{http_code}' -b "$cookie_jar" "$vm_base/agent/")
-  assert 200 "$code" "superuser /agent (forward_auth passed)"
-  assert_contains "$agent_dump" "<title>ttyd - Terminal</title>" "/agent serves ttyd's page (ttyd title)"
-  assert_contains "$agent_dump" "BaseRenderLayer" "/agent serves ttyd's xterm bundle"
-  rm -f "$agent_dump"
-
-  # ── Assert 7/7: playwright ready for the agent (shared browsers + deps) ─
-  # The console agent's scratch ./run playwrighttest needs: browsers in the
-  # SHARED cache (readable as console, via PLAYWRIGHT_BROWSERS_PATH from the
+  # ── Assert 6/6: playwright ready for the agent (shared browsers + deps) ─
+  # The agent's scratch ./run playwrighttest needs: browsers in the
+  # SHARED cache (readable as agent, via PLAYWRIGHT_BROWSERS_PATH from the
   # credentials env) and a firefox that actually LAUNCHES headless as
-  # console — the acceptance probe, platform-agnostic by construction.
-  echo "=== Assert 7/7: playwright browsers launch as console ==="
+  # agent — the acceptance probe, platform-agnostic by construction.
+  echo "=== Assert 6/6: playwright browsers launch as agent ==="
   local browsers
-  browsers=$(multipass exec app -- sudo -u console -H bash /srv/app/main/deploy/vm.sh console-browsers)
+  browsers=$(multipass exec app -- sudo -u agent -H bash /srv/app/main/deploy/vm.sh agent-browsers)
   [ -n "$browsers" ] \
-    || { echo "FAILED: shared playwright browser cache empty/unreadable as console" >&2; return 1; }
-  multipass exec app -- sudo -u console -H bash /srv/app/main/deploy/vm.sh console-playwright-probe \
+    || { echo "FAILED: shared playwright browser cache empty/unreadable as agent" >&2; return 1; }
+  multipass exec app -- sudo -u agent -H bash /srv/app/main/deploy/vm.sh agent-playwright-probe \
     | grep -q "launch OK" \
-    || { echo "FAILED: headless firefox does not launch as console (deps or platform env missing)" >&2; return 1; }
+    || { echo "FAILED: headless firefox does not launch as agent (deps or platform env missing)" >&2; return 1; }
 
   echo "checkframework2 green."
 }

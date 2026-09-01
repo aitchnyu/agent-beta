@@ -11,7 +11,6 @@ const page = usePage()
 const shared = computed(() => SharedPropsSchema.parse(page.props))
 const user = computed(() => shared.value.user)
 const isSuperuser = computed(() => shared.value.viewer_is_superuser)
-const consoleUrl = computed(() => shared.value.console_url)
 
 const csrfToken = computed(() => getCsrfToken())
 </script>
@@ -19,15 +18,6 @@ const csrfToken = computed(() => getCsrfToken())
 <template>
   <div>
     <div class="layout-navbar">
-      <a
-        v-if="isSuperuser && consoleUrl"
-        class="nav-link"
-        :href="consoleUrl"
-        target="_blank"
-        rel="noopener"
-      >
-        Console
-      </a>
       <Link v-if="isSuperuser" class="nav-link" href="/manage/models">
         Models
       </Link>

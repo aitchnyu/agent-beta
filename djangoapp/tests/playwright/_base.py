@@ -148,9 +148,8 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
 
     Isolation note: cookies and the document are reset per test (clear_cookies
     + the about:blank navigation in tearDown) but localStorage is NOT — it is
-    origin-scoped and shared with the suite context. Only the crush session
-    id uses it today (no ``/agent/`` e2e exists); the first such e2e must clear
-    it in its own setUp.
+    origin-scoped and shared with the suite context. Nothing uses it today;
+    the first e2e that does must clear it in its own setUp.
     """
 
     if typing.TYPE_CHECKING:

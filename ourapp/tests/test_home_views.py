@@ -2,13 +2,10 @@
 
 from http import HTTPStatus
 
-from django.test import override_settings
-
 from djangoapp.models import User
 from djangoapp.tests._base import BaseInertiaTestCase
 
 
-@override_settings(CONSOLE_URL="")
 class HomeViewTests(BaseInertiaTestCase):
     """The landing page renders for anonymous and authenticated viewers (pk-free).
 
@@ -16,9 +13,6 @@ class HomeViewTests(BaseInertiaTestCase):
     - test_authenticated_home, authed GET / has display_name and public_id set
     - test_home_issues_csrftoken_cookie, GET / sets a csrftoken cookie so logout can POST
     - test_no_integer_pk_in_props, public_id present but no integer id/pk leaks
-
-    Shared props carry console_url ("" here via override_settings — a dev
-    .env may set CONSOLE_URL for the nav link, tests must not see it).
     """
 
     def test_anonymous_home(self) -> None:
@@ -35,7 +29,6 @@ class HomeViewTests(BaseInertiaTestCase):
                 # Shared viewer props (SharedPropsMiddleware) are anonymous here.
                 "user": None,
                 "viewer_is_superuser": False,
-                "console_url": "",
             },
         )
 
@@ -58,7 +51,6 @@ class HomeViewTests(BaseInertiaTestCase):
                 },
                 "user": {"public_id": user.public_id, "title": "Alice Smith"},
                 "viewer_is_superuser": False,
-                "console_url": "",
             },
         )
 

@@ -26,44 +26,40 @@ creds_env="$creds_dir/.env.vm"
 _CRUSH_NPM_VERSION="0.91.0"
 
 provision_vm() {
-  echo "==> [vm] users: app (less powerful) + console (powerful)"
+  echo "==> [vm] users: app (less powerful) + agent (powerful)"
   useradd --create-home --shell /bin/bash app
-  useradd --create-home --shell /bin/bash console
-  # console is THE powerful user (by decision, no dedicated restart rule):
-  # full passwordless sudo (tree: /etc/sudoers.d/console — lands with the
-  # tree in provision_app), so the operator/agent in the ttyd terminal can
+  useradd --create-home --shell /bin/bash agent
+  # agent is THE powerful user (by decision, no dedicated restart rule):
+  # full passwordless sudo (tree: /etc/sudoers.d/agent — lands with the
+  # tree in provision_app), so the operator/agent working as that user can
   # run systemctl/journalctl non-interactively (the agent's bash tool has
   # no TTY for a password prompt).
   # /srv/app is group-app-writable so the app user runs everything there and
-  # console (the operator/agent) can edit too; owned by app.
+  # agent (the operator) can edit too; owned by app.
   install -d -m775 -o app -g app "$appdir"
-  # console joins the app GROUP: read access to the shared credentials env
+  # agent joins the app GROUP: read access to the shared credentials env
   # (root:app 640) and write access to the group-writable /srv/app tree.
-  # Not a power escalation: console already holds full sudo.
-  usermod -aG app console
+  # Not a power escalation: agent already holds full sudo.
+  usermod -aG app agent
   # The agent commit marker is the GIT_COMMITTER_NAME env var (the shared
   # credentials file) — a global git identity would OVERRIDE env vars, so
-  # none is ever set for the console user (who commits).
+  # none is ever set for the agent user (who commits).
 
   echo "==> [vm] apt packages"
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
-  apt-get install -y curl rsync git htop ufw avahi-daemon ttyd ripgrep \
+  apt-get install -y curl rsync git htop ufw avahi-daemon ripgrep \
     postgresql postgresql-client redis-server ca-certificates gnupg
   # ripgrep: crush's internal grep TOOL shells out to rg when present (its
   # log warns "grep features might be limited or slower" without it). The
   # bash guard still DENIES the agent TYPING rg — it forces the grep tool.
-  # The ttyd package auto-enables ITS unit (root, `-O login` PAM gate) which
-  # steals port 7681 from our console_ttyd. Disable + mask it — our unit
-  # (user console, shared env, caddy-fronted) is the only ttyd that runs.
-  systemctl disable --now ttyd.service >/dev/null
-  systemctl mask ttyd.service >/dev/null
 
   echo "==> [vm] node 22 (NodeSource; apt's node is too old for vite/rolldown)"
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
 
-  # The agent (Crush CLI) started via `./run agent` from the console.
+  # The agent (Crush CLI) started via `./run agent` by the operator, who
+  # shells in over multipass and becomes the agent user.
   # Version-pinned to match dev (npm @charmland/crush on both).
   echo "==> [vm] Crush CLI (npm -g)"
   npm install -g "@charmland/crush@$_CRUSH_NPM_VERSION"
@@ -105,8 +101,6 @@ provision_vm() {
   ufw allow OpenSSH >/dev/null 2>&1 || ufw allow 22/tcp >/dev/null
   ufw allow 80/tcp >/dev/null
   ufw allow 443/tcp >/dev/null
-  # The web terminal rides the same host/port at /agent/ (caddy-proxied) —
-  # no extra port to open.
   ufw --force enable >/dev/null
 }
 
@@ -119,10 +113,9 @@ provision_app() {
 #       ├── credentials/app/.env.vm
 #       ├── systemd/system/app_granian.service
 #       ├── systemd/system/app_huey.service    (HUEY_WORKERS > 0 only)
-#       ├── systemd/system/console_ttyd.service
 #       ├── caddy/Caddyfile + caddy/sites/app.caddy
 #       ├── redis/redis.conf
-#       └── sudoers.d/console
+#       └── sudoers.d/agent
 #   /
 #   └── tmp/vm-seed-commit.sh + tmp/vm-bootstrap.sh   (one-shots the driver runs later)
 #   (srv/app/main/* — including deploy/ — lands via the SEED tarball in
@@ -160,11 +153,11 @@ provision_app() {
   [[ -n "${DB_NAME:-}" && -n "${DB_USER:-}" ]] || { echo "REFUSING: DB_NAME/DB_USER missing in env" >&2; exit 1; }
   [[ -n "${DB_PASSWORD:-}" ]] || { echo "REFUSING: DB_PASSWORD is empty — generate with: openssl rand -hex 32" >&2; exit 1; }
 
-  # ── file: /etc/sudoers.d/console ──────────────────────────────────────
-  # console's full passwordless sudo (shipped via the tree; content built
+  # ── file: /etc/sudoers.d/agent ──────────────────────────────────────────
+  # agent's full passwordless sudo (shipped via the tree; content built
   # host-side in testvm). Validate syntax before anything can rely on it.
-  chmod 0440 /etc/sudoers.d/console
-  visudo -cf /etc/sudoers.d/console >/dev/null
+  chmod 0440 /etc/sudoers.d/agent
+  visudo -cf /etc/sudoers.d/agent >/dev/null
 
   # ── file: /etc/redis/redis.conf ───────────────────────────────────────
   # Stock config + the maxmemory/noeviction block (appended host-side).
@@ -205,31 +198,28 @@ SELECT format('CREATE DATABASE %I OWNER %I', :'db_test', :'db_user')
 \gexec
 SQL
 
-  # ── files: /etc/systemd/system/{app_granian,app_huey,console_ttyd}.service ──
+  # ── files: /etc/systemd/system/{app_granian,app_huey}.service ──────────
   # Rendered host-side with the env's worker knobs; huey's unit exists only
   # when HUEY_WORKERS > 0. Enable only — the driver STARTS them after the
   # app bootstrap (uv sync/migrate/collectstatic).
   echo "==> [app] systemd units (tree-rendered; enable only — the driver starts them)"
   systemctl daemon-reload
-  systemctl enable "app_granian.service" "console_ttyd.service" >/dev/null
+  systemctl enable "app_granian.service" >/dev/null
   [[ -f /etc/systemd/system/app_huey.service ]] && systemctl enable "app_huey.service" >/dev/null
 
   # ── files: /etc/caddy/Caddyfile + /etc/caddy/sites/app.caddy ──────────
-  # The import line (stock Caddyfile) + the app.local site (app +
-  # /agent/ terminal route). Reload picks up sites/*.caddy.
+  # The import line (stock Caddyfile) + the app.local site (the app).
+  # Reload picks up sites/*.caddy.
   echo "==> [app] caddy (site + import line arrived via the tree)"
   systemctl enable caddy >/dev/null
   systemctl reload caddy
 
-  # ── file: /srv/app/main/deploy/console-bashrc ─────────────────────────
-  # Landed via the SEED tarball (deploy/ ships with it); the console_ttyd
-  # unit's --rcfile consumes it at service start.
-  # main/ is app-owned but the console user (agent/./run) works the repo
+  # main/ is app-owned but the agent user (./run agent) works the repo
   # too — git flags cross-user repos as dubious ownership regardless of
   # groups; one system-level exception covers both users.
   git config --system safe.directory "$appdir/main"
 
-  echo "==> [app] build done (sites: app.local/ + app.local/agent/)"
+  echo "==> [app] build done (site: app.local)"
 }
 
 case "$phase" in

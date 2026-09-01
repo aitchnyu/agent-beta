@@ -1,6 +1,6 @@
 from django.urls import include, path
 
-from djangoapp.views import agent_auth, login_for_test_by_key
+from djangoapp.views import login_for_test_by_key
 from djangoapp.views.client_errors import client_errors_api
 from djangoapp.views.files import files_api
 from djangoapp.views.git import git_api
@@ -12,8 +12,7 @@ urlpatterns = [
     # django-ninja API also registers a `default_home` at "" that raises 404, so
     # the app's home route must be tried before the framework NinjaAPIs. The app
     # has no framework-prefixed routes, so it never shadows /users, /manage,
-    # /files, /git (those fall through past it). (The web console is /agent
-    # under caddy on the VM — not a Django route.)
+    # /files, /git (those fall through past it).
     path("", include("ourapp.urls")),
     path("", client_errors_api.urls),  # Frontend error capture sink
     path("", users_api.urls),
@@ -21,6 +20,4 @@ urlpatterns = [
     path("", git_api.urls),
     path("", files_api.urls),
     path("login-for-test/by-key/<str:key>/", login_for_test_by_key, name="login-for-test-by-key"),
-    # Caddy forward_auth target for /agent/*.
-    path("agent/auth", agent_auth, name="agent-auth"),
 ]

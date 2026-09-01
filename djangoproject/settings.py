@@ -41,11 +41,6 @@ configure_logging()
 # Convert comma-separated string to list
 ALLOWED_HOSTS = [host.strip() for host in os.environ["ALLOWED_HOSTS"].split(",") if host.strip()]
 
-# The ttyd web-terminal URL — drives the superuser-only "Console" nav link
-# (shared prop `console_url`). Dev: http://localhost:7681 (./run dev runs
-# ttyd). VM: https://app.local/agent. Empty hides the link.
-CONSOLE_URL = os.environ["CONSOLE_URL"]
-
 
 # Application definition
 

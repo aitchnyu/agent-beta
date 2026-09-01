@@ -28,7 +28,7 @@ period — lives as a NAMED FUNCTION in `deploy/vm.sh` (the guest-side helper
 library with a dispatcher at the bottom). `vm.sh` ships with the repo (the
 seed lands it at `/srv/app/main/deploy/vm.sh`; `./testvm provision` also
 drops an early copy at `/tmp/vm.sh` for steps that run before the seed
-exists) and runs as whatever user invokes it — root, app, or console.
+exists) and runs as whatever user invokes it — root, app, or agent.
 
 **Wrong** — inline `bash -c` string blob (nested `python -c` grows a `\"`
 per level, no editor support):

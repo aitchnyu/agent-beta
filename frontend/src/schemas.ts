@@ -120,7 +120,6 @@ export const MessageResponseSchema = z.object({ id: z.string() })
 export const SharedPropsSchema = z.object({
   user: UserSchema.nullable(),
   viewer_is_superuser: z.boolean(),
-  console_url: z.string(),
 })
 
 export type SharedProps = z.infer<typeof SharedPropsSchema>
