@@ -448,18 +448,39 @@ _SCRATCH_DIR="$(dirname "$_MAIN_DIR")/scratch"
 # Build a fresh scratch/ from main/: tree rsync INCLUDING .git (shared
 # history), main's HEAD frozen as the `scratch-baseline` ref, and .venv +
 # node_modules hardlink-copied so the bootstrap runs incremental.
+# Hardlink-copy when the OS allows it (dev on the Mac: same owner —
+# instant, zero extra disk); plain copy otherwise. On the VM main/ is
+# app-owned and Linux's protected_hardlinks blocks the agent user from
+# hardlinking files it can only read — bare cp -al dies "Operation not
+# permitted" halfway and leaves a HOLLOW .venv that uv then refuses
+# ("no Python executable"), which cost a session an hour of venv
+# archaeology. The fallback copies fully; uv sync stays incremental.
+_link_or_copy_tree() {
+  if ! cp -al "$1" "$2" 2>/dev/null; then
+    rm -rf "$2"
+    cp -a "$1" "$2"
+  fi
+}
+
 _new_scratch() {
   rm -rf "$_SCRATCH_DIR"
   rsync -a "${_SCRATCH_EXCLUDES[@]}" "$_MAIN_DIR/" "$_SCRATCH_DIR/"
   git -C "$_SCRATCH_DIR" tag -f scratch-baseline HEAD >/dev/null
-  [ -d "$_MAIN_DIR/.venv" ] && cp -al "$_MAIN_DIR/.venv" "$_SCRATCH_DIR/.venv"
+  # .crush/ is rsync-excluded but tracked, and npm install rewrites
+  # package-lock format-normalized — both read as diffs vs the baseline,
+  # tripping the framework-file watch. Restore from HEAD.
+  git -C "$_SCRATCH_DIR" checkout -- .crush frontend/package-lock.json 2>/dev/null || true
+  [ -d "$_MAIN_DIR/.venv" ] && _link_or_copy_tree "$_MAIN_DIR/.venv" "$_SCRATCH_DIR/.venv"
   [ -d "$_MAIN_DIR/frontend/node_modules" ] \
-    && cp -al "$_MAIN_DIR/frontend/node_modules" "$_SCRATCH_DIR/frontend/node_modules"
+    && _link_or_copy_tree "$_MAIN_DIR/frontend/node_modules" "$_SCRATCH_DIR/frontend/node_modules"
   ( cd "$_SCRATCH_DIR"
     uv sync
     cd frontend
     npm install
   )
+  # npm install may still touch the lock (format normalization) — pin it back
+  # AFTER install so the baseline stays clean.
+  git -C "$_SCRATCH_DIR" checkout -- frontend/package-lock.json 2>/dev/null || true
 }
 
 # Overlay an app's ourapp/ onto scratch/ourapp/ (full replace).
@@ -467,11 +488,22 @@ _overlay_app() {
   rsync -a --delete "$1/ourapp/" "$_SCRATCH_DIR/ourapp/"
 }
 
+# Scratch-lifecycle commands must run MAIN's ./run: from scratch's own copy
+# both dirs resolve to scratch (deploy rsyncs scratch onto itself; create
+# rm -rf's its own tree). Refuse loudly.
+_require_main_run() {
+  if [ "$_MAIN_DIR" = "$_SCRATCH_DIR" ]; then
+    echo "Refusing: this is scratch's own ./run — run '$1' from main/'s ./run instead." >&2
+    return 1
+  fi
+}
+
 createscratch() {
   # Fresh scratch/ of main/ (shared git history + frozen baseline ref, hardlinked
   # env) for the agent to edit + diff.
+  _require_main_run createscratch || return 1
   _new_scratch
-  echo "scratch/ ready at $_SCRATCH_DIR. Edit there, then run: ( cd $_SCRATCH_DIR && ./run deployscratch )"
+  echo "scratch/ ready at $_SCRATCH_DIR. Edit there, then deploy with: ./run deployscratch (from main/)"
 }
 
 # The ONE command: the full check battery in scratch (nothing deploys
@@ -479,11 +511,24 @@ createscratch() {
 # collectstatic + restart granian/huey so deploys go LIVE. Never commits.
 deployscratch() {
   setenv
+  _require_main_run deployscratch || return 1
   [ -d "$_SCRATCH_DIR" ] || { echo "Refusing: $_SCRATCH_DIR not found. Run createscratch first." >&2; return 1; }
   ( cd "$_SCRATCH_DIR" && _scratch_checks )
 
   echo "Deploying $_SCRATCH_DIR/ → $_MAIN_DIR/ (--delete, excluding .git + .env + generated dirs)…"
-  rsync -a --delete "${_SCRATCH_EXCLUDES[@]}" --exclude='.git/' --exclude='.env' "$_SCRATCH_DIR/" "$_MAIN_DIR/"
+  if [ -f /etc/credentials/app/.env.vm ]; then
+    # VM only: the sync runs under sudo (as non-root agent, rsync -a can't
+    # preserve attrs on app-owned files — exit 23), and scratch's files are
+    # agent-owned. Re-own to app AND re-add group-write afterwards — chown
+    # alone leaves rsync-created 644/755 files without g+w, and the next
+    # build as agent then dies on app-owned dirs (EACCES rmdir .vite, a
+    # real session's playwright wall). Dev on the Mac owns both trees.
+    sudo rsync -a --delete "${_SCRATCH_EXCLUDES[@]}" --exclude='.git/' --exclude='.env' "$_SCRATCH_DIR/" "$_MAIN_DIR/"
+    sudo chown -R app:app "$_MAIN_DIR"
+    sudo chmod -R g+w "$_MAIN_DIR"
+  else
+    rsync -a --delete "${_SCRATCH_EXCLUDES[@]}" --exclude='.git/' --exclude='.env' "$_SCRATCH_DIR/" "$_MAIN_DIR/"
+  fi
   ( cd "$_MAIN_DIR" && .venv/bin/python manage.py migrate --noinput )
   if [ -f /etc/credentials/app/.env.vm ]; then
     echo "VM detected: collectstatic + restarting services…"
@@ -493,8 +538,15 @@ deployscratch() {
     else
       sudo systemctl restart app_granian.service
     fi
+    # Share-URL base from the configured hostname (first ALLOWED_HOSTS
+    # entry) — never a hardcoded one; dev keeps the localhost fallback.
+    _SHARE_BASE="https://${ALLOWED_HOSTS%%,*}"
   fi
   echo "Deployed scratch/ → main/ (uncommitted, services live). Commit in main/ when ready."
+  echo "Share design artifacts as absolute URLs at the BOTTOM of your message (with the summary):"
+  echo "  docs:  ${_SHARE_BASE:-http://localhost:8000}/files/main/ourapp/docs/<feature>.md"
+  echo "  pages: ${_SHARE_BASE:-http://localhost:8000}/<page-url>"
+  echo "Verify each file exists in main/ before sharing the link."
 }
 
 cleanscratch() {

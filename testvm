@@ -38,7 +38,11 @@
 #       │   ├── Caddyfile                stock + "import sites/*.caddy"
 #       │   └── sites/app.caddy          the app.local site (the app)
 #       ├── redis/redis.conf             stock + maxmemory block
-#       └── sudoers.d/agent              agent's full passwordless sudo
+#       ├── sudoers.d/agent              agent's full passwordless sudo
+#       └── (see /home/agent below)
+#   /home/agent
+#     └── .bash_profile                  login banner + repo landing
+#                                         (from deploy/agent-login.txt)
 #   /srv/app  (pre-created by provision_vm; group-app-writable)
 #     └── main/ contents = the SEED TARBALL (the TRACKED working tree —
 #         git ls-files driven, so the git index is the exclude authority;
@@ -166,7 +170,8 @@ provision() {
   local tree="$t/tree"
   mkdir -p "$tree/etc/credentials/app" \
     "$tree/etc/systemd/system" \
-    "$tree/etc/caddy/sites" "$tree/etc/redis" "$tree/etc/sudoers.d"
+    "$tree/etc/caddy/sites" "$tree/etc/redis" "$tree/etc/sudoers.d" \
+    "$tree/home/agent"
   render() {
     sed -e "s/@GRANIAN_WORKERS@/$granian_workers/g" \
         -e "s/@GRANIAN_THREADS@/$granian_threads/g" \
@@ -197,6 +202,10 @@ provision() {
   # tree: /etc/sudoers.d/agent — content only; the 0440 mode sudo
   # requires is pinned inside (inside-vm.sh, with visudo validation).
   printf 'agent ALL=(ALL) NOPASSWD: ALL\n' > "$tree/etc/sudoers.d/agent"
+
+  # tree: /home/agent/.bash_profile — login banner + repo landing
+  # (content file; agent:agent ownership pinned inside after extraction).
+  cp "$deploy_dir/agent-login.txt" "$tree/home/agent/.bash_profile"
 
 
   # tree: /tmp/vm-seed-commit.sh + /tmp/vm-bootstrap.sh — one-shot scripts

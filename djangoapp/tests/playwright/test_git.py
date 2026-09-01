@@ -100,6 +100,9 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         advances (no rollback), the highlighted diff renders, and tearDown's
         console-error check guards render-time crashes.
         """
+        # 2s budget: this test's client-side swap is the one navigation that
+        # flaked at the 1s default under VM load.
+        self.page.set_default_timeout(2000)
         page = self.page
         # Land on the commit's file list (loads the Inertia app + main.js).
         page.goto(f"{self.live_server_url}/git/commits/{self.short_b}")

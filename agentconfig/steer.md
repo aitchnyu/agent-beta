@@ -37,83 +37,95 @@ editing it doesn't prompt. Always use the allowlisted relative form
 (`cd ../scratch`), never `cd /abs/path` (absolute paths aren't allowlisted
 and prompt).
 - Fresh scratch tree: `./run createscratch` (run from `main/`).
-- Edit + check + deploy, all one command: `cd ../scratch` then
-  `./run deployscratch` (runs the full check battery in scratch; if green,
-  rsyncs to `main/`, migrates, and on the VM collectstatic + restarts
-  granian/huey so it's LIVE).
+- Edit + check + deploy, all one command: `./run deployscratch` **run from
+  `main/`** — NOT from inside `../scratch/` (the script resolves main and
+  scratch from its OWN location; invoked from scratch it refuses). It runs
+  the full check battery in scratch; if green, rsyncs to `main/`, migrates,
+  and on the VM collectstatic + restarts granian/huey so it's LIVE.
 
 ## Feature workflow
 
-You build features through two phases, each gated by my explicit approval
-("approved" / "go ahead" / "build it"); anything less clear ("ok", "sure",
-silence) → re-ask before advancing. I run the TUI session, Django, and the
-dev server myself — your job is to edit `scratch/` and deploy via
-`deployscratch`,
-only once I've said to start, so don't begin building before the Design phase is
-approved (starting early wastes a fresh `scratch/` and an env bootstrap I didn't
-ask for). Within a phase keep going — stop only at a real decision that needs
-me, or at a phase's approval gate. Any phase can be sent back to the drawing
-board (Design): if I say
-rethink it, or the build shows the design is wrong, drop back to phase 1,
-re-discuss, update the diagrams/mockups, and get fresh approval before coding
-further — don't keep building against a design that's been rejected or changed.
+You build features through six stages; every stage transition is my explicit
+choice (never advance on "ok"/"sure"/silence — the question tool's menu is
+the gate). I run the TUI session, Django, and the dev server myself — you
+edit `scratch/` and deploy via `deployscratch`, only once I've said to
+start. Within a stage keep going; stop only at a real decision or the
+stage's choice menu. Any stage can send the work back — follow the arrow.
 
-- [ ] **1. Design — discuss, then demo.** Produce, for approval:
-      - the **models-first plan** (see [User communication](#user-communication));
-      - the **design doc** `ourapp/docs/<feature>.md` — an **ER diagram**
-        (mermaid) whenever DB tables/models are involved (see
-        [Models](#models)) and a **state diagram** for any lifecycle;
-      - the feature's **pages built as crosshatched static mockups** at
-        their real URLs, so I open the real thing in the browser.
-      Both live in `scratch/` and deploy together:
-      - `createscratch` (allowlisted — no permission round-trip);
-      - write the doc + mocked-up pages in `../scratch/`;
-      - `deployscratch` (check battery + deploy, allowlisted);
-      - **share the links at the END of your message, as ABSOLUTE URLs** —
-        e.g. `https://app.local/files/ourapp/docs/<feature>.md` and
-        `https://app.local/<page-url>` (dev base: `http://localhost:8000`).
-      I review, give feedback, you edit in scratch and redeploy — as many
-      rounds as the design needs. Mechanics:
-      [Mockups and diagrams](#mockups-and-diagrams).
-- [ ] **2. Build — only after the design is explicitly approved.** Continue in
-      the SAME `../scratch/` (Design already created it — don't re-run
-      `createscratch`; only a design rejected back to the drawing board starts
-      a fresh one). The loop is edit → `cd ../scratch && ./run deployscratch`
-      **once per edit batch** (not per file) — the battery gates every deploy,
-      and every green batch goes LIVE (continuous deploy; `djangomanage
-      migrate`/collectstatic/service restarts are folded in). Run it straight
-      through; don't stop to report progress. Evolve the mocked-up pages into
-      the real implementation as you build (see
-      [Mockups and diagrams](#mockups-and-diagrams)). When done: a short
-      walkthrough + the [Final message](#final-message) with absolute links.
-- [ ] **Keep the design doc current.** The doc was written during Design (in
-      scratch); during Build, update it whenever the approved design changes,
-      so viewing it always renders the live diagrams.
+```
+request
+  |
+  v
+[1] INITIAL MOCKUPS     /mockup-<feature>, static, no props
+  |   share links (T1) --> user picks:
+  |      revise ......... back to [1]
+  |      more interactivity ... to [2]
+  |      write docs ........... to [3]
+  v
+[2] INTERACTIVE MOCKUPS  client-side state, links between mockup pages, no api calls
+  |   share links (T2) --> user picks:
+  |      revise ......... back to [2]
+  |      write docs ..... to [3]
+  v
+[3] DESIGN DOCS          workflow, models, ER + state diagrams
+  |   share doc + mockup links (T3) --> user picks:
+  |      revise docs/mockups ... back as directed
+  |      approved ............... to [4]
+  v
+[4] CODE                 scratch, deployscratch per batch, mockups graduate
+  |
+  v
+[5] AGENT REVIEW + design-doc updates
+  |
+  v
+[6] OFFER TO COMMIT      T6 — commits stay the human's call
+```
 
-**Phase gates — run only the commands listed for your current phase.** Before
-any scratch/deploy command, name the phase you're in; if the command isn't
-allowed there, you're in the wrong phase (go back, or ask for the approval that
-unlocks the next one). The agent drifts when it re-derives these per turn, so
-treat this map as the hard rule, not prose to interpret:
-- **1. Design** — read/grep/glob, discussion; `createscratch` **once** → write
-  the design doc + the feature's pages as static mockups in `../scratch/` →
-  `deployscratch` (allowlisted; iterate as rounds of feedback) → **share the
-  links at the end of the message as absolute URLs** — never deploy a design
-  artifact silently.
-- **2. Build** (after design approval) — continue in the SAME `scratch/`
-  (no second `createscratch` unless sent back to Design) → edit →
-  `deployscratch` **once per edit batch** → `lintfix` if the battery flags
-  formatting. No editing `main/` directly; commits in main/ stay mine.
+Stage rules carry the TECHNICAL constraints only — every message shape
+lives in [Stage messages](#stage-messages):
+
+- **[1] Initial mockups** — `createscratch` **once**, then static mockup
+  pages (mechanics: [Mockups and diagrams](#mockups-and-diagrams)): real
+  Vue components with hardcoded markup — **no props, no `v-if`/`v-for`**
+  (hardcode repeated items), reuse the app's CSS, superuser-only route at
+  `/mockup-<feature>…`; a superuser-only link on the homepage is allowed.
+  Frontend-only edits keep the battery light — build something you can
+  think up and test FAST. Bundle the workflow questions into T1 (one
+  round).
+- **[2] Interactive mockups** — the same pages plus client-side state and
+  links BETWEEN mockup pages; still no backend API calls, nothing saves.
+- **[3] Design docs** — the design doc (models-first plan, ER/state
+  diagrams) joins the mockups; share doc + mockup links via T3.
+- **[4] Code — only after explicit approval.** Continue in the SAME
+  `../scratch/` (no second `createscratch` unless sent back). Edit →
+  `./run deployscratch` from `main/` **once per edit batch** — every green
+  batch goes LIVE (migrate/collectstatic/restarts folded in); run it
+  straight through, don't stop to report progress. Evolve the mockup pages
+  into the real feature (real URL, real props/endpoints) and DELETE the
+  `/mockup-*` page and its homepage link when the real page lands.
+- **[5] Agent review + doc updates** — spawn the reviewer subagent to
+  re-read the diff against the requirement; update the design doc to
+  as-built.
+- **[6] Offer to commit** — T6; never commit unasked.
 
 **Work fast — don't spin on the trivial.** For low-stakes choices (a selector
 style, whether an import is runtime vs annotation-only), follow what the
 reference code already does and move on — don't write multi-paragraph reasoning
 weighing options. Deliberation isn't progress; shipping the edit is.
 
-**Escalate instead of spinning.** If the **same** error recurs 2–3 times, stop
-and ask me — you're missing something fundamental (e.g. a `from __future__
-import annotations` schema needing `model_rebuild()`), and another retry won't
-fix it. Don't reason in circles silently, so I never have to ask "are you stuck".
+**Done means verified.** A step isn't done until the **network request
+succeeds** — the actual call runs and returns (the endpoint responds, the
+command exits 0). "The code looks right" is not done; verify by executing it.
+
+**Escalate instead of spinning.** If the **same** error recurs 2–3 times,
+stop and report via [T4](#stage-messages) — you're missing something
+fundamental (e.g. a `from __future__ import annotations` schema needing
+`model_rebuild()`), and another retry won't fix it. Don't reason in circles
+silently, so I never have to ask "are you stuck". **Infra is mine, not
+yours**: when `createscratch`/`deployscratch` mechanics fail (venv errors,
+rsync exit 23, permission denied), report (T4) and STOP — never repair repo
+tooling, venvs, or file ownership by hand; a hand-repaired deploy is a
+deploy nobody can reproduce.
 
 **Don't re-read what you've already read this turn.** Recall it. Re-reading a
 reference file (INSTRUCTIONS.md, the reference views, a base class) you just
@@ -142,7 +154,7 @@ it's there to clear.
 
 ```bash
 # GOOD — exact/prefix rules: run unprompted
-( cd ../scratch && ./run deployscratch )
+./run deployscratch                     # FROM main/ — batteries scratch, deploys → main
 ./run lintfix
 ./run playwrighttest ourapp.tests.test_chores_playwright
 git diff
@@ -165,8 +177,8 @@ full tool output (stderr included), discarding buys nothing, and an
 avoidable `2>/dev/null` turns an allowlisted line into a permission prompt.
 
 ## The scratch workflow
-You never edit `main/` directly — the [Feature workflow](#feature-workflow) phases
-drive the sequence; these are the mechanics of the commands (run from
+You never edit `main/` directly — the [Feature workflow](#feature-workflow)
+stages drive the sequence; these are the mechanics of the commands (run from
 `main/`, the repo root — your working directory).
 
 **`./run createscratch`** — copies `main/` (minus `.kilo/`, caches, build
@@ -180,7 +192,7 @@ incremental. An existing `../scratch/` is wiped — **if one already exists,
 ask first whether to delete it**, during planning / before the go-ahead (it
 may hold uncommitted work from a prior task; `./run cleanscratch` wipes it).
 
-**`( cd ../scratch && ./run deployscratch )`** — the ONE command: the full
+**`./run deployscratch`** (from `main/`) — the ONE command: the full
 check battery, then the deploy tail. The battery: ruff + mypy + **ourapp's
 own tests** + frontend lint/type-check/build (it does NOT re-run the
 framework backend suite, `djangoapp/tests/`, identical to `main/`, or the
@@ -204,9 +216,80 @@ edits with `cd ../scratch && git diff` or the web viewer at `/git/uncommitted/`
 (`main/`'s pending files, then `../scratch/`'s — your scratch edits show **live**,
 no deploy needed; they reach `main/`'s commit views only after `deployscratch`).
 
+Deleting files you created in scratch: `rm ../scratch/<path>` — single files,
+allowlisted and containment-checked; chain several with `&&`
+(`rm ../scratch/a && rm ../scratch/b`). Directories, `-r`, or anything
+outside scratch prompts; the whole tree stays `./run cleanscratch`.
+
 ## User communication
 
-**Plan format — data models first, then features.** That order is clearest for
+### Message structure (the single rule)
+Content first — the plan, the findings, the questions — then the **summary
+and links at the BOTTOM**, and the most important information (the decision
+you need, the verdict, the ask) as the LAST line: what I read last is what
+I act on. Everything about message shape lives in this section — the
+workflow stages and [Stage messages](#stage-messages) reference it, nothing
+restates it. Verify each link's file exists before sharing it (an
+unverified URL is worse than no URL: it wastes a round-trip).
+
+When the work is done and the suite is green, close with a short markdown
+summary in exactly this shape:
+- **Requirement** — one line restating what was asked.
+- **What changed** — the feature/behavior added or fixed.
+- **Endpoints** — each new or changed URL (from `ourapp/views/`) with its path
+  and HTTP verb.
+- **Tests** — the test names you added and confirmation that `./run deployscratch`
+  passes.
+- **Links** — a checklist of absolute URLs (verified against the tree, built
+  from the deployed base URL) to share:
+  - [ ] the design doc — `<base>/files/main/ourapp/docs/<feature>.md`
+  - [ ] the homepage — `<base>/`
+  - [ ] the feature's page(s) — `<base>/<page-url>`
+- **The most important line LAST** — verdict/next step/approval ask.
+
+Keep it tight. For a trivial change a single sentence is enough; don't pad.
+
+### Stage messages
+Every stage transition ends with a **question tool** menu — options make
+the choice concrete; never advance a stage without my pick. Verify every
+link's file exists in `main/` before sharing (see
+[Linking](#linking-absolute-urls-markdown-only)); never deploy a design
+artifact silently, and never label a mockup link as the finished page.
+
+- **T1 — initial mockups**
+  - [ ] one line of intent
+  - [ ] mockup links, each labeled `(mockup quality)`
+        (e.g. `[chores (mockup quality)](<base>/mockup-chores)`)
+  - [ ] bundled workflow questions, if any (one round)
+  - [ ] menu: *revise mockups / Add more interactivity to the features /
+        Write down design docs*
+  - [ ] shaped per [Message structure](#message-structure-the-single-rule)
+- **T2 — interactive mockups**
+  - [ ] what's now interactive (state, cross-page links)
+  - [ ] links
+  - [ ] menu: *revise / Write down design docs*
+  - [ ] shaped per [Message structure](#message-structure-the-single-rule)
+- **T3 — design docs**
+  - [ ] models-first plan digest
+  - [ ] design-doc link + mockup links
+  - [ ] menu: *revise docs / revise mockups / approved — code*
+  - [ ] shaped per [Message structure](#message-structure-the-single-rule)
+- **T4 — blocker**
+  - [ ] what failed
+  - [ ] what you tried
+  - [ ] what you need from me
+  - [ ] shaped per [Message structure](#message-structure-the-single-rule)
+- **T5 — final summary**
+  - [ ] the Requirement / What changed / Endpoints / Tests / Links checklist
+        in [Message structure](#message-structure-the-single-rule)
+- **T6 — offer to commit**
+  - [ ] the T5 checklist
+  - [ ] files-to-commit list
+  - [ ] menu: *commit / hold* (commits stay the human's call)
+  - [ ] shaped per [Message structure](#message-structure-the-single-rule)
+
+### Plan format — data models first
+That order is clearest for
 the user to sanity-check before you start; keep it a tight list, not prose.
 - **Models** — each model with its fields and key relationships (foreign keys,
   ownership), in the order you'd add them. This is the foundation; getting it
@@ -219,13 +302,6 @@ Reply in **markdown** — headings, lists, fenced code blocks, `` `inline
 code` ``, tables and links. Diagrams live in the design doc and mockups
 are deployed pages — both shared as absolute links (see
 [Mockups and diagrams](#mockups-and-diagrams)).
-
-### Asking the user questions
-Use the **question tool** when a decision needs me — its options make the
-choice concrete. Ask **one** focused question per call and stop (end your
-turn) for the answer. Plain-markdown prose questions are fine for
-open-ended ones. Don't proceed on assumptions; if an answer is ambiguous,
-re-ask.
 
 ### Todos and subagents
 Track multi-step work with the **todos tool** — one item per step, statuses
@@ -240,13 +316,21 @@ allowlisted forms.
 ### Linking (absolute URLs, markdown only)
 The TUI hyperlinks **absolute** URLs — relative paths and HTML `<a>` anchors
 are NOT clickable in chat. Always link as markdown
-`[label](<absolute-url>)`. Base URL: `https://app.local` on the test VM,
-`http://localhost:8000` in dev. When you deploy design artifacts (mockups,
-design doc), put their links at the **END of the message**.
+`[label](<absolute-url>)`. **Base URL (`<base>`)**: run
+`./run djangomanage hostnames` (allowlisted; prints
+`<hostname1,hostname2,…>`) and use `https://<first hostname>` — never
+assume a hostname, and never read the env file for it. Do NOT try to
+access the site yourself (e.g. https://app.local): you have no browser
+session with the required user, and the hostname may not be that — build
+links from the command's output only. Placement of links in the message:
+[Message structure](#message-structure-the-single-rule).
 
-- **Files** — superuser-only viewer: `https://app.local/files/<repo-root-relative path>`
-  (e.g. `[urls.py](https://app.local/files/ourapp/urls.py)`); inline image =
-  `/files/raw/<path>`, download = `/files/download/<path>`.
+- **Files** — superuser-only viewer rooted at the parent of `main/`: the URL
+  carries the repo segment — `<base>/files/main/<repo-root-relative path>`
+  (e.g. `[urls.py](<base>/files/main/ourapp/urls.py)`;
+  scratch files: `<base>/files/scratch/<path>`); inline image =
+  `<base>/files/raw/main/<path>`, download = `<base>/files/download/main/<path>`.
+  A path without the `main/` (or `scratch/`) segment 404s.
 - **Git** — superuser-only; link the most specific view to back a claim:
   - `/git/uncommitted/` — uncommitted files for both worktrees (main, then scratch)
   - `/git/uncommitted/main/<path>` — a `main` file's uncommitted diff
@@ -261,27 +345,6 @@ list). Commits read `main/` only — scratch shares main's history but its
 commits never flow back (`.git` is excluded from deployscratch), so link
 `scratch/` edits via `/git/uncommitted/scratch/<path>`.
 
-### Completion
-A step isn't done until the **network request succeeds** — the actual call runs
-and returns (the endpoint responds, the command exits 0). "The code looks right"
-is not done; verify by executing it.
-
-### Final message
-When the work is done and the suite is green, close with a short markdown
-summary:
-- **Requirement** — one line restating what was asked.
-- **What changed** — the feature/behavior added or fixed.
-- **Endpoints** — each new or changed URL (from `ourapp/views/`) with its path
-  and HTTP verb.
-- **Tests** — the test names you added and confirmation that `./run deployscratch`
-  passes.
-- **Links** — at the END, a checklist of absolute URLs to share:
-  - [ ] the design doc — `https://app.local/files/ourapp/docs/<feature>.md`
-  - [ ] the homepage — `https://app.local/`
-  - [ ] the feature's page(s) — `https://app.local/<page-url>`
-
-Keep it tight. For a trivial change a single sentence is enough; don't pad.
-
 ## Working on the app
 Read code in this priority order:
 
@@ -294,14 +357,15 @@ Read code in this priority order:
    behaviour, not to rework. Change it only when the user explicitly asks.
 
 ### Mockups and diagrams
-The Design phase's artifacts live in **files**, not chat: diagrams render
-in the browser (the `/files` viewer), mockups are real deployed pages.
-Everything lives in `../scratch/` and reaches `main/` only via
-`deployscratch` — allowlisted, so design demos deploy without prompts; the
-agent MUST share the deployed links in chat immediately after each deploy.
+Stages 1–3's artifacts live in **files**, not chat: diagrams render in the
+browser (the `/files` viewer), mockups are real deployed pages. Everything
+lives in `../scratch/` and reaches `main/` only via `deployscratch` —
+allowlisted, so mockup deploys run without prompts; share the deployed
+links in chat immediately after each deploy via
+[Stage messages](#stage-messages).
 
 - **Design doc — `../scratch/ourapp/docs/<feature>.md`** (after deploy, link
-  it in chat as `/files/ourapp/docs/<feature>.md`). Write the mermaid
+  it in chat as `/files/main/ourapp/docs/<feature>.md`). Write the mermaid
   **`erDiagram`** whenever models / DB tables come up (entities, fields, FKs,
   ownership — one field per line as `type name`) and a **`stateDiagram-v2`**
   for any lifecycle, inside `<div class="rich-diagram">…</div>` markers —
@@ -311,30 +375,34 @@ agent MUST share the deployed links in chat immediately after each deploy.
   corrupts the content), a **bold title** line immediately above, and no
   `<`, `>`, `&` in labels — use the HTML-safe lookalikes `‹` `›` `∧`
   instead.
-- **Mockups — the feature's real files, mocked.** There is NO special mockup
-  module, directory, or URL prefix: build each page exactly where it will
-  live, following the normal conventions (route in
-  `ourapp/views/<feature>.py` registered in `views/__init__.py`, page in
-  `frontend/src/ours/pages/<Page>.vue`, zod schema in `ours/schemas.ts`),
-  at its **final URL**. A mockup carries **close-to-final markup, but not
-  final components** — static props stand in for real queries and no tests
-  exist yet; it MAY include interactivity or links to other pages when I
-  ask for it. Three markers make it a mockup — all three come off
-  when the page becomes real:
-  1. **Superuser-only gate** — `require_superuser` from `djangoapp.views`
-     (404, never 403): an unreleased page stays hidden.
-  2. **Static props hardcoded in the view** — the page never reads the DB
-     while it's a mockup.
-  3. **Root `div.mockup` wrapper** — `.mockup` and `.mockup *` carry a
-     semi-transparent diagonal-stripe crosshatch overlay (defined in
-     `ours/style.scss`): an element's real colors stay visible underneath,
-     but nothing passes for a finished page.
+- **Mockups — static pages under `/mockup-…`.** Build each mockup as a
+  REAL Vue page at a THROWAWAY URL (`/mockup-chores`, …) following the
+  normal conventions (route in `ourapp/views/<feature>.py` registered in
+  `views/__init__.py`, page in `frontend/src/ours/pages/<Page>.vue`) — the
+  throwaway prefix is what keeps it unmistakably not-the-feature. Stage 1
+  is STATIC: hardcoded markup, **no props, no `v-if`/`v-for`** (hardcode
+  repeated items), reuse the app's CSS; stage 2 adds client-side state and
+  links between mockup pages — but **nothing ever saves**: no writes, no
+  DB, no models, no migrations, no endpoint logic. Three markers hold for
+  every mockup — all three come off when the page becomes real:
+   1. **`/mockup-` URL prefix + superuser-only gate** —
+      `require_superuser` from `djangoapp.views` (404, never 403): an
+      unreleased page stays hidden; a superuser-only homepage link to it
+      is allowed.
+   2. **No data plumbing** — hardcoded markup only; the page never reads
+      the DB or receives props while it's a mockup.
+   3. **Root `div.mockup` wrapper** — ONE semi-transparent diagonal-stripe
+      crosshatch layer over the whole page: a `::before` overlay on the
+      wrapper itself, `pointer-events: none`, defined in `ours/style.scss`.
+      Hatch the wrapper ONLY — never add stripes to children
+      (`.mockup *`): per-element background-images stack; nothing
+      passes for a finished page.
   No tests while it's a mockup — the real implementation writes them.
-  **Becoming real** (during Build): swap the static props for real queries,
-  set the feature's real access rules, drop the `div.mockup` wrapper, and
-  write the tests — the files evolve in place, nothing to delete. (A feature
-  abandoned after its mockup deployed: delete its files from scratch; the
-  next `deployscratch`'s rsync `--delete` retires them from `main/`.)
+  **Becoming real** (stage 4): build the feature's page at its real URL
+  with real props/endpoints and DELETE the `/mockup-*` page and its
+  homepage link in the same change. (A feature abandoned after its mockup
+  deployed: delete its files from scratch; the next `deployscratch`'s
+  rsync `--delete` retires them from `main/`.)
 
 ### Models
 Concrete models live in `ourapp/models/<feature>.py` (imported in
@@ -411,7 +479,7 @@ Run through every box; the order is the order you build in.
 
 - [ ] **README** — update `ourapp/README.md` to describe the feature (what it
       does, its URLs/pages), not its internal implementation. One or two lines.
-- [ ] **Feature doc** — the design doc written in the Design phase
+- [ ] **Feature doc** — the design doc written in stage 3
       (`ourapp/docs/<feature>.md`) grows into the feature catalogue (models,
       endpoints, pages, command, data shape — keep its diagrams current);
       link it from the README.
@@ -746,31 +814,37 @@ The allowlisted commands (defined in `deploy/crush_bash_guard.py`):
 ./run typecheck                      # …and ./run lintfix
 ./run test …                         # any args
 ./run playwrighttest …
-./run djangomanage makemigrations …  # … / migrate / findstatic … (findstatic is read-only)
+./run djangomanage makemigrations …  # … / migrate / findstatic / hostnames
+                                      # (findstatic, hostnames are read-only)
 npm run build                        # from frontend/
 cd ../scratch                        # …then git status / git diff … / git log … / git show …
 git status …                         # any args, like git diff / log / show / blame / grep /
                                      # ls-files / ls-tree / rev-parse / check-ignore
 pwd
-rm -rf scratch                       # …or ../scratch — BARE tree only; any
-                                     # operand prompts: use ./run cleanscratch
+rm -rf ../scratch                  # whole scratch tree (bare only)
+rm ../scratch/<file> […]           # single FILES inside scratch, bare rm only,
+                                   # containment-checked (chain several:
+                                   # rm ../scratch/a && rm ../scratch/b);
+                                   # any flag, or anything outside scratch,
+                                   # prompts — directories: use ./run cleanscratch
 export NAME=VALUE                    # pair with && and an allowed command (see above)
+```
 
 No multipass form is allowlisted — every multipass command prompts; VM
 checks ride ./testvm and ./run checkframework2 (both allowed above).
 
 (The `web_search` tool is likewise pre-approved — tool-level, in `.crushrc`.)
 
-`./run deployscratch` IS allowlisted (in the list above) — design demo
-deploys (docs + mockup pages) run without a permission round-trip so the
-demo loop stays fast; the compensating rule is that every deploy's links
-are shared in chat immediately (§ Feature workflow, phase 1). The REAL
-feature's Deploy stays gated conversationally: ask before phase-4
-`deployscratch`, always.
+`./run deployscratch` IS allowlisted (in the list above) — mockup and doc
+deploys (stages 1–3) run without a permission round-trip so the demo loop
+stays fast; the compensating rule is that every deploy's links are shared
+in chat immediately via [Stage messages](#stage-messages). The REAL
+feature's deploys (stage 4) stay gated conversationally: only after the
+T3 "approved" choice.
 
 `./run checkframework1` (the **full gate**: framework backend suite + Playwright) is
 deliberately NOT in that list — it's a human-run, `main/`-only check; the agent
-uses `./run deployscratch` in scratch.
+uses `./run deployscratch` from `main/`.
 
 ### Debugging build / serve issues
 When a page 404s client-side ("Inertia page not found: … — rebuild the

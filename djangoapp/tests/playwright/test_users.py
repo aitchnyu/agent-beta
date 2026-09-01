@@ -60,6 +60,9 @@ class UserEditE2eTestCase(BasePlaywrightTestCase):
 
     def test_edit_page_saves_first_name(self) -> None:
         """Change first name on the edit form; submit redirects and persists."""
+        # 2s budget: the post-save client-side redirect flaked at the 1s
+        # default under VM load.
+        self.page.set_default_timeout(2000)
         page = self.page
         page.goto(f"{self.live_server_url}/users/edit/{self.target.public_id}")
         page.wait_for_selector(".user-edit-first-name")
@@ -73,6 +76,9 @@ class UserEditE2eTestCase(BasePlaywrightTestCase):
 
     def test_edit_page_updates_description(self) -> None:
         """Type into the rich-text editor; submit persists the description."""
+        # 2s budget: same VM-load flake on the post-save redirect as the
+        # first-name test above; setUp's per-test reset keeps the raise local.
+        self.page.set_default_timeout(2000)
         page = self.page
         page.goto(f"{self.live_server_url}/users/edit/{self.target.public_id}")
         page.wait_for_selector(".ql-editor")

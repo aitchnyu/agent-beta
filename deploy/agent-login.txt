@@ -1,0 +1,21 @@
+# agent-login — installed as /home/agent/.bash_profile by provisioning
+# (tree-shipped from deploy/agent-login.txt, like every other template —
+# one file is the single source). Read by SSH LOGIN shells only; subshells
+# and non-login invocations (ssh host cmd, sftp, sudo -u agent -H bash -c)
+# never see it. Successor of the ttyd rcfile (deploy/console-bashrc), which
+# died with the /agent console: banner + repo landing + prompt hint, same job.
+
+# Normal profile chain first (PATH, prompt, the bashrc chain).
+. ~/.profile
+
+# Land in the repo (home as fallback if the tree is missing).
+cd /srv/app/main 2>/dev/null || cd ~
+
+# Banner — ANSI colors; plain names so the escape soup stays readable.
+_c=$'\033[1;36m'; _g=$'\033[1;32m'; _y=$'\033[1;33m'; _d=$'\033[0m'
+printf '\n'
+printf '%srepo:%s /srv/app/main (you start here)\n' "${_y}" "${_d}"
+printf '  %s./run agent%s                      start the Crush TUI\n' "${_g}" "${_d}"
+printf '  %s./run test … / checkproject%s      checks\n' "${_g}" "${_d}"
+printf '\n'
+unset _c _g _y _d

@@ -65,11 +65,24 @@ class BashGuardAllows(GuardAssertions):
         for cmd in (
             "pwd",
             "ls -la",
-            "cd scratch",
+            "./run createscratch",
             "./run deployscratch",
-            "npm run build",
-            "rm -rf scratch",
+            "rm -rf ../scratch",
             "git ls-files",
+        ):
+            with self.subTest(cmd=cmd):
+                self.assert_allows(run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=cmd))
+
+    def test_rm_single_scratch_files(self) -> None:
+        # rm of single FILES inside scratch: bare rm, every operand
+        # containment-checked, chainable. Flags (even -f), subtree deletes,
+        # escapes, and outside-scratch targets prompt.
+        for cmd in (
+            "rm ../scratch/ourapp/docs/old.md",
+            "rm ../scratch/a.md ../scratch/b.md",  # multiple files, all contained
+            "rm ../scratch/a.md && rm ../scratch/b.md",  # the && chain pattern
+            "rm scratch/notes.txt",  # repo-relative scratch/ (main/scratch) — contained
+            "rm /srv/app/scratch/ourapp/docs/old.md",  # VM absolute path
         ):
             with self.subTest(cmd=cmd):
                 self.assert_allows(run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=cmd))
@@ -80,6 +93,7 @@ class BashGuardAllows(GuardAssertions):
             "./run test accounts",
             "./run djangomanage makemigrations ourapp",
             "./run djangomanage findstatic djangoapp/main.js",
+            "./run djangomanage hostnames",
             "cd scratch subdir",
             "git diff HEAD~1",
             "git blame README.md",
@@ -239,8 +253,8 @@ class BashGuardFailsClosed(GuardAssertions):
       comments both keep their sections off the allowlist — prompt
     - test_comment_forms_degrade_safely, word-initial `#…` comments allow like bash
       (bare command); mid-word `rg#` denies conservatively
-    - test_rm_operand_containment_prompts, every `rm -rf` form WITH operands
-      prompts (only the bare scratch forms are allowlisted)
+    - test_rm_operand_containment_prompts, rm subtree deletes, normpath escapes,
+      and out-of-scratch targets prompt (only single contained files allow)
     - test_unknown_prompts, unknown or empty commands prompt
     """
 
@@ -344,9 +358,10 @@ class BashGuardFailsClosed(GuardAssertions):
         self.assert_denies(run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND="rg# foo"))
 
     def test_rm_operand_containment_prompts(self) -> None:
-        # Prefix matching alone can't bound path operands — every form here
-        # starts with an allowlisted-looking `rm -rf scratch…` prefix yet
-        # escapes scratch after normpath.
+        # rm forms the single-file rule refuses: subtree deletes (-r/-rf
+        # with operands), escapes after normpath, and targets outside
+        # scratch. Only bare `rm -rf ../scratch` and contained single
+        # files allow.
         for cmd in (
             "rm -rf scratch/ /etc",
             "rm -rf scratch/etc /etc",
@@ -354,6 +369,12 @@ class BashGuardFailsClosed(GuardAssertions):
             "rm -rf scratch/..",
             "rm -rf scratch/a/../../..",
             "rm -rf scratch /abs/path",
+            "rm -rf ../scratch/ourapp",  # subtree inside scratch — not a single file
+            "rm -f ../scratch/a.md",  # any flag (even -f) prompts
+            "rm ../scratch/a.md /etc/passwd",  # one contained + one escape
+            "rm ../scratch/../main/x.py",  # escapes after normpath
+            "rm -fr ../scratch/a.md",  # -fr is a subtree flag shape
+            "rm /etc/passwd",
         ):
             with self.subTest(cmd=cmd):
                 self.assert_prompts(run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=cmd))

@@ -24,15 +24,24 @@
   background-color: var(--bs-gray-500, #6b7280);
 }
 
-// Design mockups (agentconfig/steer.md § Mockups and diagrams): every
-// element inside a page's div.mockup wrapper gets a diagonal crosshatch
-.mockup,
-.mockup * {
-  background-image: repeating-linear-gradient(
-    45deg,
-    rgba(0, 0, 0, 0.12) 0,
-    rgba(0, 0, 0, 0.12) 6px,
-    transparent 6px,
-    transparent 14px
-  );
+// Design mockups (steer.md § Mockups): ONE crosshatch layer over the whole
+// div.mockup wrapper — a ::before overlay, pointer-events: none. Never
+// `.mockup *`: nested background-images stack into uniform grey.
+.mockup {
+  position: relative;
+
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(0, 0, 0, 0.05) 0,
+      rgba(0, 0, 0, 0.05) 6px,
+      transparent 6px,
+      transparent 14px
+    );
+  }
 }

@@ -44,6 +44,9 @@ provision_vm() {
   # The agent commit marker is the GIT_COMMITTER_NAME env var (the shared
   # credentials file) — a global git identity would OVERRIDE env vars, so
   # none is ever set for the agent user (who commits).
+  # Login-shell orientation (banner + repo landing) for the agent user
+  # ships as /home/agent/.bash_profile via the TREE in provision_app
+  # (deploy/agent-login.txt) — the old ttyd rcfile's replacement.
 
   echo "==> [vm] apt packages"
   export DEBIAN_FRONTEND=noninteractive
@@ -116,6 +119,7 @@ provision_app() {
 #       ├── caddy/Caddyfile + caddy/sites/app.caddy
 #       ├── redis/redis.conf
 #       └── sudoers.d/agent
+#   /home/agent/.bash_profile             login banner + repo landing
 #   /
 #   └── tmp/vm-seed-commit.sh + tmp/vm-bootstrap.sh   (one-shots the driver runs later)
 #   (srv/app/main/* — including deploy/ — lands via the SEED tarball in
@@ -158,6 +162,12 @@ provision_app() {
   # host-side in testvm). Validate syntax before anything can rely on it.
   chmod 0440 /etc/sudoers.d/agent
   visudo -cf /etc/sudoers.d/agent >/dev/null
+
+  # ── file: /home/agent/.bash_profile ────────────────────────────────────
+  # Login-shell banner + repo landing (deploy/agent-login.txt via the
+  # tree). agent's home exists since provision_vm's useradd.
+  chown agent:agent /home/agent/.bash_profile
+  chmod 644 /home/agent/.bash_profile
 
   # ── file: /etc/redis/redis.conf ───────────────────────────────────────
   # Stock config + the maxmemory/noeviction block (appended host-side).
@@ -214,10 +224,12 @@ SQL
   systemctl enable caddy >/dev/null
   systemctl reload caddy
 
-  # main/ is app-owned but the agent user (./run agent) works the repo
-  # too — git flags cross-user repos as dubious ownership regardless of
-  # groups; one system-level exception covers both users.
+  # granian serves /git url after reading both main and scratch repos.
+  # Git refuses repos owned by another user ("dubious ownership")
+  # Registering both fixed paths in the system gitconfig exempts
+  # them from the ownership check.
   git config --system safe.directory "$appdir/main"
+  git config --system --add safe.directory "$appdir/scratch"
 
   echo "==> [app] build done (site: app.local)"
 }

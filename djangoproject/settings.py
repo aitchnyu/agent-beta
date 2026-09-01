@@ -168,6 +168,7 @@ STATIC_ROOT = Path(os.environ["STATIC_ROOT"])
 # the VM (https://app.local), plain runserver in dev (where the
 # https://localhost origins are simply unused). ALLOWED_HOSTS validates the
 # Host header; this gates the CSRF Origin/Referer match, which needs scheme.
+# TODO do we need this?
 CSRF_TRUSTED_ORIGINS = [f"https://{host}" for host in ALLOWED_HOSTS]
 
 # Default primary key field type
@@ -227,10 +228,13 @@ _CSP_COMMON = {
 }
 
 _CSP_STRICT = _CSP_COMMON | {
-    # JavaScript sources
-    "script-src": [CSP.SELF],
-    # CSS sources
-    "style-src": [CSP.SELF],
+    # JavaScript sources — unsafe-eval: zod's sync-parse fast path (and its
+    # feature probe) JIT-compiles via new Function; avoid csp violation
+    "script-src": [CSP.SELF, CSP.UNSAFE_EVAL],
+    # CSS sources — unsafe-inline: sweetalert2 (the toast layer,
+    # utils/sweetalert.ts) injects its stylesheet as an inline <style> at
+    # first toast
+    "style-src": [CSP.SELF, CSP.UNSAFE_INLINE],
     # AJAX, WebSocket, EventSource connections
     "connect-src": [CSP.SELF],
 }

@@ -35,6 +35,7 @@ Unit tests: deploy/tests/test_crush_guards.py.
 
 import json
 import os
+import posixpath
 import re
 import shlex
 import sys
@@ -78,7 +79,6 @@ ALLOW_EXACT = frozenset(
         "./run lintfix",
         "./run playwrighttest",
         "npm run build",
-        "rm -rf scratch",
         "rm -rf ../scratch",
         "git diff",
         "git log",
@@ -97,6 +97,7 @@ ALLOW_PREFIX = (
     "./run playwrighttest",
     "./run djangomanage makemigrations",
     "./run djangomanage findstatic",
+    "./run djangomanage hostnames",
     "cd scratch",
     "cd ../scratch",
     "git diff",
@@ -185,6 +186,29 @@ def _prefix_match(section: str) -> bool:
     return any(section == base or section.startswith(base + " ") for base in ALLOW_PREFIX)
 
 
+
+
+
+def _rm_scratch_files(tokens: list[str]) -> bool:
+    """``rm <file…>`` deleting only single FILES inside scratch.
+
+    No flags at all (bare ``rm``); every operand must be scratch-contained
+    after normpath — ``scratch/../main`` collapses out and fails. Recursive
+    deletes and the whole tree are separate rules (``rm -rf ../scratch``,
+    ``./run cleanscratch``); everything else rm-shaped prompts.
+    """
+    def _within_scratch(path: str) -> bool:
+        """Path stays inside a scratch tree after normpath (no `..` escape)."""
+        norm = posixpath.normpath(path)
+        return norm.startswith(("scratch/", "../scratch/", "/srv/app/scratch/"))
+
+    return (
+        tokens[0] == "rm"
+        and len(tokens) > 1
+        and all(_within_scratch(operand) for operand in tokens[1:])
+    )
+
+
 class Verdict(NamedTuple):
     """One section's outcome. ``reason`` is only surfaced on deny (stderr)."""
 
@@ -218,7 +242,7 @@ def _classify(tokens: list[str]) -> Verdict:
     ):
         return Verdict("prompt", "find action flag (-exec/-delete/…)")
     section = " ".join(tokens)
-    if section in ALLOW_EXACT or _prefix_match(section):
+    if section in ALLOW_EXACT or _prefix_match(section) or _rm_scratch_files(tokens):
         return Verdict("allow", "matches the allowlist")
     # `VAR=value command …` can never match the allowlist — deny it with the
     # export-form pointer instead of burning a prompt round-trip per attempt

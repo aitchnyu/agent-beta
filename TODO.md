@@ -1,10 +1,31 @@
-No more /agent or ttyd service
-Rename console 
+Outline of md files
+raw=true?
+hash links in md view dont work
+https://daverupert.com/2026/08/microlighter/ - use native mermaid, no need of html in md
+<div class="rich-diagram">
+```stateDiagram-v2
+    [*] --> pending : generated from the schedule
+    pending --> completed : user completes
+    completed --> pending : undo
+    completed --> [*]
+```
+</div>
+use the HTML-safe lookalikes `‹` `›` `∧`
+Git: link to real filename, double diff
 
+Agent command: resume old session?
+
+Unhelpful command:
+```
 multipass shell app
-sudo -u console -H bash -l
-Rename console user
-SSH is the real thing. Have a real tui to manage users?
+sudo -u agent -H bash -l
+```
+
+Use Goose agent?
+Cant select options in one tap
+Not showing command output
+Need equivalent `option notifications bell`
+How to notify?
 
 Avoid this app fn?
 multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
@@ -13,26 +34,8 @@ multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
 Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH
 Obscura for tests?
 --------------
-
-Why did agent ask me for baseline commit in base? Main was supposed to have a commit. And it should have been copied to scratch. Copy the venv and node modules for speed.
-Share the link of mockup and design docs at end of message. Why did it choose to share html link? Use absolute links only
-Rename framework-subset to scratch-test-subset. One smoke test should load homepage.
-
-Why did it create git user and commit?
-
-Reduce crush memory use?
-
-How to notify?
-
-Designated mockup places?
-
 Prevent overwrites of deployed stuff.
 When do we commit? Commit message?
-Caddy error message
-
-Outline of md files
-hash links in md view dont work
-https://daverupert.com/2026/08/microlighter/ - use native mermaid, no need of html in md
 
 Test `createscratch`, `deployscratch`, `cleanscratch`
 
@@ -47,13 +50,14 @@ Switch to Debian for lower memory usage? Multipass is for Ubuntu.
 Accelerate file serving with Caddy - have FileResponse - test with checkframework2
 Redis size?
 ../djangoapp/static/djangoapp/assets/rolldown-runtime-QTnfLwEv.js      0.69 kB │ gzip:   0.42 kB
+These requests not in a page that needs mermaid:
+https://app.local/static/djangoapp/assets/mermaid-core-CVHOu6Nn.js
+https://app.local/static/djangoapp/assets/mermaid-uncommon-BQPmhl13.js
 Decimal fields for money
 
 apply --3way
 ./run importtemplate <github-url> <tag> 
 import from git repo tags?
-
-CSRF_TRUSTED_ORIGINS diverge
 
 Google login change
 Templates for Allauth
@@ -81,3 +85,4 @@ Readonly mode for whole system, disable get requests too if it mutates data. Sen
 Support multiple apps in same server
 Model logs should store FK name, link, url and M2M changes too
 Whitelist services for outbound connections
+Have a real tui to manage users?
