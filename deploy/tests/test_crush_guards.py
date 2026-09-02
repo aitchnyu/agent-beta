@@ -230,8 +230,6 @@ class BashGuardFailsClosed(GuardAssertions):
     - test_substitution_prompts, `$(...)` and backticks prompt
     - test_newline_prompts, multi-line commands are split like `;` — unknown line prompts
     - test_extended_compound_prompts, a sanctioned compound extended by a third section prompts
-    - test_env_prefix_prompts, `ENV=VAL command` does NOT match the allowlist — prompts
-      (the passing form is `export ENV=VAL && command`)
     - test_trailing_operator_prompts, a dangling operator (empty section) prompts
     - test_unbalanced_quotes_prompt, unparseable input prompts rather than guessing
     - test_near_miss_prompts, lookalikes of allowlisted forms (git statusx, rm -rf scratchx,
@@ -295,14 +293,6 @@ class BashGuardFailsClosed(GuardAssertions):
                 CRUSH_TOOL_INPUT_COMMAND="cd ../scratch && ./run deployscratch && rm -rf /",
             )
         )
-
-    def test_env_prefix_prompts(self) -> None:
-        for cmd in (
-            "FOO=1 ./run test x",  # wrong form — steer.md documents the export form
-            "COPYFILE_DISABLE=1 tar czf /tmp/x.tgz .crushrc",  # tar isn't allowed either way
-        ):
-            with self.subTest(cmd=cmd):
-                self.assert_prompts(run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=cmd))
 
     def test_trailing_operator_prompts(self) -> None:
         self.assert_prompts(
@@ -375,12 +365,17 @@ class BashGuardFailsClosed(GuardAssertions):
 
 
 class BashGuardDenies(GuardAssertions):
-    """The bash hook hard-denies rg and perl with a stderr reason.
+    """The bash hook hard-denies rg, perl, and env-prefixed commands with a stderr reason.
 
     Denial applies anywhere in a compound, and deny beats prompt.
 
     - test_rg_denied, `rg` bare or with args exits 2 and names the alternative
     - test_perl_denied, `perl` bare or with args exits 2 and names the alternative
+    - test_env_prefix_denied, `VAR=value command …` is denied with the export-form
+      pointer (a prompt round-trip per wrong attempt wasted operator time)
+    - test_git_dash_c_denied, `git -C <dir> …` is denied with the cd-instead pointer
+    - test_long_line_denied, any LINE over 80 chars is denied (readability/reviewability);
+      multi-line commands with short lines are judged by their sections only
     - test_deny_inside_compound, `allowed && rg …` denies; deny wins even when another
       section would only prompt (`rg … && rm -rf /`)
     - test_lookalike_not_denied, `rgit`/`perlix` are not denied (they prompt)
@@ -399,6 +394,49 @@ class BashGuardDenies(GuardAssertions):
                 proc = run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=cmd)
                 self.assert_denies(proc)
                 self.assertIn("grep", proc.stderr)
+
+    def test_env_prefix_denied(self) -> None:
+        for cmd in (
+            "FOO=1 ./run test x",  # the exact wrong form steer.md warns about
+            "COPYFILE_DISABLE=1 tar czf /tmp/x.tgz .crushrc",  # tar isn't allowed either way
+            "RUN_PROJECT_TESTS=1 ./run checkproject",  # even a fully-allowed command under a prefix
+            "FOO=1",  # a lone assignment is the same mistake half-made
+            "FOO=1 git status && pwd",  # deny beats the allowed sections around it
+        ):
+            with self.subTest(cmd=cmd):
+                proc = run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=cmd)
+                self.assert_denies(proc)
+                self.assertIn("export", proc.stderr)
+
+    def test_git_dash_c_denied(self) -> None:
+        for cmd in (
+            "git -C ../scratch status",
+            "git -C /srv/app/scratch log --oneline -3",
+            "git status && git -C /tmp diff",  # deny wins inside a compound
+        ):
+            with self.subTest(cmd=cmd):
+                proc = run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=cmd)
+                self.assert_denies(proc)
+                self.assertIn("cd into the directory", proc.stderr)
+
+    def test_git_dash_lowercase_c_not_denied(self) -> None:
+        # `git -c name=value` is git's per-invocation config option, not -C
+        self.assert_prompts(
+            run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND="git -c core.pager=cat status")
+        )
+
+    def test_long_line_denied(self) -> None:
+        long_cmd = "git log --oneline -3 " + "x" * 70  # 92 chars, one line
+        proc = run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=long_cmd)
+        self.assert_denies(proc)
+        self.assertIn("human-readable", proc.stderr)
+        # a long line inside a multi-line command denies the whole command
+        proc = run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND="git status\n" + "y" * 81)
+        self.assert_denies(proc)
+        # multi-line with every line within the cap: sections alone decide
+        self.assert_allows(
+            run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND="git status\npwd")
+        )
 
     def test_deny_inside_compound(self) -> None:
         for cmd in ("git status && rg foo", "rg foo && rm -rf /"):

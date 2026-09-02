@@ -22,8 +22,12 @@ matches the exact/prefix allowlist ported from opencode.json. Redirects
 (`>` `<` `>>`…, INCLUDING the discard forms `2>/dev/null` / `2>&1`) and
 command substitution (`$(…)` / backticks) always prompt their section —
 steer.md tells the agent not to append redirects unless truly needed. An
-`ENV=VAL command` prefix does NOT match the allowlist — the passing form
-is `export ENV=VAL && command` (steer.md documents both).
+`ENV=VAL command` prefix is DENIED outright (it can never match the
+allowlist; the passing form is `export ENV=VAL && command` — steer.md
+documents both). Two readability rules are likewise DENIED, not advised:
+any LINE over 80 characters (commands must stay human-readable and
+reviewable — split chains across lines), and `git -C <dir> …` (cd into
+the directory, then git).
 
 Standalone-testable: CRUSH_TOOL_INPUT_COMMAND="git status" ./deploy/crush_bash_guard.py
 Unit tests: deploy/tests/test_crush_guards.py.
@@ -34,8 +38,14 @@ import os
 import re
 import shlex
 import sys
+from typing import NamedTuple
 
 EXIT_DENY = 2
+
+# Readability cap: a longer LINE is denied outright — commands must stay
+# human-readable and reviewable in the permission prompt (chains still get
+# as long as they need via `\` continuations/newlines, one command per line).
+MAX_LINE = 80
 
 # Operators that separate one section from the next: bash command
 # separators plus subshell parens (splitting on parens lets the sanctioned
@@ -175,45 +185,79 @@ def _prefix_match(section: str) -> bool:
     return any(section == base or section.startswith(base + " ") for base in ALLOW_PREFIX)
 
 
-def _classify(tokens: list[str]) -> str:
-    """Return "allow", "prompt", or "deny" for one section."""
+class Verdict(NamedTuple):
+    """One section's outcome. ``reason`` is only surfaced on deny (stderr)."""
+
+    action: str  # "allow" | "prompt" | "deny"
+    reason: str
+
+
+def _deny_reason(tokens: list[str]) -> str:
+    if ASSIGN_RE.match(tokens[0]):
+        return (
+            f"env-prefixed command ({tokens[0]} …) is denied by policy —"
+            " use the export form: export VAR=value && <command>"
+        )
+    if tokens[0] == "git" and tokens[1:2] == ["-C"]:
+        return "git -C is denied by policy — cd into the directory, then git …"
+    return f"{tokens[0]} is denied by policy — use the grep tool or Python instead."
+
+
+def _classify(tokens: list[str]) -> Verdict:
     if any(REDIRECT_RE.fullmatch(token) or SUBST_RE.search(token) for token in tokens):
-        return "prompt"
+        return Verdict("prompt", "redirect or command substitution")
     if tokens[0] == "export" and all(
         ASSIGN_RE.match(token) or NAME_RE.match(token) for token in tokens[1:]
     ):
-        return "allow"
+        return Verdict("allow", "export assignment")
     # find's action flags execute/write from inside its argument list —
     # check them BEFORE the prefix rule can match the bare `find` base.
     if tokens[0] == "find" and any(
         token in FIND_DANGEROUS_EXACT or token.startswith(FIND_DANGEROUS_PREFIX)
         for token in tokens[1:]
     ):
-        return "prompt"
+        return Verdict("prompt", "find action flag (-exec/-delete/…)")
     section = " ".join(tokens)
     if section in ALLOW_EXACT or _prefix_match(section):
-        return "allow"
-    if tokens[0] in DENY_PREFIX:
-        return "deny"
-    return "prompt"
+        return Verdict("allow", "matches the allowlist")
+    # `VAR=value command …` can never match the allowlist — deny it with the
+    # export-form pointer instead of burning a prompt round-trip per attempt
+    # (the passing form is `export VAR=value && command …`; steer.md documents both).
+    # `git -C <dir> …` is the same shape: never allowlistable, always a
+    # readability loss — deny with the cd-instead pointer.
+    if (
+        ASSIGN_RE.match(tokens[0])
+        or tokens[0] in DENY_PREFIX
+        or (tokens[0] == "git" and tokens[1:2] == ["-C"])
+    ):
+        return Verdict("deny", _deny_reason(tokens))
+    return Verdict("prompt", "not on the allowlist")
 
 
 def main() -> int:
     cmd = os.environ.get("CRUSH_TOOL_INPUT_COMMAND", "")
+    # Readability gate first, before any parsing: ONE line over the cap
+    # denies the whole command — long chains stay fine split across lines.
+    overlong = next((line for line in cmd.splitlines() if len(line) > MAX_LINE), None)
+    if overlong is not None:
+        print(
+            f"a {len(overlong)}-character line is denied by policy (max {MAX_LINE}) —"
+            " commands must stay human-readable and reviewable;"
+            " split chains across lines with \\ continuations or newlines",
+            file=sys.stderr,
+        )
+        return EXIT_DENY
     sections = _sections(cmd) if cmd.strip() else None
     if not sections:
         return 0  # empty or unparseable — the permission prompt takes it
     verdicts = [(section, _classify(section)) for section in sections]
     # Deny wins over prompt: check ALL sections for a deny first, so
     # `foo && rg x` denies even though `foo` alone would only prompt.
-    for section, verdict in verdicts:
-        if verdict == "deny":
-            print(
-                f"{section[0]} is denied by policy — use the grep tool or Python instead.",
-                file=sys.stderr,
-            )
+    for _, verdict in verdicts:
+        if verdict.action == "deny":
+            print(verdict.reason, file=sys.stderr)
             return EXIT_DENY
-    if any(verdict == "prompt" for _, verdict in verdicts):
+    if any(verdict.action == "prompt" for _, verdict in verdicts):
         return 0  # one unknown section is enough — no opinion
     print(json.dumps({"decision": "allow"}))
     return 0

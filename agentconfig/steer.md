@@ -125,15 +125,12 @@ type-checking-only rule wants annotation-only imports under
 `if TYPE_CHECKING:` — move them there cleanly; don't deliberate each import or
 suppress it. `noqa` is a last resort, never a habit.
 
-**Format long/combined commands across multiple lines.** `python -c "…"`, pipes
-(`a | b | c`), and `&&`/`||` chains are all fine — just don't cram them onto one
-line. Put a `python -c` script on its own lines inside the quotes, and break
-pipes/chains with `\` continuations, so the whole command reads clearly (the
-permission prompt renders it multiline and syntax-highlights it).
-
-**Never `git -C`.** It matches no allowlist rule (falls to ask → prompts).
-`cd` into the directory first (`cd ../scratch`) then run `git …`, or use an
-allowlisted `git` form from the current dir — never `git -C <dir> …`.
+**Short, reviewable commands — enforced by the guard.** Any LINE over 80
+characters and any `git -C …` is DENIED outright: commands must stay
+human-readable and reviewable. Format `python -c` scripts across lines
+inside the quotes, break `&&`/pipe chains with `\` continuations or
+newlines, and `cd` into the directory (`cd ../scratch`) instead of
+`git -C <dir> …`.
 
 **`./run lintfix` is safe to run repo-wide.** It only normalizes formatting to
 the committed ruff config — never changes logic — so run it the moment
@@ -726,10 +723,11 @@ compound checks — and restate the command in the exact form it expects
 (the full list is quoted below).
 
 **Environment variables go through `export`, never as a command prefix** —
-a prefixed command no longer matches the allowlist and prompts:
+the guard DENIES a `VAR=value command` line outright (it can never match the
+allowlist; the denial tells you the passing form):
 
 ```bash
-# WRONG — env prefix: the section doesn't match the allowlist → prompts
+# WRONG — env prefix: DENIED outright by the guard
 COPYFILE_DISABLE=1 ./run test accounts
 RUN_PROJECT_TESTS=1 ./run checkproject
 
@@ -873,5 +871,4 @@ data-exfiltration surface:
 
 ## Authoritative docs
 For the full pattern, read `docs/reference/` (a complete copyable example),
-`ourapp/` (its `README.md` + `docs/` document the app's features), and
-`INSTRUCTIONS.md`.
+`ourapp/` (its `README.md` + `docs/` document the app's features).
