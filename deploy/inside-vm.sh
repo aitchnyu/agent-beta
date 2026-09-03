@@ -135,7 +135,7 @@ provision_app() {
 
   # ── file: /etc/credentials/app/.env.vm ────────────────────────────────
   # Shared env (every unit's EnvironmentFile). root:app 640 — root parses
-  # it via EnvironmentFile, app-group members (./run as app/console) read
+  # it via EnvironmentFile, app-group members (./run as app/agent) read
   # it directly. The sentinel tripwire + DB identity checks follow.
   chown root:app "$creds_dir" "$creds_env"
   chmod 750 "$creds_dir"

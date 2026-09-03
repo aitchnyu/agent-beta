@@ -1,6 +1,7 @@
 # Agent config for Crush (replaces agentconfig/opencode.json — see
 # prompts/20260824-agent-crush-migration.md). Runs at startup with our env
-# sourced (.env via ./run agent in dev; .env.vm via the console on the VM).
+# sourced (.env via ./run agent in dev; .env.vm via ./run setenv from any
+# VM shell as the agent user).
 #
 # Uses ONLY crush's built-in provider catalog — no `provider add`, no
 # custom base URLs (nothing persists into ~/.local/share/crush/). The

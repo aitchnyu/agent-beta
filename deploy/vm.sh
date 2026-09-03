@@ -30,8 +30,8 @@ extract-app-seed() {
   tar xzf /tmp/app-seed.tgz -C /srv/app/main
   chown -R app:app /srv/app/main
   # Group-write the tree (like the enclosing /srv/app 775): the agent
-  # user (./run agent) must be able to edit main/ — mergescratch, git
-  # resets — not just read it.
+  # user (./run agent) must be able to edit main/ — deployscratch's
+  # builds, git resets — not just read it.
   find /srv/app/main -exec chmod g+w {} +
 }
 
@@ -45,10 +45,14 @@ huey-unit-present() {
 
 # Append the computed platform keys when the pinned playwright doesn't know
 # this OS natively (cross-platform: the host derives and passes the entry,
-# e.g. ubuntu24.04-arm64 — see ./testvm provision step 6b).
+# e.g. ubuntu24.04-arm64 — see ./testvm provision step 6b). Idempotent: a
+# retry (or a transient native-install failure misread as
+# platform-unknown) must not append duplicate keys — grep before append.
 playwright-override-env() {
-  printf 'PLAYWRIGHT_HOST_PLATFORM_OVERRIDE="%s"\n' "$1" >> /etc/credentials/app/.env.vm
-  printf 'PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS="1"\n' >> /etc/credentials/app/.env.vm
+  grep -q '^PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=' /etc/credentials/app/.env.vm \
+    || printf 'PLAYWRIGHT_HOST_PLATFORM_OVERRIDE="%s"\n' "$1" >> /etc/credentials/app/.env.vm
+  grep -q '^PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=' /etc/credentials/app/.env.vm \
+    || printf 'PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS="1"\n' >> /etc/credentials/app/.env.vm
 }
 
 # Cross-platform browser setup: native first, mapped fallback (testvm 6b).

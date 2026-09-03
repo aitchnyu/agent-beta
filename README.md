@@ -96,14 +96,13 @@ internal-CA cert means a click-through warning (the supported mode):
   ```
 
   — open the printed `/login-for-test/by-key/…` URL once (single use,
-  15-min expiry), then `promotetosuperuser <email>` to unlock admin pages and
-  the "Console" nav link.
+  15-min expiry), then `promotetosuperuser <email>` to unlock admin pages.
 
 **Everything else happens on the VM**: `./run createscratch` → `./run
-agent` (in the console terminal) edits `scratch/` → `./run deployscratch`
-→ (check battery + deploy + migrate; on the VM collectstatic + service restart
-code changes need `sudo systemctl restart app_granian app_huey`, printed
-by the merge). The env on the VM is a single file all services share
+agent` (from a multipass shell as the `agent` user) edits `scratch/` →
+`./run deployscratch` (check battery + deploy + migrate; on the VM
+collectstatic + service restarts fold in automatically). The env on the
+VM is a single file all services share
 (`/etc/credentials/app/.env.vm`, staged from the root `.env.vm`).
 
 Provisioning is **build-or-destroy**: it refuses when the VM exists — to
@@ -217,17 +216,21 @@ The repo is `main/` (with `.git`); `scratch/` is a throwaway sibling (the
 agent reaches it via `../scratch` — pre-approved in agentconfig). For every
 change:
 
-1. `./run createscratch` (from `main/`) — copy `main/` (minus `.git`/`node_modules`/`.venv`/caches)
-   into a fresh `../scratch/`, bootstrap its own env (`uv sync` + `npm install`), and
-   `git init` it.
+1. `./run createscratch` (from `main/`) — copy `main/` (minus caches/build output)
+   into a fresh `../scratch/`, sharing `main`'s `.git` (main's HEAD is frozen
+   as the `scratch-baseline` ref), and bootstrap its env incrementally
+   (`uv sync` + `npm install` over hardlink-copied `.venv`/`node_modules`).
 2. Edit `../scratch/`.
-3. `( cd ../scratch && ./run deployscratch )` — the check battery: ruff + mypy + `ourapp` tests + frontend
-   lint/type-check/build (the fast loop: the framework suite and Playwright stay
-   in `main/`). Must finish green. When scratch edits touch framework files
-   (outside `ourapp/` + `frontend/src/ours/`), it also runs the tagged
-   `framework-subset` smoke tests. Run `checkframework1` in `main/` for the full gate.
-4. the same command's tail — deploy `../scratch/` into `main/` (never overwriting
-   `main/.env`). This does **not** commit.
+3. `./run deployscratch` — **run from `main/`, never from scratch's own
+   `./run` (it refuses)**. The check battery: ruff + mypy + `ourapp` tests +
+   frontend lint/type-check/build (the fast loop: the framework suite and
+   Playwright stay in `main/`). Must finish green. When scratch edits touch
+   framework files (outside `ourapp/` + `frontend/src/ours/`), it also runs
+   the tagged `scratch-test-subset` smoke tests. Run `checkframework1` in
+   `main/` for the full gate.
+4. the same command's tail — deploy `../scratch/` into `main/` (never
+   overwriting `main/.env`; on the VM it also migrates, collectstatics, and
+   restarts granian/huey). This does **not** commit.
 
 In dev the server auto-reloads `main/` after a deploy, so the user sees the
 change live. Commit in `main/` as a separate step when ready.
@@ -250,7 +253,7 @@ superuser count can never fall to zero through the UI.
 
 ## Commands
 
-App/dev via the `run` script: `init`, `runserver`, `dev`, `console`,
+App/dev via the `run` script: `init`, `runserver`, `dev`,
 `agent`, `test`,
 `typecheck`, `lintfix`, `playwrighttest`, `checkframework1`,
 `checkframework2`, `checkproject`, `createscratch`, `deployscratch`, `cleanscratch`,
@@ -333,11 +336,11 @@ under `/static/djangoapp/` so they never reach clients.
 
 Four tiers:
 
-- **`deployscratch`** — the ONE command, run in `scratch/` once per edit batch: ruff +
+- **`deployscratch`** — the ONE command, run from `main/` once per edit batch: ruff +
   mypy (whole codebase), `ourapp`'s own tests only, and the frontend
   lint/type-check/build. Skips the framework suite and Playwright (those run in
   `main/`) — unless the edit touches framework files (outside `ourapp/` +
-  `frontend/src/ours/`), which adds the tagged `framework-subset` smoke tests.
+  `frontend/src/ours/`), which adds the tagged `scratch-test-subset` smoke tests.
 - **`checkframework1`** — the full gate, run in `main/`. ruff + mypy + the whole backend
   suite + frontend lint/type-check + Playwright.
 - **`checkframework2`** — the deployment gate. Rebuilds the test VM from scratch

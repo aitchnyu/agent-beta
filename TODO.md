@@ -31,8 +31,6 @@ Avoid this app fn?
 multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
     app .venv/bin/python manage.py promotetosuperuser <email>
 
-Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH
-Obscura for tests?
 --------------
 Prevent overwrites of deployed stuff.
 When do we commit? Commit message?
@@ -86,3 +84,4 @@ Support multiple apps in same server
 Model logs should store FK name, link, url and M2M changes too
 Whitelist services for outbound connections
 Have a real tui to manage users?
+Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH. Obscura for tests?

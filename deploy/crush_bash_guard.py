@@ -24,10 +24,9 @@ command substitution (`$(…)` / backticks) always prompt their section —
 steer.md tells the agent not to append redirects unless truly needed. An
 `ENV=VAL command` prefix is DENIED outright (it can never match the
 allowlist; the passing form is `export ENV=VAL && command` — steer.md
-documents both). Two readability rules are likewise DENIED, not advised:
-any LINE over 80 characters (commands must stay human-readable and
-reviewable — split chains across lines), and `git -C <dir> …` (cd into
-the directory, then git).
+documents both). Command LENGTH is a steer.md guideline,
+not a guard rule — the guard can't measure it reliably (exotic line
+separators), so readable formatting stays the agent's discipline.
 
 Standalone-testable: CRUSH_TOOL_INPUT_COMMAND="git status" ./deploy/crush_bash_guard.py
 Unit tests: deploy/tests/test_crush_guards.py.
@@ -43,15 +42,10 @@ from typing import NamedTuple
 
 EXIT_DENY = 2
 
-# Readability cap: a longer LINE is denied outright — commands must stay
-# human-readable and reviewable in the permission prompt (chains still get
-# as long as they need via `\` continuations/newlines, one command per line).
-MAX_LINE = 80
-
 # Operators that separate one section from the next: bash command
-# separators plus subshell parens (splitting on parens lets the sanctioned
-# `( cd ../scratch && ./run deployscratch )` form decompose into its inner
-# sections). Quoted spans stay whole — shlex never splits inside quotes.
+# separators plus subshell parens (splitting on parens lets a legitimate
+# subshell compound decompose into its inner sections). Quoted spans stay
+# whole — shlex never splits inside quotes.
 SPLIT_OPS = frozenset({"&&", "||", ";", "|", "&", "(", ")", "|&", ";;"})
 
 # A redirect token forces its whole section to prompt: an allowlisted
@@ -186,9 +180,6 @@ def _prefix_match(section: str) -> bool:
     return any(section == base or section.startswith(base + " ") for base in ALLOW_PREFIX)
 
 
-
-
-
 def _rm_scratch_files(tokens: list[str]) -> bool:
     """``rm <file…>`` deleting only single FILES inside scratch.
 
@@ -197,6 +188,7 @@ def _rm_scratch_files(tokens: list[str]) -> bool:
     deletes and the whole tree are separate rules (``rm -rf ../scratch``,
     ``./run cleanscratch``); everything else rm-shaped prompts.
     """
+
     def _within_scratch(path: str) -> bool:
         """Path stays inside a scratch tree after normpath (no `..` escape)."""
         norm = posixpath.normpath(path)
@@ -260,17 +252,6 @@ def _classify(tokens: list[str]) -> Verdict:
 
 def main() -> int:
     cmd = os.environ.get("CRUSH_TOOL_INPUT_COMMAND", "")
-    # Readability gate first, before any parsing: ONE line over the cap
-    # denies the whole command — long chains stay fine split across lines.
-    overlong = next((line for line in cmd.splitlines() if len(line) > MAX_LINE), None)
-    if overlong is not None:
-        print(
-            f"a {len(overlong)}-character line is denied by policy (max {MAX_LINE}) —"
-            " commands must stay human-readable and reviewable;"
-            " split chains across lines with \\ continuations or newlines",
-            file=sys.stderr,
-        )
-        return EXIT_DENY
     sections = _sections(cmd) if cmd.strip() else None
     if not sections:
         return 0  # empty or unparseable — the permission prompt takes it

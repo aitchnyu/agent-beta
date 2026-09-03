@@ -110,8 +110,8 @@ Public ids only in both kinds (never the integer `pk`).
 
 ## Workflow
 
-Edit in `scratch/`, then `./run checkscratch`; on approval, `main/run mergescratch`
-(deploys to `main/`; commit is a separate step). See `agentconfig/steer.md` and
+Edit in `scratch/`, then `./run deployscratch` from `main/` (check battery +
+deploy; commit is a separate step). See `agentconfig/steer.md` and
 its "Checklist — adding or changing a feature".
 
 These files are illustrative and excluded from ruff/mypy/eslint — they are not

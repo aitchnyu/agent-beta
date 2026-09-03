@@ -165,7 +165,6 @@ class BashGuardAllows(GuardAssertions):
             "tr a-z A-Z",
             "jq . package.json",
             "diff a.txt b.txt",
-            "echo $HOME",
             "printf %s hi",
             "stat run",
             "file run",
@@ -177,6 +176,7 @@ class BashGuardAllows(GuardAssertions):
             "lsof -i :8000",
             "bash -n run",
             "zsh -n deploy/vm-bootstrap.sh",
+            "echo $HOME",
         ):
             with self.subTest(cmd=cmd):
                 self.assert_allows(run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=cmd))
@@ -395,8 +395,6 @@ class BashGuardDenies(GuardAssertions):
     - test_env_prefix_denied, `VAR=value command …` is denied with the export-form
       pointer (a prompt round-trip per wrong attempt wasted operator time)
     - test_git_dash_c_denied, `git -C <dir> …` is denied with the cd-instead pointer
-    - test_long_line_denied, any LINE over 80 chars is denied (readability/reviewability);
-      multi-line commands with short lines are judged by their sections only
     - test_deny_inside_compound, `allowed && rg …` denies; deny wins even when another
       section would only prompt (`rg … && rm -rf /`)
     - test_lookalike_not_denied, `rgit`/`perlix` are not denied (they prompt)
@@ -444,19 +442,6 @@ class BashGuardDenies(GuardAssertions):
         # `git -c name=value` is git's per-invocation config option, not -C
         self.assert_prompts(
             run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND="git -c core.pager=cat status")
-        )
-
-    def test_long_line_denied(self) -> None:
-        long_cmd = "git log --oneline -3 " + "x" * 70  # 92 chars, one line
-        proc = run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND=long_cmd)
-        self.assert_denies(proc)
-        self.assertIn("human-readable", proc.stderr)
-        # a long line inside a multi-line command denies the whole command
-        proc = run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND="git status\n" + "y" * 81)
-        self.assert_denies(proc)
-        # multi-line with every line within the cap: sections alone decide
-        self.assert_allows(
-            run_hook("crush_bash_guard.py", CRUSH_TOOL_INPUT_COMMAND="git status\npwd")
         )
 
     def test_deny_inside_compound(self) -> None:

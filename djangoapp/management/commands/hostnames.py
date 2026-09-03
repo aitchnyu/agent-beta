@@ -17,4 +17,5 @@ class Command(BaseCommand):
     help = "Print the deployed hostnames (ALLOWED_HOSTS), comma-separated."
 
     def handle(self, *args: object, **options: object) -> None:  # noqa: ARG002 # Django's handle signature
-        [h for h in settings.ALLOWED_HOSTS if h and h != "*"]
+        hostnames = [h for h in settings.ALLOWED_HOSTS if h and h != "*"]
+        self.stdout.write(",".join(hostnames))

@@ -137,12 +137,31 @@ type-checking-only rule wants annotation-only imports under
 `if TYPE_CHECKING:` — move them there cleanly; don't deliberate each import or
 suppress it. `noqa` is a last resort, never a habit.
 
-**Short, reviewable commands — enforced by the guard.** Any LINE over 80
-characters and any `git -C …` is DENIED outright: commands must stay
-human-readable and reviewable. Format `python -c` scripts across lines
-inside the quotes, break `&&`/pipe chains with `\` continuations or
-newlines, and `cd` into the directory (`cd ../scratch`) instead of
-`git -C <dir> …`.
+**Readable commands (guideline, not guard-enforced).** Keep every line
+human-readable and reviewable — roughly 80 characters; long lines are not
+denied by the guard, they waste MY time reading them in the permission
+prompt. **`git -C <dir> …` is DENIED** — `cd` into the directory instead.
+
+```bash
+# BAD — one unreadable line
+cd ../scratch && ./run lintfix && ./run test ourapp.tests.test_chores && git status --short && ./run deployscratch
+
+# BAD — git -C (DENIED by the guard)
+git -C ../scratch diff
+
+# GOOD — one command per line, \\ continuations for chains
+cd ../scratch && ./run lintfix && ./run test ourapp.tests.test_chores \
+  && git status --short && ./run deployscratch
+
+# GOOD — cd, then plain git
+cd ../scratch && git diff
+
+# GOOD — python -c on its own lines inside the quotes
+.venv/bin/python -c '
+from djangoapp.models import User
+print(User.objects.count())
+'
+```
 
 **`./run lintfix` is safe to run repo-wide.** It only normalizes formatting to
 the committed ruff config — never changes logic — so run it the moment
@@ -169,9 +188,12 @@ npm install                         # only `npm run build` is allowed
 rg pattern                          # DENIED outright — use the grep tool
 ```
 
-Related traps (observed burning a real session): shell `grep`/`find`/`ps`
-instead of the read/glob/grep tools; redirects (`2>&1`, `2>/dev/null` — ALL
-of them) and command substitution bolted onto otherwise-allowed commands —
+Note: read-only shell inspection IS allowlisted (`grep`, `find`, `cat`,
+`head`, `tail`, `ps`, `lsof`, …) and runs unprompted — but PREFER the
+read/glob/grep TOOLS when exploring (structured, source-linked results);
+shell forms earn their keep inside `&&` chains. Related trap (observed
+burning a real session): redirects (`2>&1`, `2>/dev/null` — ALL of them)
+and command substitution bolted onto otherwise-allowed commands —
 **don't append redirects unless absolutely necessary**: the TUI captures
 full tool output (stderr included), discarding buys nothing, and an
 avoidable `2>/dev/null` turns an allowlisted line into a permission prompt.
@@ -187,7 +209,8 @@ main's real history (`git log` there is meaningful), and the seeded main
 HEAD is frozen as the `scratch-baseline` ref — the framework-file watch
 diffs against THAT ref, so commits in scratch can never blind it. The
 heavy env dirs (`.venv`, `frontend/node_modules`) are hardlink-copied from
-main (instant, ~free disk), so the `uv sync` + `npm install` bootstrap runs
+main (instant and ~free on dev; a full copy on the VM, where protected
+hardlinks are blocked), so the `uv sync` + `npm install` bootstrap runs
 incremental. An existing `../scratch/` is wiped — **if one already exists,
 ask first whether to delete it**, during planning / before the go-ahead (it
 may hold uncommitted work from a prior task; `./run cleanscratch` wipes it).
@@ -694,7 +717,7 @@ auto-discovers each installed app's `tasks` module. Redis is a **hard dependency
 - **Fat task, thin wrapper**: put the real logic on the model (a classmethod) and
   make the task a one-line call, so it's testable without a consumer.
 - **Run the consumer** with `./run hueydev`, or `./run dev` (which starts it alongside
-  runserver/vite/the web console). Without a running consumer, enqueued tasks queue up and
+  runserver/vite). Without a running consumer, enqueued tasks queue up and
   periodic tasks don't fire — so make user-facing paths degrade gracefully (e.g.
   `FactOfTheDay.current()` reads the last cron pick without writing, so a dead
   consumer shows a stale-but-present fact or an empty state; a `GET` never creates
@@ -826,12 +849,16 @@ rm ../scratch/<file> […]           # single FILES inside scratch, bare rm only
                                    # containment-checked (chain several:
                                    # rm ../scratch/a && rm ../scratch/b);
                                    # any flag, or anything outside scratch,
-                                   # prompts — directories: use ./run cleanscratch
+                                   # prompts — deleting DIRECTORIES this way
+                                   # fails at exec ("is a directory"): use
+                                   # ./run cleanscratch
 export NAME=VALUE                    # pair with && and an allowed command (see above)
 ```
 
-No multipass form is allowlisted — every multipass command prompts; VM
-checks ride ./testvm and ./run checkframework2 (both allowed above).
+No multipass form is allowlisted — every multipass command prompts. VM
+checks are the OPERATOR's (`./testvm`, `./run checkframework2`) — not
+agent commands, and checkframework2 destructively rebuilds the VM; never
+invoke either.
 
 (The `web_search` tool is likewise pre-approved — tool-level, in `.crushrc`.)
 
