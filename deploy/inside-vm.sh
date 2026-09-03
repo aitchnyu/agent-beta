@@ -21,9 +21,9 @@ phase="${1:?usage: inside-vm.sh provision_vm|provision_app}"
 appdir="/srv/app"
 creds_dir="/etc/credentials/app"
 creds_env="$creds_dir/.env.vm"
-# Crush CLI version for the npm -g install (keep in lockstep with dev's
-# npm install -g @charmland/crush).
-_CRUSH_NPM_VERSION="0.91.0"
+# pi CLI version for the npm -g install (keep in lockstep with dev's
+# npm install -g @earendil-works/pi-coding-agent).
+_PI_NPM_VERSION="0.85.0"
 
 provision_vm() {
   echo "==> [vm] users: app (less powerful) + agent (powerful)"
@@ -51,21 +51,27 @@ provision_vm() {
   echo "==> [vm] apt packages"
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
-  apt-get install -y curl rsync git htop ufw avahi-daemon ripgrep \
+  apt-get install -y curl rsync git htop ufw avahi-daemon ripgrep fd-find \
     postgresql postgresql-client redis-server ca-certificates gnupg
-  # ripgrep: crush's internal grep TOOL shells out to rg when present (its
-  # log warns "grep features might be limited or slower" without it). The
-  # bash guard still DENIES the agent TYPING rg — it forces the grep tool.
+  # ripgrep: operator convenience only — the permission policy still DENIES
+  # the agent TYPING rg (it forces grep).
+  # fd-find: pi auto-downloads its fd helper to ~/.pi/agent/bin on first
+  # launch otherwise — pre-install so the first ./run pi is offline-clean.
+  # Debian names the binary fdfind; pi (and muscle memory) wants fd.
+  ln -sf /usr/bin/fdfind /usr/local/bin/fd
+  # NOTE: node 22 below stays: the frontend build (vite/rolldown) needs it,
+  # even though the agent CLI no longer rides npm.
 
   echo "==> [vm] node 22 (NodeSource; apt's node is too old for vite/rolldown)"
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
 
-  # The agent (Crush CLI) started via `./run agent` by the operator, who
-  # shells in over multipass and becomes the agent user.
-  # Version-pinned to match dev (npm @charmland/crush on both).
-  echo "==> [vm] Crush CLI (npm -g)"
-  npm install -g "@charmland/crush@$_CRUSH_NPM_VERSION"
+  # The agent (pi CLI) started via `./run pi` by the operator, who shells
+  # in over multipass and becomes the agent user. npm global (node 22 is
+  # already installed above; arch-agnostic). --ignore-scripts: pi needs
+  # no install scripts, and none should run as root.
+  echo "==> [vm] pi CLI (npm -g, version-pinned)"
+  npm install -g --ignore-scripts "@earendil-works/pi-coding-agent@$_PI_NPM_VERSION"
 
   echo "==> [vm] caddy (official apt repo)"
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \

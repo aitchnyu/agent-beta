@@ -241,10 +241,8 @@ After changing TS/frontend code, run these in order:
 3. Lint: `cd frontend && npm run lint`  
 4. Final check: `./run checkframework1` (this checks backend and then frontend)
 
-Playwright tests are at: `./run playwrighttest`  
-Note that `playwrighttest` takes no arguments — extra flags/module labels are ignored and the full tagged suite runs. To run one module (test_users, test_files, test_git, test_client_errors under `djangoapp/tests/playwright/`), invoke the underlying command directly with the label:
-
-    uv run manage.py test --tag playwright --noinput djangoapp.tests.playwright.test_users
+Playwright tests are at: `./run playwrighttest`
+It forwards test labels: `./run playwrighttest djangoapp.tests.playwright.test_users` runs just that module (Django intersects the label with the `--tag playwright` filter); no label = the full tagged suite.
 
 ### Playwright
 When you encounter Playwright tests failing, consider that a showstopper. Isolate one failing module with the direct command above (it will be time consuming to run the full suite) and diagnose it.

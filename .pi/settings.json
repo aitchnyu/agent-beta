@@ -1,0 +1,13 @@
+{
+  "enableInstallTelemetry": false,
+  "sessionDir": "sessions",
+  "packages": [
+    "npm:@gotgenes/pi-permission-system@31.0.1",
+    "npm:@gotgenes/pi-subagents@21.4.0"
+  ],
+  "compaction": {
+    "enabled": true,
+    "reserveTokens": 16384,
+    "keepRecentTokens": 20000
+  }
+}

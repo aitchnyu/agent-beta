@@ -14,7 +14,7 @@ cd /srv/app/main 2>/dev/null || cd ~
 _g=$'\033[1;32m'; _y=$'\033[1;33m'; _d=$'\033[0m'
 printf '\n'
 printf '%srepo:%s /srv/app/main (you start here)\n' "${_y}" "${_d}"
-printf '  %s./run agent%s                      start the Crush TUI\n' "${_g}" "${_d}"
+printf '  %s./run pi%s                        start the pi TUI\n' "${_g}" "${_d}"
 printf '  %s./run test … / checkproject%s      checks\n' "${_g}" "${_d}"
 printf '\n'
 unset _g _y _d

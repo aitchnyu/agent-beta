@@ -135,7 +135,7 @@ agent-browsers() {
 }
 
 # The acceptance probe: firefox must LAUNCH headless as agent (the user
-# the crush CLI runs as) — platform-agnostic by construction.
+# the pi CLI runs as) — platform-agnostic by construction.
 agent-playwright-probe() {
   _vm_env
   timeout 120 .venv/bin/python -c '

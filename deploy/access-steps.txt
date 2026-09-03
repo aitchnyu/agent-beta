@@ -9,7 +9,7 @@ mode.
 
 The operator/agent surface is a shell, not the web:
   multipass shell app        # then: sudo -iu agent; cd /srv/app/main;
-                            # ./run agent   (the Crush TUI; full sudo)
+                            # ./run pi     (the pi TUI; full sudo)
 Login to the app (no Google OAuth on the VM — .local is not registrable;
 one-time links instead; the user row must already exist, e.g. via a
 restored DB or Django shell):

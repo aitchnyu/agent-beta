@@ -1,3 +1,6 @@
+How to notify by sound?
+Paste images
+
 Outline of md files
 raw=true?
 hash links in md view dont work
@@ -13,7 +16,9 @@ https://daverupert.com/2026/08/microlighter/ - use native mermaid, no need of ht
 use the HTML-safe lookalikes `‹` `›` `∧`
 Git: link to real filename, double diff
 
-Agent command: resume old session?
+U ourapp/tests/test_chores_playwright.py
+
+`Security & data access` and `Authoritative docs`
 
 Unhelpful command:
 ```
@@ -21,19 +26,12 @@ multipass shell app
 sudo -u agent -H bash -l
 ```
 
-Use Goose agent?
-Cant select options in one tap
-Not showing command output
-Need equivalent `option notifications bell`
-How to notify?
-
 Avoid this app fn?
 multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
     app .venv/bin/python manage.py promotetosuperuser <email>
 
 --------------
 Prevent overwrites of deployed stuff.
-When do we commit? Commit message?
 
 Test `createscratch`, `deployscratch`, `cleanscratch`
 
@@ -53,8 +51,7 @@ https://app.local/static/djangoapp/assets/mermaid-core-CVHOu6Nn.js
 https://app.local/static/djangoapp/assets/mermaid-uncommon-BQPmhl13.js
 Decimal fields for money
 
-apply --3way
-./run importtemplate <github-url> <tag> 
+apply --3way merges with `./run importtemplate <github-url> <tag>` 
 import from git repo tags?
 
 Google login change

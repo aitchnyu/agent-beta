@@ -68,6 +68,15 @@ class _ConsoleSink:
 
 _console = _ConsoleSink()
 
+# Per-action playwright timeout for the whole suite. A timeout only ever
+# delays FAILURE feedback (green paths never wait it out), so the number
+# is a flake-resistance budget: 1s proved too tight on the VM, where the
+# first visit of a chunk-heavy page (e.g. the 182KB RichTextEditor
+# dynamic import) legitimately fetches + renders past 1s — observed as a
+# deterministic `Page.goto: Timeout 1000ms exceeded` on the smoke subset.
+# 2s matches the explicit raises test_users/test_git already used.
+_DEFAULT_TIMEOUT_MS = 2_000
+
 
 def _on_console(msg: ConsoleMessage) -> None:
     if msg.type == "error":
@@ -98,6 +107,7 @@ class _SharedBrowser:
         self.browser: Browser | None = None
         self.context: BrowserContext | None = None
         self.page: Page | None = None
+        self.cold_start_pending = True
 
     def ensure(self) -> tuple[Browser, BrowserContext, Page]:
         """Create everything on first use; return the (browser, context, page)."""
@@ -110,7 +120,7 @@ class _SharedBrowser:
             # test-instance bindings). They route into the module-level sink.
             self.context.add_init_script(script=_STRINGIFY_CONSOLE_ERROR)
             assert self.page is not None
-            self.page.set_default_timeout(1000)
+            self.page.set_default_timeout(_DEFAULT_TIMEOUT_MS)
             self.page.on("console", _on_console)
             self.page.on("pageerror", _on_pageerror)
         assert self.browser is not None
@@ -120,6 +130,15 @@ class _SharedBrowser:
 
 
 _SHARED_BROWSER = _SharedBrowser()
+
+# The FIRST navigation of a run pays the cold-start bill — browser's first
+# real page load, DNS, the live server's first request handling — which can
+# exceed the tight 1s default on slow VMs (observed: the smoke subset's
+# first test failing deterministically on a fresh /srv/app build). The
+# first test of the process runs with this allowance (flag held on
+# _SHARED_BROWSER); the per-test reset in setUp restores the tight default
+# for every later test.
+_COLD_START_TIMEOUT_MS = 15_000
 
 
 @tag("playwright")
@@ -202,7 +221,13 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
         # Reset the shared page's timeout per test: subclass setUps may raise
         # it for their own tests, and without this the raise leaks to every
         # LATER class via execution order (the shared page outlives classes).
-        self.page.set_default_timeout(1000)
+        # The FIRST test of the process instead gets the cold-start budget —
+        # see _COLD_START_TIMEOUT_MS.
+        if _SHARED_BROWSER.cold_start_pending:
+            _SHARED_BROWSER.cold_start_pending = False
+            self.page.set_default_timeout(_COLD_START_TIMEOUT_MS)
+        else:
+            self.page.set_default_timeout(_DEFAULT_TIMEOUT_MS)
         self.context.clear_cookies()
         self.user = User.objects.create_user(username="testuser", password="testpass")
         self.login_as(self.user)
@@ -262,7 +287,7 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
         # navigation, but ordering keeps the guarantee obvious).
         anon_context.add_init_script(script=_STRINGIFY_CONSOLE_ERROR)
         page = anon_context.new_page()
-        page.set_default_timeout(1000)
+        page.set_default_timeout(_DEFAULT_TIMEOUT_MS)
         page.on("console", _on_console)
         page.on("pageerror", _on_pageerror)
         try:

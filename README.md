@@ -4,11 +4,11 @@ A Django **single-app template**: clone it, build your app in `ourapp/`, and dri
 changes through an agent that edits a throwaway.
 
 ## Features
-- **Agent-driven development** — a [Crush](https://github.com/charmbracelet/crush)
+- **Agent-driven development** — a [pi](https://pi.dev)
   TUI
   edits a throwaway `scratch/` copy of the repo; you review, then
   `deployscratch` checks + deploys to `main/` (server auto-reloads). Start it with
-  `./run agent` — on the VM from a multipass shell as the `agent` user
+  `./run pi` — on the VM from a multipass shell as the `agent` user
   (`sudo -iu agent`, same command there). See
   [Edit → test → deploy workflow](#edit--test--deploy-workflow).
 - **Async tasks + cron (Huey)** — Redis-backed background tasks and scheduled
@@ -34,8 +34,8 @@ changes through an agent that edits a throwaway.
 ## Quick start
 - **Prerequisites** — Python 3.14+ with [`uv`](https://docs.astral.sh/uv/),
   Node.js + npm, PostgreSQL, and Redis run the app;
-  [Crush](https://github.com/charmbracelet/crush) runs the agent
-  (`npm install -g @charmland/crush`).
+  [pi](https://pi.dev) runs the agent
+  (`npm install -g --ignore-scripts @earendil-works/pi-coding-agent`).
 - **Environment** — `./run init` copies `.env.example` → `.env`, generates
   `SECRET_KEY`, creates + migrates the database, and builds the frontend;
   set `DB_PASSWORD` to your local postgres afterwards.
@@ -53,7 +53,7 @@ changes through an agent that edits a throwaway.
   `./run djangomanage addgoogleoauth <client_id> <secret>`.
 - **Agent** — point your AI agent at this repo and have it read
   `INSTRUCTIONS.md` (the operating manual: workflows, conventions,
-  command allowlist); start it with `./run agent`.
+  command allowlist); start it with `./run pi`.
 - **Test VM instead** — the whole loop can run on a Linux VM (multipass):
   see [VM (test server)](#vm-test-server).
 
@@ -99,7 +99,7 @@ internal-CA cert means a click-through warning (the supported mode):
   15-min expiry), then `promotetosuperuser <email>` to unlock admin pages.
 
 **Everything else happens on the VM**: `./run createscratch` → `./run
-agent` (from a multipass shell as the `agent` user) edits `scratch/` →
+pi` (from a multipass shell as the `agent` user) edits `scratch/` →
 `./run deployscratch` (check battery + deploy + migrate; on the VM
 collectstatic + service restarts fold in automatically). The env on the
 VM is a single file all services share
@@ -254,7 +254,7 @@ superuser count can never fall to zero through the UI.
 ## Commands
 
 App/dev via the `run` script: `init`, `runserver`, `dev`,
-`agent`, `test`,
+`pi`, `test`,
 `typecheck`, `lintfix`, `playwrighttest`, `checkframework1`,
 `checkframework2`, `checkproject`, `createscratch`, `deployscratch`, `cleanscratch`,
 `hueydev` (background consumer alone), `coverage`,

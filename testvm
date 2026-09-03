@@ -152,7 +152,7 @@ provision() {
   echo "==> multipass launch app (bridged en0, DHCP, 2G ram, 20G disk, $release)"
   multipass launch --name app --network en0 --memory 2G --disk 20G "$release"
 
-  # ── 2. machine phases inside (users, apt, node, crush, caddy, swap…) ──
+  # ── 2. machine phases inside (users, apt, node, pi, caddy, swap…) ──
   multipass transfer "$deploy_dir/inside-vm.sh" app:/tmp/inside-vm.sh
   multipass exec app -- sudo bash /tmp/inside-vm.sh provision_vm
   # vm.sh rides along as /tmp/vm.sh: the seed (with its deploy/vm.sh copy)
@@ -234,7 +234,7 @@ provision() {
   multipass exec app -- sudo install -d -o app -g app /srv/app/main
   # The seed = the TRACKED working tree: `git ls-files` drives tar, so the
   # git index is the single source of truth — gitignored artifacts (.env*,
-  # .crush/, staticfiles/, caches…) and untracked clutter (editor state,
+  # /sessions/ (pi sessions, root-level via sessionDir), staticfiles/, caches…) and untracked clutter (editor state,
   # AppleDouble junk, empty dirs) can never ship, and no hand-maintained
   # exclude list can drift (it did: .coverage/static/uploads/.idea all
   # leaked at some point). Tracked-but-deleted files make tar fail

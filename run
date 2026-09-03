@@ -93,7 +93,7 @@ hueydev() {
 dev() {
   # The whole dev stack in one terminal via `concurrently`: runserver + vite
   # watch + huey (Ctrl-C stops all). The agent runs in its own terminal via
-  # `./run agent` — no browser console anymore.
+  # `./run pi` — no browser console anymore.
   setenv
   frontend/node_modules/.bin/concurrently -n runserver,vite,huey -c blue,green,cyan \
     "./run runserver" \
@@ -101,89 +101,77 @@ dev() {
     "./run hueydev"
 }
 
-agent() {
-  # The agent: exec the Crush TUI with the .env environment (model, the
+pi() {
+  # The agent: exec the pi TUI with the .env environment (model, the
   # provider's native auth var, git identity) exported by setenv — dev and
-  # VM alike. Config is the repo-root .crushrc (Bash — built-in providers
-  # only; it reads AGENT_MODEL straight from this environment); the
-  # bash/edit permission policy lives in deploy/crush_*_guard.py, wired
-  # from .crushrc as PreToolUse hooks.
+  # VM alike. Config is project-local and versioned: .pi/settings.json
+  # (model, pinned packages), .pi/extensions/pi-permission-system/config.json
+  # (the whole bash/edit/path policy — allow/ask/deny with operator
+  # prompts), and .pi/extensions/context/ (steer.md injection). Subagents
+  # and their permission forwarding come from @gotgenes/pi-subagents.
   setenv
   local repo_root
   repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-  local config_file="$repo_root/.crushrc"
 
   # Run from the REPO ROOT (main/): the TUI's pwd is the actual repo, and
-  # .crushrc's relative paths (agentconfig/steer.md, the guard hooks) are
-  # working-dir-relative. No parent-cd, no parent git-init — main/ is its
-  # own repo everywhere; scratch/ is a SIBLING, reachable via the
-  # sanctioned compounds and scratch paths the guards allow.
+  # project-extension discovery + agent discovery are working-dir-relative.
+  # No parent-cd, no parent git-init — main/ is its own repo everywhere;
+  # scratch/ is a SIBLING, reachable via the sanctioned compounds and
+  # scratch paths the guards allow.
   cd "$repo_root"
 
   # (1) Binary on PATH.
-  command -v crush >/dev/null 2>&1 || {
-    echo "crush binary not found on PATH — install it first" \
-      "(npm install -g @charmland/crush)" >&2
+  command -v pi >/dev/null 2>&1 || {
+    echo "pi binary not found on PATH — install it first" \
+      "(npm install -g --ignore-scripts @earendil-works/pi-coding-agent; see deploy/inside-vm.sh)" >&2
     return 1
   }
 
-  # (2) Config file exists and parses — without it the agent runs with no
-  #     permissions; with a syntax error crush may start half-configured.
-  [[ -f "$config_file" ]] || {
-    echo "Refusing to start: $config_file not found" >&2
-    return 1
-  }
-  local syntax_output
-  if ! syntax_output=$(bash -n "$config_file" 2>&1); then
-    echo "Refusing to start: .crushrc has a syntax error:" >&2
-    echo "$syntax_output" >&2
-    return 1
-  fi
-
-  # (3) No competing config — crush MERGES everything it finds (project
-  #     .crushrc + ./crushrc + legacy .crush.json/crush.json + the global
-  #     ~/.config/crush/ equivalents); any of those would layer settings
-  #     over ours. Refuse on every one we don't ship ourselves.
-  #     (Also /etc/crush/crush.json — a root-owned system-wide slot that
-  #     normally doesn't exist; refuse if someone created one.)
-  local global_config_dir="${XDG_CONFIG_HOME:-$HOME/.config}/crush"
-  local competitor
-  for competitor in \
-    /etc/crush/crush.json \
-    "$repo_root/crushrc" \
-    "$repo_root/.crush.json" \
-    "$repo_root/crush.json" \
-    "$global_config_dir/crushrc" \
-    "$global_config_dir/crush.json" \
-    "$global_config_dir/.crush.json"
+  # (2) The permission policy IS the launcher's config check — refuse to
+  #     start without every piece: the pinned packages (declared in
+  #     .pi/settings.json; auto-installed into .pi/npm on project trust),
+  #     the project permission policy, and the steer.md injection
+  #     extension. Without the permission system the session would run
+  #     unguarded (pi has NO built-in permission model).
+  local policy
+  for policy in \
+    .pi/settings.json \
+    .pi/extensions/pi-permission-system/config.json \
+    .pi/extensions/context/index.ts
   do
-    if [[ -f "$competitor" ]]; then
-      echo "Refusing to start: a competing crush config exists at" \
-        "$competitor; delete it so only $config_file is used." >&2
+    [[ -f "$policy" ]] || {
+      echo "Refusing to start: $policy not found — without it the agent has no permission policy." >&2
       return 1
-    fi
+    }
   done
 
-  # (4) Model knob set — .crushrc's :? line also enforces it, but with a
-  #     bash error inside the TUI; refuse up front with a clear message.
-  #     Auth is NOT checked here: it rides the provider's NATIVE env var
-  #     (ZAI_API_KEY etc.), whose name varies by provider — crush itself
-  #     fails loudly when it's missing.
+  # (3) Model knob set — pi takes it VERBATIM (provider-qualified, the
+  #     same format as AGENT_MODEL; no splitting, no mapping). Auth rides
+  #     the provider's NATIVE env var (zai reads ZAI_API_KEY — our env
+  #     contract unchanged); pi itself fails loudly when it's missing.
   if [[ -z "${AGENT_MODEL:-}" ]]; then
     echo "Refusing to start: AGENT_MODEL is unset/empty — provider-qualified" \
-      "built-in id, e.g. \"zai/glm-5.3\" (list with \`crush models\`)." >&2
+      "id, e.g. \"zai/glm-5.3\" (pi --list-models; see .env.example)." >&2
     return 1
   fi
 
-  # (5) Suppress crush's first-open "Would you like to initialize this
-  #     project?" dialog: it fires when the project data dir has no `init`
-  #     flag AND no default context file (CRUSH.md & friends) sits at the
-  #     repo root.
-  mkdir -p "$repo_root/.crush"
-  [[ -f "$repo_root/.crush/init" ]] || : > "$repo_root/.crush/init"
+  # (4) Session behavior:
+  #     - --approve grants project trust DETERMINISTICALLY: without it a
+  #       headless/default run silently skips .pi extensions AND packages
+  #       (the permission system included) — probed. The launcher owns
+  #       this decision; trust also auto-installs the pinned packages
+  #       into .pi/npm/ on first run.
+  #     - PI_REPO_ROOT anchors the context extension (steer.md path)
+  #       against any cwd drift.
+  #     - PI_SKIP_VERSION_CHECK=1: no startup update ping (telemetry is
+  #       off via .pi/settings.json).
+  #     - Sessions land in /sessions (sessionDir in project settings)
+  #       — in-repo and gitignored; ~/.pi/agent/ only keeps trust.json.
+  export PI_REPO_ROOT="$repo_root"
+  export PI_SKIP_VERSION_CHECK=1
 
   # All checks passed — hand the terminal over to the TUI.
-  command crush "$@"
+  command pi --approve --model "$AGENT_MODEL" "$@"
 }
 
 test() {
@@ -209,7 +197,10 @@ playwrighttest() {
   cd frontend
   npm run build
   cd ..
-  uv run manage.py test $_DJANGO_NO_COLOR --tag playwright --noinput
+  # Forwards args like test(): `./run playwrighttest
+  # ourapp.tests.test_chores_playwright` runs just that module (Django
+  # intersects the label with --tag playwright). No args = full suite.
+  uv run manage.py test $_DJANGO_NO_COLOR --tag playwright --noinput "$@"
 }
 
 checkframework1() {
@@ -222,8 +213,6 @@ checkframework1() {
   uv run mypy $_MYPY_COLOR .
   echo "Running test"
   test --noinput
-  echo "Running deploy/ hook unit tests (Crush guards)"
-  uv run python -m unittest discover -s deploy/tests
   cd frontend
   echo "Running frontend linting"
   npm run lint
@@ -336,14 +325,14 @@ checkframework2() {
   grep -q "Framework Smoke" <<<"$body" \
     || { echo "FAILED: home does not show the smoke user" >&2; return 1; }
 
-  # ── Assert 5/6: agent user ready (crush + credentials env) ─────────────
+  # ── Assert 5/6: agent user ready (pi + credentials env) ─────────────
   # The browser console is gone; the operator shells in via multipass and
-  # becomes the agent user (sudo -iu agent). The two `./run agent`
-  # preconditions: crush on PATH, and the credentials env (AGENT_MODEL)
+  # becomes the agent user (sudo -iu agent). The two `./run pi`
+  # preconditions: pi on PATH, and the credentials env (AGENT_MODEL)
   # readable as agent via its app-group membership.
-  echo "=== Assert 5/6: agent user can run ./run agent ==="
-  multipass exec app -- sudo -u agent -H bash -c 'command -v crush >/dev/null' \
-    || { echo "FAILED: crush not on the agent user's PATH" >&2; return 1; }
+  echo "=== Assert 5/6: agent user can run ./run pi ==="
+  multipass exec app -- sudo -u agent -H bash -c 'command -v pi >/dev/null' \
+    || { echo "FAILED: pi not on the agent user's PATH" >&2; return 1; }
   multipass exec app -- sudo -u agent -H bash -c \
     '. /etc/credentials/app/.env.vm 2>/dev/null; test -n "${AGENT_MODEL:-}"' \
     || { echo "FAILED: AGENT_MODEL does not resolve as agent (credentials env unreadable)" >&2; return 1; }
@@ -426,7 +415,14 @@ lintfix() {
 # is deliberately carried deploy-ward: the fresh build ships with the deploy.
 _SCRATCH_EXCLUDES=(
   --exclude='.kilo/'
-  --exclude='.crush/'
+  --exclude='/sessions/'
+  --exclude='.pi/npm/'
+  # The permission extension self-edits its config for grant bookkeeping;
+  # that state must not ride createscratch/deployscratch (it spuriously
+  # tripped the framework-file smoke trigger and time-traveled stale
+  # policy between trees). Plain rsync --delete never removes excluded
+  # files on the receiver, so main's tracked copy stays authoritative.
+  --exclude='.pi/extensions/pi-permission-system/'
   --exclude='scratch/'
   --exclude='node_modules/'
   --exclude='.venv/'
@@ -466,10 +462,10 @@ _new_scratch() {
   rm -rf "$_SCRATCH_DIR"
   rsync -a "${_SCRATCH_EXCLUDES[@]}" "$_MAIN_DIR/" "$_SCRATCH_DIR/"
   git -C "$_SCRATCH_DIR" tag -f scratch-baseline HEAD >/dev/null
-  # .crush/ is rsync-excluded but tracked, and npm install rewrites
-  # package-lock format-normalized — both read as diffs vs the baseline,
-  # tripping the framework-file watch. Restore from HEAD.
-  git -C "$_SCRATCH_DIR" checkout -- .crush frontend/package-lock.json 2>/dev/null || true
+  # npm install rewrites package-lock format-normalized — it reads as a
+  # diff vs the baseline, tripping the framework-file watch. Restore from
+  # HEAD.
+  git -C "$_SCRATCH_DIR" checkout -- frontend/package-lock.json 2>/dev/null || true
   [ -d "$_MAIN_DIR/.venv" ] && _link_or_copy_tree "$_MAIN_DIR/.venv" "$_SCRATCH_DIR/.venv"
   [ -d "$_MAIN_DIR/frontend/node_modules" ] \
     && _link_or_copy_tree "$_MAIN_DIR/frontend/node_modules" "$_SCRATCH_DIR/frontend/node_modules"

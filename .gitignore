@@ -28,12 +28,13 @@ djangoapp/static/
 # Playwright MCP (browser tooling) artifacts: snapshots, console logs
 .playwright-mcp/
 
-# crush agent state (sessions, db, logs). TRACKED here: README.md (why the
-# dir exists) and the empty `init` flag (pre-answers crush's "initialize
-# this project?" dialog — see the README)
-.crush/*
-!.crush/README.md
-!.crush/init
+# pi agent state: sessions are isolated in-repo (sessionDir "sessions" in
+# .pi/settings.json resolves against the working directory); project
+# packages land under .pi/npm/. Tracked .pi/ content: settings.json,
+# extensions/, agents/.
+/sessions/
+.pi/sessions/
+.pi/npm/
 
 # collectstatic output (STATIC_ROOT is repo-relative; seed ships none,
 # the VM builds its own — never commit it)
