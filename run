@@ -107,7 +107,10 @@ pi() {
   # VM alike. Config is project-local and versioned: .pi/settings.json
   # (model, pinned packages), .pi/extensions/pi-permission-system/config.json
   # (the whole bash/edit/path policy — allow/ask/deny with operator
-  # prompts), and .pi/extensions/context/ (steer.md injection). Subagents
+  # prompts), .pi/extensions/context/ (steer.md injection), and
+  # .pi/extensions/notify/ (double BEL — immediate, then 300ms — on
+  # turn end and on blocking questions; rings the operator's local
+  # terminal over SSH). Subagents
   # and their permission forwarding come from @gotgenes/pi-subagents.
   setenv
   local repo_root
