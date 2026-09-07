@@ -18,9 +18,12 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
     ``tearDown`` fails on any browser console error.
 
     - test_uncommitted_renders — /git/uncommitted/ lists both worktrees' files
-      (main then scratch) with U/M status letters; each file links to its worktree diff
-    - test_commit_list_renders — /git/commits shows 3 subjects + a commit count
-    - test_diff_highlighted — an uncommitted diff renders .hljs-add/del spans
+      (main then scratch) with new/mod status words + colors; each file links to
+      its worktree diff and to the file url
+    - test_commit_list_renders — /git/commits shows the 3 subjects + a commit count
+    - test_diff_highlighted — an uncommitted diff renders .d2h-ins/.d2h-del rows
+      (diff2html, syntax-highlighted)
+    - test_diff_split_and_unified_by_viewport — side-by-side wide, line-by-line narrow
     - test_diff_opens_via_click — a commit file-diff link clicked (Inertia swap) renders
     - test_commit_navigation — the commits → files → diff link chain works
     - test_non_superuser_404 — an anonymous viewer of /git gets 404
@@ -34,7 +37,7 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         self.login_as(self.admin)
 
     def test_uncommitted_renders(self) -> None:
-        """``/git/uncommitted/`` lists both worktrees' files with U/M status letters."""
+        """``/git/uncommitted/`` lists both worktrees' files with new/mod words."""
         page = self.page
         page.goto(f"{self.live_server_url}/git/uncommitted/")
         page.get_by_role("link", name="TodoApp/app.py").wait_for(state="visible")
@@ -54,11 +57,22 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
             page.get_by_role("link", name="TodoApp/scratch_only.py").get_attribute("href"),
             "/git/uncommitted/scratch/TodoApp/scratch_only.py",
         )
-        # Status letters U/M, and untracked rows greyed (2 untracked files).
-        letters = page.locator(".git-letter").all_inner_texts()
-        self.assertIn("M", letters)
-        self.assertIn("U", letters)
-        self.assertEqual(page.locator("li.text-muted").count(), 2)
+        # Secondary links point at the file url (browse root = repo parent).
+        self.assertEqual(
+            page.locator('a[href="/files/main/TodoApp/app.py"]').count(),
+            1,
+        )
+        self.assertEqual(
+            page.locator('a[href="/files/scratch/TodoApp/scratch_only.py"]').count(),
+            1,
+        )
+        # Status words new/mod with their color classes (2 untracked → new,
+        # 2 modified → mod across the two worktrees).
+        words = page.locator(".git-status").all_inner_texts()
+        self.assertIn("new", words)
+        self.assertIn("mod", words)
+        self.assertEqual(page.locator(".git-status.text-success").count(), 2)
+        self.assertEqual(page.locator(".git-status.text-warning").count(), 2)
 
     def test_commit_list_renders(self) -> None:
         """``/git/commits`` shows the 3 subjects (newest first) + a commit count."""
@@ -72,23 +86,47 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         self.assertIn("3 commits", body)
 
     def test_diff_highlighted(self) -> None:
-        """An uncommitted diff renders with the hljs diff grammar's spans.
+        """An uncommitted diff renders as add/del colored rows (diff2html).
 
-        The `diff` grammar colours `+` lines as ``.hljs-addition`` and `-`
-        lines as ``.hljs-deletion`` — asserting both proves the lazy
-        ``filePreview`` chunk highlighted the diff (not raw text).
+        diff2html colours inserted rows ``.d2h-ins`` and deleted rows
+        ``.d2h-del`` — asserting both proves the lazy chunk rendered (not raw
+        text or a stuck Loading note).
         """
         page = self.page
         page.goto(f"{self.live_server_url}/git/uncommitted/main/TodoApp/app.py")
-        # wait_for_selector, not wait_for_function (per INSTRUCTIONS.md): the diff
-        # grammar emits .hljs-addition/.hljs-deletion once the highlighter runs, so
-        # the addition selector proves the chunk rendered before the asserts below.
-        page.wait_for_selector(".code-diff .hljs-addition")
-        diff = page.locator(".code-diff")
-        self.assertGreater(diff.locator(".hljs-addition").count(), 0)
-        self.assertGreater(diff.locator(".hljs-deletion").count(), 0)
+        # wait_for_selector, not wait_for_function (per INSTRUCTIONS.md): the
+        # row classes exist once the async render lands, so the selector proves
+        # the view rendered before the asserts below.
+        page.wait_for_selector("[data-split-diff] .d2h-ins")
+        diff = page.locator("[data-split-diff]")
+        self.assertGreater(diff.locator(".d2h-ins").count(), 0)
+        self.assertGreater(diff.locator(".d2h-del").count(), 0)
         self.assertIn("TodoApp/app.py", diff.text_content() or "")
         self.assertIn("final", diff.text_content() or "")
+
+    def test_diff_split_and_unified_by_viewport(self) -> None:
+        """The diff shows side-by-side on wide viewports, line-by-line on narrow.
+
+        Both formats render up front (one diff2html container each); a CSS
+        media query (768px) picks the visible one — no JS resize handling, so
+        the assert is simply which container shows.
+        """
+        page = self.page
+        default_viewport = page.viewport_size or {"width": 1280, "height": 720}
+        page.goto(f"{self.live_server_url}/git/uncommitted/main/TodoApp/app.py")
+        page.wait_for_selector("[data-split-diff] .d2h-ins")
+        # Wide (default 1280x720): the side-by-side container shows (with
+        # diff2html's two file panes inside), line-by-line hides.
+        side = page.locator("[data-sd-side]")
+        self.assertTrue(side.is_visible())
+        # diff2html's side-by-side: one wrapper, two side panes.
+        self.assertEqual(side.locator(".d2h-file-side-diff").count(), 2)
+        self.assertFalse(page.locator("[data-sd-unified]").is_visible())
+        # Narrow: the line-by-line container shows, side-by-side hides.
+        page.set_viewport_size({"width": 375, "height": 800})
+        self.assertTrue(page.locator("[data-sd-unified]").is_visible())
+        self.assertFalse(side.is_visible())
+        page.set_viewport_size(default_viewport)
 
     def test_diff_opens_via_click(self) -> None:
         """A file-diff link opened by a click (Inertia client-side swap) renders.
@@ -97,7 +135,7 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         the swap — this is the only coverage of the client-side navigation
         path, where module/graph regressions land (e.g. an entry URL mismatch
         double-booting the app and rolling the swap back). Asserts the URL
-        advances (no rollback), the highlighted diff renders, and tearDown's
+        advances (no rollback), the diff renders, and tearDown's
         console-error check guards render-time crashes.
         """
         # 2s budget: this test's client-side swap is the one navigation that
@@ -109,13 +147,13 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         page.get_by_role("link", name="TodoApp/endpoints.py").wait_for(state="visible")
         # Click the file link — a client-side Inertia swap to GitDiff.
         page.get_by_role("link", name="TodoApp/endpoints.py").click()
-        # A rollback would leave the URL on the commit page; assert it advanced.
+        # The URL advances (no rollback), and the diff renders (insert rows +
+        # the ADDED file tag diff2html derives from "new file mode").
         page.wait_for_url(f"**/git/commits/{self.short_b}/TodoApp/endpoints.py")
-        # The diff renders highlighted (hljs spans), not raw text.
-        page.wait_for_selector(".code-diff .hljs-addition")
-        diff = page.locator(".code-diff")
-        self.assertGreater(diff.locator(".hljs-addition").count(), 0)
-        self.assertIn("new file mode", diff.text_content() or "")
+        page.wait_for_selector("[data-split-diff] .d2h-ins")
+        diff = page.locator("[data-split-diff]")
+        self.assertGreater(diff.locator(".d2h-ins").count(), 0)
+        self.assertIn("ADDED", diff.text_content() or "")
 
     def test_commit_navigation(self) -> None:
         """The commits → files → diff link chain works end-to-end.
@@ -132,11 +170,11 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         page.goto(f"{self.live_server_url}/git/commits/{self.short_b}")
         page.get_by_role("link", name="TodoApp/endpoints.py").wait_for(state="visible")
         self.assertIn("Add create endpoint", page.inner_text("body"))
-        # The file's diff renders.
+        # The file's diff renders (insert rows + the ADDED tag for a new file).
         page.goto(f"{self.live_server_url}/git/commits/{self.short_b}/TodoApp/endpoints.py")
-        page.wait_for_selector(".code-diff .hljs-addition")
-        diff_text = page.locator(".code-diff").text_content() or ""
-        self.assertIn("new file mode", diff_text)
+        page.wait_for_selector("[data-split-diff] .d2h-ins")
+        diff_text = page.locator("[data-split-diff]").text_content() or ""
+        self.assertIn("ADDED", diff_text)
         self.assertIn("TodoApp/endpoints.py", diff_text)
 
     def test_non_superuser_404(self) -> None:

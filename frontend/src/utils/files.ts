@@ -33,7 +33,8 @@ export function formatSize(bytes: number): string {
 // Extension → highlight.js language. The frontend is the sole source of truth for
 // which files get syntax highlighting (the backend only classifies
 // text/markdown/image/binary — it knows nothing of highlight.js languages).
-const EXTENSION_TO_LANGUAGE: Record<string, string> = {
+// Exported for the diff2html viewer's highlightLanguages map.
+export const EXTENSION_TO_LANGUAGE: Record<string, string> = {
   py: "python",
   vue: "xml",
   html: "xml",

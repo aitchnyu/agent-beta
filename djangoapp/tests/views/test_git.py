@@ -51,6 +51,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     test_commit_files_deleted — deleted file shows status=deleted
     test_commit_files_unknown — unknown commit → 404
     test_commit_file_diff — file diff in a commit shows the change
+    test_commit_file_diff_root — a root commit's diff goes against the empty tree (all adds)
     test_commit_file_diff_deleted — diff of a deleted file shows the deletion
     test_commit_file_diff_unknown_path — unknown path → 404
     test_uncommitted_path_confinement — .. escape on the main worktree → 404
@@ -195,6 +196,20 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         self.client.get(f"/git/commits/{self.short_b}/TodoApp/app.py")
         self.assertComponentUsed("GitDiff")
         self.assertIn("+    return x", self.props()["props"]["diff"])
+
+    def test_commit_file_diff_root(self) -> None:
+        """A root commit's file diff goes against the empty tree (all adds).
+
+        Regression: git.NULL_TREE passed through repo.git plumbing once
+        stringified to its enum name → `fatal: bad revision` → 500.
+        """
+        self.client.get(f"/git/commits/{self.short_a}/TodoApp/app.py")
+        self.assertComponentUsed("GitDiff")
+        diff = self.props()["props"]["diff"]
+        self.assertIn("+def main():", diff)
+        self.assertIn('+    print("hello")', diff)
+        # Everything is new against the empty tree — no deletion lines.
+        self.assertNotIn("-def main():", diff)
 
     def test_commit_file_diff_deleted(self) -> None:
         """A diff for a file deleted in the commit shows the deletion."""

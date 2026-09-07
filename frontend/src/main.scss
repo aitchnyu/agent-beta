@@ -69,10 +69,67 @@ body {
   color: $gray-400;
 }
 
-// /git uncommitted list: the U/M/A/D status letter left of each filename.
-.git-letter {
+// /git lists: the new/mod/del status word (color-coded via Bootstrap text-*
+// classes) left of each filename, and the secondary link to the file itself.
+.git-status {
   display: inline-block;
-  width: 1.25em;
+  min-width: 2.5em;
   margin-right: 0.5rem;
   font-weight: 600;
+}
+
+.git-file-link {
+  font-size: 0.8rem;
+}
+
+// Diff viewer (SplitDiff.vue → diff2html): one container per outputFormat,
+// side-by-side ≥768px / line-by-line below — CSS-only switching, no resize
+// listeners. diff2html's own CSS arrives with its lazy chunk; the overrides
+// below align its GitHub-ish defaults with the app's type + colors.
+.diff-view {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+[data-sd-side] {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  [data-sd-side] {
+    display: block;
+  }
+
+  [data-sd-unified] {
+    display: none;
+  }
+}
+
+// diff2html adjustments: app monospace stack + the app's red/green row tints.
+.diff-view .d2h-wrapper {
+  font-family: $font-family-monospace;
+  font-size: 0.8rem;
+}
+
+.diff-view .d2h-code-line,
+.diff-view .d2h-code-side-line {
+  font-family: $font-family-monospace;
+}
+
+.diff-view .d2h-ins {
+  background-color: #e6ffec;
+}
+
+.diff-view .d2h-del {
+  background-color: #ffebe9;
+}
+
+.diff-view .d2h-ins.d2h-change,
+.diff-view .d2h-del.d2h-change {
+  background-color: #fff5b1;
+}
+
+.diff-view .d2h-file-diff {
+  // The page provides surrounding chrome; keep the inner table tight.
+  margin: 0;
 }

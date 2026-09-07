@@ -9,13 +9,22 @@
         v-for="f in wt.files"
         :key="f.path"
         class="d-flex align-items-baseline"
-        :class="statusClass(f.status)"
       >
-        <code class="git-letter">{{ statusLetter(f.status) }}</code>
+        <code class="git-status" :class="statusClass(f.status)">{{
+          statusWord(f.status)
+        }}</code>
         <Link
-          :class="statusClass(f.status)"
+          :class="{ 'text-decoration-line-through': f.status === 'deleted' }"
           :href="`/git/uncommitted/${wt.name}/${f.path}`"
           ><code>{{ f.path }}</code></Link
+        >
+        <!-- No "file" link for deleted paths — the file no longer exists and
+             /files/<worktree>/<path> would 404. -->
+        <Link
+          v-if="f.status !== 'deleted'"
+          class="git-file-link ms-2"
+          :href="fileUrl(`${wt.name}/${f.path}`)"
+          >file</Link
         >
       </li>
     </ul>
@@ -29,6 +38,7 @@ import { Link } from "@inertiajs/vue3"
 import GitNav from "../components/GitNav.vue"
 import PageTitle from "../components/PageTitle.vue"
 import { GitUncommittedPropsSchema } from "../schemas"
+import { fileUrl } from "../utils/files"
 
 const props = defineProps<{ props: object }>()
 const data = GitUncommittedPropsSchema.parse(props.props)
@@ -43,26 +53,27 @@ const sections = computed(() => {
   return list
 })
 
-// U/M/A/D to the left of the path — git-status style.
-function statusLetter(status: string): string {
+// new/mod/del + colors to the left of the path — the backend statuses
+// (untracked|added|modified|deleted) map here, not in the API: untracked and
+// added are both "new". del keeps the filename strikethrough.
+function statusWord(status: string): string {
   switch (status) {
     case "untracked":
-      return "U"
-    case "modified":
-      return "M"
     case "added":
-      return "A"
+      return "new"
+    case "modified":
+      return "mod"
     case "deleted":
-      return "D"
+      return "del"
     default:
       return "?"
   }
 }
 
-// Untracked → grey, deleted → strikethrough, added/modified → black (default).
 function statusClass(status: string): string {
-  if (status === "untracked") return "text-muted"
-  if (status === "deleted") return "text-decoration-line-through"
+  if (status === "untracked" || status === "added") return "text-success"
+  if (status === "modified") return "text-warning"
+  if (status === "deleted") return "text-danger"
   return ""
 }
 </script>

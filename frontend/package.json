@@ -38,6 +38,7 @@
     "@inertiajs/core": "^3.6.1",
     "@inertiajs/vue3": "^3.6.0",
     "bootstrap": "^5.3.8",
+    "diff2html": "^3.4.56",
     "dompurify": "^3.4.12",
     "highlight.js": "^11.11.1",
     "ky": "^2.0.2",

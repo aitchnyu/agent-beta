@@ -217,5 +217,11 @@ def diff_commit(commit_id: str, path: str) -> str | None:
         return None
     if not any(f.path == path for f in _commit_files(c)):
         return None
-    parent = c.parents[0].hexsha if c.parents else git.NULL_TREE
+    # Root commits (no parents) diff against the empty tree. Pass its fixed
+    # SHA-1 hash, NOT git.NULL_TREE — that's a Diffable-API sentinel (fine in
+    # c.diff(git.NULL_TREE) above) which stringifies to its enum name through
+    # the repo.git plumbing call here (`fatal: bad revision`). SHA-1 repos
+    # only — an objectFormat=sha256 repo would need the empty tree derived
+    # per repo (every repo this app serves, fixtures included, is SHA-1).
+    parent = c.parents[0].hexsha if c.parents else "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
     return cast("str", repo.git.diff(parent, c.hexsha, "--", path))
