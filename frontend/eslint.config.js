@@ -39,6 +39,16 @@ export default defineConfigWithVueTs(
     },
   },
   {
+    // Node-side scripts (build config) — node globals.
+    files: ["eslint.config.js", "vite.config.js"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+      },
+    },
+  },
+  {
     ignores: ["dist/**", "node_modules/**"],
   },
   prettierConfig,

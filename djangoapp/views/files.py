@@ -1,8 +1,10 @@
 """Superuser-only read-only file browser over the project tree at ``/files/...``.
 
 Directories list their entries (folders first); files preview as text or render
-as images; any file can be downloaded (``/files/download/...``) or served raw
-(``/files/raw/...``, used for ``<img>``). The browse root is ``BASE_DIR.parent``
+as images; any file can be downloaded (``/files/download/...``), while raw
+byte serving (``/files/raw/...``, used for ``<img>``) is images-only — it is
+an inline same-origin endpoint, so the image gate (plus a sandbox CSP) is its
+boundary. The browse root is ``BASE_DIR.parent``
 (the folder holding both ``main/`` and ``scratch/``); the "Files" nav button lands
 at ``main/ourapp/`` and you can navigate up to that parent (to browse ``scratch/``)
 but no further. Path traversal (``..``, absolute paths, symlink escapes) is
@@ -95,10 +97,17 @@ class PathWrapper:
 
     def __init__(self, rel: str) -> None:
         normalized = (rel or "").strip().rstrip("/")
-        path = (_REPO_ROOT / normalized).resolve()
+        try:
+            path = (_REPO_ROOT / normalized).resolve()
+            exists = path.exists()
+        except ValueError:
+            # pathlib raises on paths the OS can't express — e.g. an embedded
+            # NUL from a percent-decoded %00. Any client-generated URL shape
+            # must land in 404, never a 500.
+            raise Http404 from None
         if path != _REPO_ROOT and not path.is_relative_to(_REPO_ROOT):
             raise Http404
-        if not path.exists():
+        if not exists:
             raise Http404
         self.rel = normalized
         self.path = path
@@ -228,13 +237,23 @@ def file_raw(request: HttpRequest, rel: str) -> FileResponse:
     Used by ``<img>`` (and other media). Inline, not an attachment. Restricted to
     images: this endpoint serves bytes in the app's authenticated origin, so a
     non-image (e.g. ``evil.html`` → ``text/html``) would be a same-origin
-    stored-XSS sink. The image-only gate — not CSP — is the boundary.
+    stored-XSS sink. The image-only gate — not CSP — is the boundary for
+    document formats.
+
+    Every response also carries ``Content-Security-Policy: sandbox``: CSP on a
+    subresource response is ignored by spec, so ``<img>`` rendering is
+    unaffected — but a TOP-LEVEL navigation to any raw URL (clicking a link;
+    SVG executes scripts as a document, future formats unknown) lands in a
+    null-origin, scriptless, formless document. Uniform defense, no per-mime
+    audit when _IMAGE_EXTENSIONS grows.
     """
     require_superuser(request)
     target = PathWrapper(rel)
     if not target.is_image():
         raise Http404
-    return _serve(target, attachment=False, content_type=target.mime())
+    response = _serve(target, attachment=False, content_type=target.mime())
+    response.headers["Content-Security-Policy"] = "sandbox"
+    return response
 
 
 @files_router.get("/download/{path:rel}", response=None)

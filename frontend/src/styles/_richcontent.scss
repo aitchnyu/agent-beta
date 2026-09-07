@@ -1,47 +1,20 @@
-// Rich-content marker styles (rendered inside sanitized HTML by
-// RichTextViewer.vue). The names are rich-*: these blocks predate the
-// opencode chat UI (originally _opencode.scss) and outlived it — they style
-// agent-authored mockups/diagrams wherever RichTextViewer is used
-// (UserDetails, UserHistory, FileViewer).
+// Rendered-diagram styles (the .rich-diagram divs RichTextViewer.vue swaps
+// in for ```mermaid fences). The name is rich-*: this file predates the
+// mockup/diagram HTML markers and outlived them — it now styles rendered
+// diagrams wherever RichTextViewer is used (UserDetails, UserHistory,
+// FileViewer's markdown view).
 @use "variables" as *;
 
-// Design-phase Bootstrap page mockup. View-only: controls are neutered at
-// render (disabled, no href/action) — this box just frames the preview and
-// keeps wide layouts from blowing out the column.
-.rich-mockup {
-  margin: 0.75rem 0;
-  padding: 0.75rem;
-  // Solid gray border — reads as a UI panel, distinct from the dashed
-  // schematic .rich-diagram.
-  border: 1px solid $gray-300;
-  border-radius: $radius-md;
-  background-color: #fff;
-  overflow-x: auto;
-
-  // Neutered controls render slightly faded so it reads as a preview, not
-  // live.
-  button,
-  input,
-  select,
-  textarea {
-    &[disabled] {
-      opacity: 0.65;
-    }
-  }
-}
-
-// Design-phase Mermaid diagram. Until the SVG swaps in (and on parse error)
+// A rendered Mermaid diagram. Until the SVG swaps in (and on parse error)
 // the raw source shows as plain text; center the rendered SVG and let wide
-// diagrams scroll rather than shrink legibility.
+// diagrams scroll rather than shrink legibility. No background — the SVG is
+// transparent and sits on the page's own surface; simple gray border.
 .rich-diagram {
   margin: 0.75rem 0;
   padding: 0.75rem;
   text-align: center;
   overflow-x: auto;
-  // Dashed blue border + faint tint — reads as a schematic, distinct from
-  // the solid-gray .rich-mockup UI panel.
-  background-color: $indigo-50;
-  border: 2px dashed $blue-500;
+  border: 1px solid $gray-300;
   border-radius: $radius-md;
 
   svg {

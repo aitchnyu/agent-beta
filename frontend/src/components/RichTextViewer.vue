@@ -29,36 +29,33 @@ const sanitizedHtml = computed(() => {
   return sanitizeHtml(source)
 })
 
-// `.rich-mockup` holds view-only Bootstrap markup: strip every link/form
-// action and disable all controls so the preview can't navigate or submit.
-function neuterMockups(el: HTMLElement) {
-  for (const box of el.querySelectorAll<HTMLElement>(".rich-mockup")) {
-    box.querySelectorAll("a").forEach((a) => a.removeAttribute("href"))
-    box.querySelectorAll("form").forEach((f) => f.removeAttribute("action"))
-    box
-      .querySelectorAll("button, input, select, textarea")
-      .forEach((c) => ((c as HTMLInputElement).disabled = true))
-  }
-}
-
-// `.rich-diagram` holds raw Mermaid source; render it to SVG lazily. Mark
-// the node so a re-run over the same DOM (onUpdated) doesn't kick off a second
-// render; Vue replaces innerHTML wholesale on each change, so new content is
-// always fresh and gets rendered once.
+// ```mermaid fenced code blocks render to SVG lazily: each <pre> is swapped
+// for a .rich-diagram div carrying the SVG (or, on parse failure, the raw
+// source styled .rich-diagram-error). The swap is synchronous, so re-runs
+// over the same DOM (the sanitizedHtml watcher below) never double-render;
+// Vue replaces innerHTML wholesale on each change, so new content always
+// gets rendered once.
 function renderDiagrams(el: HTMLElement) {
-  for (const node of el.querySelectorAll<HTMLElement>(".rich-diagram")) {
-    if (node.dataset.richRendered) continue
-    const source = (node.textContent ?? "").trim()
+  for (const code of el.querySelectorAll<HTMLElement>(
+    "pre > code.language-mermaid",
+  )) {
+    const pre = code.parentElement
+    if (!(pre instanceof HTMLPreElement) || pre.dataset.richRendered) continue
+    const source = (code.textContent ?? "").trim()
     if (!source) continue
-    node.dataset.richRendered = "1"
+    pre.dataset.richRendered = "1"
+    const div = document.createElement("div")
+    div.className = "rich-diagram"
+    pre.replaceWith(div)
     renderDiagram(source)
       .then((svg) => {
-        node.innerHTML = svg
+        div.innerHTML = svg
       })
       .catch(() => {
-        // Leave the raw source visible (it already reads as plain text) and flag
-        // the failure so the stylesheet can deemphasize it.
-        node.classList.add("rich-diagram-error")
+        // Leave the raw source visible (plain text reads fine) and flag the
+        // failure so the stylesheet can deemphasize it.
+        div.classList.add("rich-diagram-error")
+        div.textContent = source
       })
   }
 }
@@ -66,7 +63,6 @@ function renderDiagrams(el: HTMLElement) {
 function enrich() {
   const el = root.value
   if (!el) return
-  neuterMockups(el)
   renderDiagrams(el)
 }
 

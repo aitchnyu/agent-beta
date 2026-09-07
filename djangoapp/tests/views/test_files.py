@@ -38,7 +38,12 @@ class FilesViewTests(BaseInertiaTestCase):
     - test_download_returns_attachment, /files/download → attachment, octet-stream
     - test_download_traversal_404 / test_download_non_superuser_404, download gating
     - test_raw_serves_image_inline_with_content_type, /files/raw → inline, image Content-Type
+    - test_raw_responses_sandboxed, every /files/raw response → Content-Security-Policy: sandbox
     - test_raw_non_image_404 / test_raw_traversal_404, raw is <img>-only (non-image/escape → 404)
+    - test_hostile_paths_404, traversal matrix (encoded/mixed/backslash/NUL forms) —
+      PathWrapper confinement is the server-side boundary for any client-generated URL
+    - test_code_file_is_text_kind, .py classified as text (not markdown)
+    - test_markdown_file_classified, .md classified as markdown
     """
 
     superuser: ClassVar[User]
@@ -154,6 +159,36 @@ class FilesViewTests(BaseInertiaTestCase):
             self.assertNotIn("attachment", resp.headers.get("Content-Disposition", ""))
             self.assertEqual(resp.headers.get("Content-Type"), "image/png")
 
+    def test_raw_responses_sandboxed(self) -> None:
+        """Every /files/raw response carries Content-Security-Policy: sandbox.
+
+        CSP on a subresource is ignored by spec, so <img> rendering is
+        unaffected — the header exists for TOP-LEVEL navigation (SVG
+        executes scripts as a document; future image formats unknown),
+        which lands in a null-origin, scriptless document instead.
+        """
+        self.client.force_login(self.superuser)
+        with (
+            tempfile.TemporaryDirectory() as d,
+            patch.object(files_view, "_REPO_ROOT", Path(d).resolve()),
+        ):
+            (Path(d) / "diagram.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+            )
+            (Path(d) / "pic.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+            for name, content_type in [
+                ("diagram.svg", "image/svg+xml"),
+                ("pic.png", "image/png"),
+            ]:
+                with self.subTest(name=name):
+                    resp = self.client.get(f"/files/raw/{name}")
+                    self.assertEqual(resp.status_code, HTTPStatus.OK)
+                    self.assertEqual(resp.headers.get("Content-Type"), content_type)
+                    self.assertEqual(
+                        resp.headers.get("Content-Security-Policy"),
+                        "sandbox",
+                    )
+
     def test_raw_non_image_404(self) -> None:
         """/files/raw 404s for non-image files (raw is <img>-only)."""
         self.client.force_login(self.superuser)
@@ -168,6 +203,34 @@ class FilesViewTests(BaseInertiaTestCase):
         self.assertEqual(
             self.client.get("/files/raw/../etc/passwd").status_code, HTTPStatus.NOT_FOUND
         )
+
+    def test_hostile_paths_404(self) -> None:
+        """Whatever the client generates, the server confines it to the repo.
+
+        The markdown URL rewriter deliberately does no client-side
+        confinement (operator decision): hrefs/srcs are built by string
+        concatenation and the browser may normalize dot segments, percent-
+        decode, or send forms verbatim. PathWrapper's resolve()-and-confine
+        is the single boundary — this matrix proves every hostile shape that
+        still arrives under /files/ 404s instead of escaping the repo root.
+        """
+        self.client.force_login(self.superuser)
+        hostile = [
+            "/files/raw/main/../../etc/passwd",
+            "/files/raw/main/%2e%2e/%2e%2e/etc/passwd",  # percent-encoded dots
+            "/files/raw/main/%252e%252e/etc/passwd",  # double-encoded stays literal
+            "/files/raw/main/..%2f..%2fetc/passwd",  # mixed literal/encoded
+            "/files/raw/main/sub/../../../etc/passwd",
+            "/files/raw/main/..\\..\\etc\\passwd",  # backslash separators
+            "/files/raw//etc/passwd",  # collapsed leading slashes
+            "/files/raw/main/./.././../etc/passwd",  # interleaved dot segments
+            "/files/raw/%00",  # NUL byte
+            "/files/main/../../settings.py",  # browse route, not just raw
+            "/files/raw/main/../../etc/passwd?x=1#frag",  # with query/fragment
+        ]
+        for url in hostile:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, HTTPStatus.NOT_FOUND)
 
     def test_code_file_is_text_kind(self) -> None:
         """A .py file returns kind=text (language detection is frontend-side)."""

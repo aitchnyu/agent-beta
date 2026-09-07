@@ -1,10 +1,13 @@
-How to notify by sound?
-Paste images
+When I view md file, I want to see outline of headlines in the top. It should expand if more than 300px.
 
-Outline of md files
-raw=true?
-hash links in md view dont work
-https://daverupert.com/2026/08/microlighter/ - use native mermaid, no need of html in md
+Hash links in md view doesnt work, ensure those links are rendered correctly. Same for links to other files.
+
+Have tests for all of these.
+
+We had mockups and mermaid in md using html classes. Now render mermaid using ```mermaid``` markup and ensure it renders
+
+We used to have this:
+
 <div class="rich-diagram">
 ```stateDiagram-v2
     [*] --> pending : generated from the schedule
@@ -13,23 +16,31 @@ https://daverupert.com/2026/08/microlighter/ - use native mermaid, no need of ht
     completed --> [*]
 ```
 </div>
-use the HTML-safe lookalikes `‹` `›` `∧`
-Git: link to real filename, double diff
 
-U ourapp/tests/test_chores_playwright.py
+Steer also has messages like: use the HTML-safe lookalikes `‹` `›` `∧`
 
-`Security & data access` and `Authoritative docs`
+We will no longer have html in markdown for mockup and mermaid.
+
+Git uncommitted files and commit viewer will link to file url
+Diffs will be rendered in two panes or one pane depending on viewport width
+
+Also is U the symbol for new file as in `U ourapp/tests/test_chores_playwright.py`. Have new, mod, del next to filenames with color coding
+
+---------
+We have `Security & data access` and `Authoritative docs` section in steer. Move the content to elsewhere.
+
+In models checklist in steer, ensure we use DecimalField for money.
+
+I see this function used:
+multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
+    app .venv/bin/python manage.py promotetosuperuser <email>
+Rename to run-as-app
 
 Unhelpful command:
 ```
 multipass shell app
 sudo -u agent -H bash -l
 ```
-
-Avoid this app fn?
-multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
-    app .venv/bin/python manage.py promotetosuperuser <email>
-
 --------------
 Prevent overwrites of deployed stuff.
 
@@ -42,14 +53,6 @@ Test with changing site theme. Generate color schemes. Then try to upgrade to po
 --------
 
 Switch to Debian for lower memory usage? Multipass is for Ubuntu.
-
-Accelerate file serving with Caddy - have FileResponse - test with checkframework2
-Redis size?
-../djangoapp/static/djangoapp/assets/rolldown-runtime-QTnfLwEv.js      0.69 kB │ gzip:   0.42 kB
-These requests not in a page that needs mermaid:
-https://app.local/static/djangoapp/assets/mermaid-core-CVHOu6Nn.js
-https://app.local/static/djangoapp/assets/mermaid-uncommon-BQPmhl13.js
-Decimal fields for money
 
 apply --3way merges with `./run importtemplate <github-url> <tag>` 
 import from git repo tags?
@@ -82,3 +85,5 @@ Model logs should store FK name, link, url and M2M changes too
 Whitelist services for outbound connections
 Have a real tui to manage users?
 Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH. Obscura for tests?
+Accelerate file serving with Caddy - have FileResponse - test with checkframework2
+Redis and db memory usage?

@@ -405,13 +405,8 @@ links in chat immediately after each deploy via
   it in chat as `/files/main/ourapp/docs/<feature>.md`). Write the mermaid
   **`erDiagram`** whenever models / DB tables come up (entities, fields, FKs,
   ownership — one field per line as `type name`) and a **`stateDiagram-v2`**
-  for any lifecycle, inside `<div class="rich-diagram">…</div>` markers —
-  the doc viewer renders them. Marker formatting: each block on its own lines
-  with **no indentation and no blank lines inside it** (marked treats the
-  marker as a raw-HTML block; indenting or a blank line splits it and
-  corrupts the content), a **bold title** line immediately above, and no
-  `<`, `>`, `&` in labels — use the HTML-safe lookalikes `‹` `›` `∧`
-  instead.
+  for any lifecycle, as \`\`\`mermaid fenced code blocks — the doc viewer
+  renders them.
 - **Mockups — static pages under `/mockup-…`.** Build each mockup as a
   REAL Vue page at a THROWAWAY URL (`/mockup-chores`, …) following the
   normal conventions (route in `ourapp/views/<feature>.py` registered in

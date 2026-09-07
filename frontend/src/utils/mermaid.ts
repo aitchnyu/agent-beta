@@ -1,11 +1,11 @@
 // Lazy Mermaid rendering for `.rich-diagram` blocks. Mermaid is large
-// (~2.5 MB), so it is dynamically imported on first use and stays a separate
+// (3+ MB), so it is dynamically imported on first use and stays a separate
 // chunk out of the main bundle. The module-level promise caches both the import
 // and the one-time initialize(), so repeated diagrams pay the cost only once.
 //
-// securityLevel "strict" makes Mermaid strip raw HTML from labels (labels
-// already avoid <>& per steer.md) and disables click bindings, keeping diagrams
-// view-only and safe inside sanitized HTML.
+// securityLevel "strict" is the protection: Mermaid runs every label through
+// its own sanitizer (strips raw HTML incl. <>&-crafted markup) and disables
+// click bindings — diagrams stay view-only inside the rendered markdown.
 import type { Mermaid } from "mermaid"
 
 let mermaidPromise: Promise<Mermaid> | null = null

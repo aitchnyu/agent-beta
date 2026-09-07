@@ -2,8 +2,8 @@
 import { computed, onMounted, ref } from "vue"
 import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../components/HumanizedTime.vue"
+import MarkdownView from "../components/MarkdownView.vue"
 import PageTitle from "../components/PageTitle.vue"
-import RichTextViewer from "../components/RichTextViewer.vue"
 import { FileViewerPropsSchema } from "../schemas"
 import {
   detectLanguage,
@@ -14,18 +14,19 @@ import {
 } from "../utils/files"
 
 const props = defineProps<{ props: object }>()
+// Parsed once, non-reactively: file→file navigation is always a full page
+// load in this app (v-html anchors aren't Inertia links), so the component
+// never receives new props in place. Inertia re-keys the page component on
+// every visit, remounting this with fresh props.
 const p = FileViewerPropsSchema.parse(props.props)
 
 // A text file renders as syntax-highlighted code when its extension maps to a
 // highlight.js language; otherwise it's plain text. Detection is frontend-only.
 const codeLang = p.kind === "text" ? detectLanguage(p.name) : undefined
 
+// Code previews fill asynchronously (lazy filePreview chunk); MarkdownView
+// flips this via its `rendered` emit. Text/image/binary render synchronously.
 const rendered = ref("")
-// Markdown source shown below the rendered view (highlighted).
-const raw = ref("")
-
-// Flips when the lazy filePreview chunk has filled rendered/raw. Markdown and
-// code previews fill asynchronously; text/image/binary render synchronously.
 const previewReady = ref(false)
 // Component state for tests (wait on [data-files-state="rendered"] instead of
 // polling content magic strings) and a11y (aria-busy while still empty).
@@ -36,14 +37,10 @@ const filesState = computed(() =>
 )
 
 onMounted(async () => {
+  if (!codeLang) return
   // filePreview (hljs/marked) is a lazy chunk; it resolves on first visit.
-  const { highlightCode, renderMarkdown } = await import("../utils/filePreview")
-  if (p.kind === "markdown") {
-    rendered.value = renderMarkdown(p.text, p.rel)
-    raw.value = highlightCode(p.text, "markdown")
-  } else if (codeLang) {
-    rendered.value = highlightCode(p.text, codeLang)
-  }
+  const { highlightCode } = await import("../utils/filePreview")
+  rendered.value = highlightCode(p.text, codeLang)
   previewReady.value = true
 })
 </script>
@@ -73,18 +70,15 @@ onMounted(async () => {
         >Download</a
       >
     </div>
-    <!-- Markdown: a deemphasized link to the raw source, then the rendered HTML,
-           then the raw source (highlighted) as the scroll target. -->
-    <template v-if="p.kind === 'markdown'">
-      <p class="files-raw-link">
-        <a href="#files-raw-source">↓ View raw source</a>
-      </p>
-      <RichTextViewer class-name="files-markdown" :html="rendered" />
-      <pre
-        id="files-raw-source"
-        class="files-code files-raw-source"
-      ><code class="hljs language-markdown" v-html="raw"></code></pre>
-    </template>
+    <!-- Markdown: the whole preview (outline, rendered HTML, raw source) lives
+            in MarkdownView; it flips this page's files-state via `rendered`. -->
+    <MarkdownView
+      v-if="p.kind === 'markdown'"
+      :key="p.rel"
+      :text="p.text"
+      :rel="p.rel"
+      @rendered="previewReady = true"
+    />
     <!-- Code: language detected from extension; highlight.js output is escaped. -->
     <pre
       v-else-if="codeLang"

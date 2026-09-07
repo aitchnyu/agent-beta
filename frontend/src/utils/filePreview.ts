@@ -23,6 +23,7 @@ import { marked } from "marked"
 import { markedHighlight } from "marked-highlight"
 
 import { sanitizeHtml } from "./html"
+import { assignHeadingIds } from "./markdown"
 
 for (const [name, def] of [
   ["python", python],
@@ -49,6 +50,12 @@ for (const [name, def] of [
   hljs.registerLanguage(name, def)
 }
 
+/** The configured hljs instance (languages registered above) — shared with the
+ *  diff2html viewer (Diff2HtmlUI-base takes an external highlighter). */
+export function getHighlighter() {
+  return hljs
+}
+
 marked.use(
   markedHighlight({
     langPrefix: "hljs language-",
@@ -60,13 +67,15 @@ marked.use(
   }),
 )
 
-/** Render markdown to sanitized HTML, rewriting relative image src → /files/raw/. */
+/** Render markdown to sanitized HTML with deduped heading ids (in-page #hash
+ *  + outline targets), rewriting relative image src and a href → /files/raw/
+ *  and /files/ respectively. */
 export function renderMarkdown(
   markdownText: string,
   markdownRelPath: string,
 ): string {
   const html = marked.parse(markdownText, { async: false }) as string
-  return sanitizeHtml(html, { rewriteImagesFrom: markdownRelPath })
+  return assignHeadingIds(sanitizeHtml(html, { resolveFrom: markdownRelPath }))
 }
 
 /** Highlight a whole code file; returns sanitized inner HTML (span tokens).
@@ -74,9 +83,4 @@ export function renderMarkdown(
 export function highlightCode(code: string, language: string): string {
   const lang = hljs.getLanguage(language) ? language : "plaintext"
   return sanitizeHtml(hljs.highlight(code, { language: lang }).value)
-}
-
-/** Highlight a unified diff (the `diff` grammar: + / - / @@ lines). Sanitized. */
-export function highlightDiff(diff: string): string {
-  return sanitizeHtml(hljs.highlight(diff, { language: "diff" }).value)
 }
