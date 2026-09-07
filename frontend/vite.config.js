@@ -1,56 +1,24 @@
-import fs from "node:fs"
 import { defineConfig } from "vite"
 import vue from "@vitejs/plugin-vue"
 
-// Split Mermaid into two lazy chunks
-// mermaid-core — the entry + shared internals + ER/state diagrams + dagre/d3 layout engine
-// mermaid-uncommon  — every other diagram type + cytoscape/katex/roughjs...
-// Tests match by module path; priority resolves overlaps (core > uncommon).
-function mermaidDeps() {
-  const pkgJson = (name) => {
-    try {
-      return JSON.parse(
-        fs.readFileSync(`node_modules/${name}/package.json`, "utf8"),
-      )
-    } catch {
-      return null
-    }
-  }
-  const seen = new Set()
-  const out = new Set()
-  const stack = ["mermaid"]
-  while (stack.length) {
-    const name = stack.pop()
-    if (seen.has(name)) continue
-    seen.add(name)
-    const pj = pkgJson(name)
-    if (!pj) continue
-    out.add(name)
-    for (const dep of Object.keys(pj.dependencies ?? {})) stack.push(dep)
-  }
-  // Shared with the app — keep out of the mermaid chunks.
-  out.delete("marked")
-  out.delete("dompurify")
-  return out
-}
-const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-const mermaidRelated = new RegExp(
-  `node_modules[\\\\/](${[...mermaidDeps()].map(esc).join("|")})([\\\\/]|$)`,
-)
-const baseName = (id) => {
-  const parts = id.split(/[\\/]/)
-  return parts[parts.length - 1]
-}
-// Core: the dagre/d3 layout engine, plus the mermaid package's internals and the
-// ER/state diagram modules (the only diagrams this app uses). Rare diagram
-// modules (pie/sequence/gantt/…) are mermaid/dist files whose name carries
-// "Diagram" and aren't ER/state, so they fall through to uncommon.
-const isCore = (id) => {
-  if (/node_modules[\\/](dagre-d3-es|d3|d3-[a-z-]+)[\\/]/.test(id)) return true
-  if (!/node_modules[\\/]mermaid[\\/]dist[\\/]/.test(id)) return false
-  const name = baseName(id)
-  return !/Diagram-/.test(name) || /^erDiagram-|^stateDiagram(-v2)?-/.test(name)
-}
+// One lazy mermaid bundle + one small eager shared chunk:
+//   mermaid — mermaid + its exclusive engines (d3/dagre layout, cytoscape,
+//     katex, roughjs, …) in a SINGLE chunk that loads on the first diagram
+//     render; utils/mermaid.ts's `import("mermaid")` is the lazy boundary.
+//   vendor-shared — packages and bundler helpers that BOTH the entry and
+//     mermaid need (dompurify, lodash-*, dayjs, es-toolkit, khroma, …, plus
+//     vite's preload helper). Rolldown assigns a module to exactly one
+//     chunk, and whenever a module the entry needs is captured by (or parked
+//     inside) the mermaid chunk, main.js gains a STATIC import edge into the
+//     whole 3+ MB bundle — the regression that keeps returning. This group
+//     is the pressure valve: those modules live in a small chunk the entry
+//     imports directly, and mermaid imports it lazily like everyone else.
+// test_files.py pins the outcome: a page without diagrams requests no
+// mermaid-* chunk at all.
+const MERMAID_BUNDLE =
+  /node_modules[\\/](mermaid|@mermaid-js|@braintree|@iconify|@upsetjs|cytoscape|cytoscape-[a-z-]+|cose-base|layout-base|dagre-d3-es|d3|d3-[a-z-]+|internmap|katex|roughjs)[\\/]/
+const VENDOR_SHARED =
+  /node_modules[\\/](dompurify|lodash-es|lodash\.isequal|dayjs|es-toolkit|khroma|stylis|ts-dedent|uuid)[\\/]|vite[/\\]preload-helper/
 
 export default defineConfig({
   plugins: [vue()],
@@ -70,7 +38,7 @@ export default defineConfig({
   build: {
     outDir: "../djangoapp/static/djangoapp",
     sourcemap: true,
-    emptyOutDir: true, // outDir lives outside the frontend root, tell Vite toclean up old artifacts
+    emptyOutDir: true, // outDir lives outside the frontend root, tell Vite to clean up old artifacts
     // Emit .vite/manifest.json mapping logical entry names to the hashed
     // output files; djangoapp.templatetags.app_static reads it to resolve
     // main.js/main.css in templates.
@@ -86,13 +54,10 @@ export default defineConfig({
         // createInertiaApp boot rolls swaps back). Templates resolve both
         // entry files via .vite/manifest.json (hashed_entry filter).
         entryFileNames: "main-[hash].js",
-        // Two Mermaid chunks: core (entry+shared+ER/state+dagre/d3) loads on
-        // first diagram render; uncommon (rare diagrams+cytoscape/katex/roughjs)
-        // loads only if a rare type renders (never, for us). See helpers above.
         codeSplitting: {
           groups: [
-            { name: "mermaid-core", test: isCore, priority: 2 },
-            { name: "mermaid-uncommon", test: mermaidRelated, priority: 1 },
+            { name: "vendor-shared", test: VENDOR_SHARED, priority: 2 },
+            { name: "mermaid", test: MERMAID_BUNDLE, priority: 1 },
           ],
         },
       },

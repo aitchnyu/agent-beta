@@ -6,6 +6,10 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>{% block title %}Instant{% endblock %}</title>
         <link rel="stylesheet" href="{{ '/static/djangoapp/main.css'|hashed_entry }}">
+        {# The entry's static imports (runtime + shared chunk), preloaded to fetch in parallel with main.js. #}
+        {% for preload in '/static/djangoapp/main.js'|entry_preloads %}
+            <link rel="modulepreload" href="{{ preload }}">
+        {% endfor %}
         {% block inertia_head %}{% endblock %}
         {% block head_extra %}{% endblock %}
     </head>

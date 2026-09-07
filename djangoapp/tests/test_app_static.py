@@ -1,11 +1,11 @@
-"""Unit tests for the ``hashed_entry`` template filter (djangoapp.templatetags.app_static).
+"""Unit tests for the hashed_entry/entry_preloads template filters.
 
-The filter resolves the page's entry JS/CSS to their content-hashed build
-names from Vite's ``.vite/manifest.json`` — the pipeline that replaced the
-mtime query-string buster (a query on the ES-module entry URL made the
-browser execute main.js twice; see frontend/vite.config.js). These tests pin
-each resolution path against a synthetic manifest so they don't depend on
-the repo's built artifacts: ``finders.find`` is patched to the fixture
+``hashed_entry`` resolves the page's entry JS/CSS to their content-hashed
+build names from Vite's ``.vite/manifest.json``; ``entry_preloads`` lists the
+entry's static-import chunks for ``<link rel=modulepreload>`` (parallel
+fetch with main.js; dynamic imports stay lazy). These tests pin each
+resolution path against a synthetic manifest so they don't depend on the
+repo's built artifacts: ``finders.find`` is patched to the fixture
 (otherwise the app-static finder would resolve the repo's real manifest).
 """
 
@@ -51,6 +51,13 @@ _VALID_MANIFEST: dict[str, dict[str, object]] = {
 def _render(url: str) -> str:
     template = Template('{% load app_static %}{{ "' + url + '"|hashed_entry }}')
     return template.render(Context())
+
+
+def _render_preloads(url: str) -> list[str]:
+    template = Template(
+        '{% load app_static %}{% for href in "' + url + '"|entry_preloads %}{{ href }} {% endfor %}'
+    )
+    return template.render(Context()).split()
 
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
@@ -130,3 +137,68 @@ class HashedEntryTests(SimpleTestCase):
             self.assertEqual(
                 _render("/static/djangoapp/main.js"), "/static/djangoapp/main-new789.js"
             )
+
+    def test_preloads_list_entry_static_imports(self) -> None:
+        """entry_preloads resolves the entry's static-import chunk URLs.
+
+        The build (rolldown — the bundler vite uses) splits the app into an
+        entry (``main-*.js``) plus chunks. A module-level ``import`` in the
+        entry means the browser can't even START fetching that chunk until
+        main.js has downloaded and parsed — a serial round trip per hop.
+        The filter turns each such chunk into a ``<link rel=modulepreload>``
+        URL so the HTML starts the fetch in parallel with main.js.
+        """
+        with self._patch_find(json.dumps(_VALID_MANIFEST)):
+            self.assertEqual(
+                _render_preloads("/static/djangoapp/main.js"),
+                ["/static/djangoapp/assets/rolldown-runtime-x.js"],
+            )
+
+    def test_preloads_skip_unknown_and_dynamic_imports(self) -> None:
+        """Chunks only reachable via dynamic import() are never preloaded.
+
+        Two rolldown-manifest quirks make "the entry's ``imports`` field" the
+        WRONG list to preload blindly: (a) it also lists chunks the code
+        loads via dynamic ``import()`` — preloading those would eagerly fetch
+        the multi-megabyte mermaid chunks the app works hard to keep lazy;
+        (b) laziness is transitive — a chunk can appear in the entry's
+        ``imports`` yet only ever load at runtime through ANOTHER chunk's
+        ``dynamicImports`` (mermaid-uncommon is like this: listed on the
+        entry, actually loaded by mermaid-core). The filter drops both
+        kinds: anything named under any record's ``dynamicImports`` is out.
+        """
+        manifest = {
+            **_VALID_MANIFEST,
+            "src/main.ts": {
+                **_VALID_MANIFEST["src/main.ts"],
+                "imports": [
+                    "_gone.js",
+                    "_rolldown-runtime-x.js",
+                    "src/utils/filePreview.ts",
+                    "_transitively-lazy.js",
+                ],
+            },
+            # _transitively-lazy: imported by the entry, but only reachable
+            # dynamically through the runtime chunk's dynamicImports.
+            "_rolldown-runtime-x.js": {
+                **_VALID_MANIFEST["_rolldown-runtime-x.js"],
+                "dynamicImports": ["_transitively-lazy.js"],
+            },
+            "_transitively-lazy.js": {
+                "file": "assets/transitively-lazy.js",
+                "name": "transitively-lazy",
+            },
+        }
+        with self._patch_find(json.dumps(manifest)):
+            self.assertEqual(
+                _render_preloads("/static/djangoapp/main.js"),
+                ["/static/djangoapp/assets/rolldown-runtime-x.js"],
+            )
+
+    def test_preloads_missing_manifest_empty(self) -> None:
+        """No manifest (frontend never built) → no preload links, not a 500.
+
+        Matches hashed_entry's fallback posture: degrade to plain URLs.
+        """
+        with self._patch_find(None):
+            self.assertEqual(_render_preloads("/static/djangoapp/main.js"), [])
