@@ -69,6 +69,50 @@ body {
   color: $gray-400;
 }
 
+// Changed-files tree (FileTree.vue on the git pages): each nesting level
+// draws its own guide rail (border-left on the nested list), so depth reads
+// as lines — no counting indents.
+.file-tree ul {
+  padding-left: 0.75rem;
+  margin-left: 0.5rem;
+  border-left: 1px solid $gray-300;
+}
+
+.git-folder {
+  margin: 0.15rem 0;
+}
+
+// The folder row is a button (fold/unfold). Unstyled to read like the label
+// it replaces: full-strength name, muted count, rotating caret.
+.git-folder-toggle {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: $font-family-monospace;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.git-folder-caret {
+  color: $gray-600;
+  font-size: 0.75rem;
+}
+
+// Folder names read at full strength (they anchor the group next to the
+// colored status words); only the count stays muted.
+.git-folder-name {
+  font-weight: 600;
+  color: $gray-800;
+}
+
+.git-folder-count {
+  font-weight: 400;
+  color: $gray-600;
+}
+
 // /git lists: the new/mod/del status word (color-coded via Bootstrap text-*
 // classes) left of each filename, and the secondary link to the file itself.
 .git-status {

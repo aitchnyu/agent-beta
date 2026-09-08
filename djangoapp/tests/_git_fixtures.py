@@ -85,7 +85,8 @@ class GitRepoMixin(TestCase):
       - C — modifies TodoApp/app.py, deletes TodoApp/endpoints.py
       - B — modifies TodoApp/app.py, adds TodoApp/endpoints.py
       - A — root commit: adds TodoApp/app.py
-    - Main uncommitted: TodoApp/app.py modified, TodoApp/notes.md untracked
+    - Main uncommitted: TodoApp/app.py modified, TodoApp/notes.md untracked,
+      Docs/idea.md untracked (a second sibling folder)
     - Scratch uncommitted: TodoApp/scratch_only.py modified, TodoApp/scratch_notes.md untracked
     """
 
@@ -127,9 +128,14 @@ class GitRepoMixin(TestCase):
             "Add delete endpoint",
         )
         # uncommitted: modify app.py (bye→final: one `-` and one `+` line) + add
-        # untracked notes.md.
+        # untracked notes.md + a second untracked folder (Docs/) — two SIBLING
+        # folders in main's tree, the fixture for per-folder fold state. The
+        # nested TodoApp/Docs/ reuses the sibling's name, pinning that fold
+        # state scopes per LEVEL (a name-keyed global would conflate them).
         _write(main_root, "TodoApp/app.py", 'def main():\n    print("final")\n    return x\n')
         _write(main_root, "TodoApp/notes.md", "todo\n")
+        _write(main_root, "Docs/idea.md", "# idea\n")
+        _write(main_root, "TodoApp/Docs/x.md", "# nested\n")
 
         # scratch worktree — baseline commit + uncommitted changes.
         scratch = _init_repo(scratch_root, email="scratch@example.com", name="Scratch")

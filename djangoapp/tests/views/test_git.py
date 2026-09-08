@@ -80,6 +80,8 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         scratch = {f["path"]: f["status"] for f in props["scratch_files"]}
         self.assertEqual(main.get("TodoApp/app.py"), "modified")
         self.assertEqual(main.get("TodoApp/notes.md"), "untracked")
+        self.assertEqual(main.get("Docs/idea.md"), "untracked")
+        self.assertEqual(main.get("TodoApp/Docs/x.md"), "untracked")
         self.assertEqual(scratch.get("TodoApp/scratch_only.py"), "modified")
         self.assertEqual(scratch.get("TodoApp/scratch_notes.md"), "untracked")
         self.assertNotIn("TodoApp/app.py", scratch)
