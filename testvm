@@ -276,12 +276,8 @@ provision() {
   multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh cleanup-provision-tmp
 
   echo "==> start services"
-  # Huey only when its unit exists (HUEY_WORKERS=0 skips it in the tree).
-  local huey_exists
-  huey_exists=$(multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh huey-unit-present)
-  local restart_units=("app_granian.service")
-  [[ "$huey_exists" == "yes" ]] && restart_units+=("app_huey.service")
-  multipass exec app -- sudo systemctl restart "${restart_units[@]}"
+  # Huey's unit always ships (HUEY_WORKERS ≥ 1 is validated before render).
+  multipass exec app -- sudo systemctl restart app_granian.service app_huey.service
   multipass exec app -- sudo systemctl restart caddy
 
   # ── 7. print the access steps ────────────────────────────────────────────

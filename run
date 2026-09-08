@@ -532,17 +532,15 @@ deployscratch() {
   if [ -f /etc/credentials/app/.env.vm ]; then
     echo "VM detected: collectstatic + restarting services…"
     ( cd "$_MAIN_DIR" && .venv/bin/python manage.py collectstatic --noinput --clear )
-    if [ -f /etc/systemd/system/app_huey.service ]; then
-      sudo systemctl restart app_granian.service app_huey.service
-    else
-      sudo systemctl restart app_granian.service
-    fi
+    # Huey's unit always exists on provisioned VMs (HUEY_WORKERS ≥ 1 is
+    # enforced at provisioning).
+    sudo systemctl restart app_granian.service app_huey.service
     # Share-URL base from the configured hostname (first ALLOWED_HOSTS
     # entry) — never a hardcoded one; dev keeps the localhost fallback.
     _SHARE_BASE="https://${ALLOWED_HOSTS%%,*}"
+    echo "App is available under hostnames:"
+    ( cd "$_MAIN_DIR" && .venv/bin/python manage.py hostnames )
   fi
-  echo "App is available under hostnames:"
-  ( cd "$_MAIN_DIR" && .venv/bin/python manage.py hostnames )
   echo "Deployed scratch/ → main/ (uncommitted, services live). Commit in main/ when ready."
   echo "Share design artifacts as absolute URLs at the BOTTOM of your message (with the summary):"
   echo "  docs:  ${_SHARE_BASE:-http://localhost:8000}/files/main/ourapp/docs/<feature>.md"

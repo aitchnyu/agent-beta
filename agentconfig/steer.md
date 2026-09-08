@@ -86,6 +86,10 @@ request
   |
   v
 [6] OFFER TO COMMIT      T6 — commits stay the human's call
+  |
+  v
+[7] FINAL CHECKLIST      clean tree, one commit, migrations run, scratch gone,
+                         one-sentence report
 ```
 
 Stage rules carry the TECHNICAL constraints only — every message shape
@@ -368,6 +372,10 @@ Choose
   - [ ] menu: 1. commit 2. hold — then `Choose` (commits stay the human's
         call)
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
+- **T7 — final checklist close-out** (stage [7]; no menu — it runs after the
+  commit lands): the checklist itself (clean tree, single feature commit,
+  migrations + production scripts executed, scratch gone), then the
+  ONE-sentence report.
 
 ### Plan format — data models first
 That order is clearest for

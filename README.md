@@ -78,7 +78,7 @@ Then one command builds everything (2G RAM + 2G swap, postgres + redis
 localhost-only, caddy TLS, `/srv/app/main` (a `scratch/` sibling appears
 when you run `./run createscratch` there), systemd units
 `app_granian` + `app_huey` under the **less powerful `app` user** — huey
-omitted when `HUEY_WORKERS=0`):
+always enabled, `HUEY_WORKERS` ≥ 1 enforced at provisioning):
 
 ```bash
 ./testvm provision              # builds and prints access + login steps

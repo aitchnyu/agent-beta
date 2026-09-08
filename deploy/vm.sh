@@ -35,14 +35,6 @@ extract-app-seed() {
   find /srv/app/main -exec chmod g+w {} +
 }
 
-huey-unit-present() {
-  if [ -f /etc/systemd/system/app_huey.service ]; then
-    echo yes
-  else
-    echo no
-  fi
-}
-
 # Append the computed platform keys when the pinned playwright doesn't know
 # this OS natively (cross-platform: the host derives and passes the entry,
 # e.g. ubuntu24.04-arm64 — see ./testvm provision step 6b). Idempotent: a
