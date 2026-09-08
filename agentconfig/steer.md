@@ -52,7 +52,7 @@ and ask the operator).
 
 ## Feature workflow
 
-You build features through six stages; every stage transition is my explicit
+You build features through seven stages; every stage transition is my explicit
 choice (never advance on "ok"/"sure"/silence — end the stage with the
 choice menu below and WAIT for my explicit pick). I run the TUI session, Django, and the dev server myself — you
 edit `scratch/` and deploy via `deployscratch`, only once I've said to
@@ -114,6 +114,19 @@ lives in [Stage messages](#stage-messages):
   re-read the diff against the requirement; update the design doc to
   as-built.
 - **[6] Offer to commit** — T6; never commit unasked.
+- **[7] Final checklist** — after the commit lands, audit the job yourself
+  (these are the operator's recurring catches — never make them catch one
+  again), then close out with ONE sentence:
+  - [ ] `git status` clean (no dangling files — check for framework drift
+        you touched, however small)
+  - [ ] single feature commit (merge if the operator's fixes or framework
+        drift split it — offer, don't do it unasked)
+  - [ ] all migrations and production scripts executed (migrate ran,
+        seed/setup commands applied to the live DB)
+  - [ ] scratch gone (`./run cleanscratch` — offer if it holds anything
+        uncommitted)
+  - [ ] single sentence report to user — the whole close-out is one line:
+        what shipped, where it lives, that the checklist is green.
 
 **Work fast — don't spin on the trivial.** For low-stakes choices (a selector
 style, whether an import is runtime vs annotation-only), follow what the
@@ -234,8 +247,19 @@ per feature + one browser smoke class incl. a homepage-load). Nothing
 deploys while the battery is red. The tail: rsync `../scratch/` → `main/`
 with `--delete` (`.git` and `.env` excluded — main's repo and env are never
 overwritten), `migrate`, and on the VM collectstatic + restart
-granian/huey — **deployed routes are live immediately**. Does **not**
+granian/huey — **deployed routes are live immediately**. The tail ends by
+printing `App is available under hostnames:` + the `hostnames` command's
+output (`ALLOWED_HOSTS`, comma-separated) — you never need to derive or
+print hostnames yourself after a deploy. Does **not**
 commit; commits in `main/` stay the human's.
+
+**A deploy is for a change worth showing** — a substantive edit batch or a
+stage boundary. Formatting/lint/mypy fixes are NOT deploy points: fold them
+into the next batch, or work them through the scratch-side loop
+(`cd ../scratch && ./run lintfix && ./run test ourapp.tests.…` — checks
+without the deploy tail) and deploy only when something real changed. A
+"fix two characters → full battery → rsync → restart" cycle is wasted
+minutes and operator trust; batch the fixes, then deploy once.
 
 **On the VM, Playwright browsers are preinstalled** — one shared cache
 (`PLAYWRIGHT_BROWSERS_PATH`, exported by `./run`'s env) with firefox's system
@@ -256,8 +280,12 @@ outside scratch is blocked; the whole tree stays `./run cleanscratch`.
 ### Message structure (the single rule)
 Content first — the plan, the findings, the questions — then the **summary
 and links at the BOTTOM**, and the most important information (the decision
-you need, the verdict, the ask) as the LAST line: what I read last is what
-I act on. Everything about message shape lives in this section — the
+you need, the verdict, the next step) as the LAST line: what I read last is
+what I act on. A last line that ASKS anything takes the numbered-choices +
+`Choose` shape from [Stage messages](#stage-messages) — verdict asks
+included, not just stage menus; a last line that only REPORTS (verdict
+delivered, nothing pending) is a plain statement. Everything about message
+shape lives in this section — the
 workflow stages and [Stage messages](#stage-messages) reference it, nothing
 restates it. Verify each link's file exists before sharing it (an
 unverified URL is worse than no URL: it wastes a round-trip).
@@ -275,43 +303,61 @@ summary in exactly this shape:
   - [ ] the design doc — `<base>/files/main/ourapp/docs/<feature>.md`
   - [ ] the homepage — `<base>/`
   - [ ] the feature's page(s) — `<base>/<page-url>`
-- **The most important line LAST** — verdict/next step/approval ask.
+- **The most important line LAST** — verdict/next step; if it asks for a
+  decision, numbered choices + `Choose`.
 
 Keep it tight. For a trivial change a single sentence is enough; don't pad.
 
 ### Stage messages
 Every approval-gated stage transition (the mockup/doc/code gates — T1, T2,
-T3, T6) ends with a **choice menu** — a markdown list of the
-concrete options as the message's LAST line, phrased so a pick is one word;
-never advance such a stage without my explicit reply matching an option.
-(T4/T5 are report-and-continue stages — they end with the verdict ask per
-[Message structure](#message-structure-the-single-rule), no menu.) Verify every
-link's file exists in `main/` before sharing (see
+T3, T6) ends with a **choice menu** — the concrete options as the message's
+LAST lines — never advance such a stage without my explicit reply matching
+an option. (T4/T5 are report-and-continue stages — no gate menu, but when
+their verdict line ASKS for a decision it uses the same numbered shape; a
+pure report closes on a plain statement.)
+Verify every link's file exists in `main/` before sharing (see
 [Linking](#linking-absolute-urls-markdown-only)); never deploy a design
 artifact silently, and never label a mockup link as the finished page.
+
+**Menus and questions are numbered, with a bare `Choose` closer.** Never
+end a message with an open prose question ("…fix them and then give you the
+commit summary?") or an unnumbered list ("- commit / hold") — numbers let me
+answer with one digit, and the `Choose` line marks the message as awaiting
+input. This covers EVERY ask — stage menus and report/verdict closers alike;
+a message that asks nothing just ends on its statement. Shape:
+
+```
+We need to do this. Here are your choices
+
+1. choice 1
+2. choice 2
+
+Choose
+```
 
 - **T1 — initial mockups**
   - [ ] one line of intent
   - [ ] mockup links, each labeled `(mockup quality)`
         (e.g. `[chores (mockup quality)](<base>/mockup-chores)`)
   - [ ] bundled workflow questions, if any (one round)
-  - [ ] menu: *revise mockups / Add more interactivity to the features /
-        Write down design docs*
+  - [ ] menu: 1. revise mockups 2. add more interactivity to the features
+        3. write down design docs — then `Choose`
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
 - **T2 — interactive mockups**
   - [ ] what's now interactive (state, cross-page links)
   - [ ] links
-  - [ ] menu: *revise / Write down design docs*
+  - [ ] menu: 1. revise 2. write down design docs — then `Choose`
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
 - **T3 — design docs**
   - [ ] models-first plan digest
   - [ ] design-doc link + mockup links
-  - [ ] menu: *revise docs / revise mockups / approved — code*
+  - [ ] menu: 1. revise docs 2. revise mockups 3. approved — code — then
+        `Choose`
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
 - **T4 — blocker**
   - [ ] what failed
   - [ ] what you tried
-  - [ ] what you need from me
+  - [ ] what you need from me — as numbered choices + `Choose` (it's an ask)
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
 - **T5 — final summary**
   - [ ] the Requirement / What changed / Endpoints / Tests / Links checklist
@@ -319,7 +365,8 @@ artifact silently, and never label a mockup link as the finished page.
 - **T6 — offer to commit**
   - [ ] the T5 checklist
   - [ ] files-to-commit list
-  - [ ] menu: *commit / hold* (commits stay the human's call)
+  - [ ] menu: 1. commit 2. hold — then `Choose` (commits stay the human's
+        call)
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
 
 ### Plan format — data models first

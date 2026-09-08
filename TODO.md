@@ -27,6 +27,69 @@ Diffs will be rendered in two panes or one pane depending on viewport width
 Also is U the symbol for new file as in `U ourapp/tests/test_chores_playwright.py`. Have new, mod, del next to filenames with color coding
 
 ---------
+1. Reference-cloning replaced requirements gathering (the core deviation). On "go", the agent never produced a requirements list or asked anything. It declared "The reference's facts feature is nearly a twin of this request" and used the reference app as a substitute for elicitation — then built the whole twin: DB model, migration, Huey cron task, a seed command with 20 hardcoded proverbs it invented, design doc, README entry, homepage link, live-DB seeding. Nothing asked for a database, a curator story, a timezone for "day", or data provenance. The user's earlier corrections ("just show one") were already evidence that the agent's inferred scope ran ahead of stated intent — and it doubled down at the exact moment it should have slowed down.
+
+2. The 22-minute silent mega-build. "Go" compressed every remaining stage (build → test → migration → deploy → seed → reviewer) into one uninterrupted turn of batched edits and lint/mypy fix loops (9 ruff issues, "two chars over — trimming", mypy narrowing…). Stage summaries existed for stages 1–2 but vanished exactly when the work got biggest. "What are you doing" wasn't a scope objection — it was lost visibility and trust.
+
+3. Weak finish-line self-audit. After "commit" it left base.html uncommitted (calling it "pre-existing drift") and scratch alive — the two things its own workflow treats as end-of-job conditions. The user had to catch both, then ask for the merge it should have proposed. "Finished" was declared while the operator still had cleanup work to assign.
+
+4. Unrequested production action. Seeded the live database unprompted (it even predicted the permission prompt this would raise) rather than asking whether 20 agent-invented proverbs should go in the operator's DB.
+
+Root causes
+The steer workflow's approve-gate was treated as approving the reference feature in full, not a plan for this requirement.
+"Have a task to…" (an increment) was read as a trigger to re-derive the complete design.
+No check-in cadence during build; no pre-"done" checklist (clean tree? scratch gone? one logical commit? live URL shown?).
+What would have kept it on the path
+After "go": one message — requirement list + what it plans to clone from the reference + open questions (data source, timezone) + batches — and a quick ack before the mega-build.
+One check-in per batch/stage during build (it already does this for mockups; it stopped when it mattered most).
+A finish gate it runs itself: git status clean, scratch deleted, single feature commit, seeded state confirmed — so the operator never has to say "you forgot…".
+
+----------
+
+Final checklist:
+    git status clean
+    single feature commit
+    all migrations and production scripts executed
+    scratch gone
+    single sentence report to user
+
+deployscratch should run hostnames command. Echo a 'App is available under hostnames' before printing it.
+
+Huey has atleast 1 workers. Change it.
+
+Have serial numbers for questions. We got questions like
+
+```
+3. Just finished the agent review (a second agent re-read the whole diff against your requirement) — verdict: no must-fixes,           
+    requirements fully covered. It flagged two cosmetic nits: a stale "mockup" comment in style.scss and the empty-state copy showing   
+    an ops command to visitors.                                                                                                         
+                                                                                                                                        
+ Remaining: fix those two nits (2-minute deploy), then the last step is offering to commit — commits stay your call.                    
+                                                                                                                                        
+ Fix the two nits and then give you the commit summary?
+```
+
+
+And:
+```
+- commit / hold
+```
+
+Make an example question in steer:
+```
+We need to do this. Here are your choices
+
+1. choice 1
+2. choice 2
+
+Choose
+```
+
+Why too much changes?
+
+Render git as tree
+---------------
+
 We have `Security & data access` and `Authoritative docs` section in steer. Move the content to elsewhere.
 
 In models checklist in steer, ensure we use DecimalField for money.

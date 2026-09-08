@@ -121,7 +121,7 @@ provision_app() {
 #   └── etc/
 #       ├── credentials/app/.env.vm
 #       ├── systemd/system/app_granian.service
-#       ├── systemd/system/app_huey.service    (HUEY_WORKERS > 0 only)
+#       ├── systemd/system/app_huey.service    (always — HUEY_WORKERS ≥ 1 enforced)
 #       ├── caddy/Caddyfile + caddy/sites/app.caddy
 #       ├── redis/redis.conf
 #       └── sudoers.d/agent
@@ -215,13 +215,13 @@ SELECT format('CREATE DATABASE %I OWNER %I', :'db_test', :'db_user')
 SQL
 
   # ── files: /etc/systemd/system/{app_granian,app_huey}.service ──────────
-  # Rendered host-side with the env's worker knobs; huey's unit exists only
-  # when HUEY_WORKERS > 0. Enable only — the driver STARTS them after the
-  # app bootstrap (uv sync/migrate/collectstatic).
+  # Rendered host-side with the env's worker knobs; huey's unit always ships
+  # (HUEY_WORKERS ≥ 1 is validated at provisioning). Enable only — the driver
+  # STARTS them after the app bootstrap (uv sync/migrate/collectstatic).
   echo "==> [app] systemd units (tree-rendered; enable only — the driver starts them)"
   systemctl daemon-reload
   systemctl enable "app_granian.service" >/dev/null
-  [[ -f /etc/systemd/system/app_huey.service ]] && systemctl enable "app_huey.service" >/dev/null
+  systemctl enable "app_huey.service" >/dev/null
 
   # ── files: /etc/caddy/Caddyfile + /etc/caddy/sites/app.caddy ──────────
   # The import line (stock Caddyfile) + the app.local site (the app).

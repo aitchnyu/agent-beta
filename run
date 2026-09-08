@@ -541,6 +541,8 @@ deployscratch() {
     # entry) — never a hardcoded one; dev keeps the localhost fallback.
     _SHARE_BASE="https://${ALLOWED_HOSTS%%,*}"
   fi
+  echo "App is available under hostnames:"
+  ( cd "$_MAIN_DIR" && .venv/bin/python manage.py hostnames )
   echo "Deployed scratch/ → main/ (uncommitted, services live). Commit in main/ when ready."
   echo "Share design artifacts as absolute URLs at the BOTTOM of your message (with the summary):"
   echo "  docs:  ${_SHARE_BASE:-http://localhost:8000}/files/main/ourapp/docs/<feature>.md"

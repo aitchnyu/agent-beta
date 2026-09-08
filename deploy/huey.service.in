@@ -8,8 +8,8 @@ User=app
 Group=app
 WorkingDirectory=/srv/app/main
 
-# Worker count baked at build time from .env.vm (HUEY_WORKERS; 0 means this
-# unit is not rendered/enabled at all).
+# Worker count baked at build time from .env.vm (HUEY_WORKERS; provisioning
+# refuses anything below 1 — huey is never deployed without workers).
 ExecStart=/srv/app/main/.venv/bin/python manage.py run_huey -w @HUEY_WORKERS@
 
 # The single shared env file (root .env.vm staged by provisioning).

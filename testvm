@@ -33,7 +33,7 @@
 #       │   └── .env.vm                  shared env — every unit's EnvironmentFile
 #       ├── systemd/system/
 #       │   ├── app_granian.service
-#       │   └── app_huey.service         only when HUEY_WORKERS > 0
+#       │   └── app_huey.service         always (HUEY_WORKERS ≥ 1 enforced)
 #       ├── caddy/
 #       │   ├── Caddyfile                stock + "import sites/*.caddy"
 #       │   └── sites/app.caddy          the app.local site (the app)
@@ -122,7 +122,7 @@ provision() {
   granian_threads="$(envval GRANIAN_THREADS)"
   huey_workers="$(envval HUEY_WORKERS)"
   if [[ -z "$granian_workers" || -z "$granian_threads" || -z "$huey_workers" ]]; then
-    echo "REFUSING: GRANIAN_WORKERS/GRANIAN_THREADS/HUEY_WORKERS must be set explicitly in .env.vm (0 disables huey)." >&2
+    echo "REFUSING: GRANIAN_WORKERS/GRANIAN_THREADS/HUEY_WORKERS must be set explicitly in .env.vm (huey needs at least 1 worker)." >&2
     exit 1
   fi
   # Knobs are baked into unit files via sed and arithmetic — digits only
@@ -134,6 +134,12 @@ provision() {
       exit 1
     fi
   done
+  # Huey always runs — 0 workers is not a valid deployment (periodic tasks
+  # like the daily pick would silently never run).
+  if (( huey_workers < 1 )); then
+    echo "REFUSING: HUEY_WORKERS must be at least 1 in .env.vm (got: '$huey_workers')." >&2
+    exit 1
+  fi
   if ! grep -qE '^ALLOWED_HOSTS=.*app\.local' "$here/.env.vm"; then
     echo "WARNING: ALLOWED_HOSTS in .env.vm does not include app.local — Django will reject requests!" >&2
   fi
@@ -184,10 +190,9 @@ provision() {
 
   # tree: /etc/systemd/system/app_granian.service
   render "$deploy_dir/granian.service.in" > "$tree/etc/systemd/system/app_granian.service"
-  # tree: /etc/systemd/system/app_huey.service (HUEY_WORKERS > 0 only)
-  if (( huey_workers > 0 )); then
-    render "$deploy_dir/huey.service.in" > "$tree/etc/systemd/system/app_huey.service"
-  fi
+  # tree: /etc/systemd/system/app_huey.service (always — HUEY_WORKERS ≥ 1 is
+  # validated above, huey is never deployed without workers)
+  render "$deploy_dir/huey.service.in" > "$tree/etc/systemd/system/app_huey.service"
 
   # tree: /etc/caddy/Caddyfile — stock + the sites import (one line).
   printf '\nimport sites/*.caddy\n' >> "$t/Caddyfile"
