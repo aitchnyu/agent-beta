@@ -58,6 +58,8 @@ INSTALLED_APPS = [
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
+    # Google only; adding a provider changes this line + form-action below
+    # (docs/social-providers.md).
     "allauth.socialaccount.providers.google",
     "djangoapp",
     "ourapp",
@@ -90,7 +92,8 @@ ROOT_URLCONF = "djangoproject.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        # Searched before app dirs, so these overrides beat allauth's own copies.
+        "DIRS": [BASE_DIR / "djangoapp" / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -196,11 +199,6 @@ SOCIALACCOUNT_EMAIL_REQUIRED = True
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
-# Redirect URLs
-# Google OAuth credentials live in the database, configured via:
-#   ./run python manage.py addgoogleoauth <client_id> <secret>
-# (no SOCIALACCOUNT_PROVIDERS block needed).
-
 # Inertia settings
 INERTIA_LAYOUT = "inertia/base.html"
 
@@ -216,10 +214,11 @@ _CSP_COMMON = {
     "img-src": [CSP.SELF, "data:"],
     # Web fonts
     "font-src": [CSP.SELF],
-    # Form submissions
+    # Form submissions — Google's authorize domain (the login POST's redirect
+    # chain is form-action-checked); change per provider (docs/social-providers.md).
     "form-action": [
         CSP.SELF,
-        "https://accounts.google.com",  # For Google login
+        "https://accounts.google.com",
     ],
     # Who can embed this page in an iframe (clickjacking protection)
     "frame-ancestors": [CSP.SELF],

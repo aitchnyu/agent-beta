@@ -11,17 +11,17 @@ class HomeAuthE2e(BasePlaywrightTestCase):
     Drives a real browser through the signed-out / signed-in states and the full
     logout round-trip on the landing page (component ``ours/Home``).
 
-    - test_anon_home_shows_signed_out, anon / shows signed-out + Google login link, no logout button
+    - test_anon_home_shows_signed_out, anon / shows signed-out + sign-in link, no logout button
     - test_authenticated_home_shows_user, authed / shows display name + logout button, no login link
     - test_logout_flow_returns_to_signed_out, Sign out logs out and lands on signed-out home
     """
 
     def test_anon_home_shows_signed_out(self) -> None:
-        """Anon / shows signed-out status and a Google login link, no logout button."""
+        """Anon / shows signed-out status and a sign-in link, no logout button."""
         with self.anon_page() as page:
             page.goto(f"{self.live_server_url}/")
             page.wait_for_selector(".home-status-signed-out")
-            self.assertEqual(page.locator(".home-login-link").count(), 1)
+            self.assertEqual(page.get_attribute(".home-login-link", "href"), "/accounts/login/")
             self.assertEqual(page.locator(".home-logout-btn").count(), 0)
 
     def test_authenticated_home_shows_user(self) -> None:

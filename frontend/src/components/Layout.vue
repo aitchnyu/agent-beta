@@ -50,9 +50,9 @@ const csrfToken = computed(() => getCsrfToken())
       <a
         v-else
         class="btn btn-sm btn-outline-primary ms-auto"
-        href="/accounts/google/login/"
+        href="/accounts/login/"
       >
-        Login with Google
+        Sign in
       </a>
     </div>
     <slot />

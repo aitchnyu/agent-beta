@@ -32,13 +32,14 @@ const csrfToken = computed(() => getCsrfToken())
       You are not signed in.
     </p>
 
-    <!-- Signed out: a Google login link. -->
+    <!-- Signed out: a generic sign-in link — the provider buttons live on the
+         allauth login page (rendered from the configured SocialApps). -->
     <a
       v-if="!p.is_authenticated"
       class="home-login-link"
-      href="/accounts/google/login/"
+      href="/accounts/login/"
     >
-      Sign in with Google
+      Sign in
     </a>
     <!-- Signed in: a logout button (POSTs to allauth, redirects to LOGOUT_REDIRECT_URL). -->
     <form

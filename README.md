@@ -50,7 +50,7 @@ changes through an agent that edits a throwaway.
   `/login-for-test/by-key/…`, single use; `promotetosuperuser <email>`
   promotes an existing user later).
 - **Google login** (dev) — register OAuth credentials and store them with
-  `./run djangomanage addgoogleoauth <client_id> <secret>`.
+  `./run djangomanage addoauth google <client_id> <secret>`.
 - **Agent** — point your AI agent at this repo and have it read
   `INSTRUCTIONS.md` (the operating manual: workflows, conventions,
   command allowlist); start it with `./run pi`.
@@ -123,16 +123,23 @@ Credentials live in the database, not in settings or `.env`. After the first
 `migrate`, register the Google app once:
 
 ```bash
-./run djangomanage addgoogleoauth <client_id> <secret>
+# leading space should be kept to avoid storing command in bash history
+ ./run djangomanage addoauth google <client_id> <secret>
 ```
 
 This creates (or updates) a `SocialApp` for `provider="google"` linked to the
-current `SITE_ID`, with `scope=["profile","email"]` and
+current `SITE_ID`, with
+`scope=["profile","email"]` and
 `auth_params={"access_type":"online"}` — the equivalent of the old
 `SOCIALACCOUNT_PROVIDERS` block. Re-run it to rotate credentials; no duplicate
 row is created. This is for DEV (or any deployment whose hostname Google
 accepts); the test VM skips Google OAuth entirely and logs in via one-time
 `makeloginlink` URLs — see [VM (test server)](#vm-test-server).
+
+Other providers: exactly two lines in `djangoproject/settings.py` are
+hardcoded to Google (the `INSTALLED_APPS` provider app and the CSP
+`form-action` domain) — the full recipe is in
+[docs/social-providers.md](docs/social-providers.md).
 
 ## Sign in (one-time login link)
 
@@ -263,7 +270,7 @@ plus `djangomanage`/`python` passthroughs (e.g.
 User/management commands (via the passthrough):
 `createuser <email> [--first-name …] [--last-name …] [--superuser]`,
 `makeloginlink <email>` (one-time login URL),
-`promotetosuperuser <email>`, `addgoogleoauth <client_id> <secret>`.
+`promotetosuperuser <email>`, `addoauth <provider> <client_id> <secret>`.
 
 Test-VM lifecycle via the `testvm` script: `./testvm provision [--release …]`,
 `./testvm delete`.

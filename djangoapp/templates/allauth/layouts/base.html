@@ -1,0 +1,30 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>{% block head_title %}Instant{% endblock head_title %}</title>
+        <link rel="stylesheet" href="{% static 'allauth/allauth.css' %}">
+        {% block extra_head %}{% endblock extra_head %}
+    </head>
+    <body data-allauth-layout="1">
+        {# Messages (errors, "signed out" notices) float above the panel. #}
+        {% if messages %}
+            <ul class="allauth-messages">
+                {% for message in messages %}
+                    <li class="allauth-message allauth-message-{{ message.level_tag }}">{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+        {% comment %}
+          Allauth's default layout menu (change email/password/sessions) is
+          deliberately dropped: those pages are dead ends for social-only
+          accounts (SOCIALACCOUNT_ONLY).
+        {% endcomment %}
+        <main class="allauth-panel">
+            {% block content %}{% endblock content %}
+        </main>
+        {% block extra_body %}{% endblock extra_body %}
+    </body>
+</html>

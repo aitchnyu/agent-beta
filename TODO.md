@@ -1,15 +1,3 @@
-
-We have `Security & data access` and `Authoritative docs` section in steer. Move the content to elsewhere.
-
-In models checklist in steer, ensure we use DecimalField for money.
-
-I see this function used:
-multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
-    app .venv/bin/python manage.py promotetosuperuser <email>
-Rename app function to runasapp
-
-Prevent overwrites of uncommitted deployed stuff with steer.md
-
 Test `createscratch`, `deployscratch`, `cleanscratch`
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.
@@ -20,6 +8,14 @@ Google login change
 Templates for Allauth
 Buttons and stuff may be hardcoded for Google
 
+Logout a user
+Generate login link for user with time limit (generate logs)
+Show last login for user
+
+Login from localhost?
+
+Use toasts in checklist
+Merge Files and Git in top, have Uncommitted, committed, files with highlighting
 --------
 
 ```
