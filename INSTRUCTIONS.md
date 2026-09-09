@@ -69,11 +69,11 @@ deploy-ourapp() {
 multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh deploy-ourapp
 ```
 
-**Right** — one command as the app user goes through the `app` wrapper
+**Right** — one command as the app user goes through the `runasapp` wrapper
 (env sourced, repo cwd, uv on PATH):
 ```bash
 multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
-  app .venv/bin/python manage.py makeloginlink <email>
+  runasapp .venv/bin/python manage.py makeloginlink <email>
 ```
 
 **Right** — host-side logic (decisions, arch probing, output parsing)

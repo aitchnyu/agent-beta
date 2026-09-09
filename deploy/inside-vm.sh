@@ -53,8 +53,6 @@ provision_vm() {
   apt-get update -y
   apt-get install -y curl rsync git htop ufw avahi-daemon ripgrep fd-find \
     postgresql postgresql-client redis-server ca-certificates gnupg
-  # ripgrep: operator convenience only — the permission policy still DENIES
-  # the agent TYPING rg (it forces grep).
   # fd-find: pi auto-downloads its fd helper to ~/.pi/agent/bin on first
   # launch otherwise — pre-install so the first ./run pi is offline-clean.
   # Debian names the binary fdfind; pi (and muscle memory) wants fd.

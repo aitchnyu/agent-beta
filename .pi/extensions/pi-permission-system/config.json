@@ -38,8 +38,6 @@
     },
     "bash": {
       "*": "ask",
-      "rg": { "action": "deny", "reason": "rg is denied — use the grep tool or the grep command" },
-      "rg *": { "action": "deny", "reason": "rg is denied — use the grep tool or the grep command" },
       "perl": { "action": "deny", "reason": "perl one-liners are denied — use the grep tool or Python" },
       "perl *": { "action": "deny", "reason": "perl one-liners are denied — use the grep tool or Python" },
       "git -C *": { "action": "deny", "reason": "git -C is denied — cd into the directory, then git …" },
@@ -77,6 +75,7 @@
       "cat *": "allow",
       "find *": "allow",
       "grep *": "allow",
+      "rg *": "allow",
       "head *": "allow",
       "tail *": "allow",
       "wc *": "allow",

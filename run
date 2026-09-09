@@ -243,7 +243,7 @@ checkframework2() {
   # PATH), so call sites stay one-liners (INSTRUCTIONS.md § Multipass
   # helpers in deploy/vm.sh).
   vm_app() {
-    multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh app "$@"
+    multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh runasapp "$@"
   }
 
   # assert <expected[ expected...]> <got> <what-is-being-asserted> — a single

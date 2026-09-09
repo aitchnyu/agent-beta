@@ -92,7 +92,7 @@ internal-CA cert means a click-through warning (the supported mode):
 
   ```bash
   multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
-    app .venv/bin/python manage.py makeloginlink <email>
+    runasapp .venv/bin/python manage.py makeloginlink <email>
   ```
 
   — open the printed `/login-for-test/by-key/…` URL once (single use,

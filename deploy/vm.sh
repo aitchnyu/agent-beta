@@ -6,12 +6,12 @@
 # `bash -c` string blobs, no `declare -f` embedding.
 #
 #   multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh <fn> [args]
-#   multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh app <cmd…>
+#   multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh runasapp <cmd…>
 #
 # Ships with the repo (the seed lands it at /srv/app/main/deploy/vm.sh);
 # ./testvm provision also drops an early copy at /tmp/vm.sh for steps that
 # run BEFORE the seed is extracted. Runs as whatever user invokes it —
-# pick the function to match (root: extract/deploy/deps; app: app,
+# pick the function to match (root: extract/deploy/deps; app: runasapp,
 # playwright-install; agent: agent-*).
 
 set -euo pipefail
@@ -105,9 +105,9 @@ deploy-ourapp() {
 
 # ── app user ──────────────────────────────────────────────────────────────
 
-# app <command…> — env sourced, repo cwd, uv on PATH; the one sanctioned
-# way to run one command as the app user.
-app() {
+# runasapp <command…> — env sourced, repo cwd, uv on PATH; the one
+# sanctioned way to run one command as the app user.
+runasapp() {
   _vm_env
   export PATH=/usr/local/bin:$PATH
   "$@"

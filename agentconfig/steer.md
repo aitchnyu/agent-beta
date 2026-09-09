@@ -209,10 +209,9 @@ git                                 # bare `git` matches no rule
 uv run python -c '…'                # use the ./run wrappers
 python3 -c '…'                      # same
 npm install                         # only `npm run build` is allowed
-rg pattern                          # DENIED outright — use the grep tool
 ```
 
-Note: read-only shell inspection IS allowlisted (`grep`, `find`, `cat`,
+Note: read-only shell inspection IS allowlisted (`rg`, `grep`, `find`, `cat`,
 `head`, `tail`, `ps`, `lsof`, …) and runs unblocked — but PREFER the
 read/glob/grep TOOLS when exploring (structured, source-linked results);
 shell forms earn their keep inside `&&` chains. Related trap (observed
@@ -256,6 +255,15 @@ printing `App is available under hostnames:` + the `hostnames` command's
 output (`ALLOWED_HOSTS`, comma-separated) — you never need to derive or
 print hostnames yourself after a deploy. Does **not**
 commit; commits in `main/` stay the human's.
+
+**Never deploy over uncommitted work you can't account for.** The deploy
+rsync is `--delete` and never commits, so `main/` routinely holds
+deployed-but-uncommitted changes. Before each `./run deployscratch`, check
+`main/`'s `git status --short` against scratch's pending changes: every
+dirty file in `main/` must ALSO be pending in scratch (the normal loop —
+a previous deploy put it there). A file dirty in `main/` but untouched in
+scratch is an operator hotfix or hand-edit the rsync would silently
+overwrite or delete — STOP and report it (T4) instead of deploying.
 
 **A deploy is for a change worth showing** — a substantive edit batch or a
 stage boundary. Formatting/lint/mypy fixes are NOT deploy points: fold them
@@ -442,7 +450,9 @@ Read code in this priority order:
 
 1. **The user app first** — `ourapp/` (the `models/`, `views/`, `urls.py`,
    `tests/` packages) and `frontend/src/ours/` are the source of truth and the
-   only thing you normally change.
+   only thing you normally change; `ourapp/README.md` + `ourapp/docs/`
+   document the app's features, `docs/reference/` is the full copyable
+   pattern.
 2. **The reference next** — `docs/reference/` as a complete, copyable example
    (model + ninja API + urls + Inertia page + test).
 3. **The framework only as reference** — `djangoapp/` is there to understand
@@ -570,15 +580,19 @@ Run through every box; the order is the order you build in.
       (`ourapp/docs/<feature>.md`) grows into the feature catalogue (models,
       endpoints, pages, command, data shape — keep its diagrams current);
       link it from the README.
-- [ ] **Model module** — add `ourapp/models/<feature>.py` (subclass
-      `BaseModel`, give it a docstring) and import it in `ourapp/models/__init__.py`,
-      **adding each name to `__all__`** there. mypy runs with
-      `--no-implicit-reexport`, so `from ourapp.models import <Model>` errors with
-      `module does not explicitly export attribute` unless `<Model>` is in `__all__`
-      (or imported `as <Model>`).
-      Then `./run djangomanage makemigrations ourapp`.
-      Every `ForeignKey` sets `on_delete=models.RESTRICT` (deviate only with a
-      comment).
+- [ ] **Model module** — `ourapp/models/<feature>.py`, wired into
+      `ourapp/models/`:
+    - [ ] subclass `BaseModel`, give it a docstring
+    - [ ] import it in `ourapp/models/__init__.py`, **adding each name to
+          `__all__`** there — mypy runs with `--no-implicit-reexport`, so
+          `from ourapp.models import <Model>` errors with `module does not
+          explicitly export attribute` unless `<Model>` is in `__all__`
+          (or imported `as <Model>`)
+    - [ ] `./run djangomanage makemigrations ourapp`
+    - [ ] every `ForeignKey` sets `on_delete=models.RESTRICT` (deviate only
+          with a comment)
+    - [ ] money is `models.DecimalField(max_digits=…, decimal_places=…)` —
+          never `FloatField` (binary-float rounding corrupts sums)
 - [ ] **View module** — add `ourapp/views/<feature>.py` with a `Router`, wire
       **every** API endpoint (pages + data) there, and register it in
       `ourapp/views/__init__.py` via `api.add_router("/", <feature>.router)`.
@@ -858,7 +872,7 @@ other edits ask the OPERATOR: the TUI shows an approval prompt they answer
 there instead).
 Permissions are enforced by @gotgenes/pi-permission-system
 (`.pi/extensions/pi-permission-system/config.json` — the versioned policy).
-Three verdicts: it allows the allowlisted, denies the denied (rg/perl/
+Three verdicts: it allows the allowlisted, denies the denied (perl/
 git -C — the denial carries the reason and the passing form), and asks
 the operator for everything else.
 **Prefer the allowlisted commands** — they run with no approval round-trip;
@@ -869,7 +883,7 @@ hand-rolling an equivalent that will prompt.
 newline chains (real bash parsing, not string matching) and evaluates EVERY
 command in the chain; the most restrictive verdict wins, and commands nested
 in `$(…)`/backticks/subshells are evaluated too. One unknown command asks
-for the whole line; a denied one (rg/perl) denies it outright. Wrappers that
+for the whole line; a denied one (perl) denies it outright. Wrappers that
 hide their payload (`bash -c`, `eval`, `sudo`, `xargs`, `find -exec`) always
 ask. Redirections gate their target's path — so **don't append redirects
 unless absolutely necessary**: the TUI captures full tool output (stderr
@@ -965,8 +979,9 @@ the `export … && …` form above — never a `ENV=VAL command` prefix.
 Use the right tool, not a shell reinvention:
 - **List a directory:** the `ls` tool **once**.
 - **Find files by name:** the `find` tool, never manual recursion.
-- **Search file contents:** the `grep` tool — never `rg` (the server may
-  not have it; it's denied in bash anyway).
+- **Search file contents:** the `grep` tool for structured, source-linked
+  results; `rg` is allowlisted too (installed on host and VM) — it earns
+  its keep inside `&&` chains.
 - **Read in parallel:** issue several reads/greps in **one turn** —
   pi runs them concurrently. Don't read one file per turn.
 - **Write/edit files:** the `write`/`edit` tools. Never `cat >` / heredocs.
@@ -1039,6 +1054,3 @@ data-exfiltration surface:
 - Never send the integer `pk`/`id` to the client — only the designated public id
   (`public_id`).
 
-## Authoritative docs
-For the full pattern, read `docs/reference/` (a complete copyable example),
-`ourapp/` (its `README.md` + `docs/` document the app's features).
