@@ -64,6 +64,8 @@ working.
   ids in the error.
 - Google's own setup — the worked example — is the
   [Google OAuth section](../README.md#google-oauth-social-login) of the README.
-- On the test VM, login is one-time `makeloginlink` URLs by design
-  (`.local` is not registrable for OAuth redirects) — see the README's
-  [VM (test server)](../README.md#vm-test-server) section.
+- On the test VM, the app is served at `https://localhost:8000/` via an ssh
+  port forward — Google's localhost exception applies, so register
+  `https://localhost:8000/accounts/google/login/callback/` there (or use the
+  one-time `makeloginlink` flow; see the README's
+  [VM (test server)](../README.md#vm-test-server) section).

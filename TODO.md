@@ -1,8 +1,9 @@
 Test `createscratch`, `deployscratch`, `cleanscratch`
 
-Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.
-
+Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis.
+
+Login from localhost?
 
 Google login change
 Templates for Allauth
@@ -11,8 +12,6 @@ Buttons and stuff may be hardcoded for Google
 Logout a user
 Generate login link for user with time limit (generate logs)
 Show last login for user
-
-Login from localhost?
 
 Use toasts in checklist
 Merge Files and Git in top, have Uncommitted, committed, files with highlighting
@@ -23,7 +22,9 @@ multipass shell app
 sudo -u agent -H bash -l
 ```
 Switch to Debian for lower memory usage? Multipass is for Ubuntu. Incus can rewind machines.
+Incus for native port forward
 
+How to allow logins for allauth?
 apply --3way merges with `./run importtemplate <github-url> <tag>` 
 import from git repo tags?
 

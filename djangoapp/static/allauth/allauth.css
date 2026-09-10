@@ -1,0 +1,116 @@
+/* Styles the server-rendered allauth pages (login, provider confirm,
+   logout confirm, social signup, auth error) via the
+   allauth/layouts/base.html override. A plain static file on a stable URL —
+   NOT a Vite entry (djangoapp/static/djangoapp is wiped by frontend builds)
+   — served at /static/allauth/allauth.css, self-contained (no bootstrap). */
+
+:root {
+    --allauth-accent: #0d6efd;
+    --allauth-text: #212529;
+    --allauth-muted: #6c757d;
+    --allauth-border: #dee2e6;
+    --allauth-bg: #f8f9fa;
+}
+
+body[data-allauth-layout] {
+    margin: 0;
+    padding: 1rem;
+    box-sizing: border-box;
+    display: flex;
+    min-height: 100vh;
+    align-items: center;
+    justify-content: center;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--allauth-text);
+    background: var(--allauth-bg);
+}
+
+.allauth-panel {
+    width: 100%;
+    max-width: 24rem;
+    padding: 2rem;
+    background: #fff;
+    border: 1px solid var(--allauth-border);
+    border-radius: 8px;
+    box-shadow: 0 0.5rem 1rem rgb(0 0 0 / 10%);
+}
+
+.allauth-panel h1 {
+    margin: 0 0 1rem;
+    font-size: 1.5rem;
+}
+
+.allauth-panel h2 {
+    margin: 1.5rem 0 0.5rem;
+    font-size: 1.1rem;
+}
+
+.allauth-panel p {
+    margin: 0.5rem 0;
+    line-height: 1.5;
+}
+
+.allauth-panel a {
+    color: var(--allauth-accent);
+}
+
+.allauth-panel ul {
+    margin: 1rem 0;
+    padding: 0;
+    list-style: none;
+}
+
+/* The provider-list buttons and every form's submit button share one shape. */
+.allauth-panel form button,
+a.allauth-provider-btn {
+    display: inline-block;
+    box-sizing: border-box;
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.5rem 1rem;
+    font: inherit;
+    font-weight: 500;
+    text-align: center;
+    text-decoration: none;
+    color: #fff;
+    background: var(--allauth-accent);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.allauth-panel form button:hover,
+a.allauth-provider-btn:hover {
+    filter: brightness(0.9);
+}
+
+.allauth-messages {
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    max-width: 24rem;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.allauth-messages li {
+    margin-bottom: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: #fff;
+    border: 1px solid var(--allauth-border);
+    border-radius: 6px;
+    box-shadow: 0 0.25rem 0.5rem rgb(0 0 0 / 10%);
+}
+
+.allauth-message-error {
+    border-color: #dc3545;
+    color: #dc3545;
+}
+
+.allauth-message-success {
+    border-color: #198754;
+    color: #198754;
+}

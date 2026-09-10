@@ -11,7 +11,10 @@ uploads/
 # Host frontend dependencies.
 node_modules/
 # Vite build output (main bundle, code-split chunks, source maps); generated.
-djangoapp/static/
+# allauth/ is EXCEPTED: the allauth-page stylesheet is a tracked source file
+# on a stable URL — not Vite output (emptyOutDir wipes static/djangoapp only).
+djangoapp/static/*
+!djangoapp/static/allauth/
 
 # Python lint/type caches.
 .mypy_cache/

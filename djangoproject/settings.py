@@ -168,7 +168,7 @@ STATIC_ROOT = Path(os.environ["STATIC_ROOT"])
 
 # Origins trusted for secure POSTs, DERIVED from ALLOWED_HOSTS (no env knob):
 # the app is always reached over HTTPS at its allowed hosts — behind caddy on
-# the VM (https://app.local), plain runserver in dev (where the
+# the VM (https://localhost:8000 behind caddy), plain runserver in dev (where the
 # https://localhost origins are simply unused). ALLOWED_HOSTS validates the
 # Host header; this gates the CSRF Origin/Referer match, which needs scheme.
 # TODO do we need this?

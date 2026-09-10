@@ -84,19 +84,40 @@ always enabled, `HUEY_WORKERS` ≥ 1 enforced at provisioning):
 ./testvm provision              # builds and prints access + login steps
 ```
 
-One hostname, one HTTPS port, direct over the LAN (no tunnel). The
-internal-CA cert means a click-through warning (the supported mode):
+One hostname, one port, reached through an ssh forward — the tunnel is the
+only entry (the VM announces and serves no LAN name). The internal-CA cert
+means a click-through warning (the supported mode):
 
-- **`https://app.local/`** — the app. Login is **not Google OAuth**
-  (`.local` isn't registrable): mint a one-time link for an existing user —
+- **`https://localhost:8000/`** — the app, once the tunnel is up:
+
+  ```bash
+  # one-time: let your host key in (provisioning installs no authorized_keys)
+  multipass exec app -- bash -c \
+    'mkdir -p -m 700 ~ubuntu/.ssh && cat >> ~ubuntu/.ssh/authorized_keys && chmod 600 ~ubuntu/.ssh/authorized_keys' \
+    < ~/.ssh/id_ed25519.pub
+  multipass info app | grep IPv4      # the VM's bridged IP
+
+  # each session: forward host :8000 → the VM's caddy (:443); leave running
+  ssh -N -L 8000:localhost:443 ubuntu@<vm-ip>
+  ```
+
+  Host port 8000 collides with the dev runserver — never both at once.
+  Login is Google OAuth (localhost is Google's dev redirect exception):
+  register `https://localhost:8000/accounts/google/login/callback/` in the
+  Google console, then store the credentials on the VM —
+
+  ```bash
+  multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
+    runasapp .venv/bin/python manage.py addoauth google <client_id> <secret>
+  ```
+
+  — or mint a one-time link for an existing user (single use, 15-min
+  expiry), then `promotetosuperuser <email>` to unlock admin pages:
 
   ```bash
   multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
     runasapp .venv/bin/python manage.py makeloginlink <email>
   ```
-
-  — open the printed `/login-for-test/by-key/…` URL once (single use,
-  15-min expiry), then `promotetosuperuser <email>` to unlock admin pages.
 
 **Everything else happens on the VM**: `./run createscratch` → `./run
 pi` (from a multipass shell as the `agent` user) edits `scratch/` →

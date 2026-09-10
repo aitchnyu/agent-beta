@@ -1,6 +1,7 @@
 from allauth.socialaccount.models import SocialApp
 from django.conf import settings
 from django.contrib.sites.models import Site
+from django.contrib.staticfiles import finders
 
 from djangoapp.models import User
 from djangoapp.tests._base import BaseTestCase
@@ -41,6 +42,8 @@ class AllauthPageTests(BaseTestCase):
         # — if this fails, the DIRS override is not winning over allauth's own.
         self.assertIn("data-allauth-layout", body)
         self.assertIn("/static/allauth/allauth.css", body)
+        # The stylesheet itself must actually ship: regression test
+        self.assertTrue(finders.find("allauth/allauth.css"))
 
     def test_login_page_lists_configured_providers(self) -> None:
         """The seeded provider renders by name with its login URL."""

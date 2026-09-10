@@ -1,8 +1,16 @@
 
 Built the VM.
 
-Browse the app DIRECTLY on the LAN (no tunnel):
-  https://app.local/
+The app is reached ONLY through the ssh port forward (no LAN name is
+announced or served). One-time: let your host key in (provisioning installs
+no authorized_keys), then find the VM's bridged IP:
+  multipass exec app -- bash -c 'mkdir -p -m 700 ~ubuntu/.ssh && cat >> ~ubuntu/.ssh/authorized_keys && chmod 600 ~ubuntu/.ssh/authorized_keys' < ~/.ssh/id_ed25519.pub
+  multipass info app | grep IPv4
+Each session (leave it running; host port 8000 collides with the dev
+runserver — never both):
+  ssh -N -L 8000:localhost:443 ubuntu@<vm-ip>
+Browse:
+  https://localhost:8000/
 Browsers warn about caddy's self-signed certificate (internal CA, not in
 your trust store) — click through; accepting the warning is the supported
 mode.
@@ -10,8 +18,13 @@ mode.
 The operator/agent surface is a shell, not the web:
   multipass shell app        # then: sudo -iu agent; cd /srv/app/main;
                             # ./run pi     (the pi TUI; full sudo)
-Login to the app (no Google OAuth on the VM — .local is not registrable;
-one-time links instead; the user row must already exist, e.g. via a
+Login to the app — Google OAuth works on the VM (localhost is Google's dev
+redirect exception): register
+  https://localhost:8000/accounts/google/login/callback/
+in the Google console, then:
+  multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
+    runasapp .venv/bin/python manage.py addoauth google <client_id> <secret>
+Or mint a one-time link (the user row must already exist, e.g. via a
 restored DB or Django shell):
   multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
     runasapp .venv/bin/python manage.py makeloginlink <email>

@@ -7,8 +7,9 @@
 #
 # provision BUILDS a fresh VM (refuses if the instance exists — delete,
 # then rebuild): /srv/app/{main,scratch}, units app_granian/app_huey,
-# caddy at https://app.local/, postgres + redis. ALL config comes from the
-# root .env.vm, validated FAIL-HARD here before anything ships.
+# caddy at https://localhost:8000/ (ssh port forward), postgres + redis.
+# ALL config comes from the root .env.vm, validated FAIL-HARD here before
+# anything ships.
 #
 # delete is destructive with no backup: the VM's `.git` and database are
 # gone — copy anything you need off first (tar via multipass transfer,
@@ -36,7 +37,7 @@
 #       │   └── app_huey.service         always (HUEY_WORKERS ≥ 1 enforced)
 #       ├── caddy/
 #       │   ├── Caddyfile                stock + "import sites/*.caddy"
-#       │   └── sites/app.caddy          the app.local site (the app)
+#       │   └── sites/app.caddy          the app site (names: ALLOWED_HOSTS)
 #       ├── redis/redis.conf             stock + maxmemory block
 #       ├── sudoers.d/agent              agent's full passwordless sudo
 #       └── (see /home/agent below)
@@ -140,8 +141,21 @@ provision() {
     echo "REFUSING: HUEY_WORKERS must be at least 1 in .env.vm (got: '$huey_workers')." >&2
     exit 1
   fi
-  if ! grep -qE '^ALLOWED_HOSTS=.*app\.local' "$here/.env.vm"; then
-    echo "WARNING: ALLOWED_HOSTS in .env.vm does not include app.local — Django will reject requests!" >&2
+  # ALLOWED_HOSTS is the single source of truth for BOTH the hosts Django
+  # accepts and the caddy site names (rendered into sites/app.caddy below —
+  # a mismatch is impossible by construction, so no app.local-style warning).
+  local site_hostnames site_names
+  site_hostnames="$(envval ALLOWED_HOSTS)"
+  if [[ -z "$site_hostnames" ]]; then
+    echo "REFUSING: ALLOWED_HOSTS must be set in .env.vm (Django hosts + caddy site names)." >&2
+    exit 1
+  fi
+  # Comma-separated → a caddy site label ("localhost" / "a, b"), with the
+  # charset validated so the sed render below can't be corrupted.
+  site_names="$(printf '%s' "$site_hostnames" | tr ',' ' ' | tr -s ' ' | sed -e 's/^ //' -e 's/ $//' -e 's/ /, /g')"
+  if [[ ! "$site_names" =~ ^[A-Za-z0-9._*-]+(, [A-Za-z0-9._*-]+)*$ ]]; then
+    echo "REFUSING: ALLOWED_HOSTS must be plain hostnames, comma-separated (got: '$site_hostnames')." >&2
+    exit 1
   fi
   if ! grep -qE '^PLAYWRIGHT_BROWSERS_PATH=' "$here/.env.vm"; then
     echo "WARNING: PLAYWRIGHT_BROWSERS_PATH unset in .env.vm — browsers land in per-user caches and the agent's scratch tests won't find them (.env.vm.example documents the key)." >&2
@@ -181,7 +195,8 @@ provision() {
   render() {
     sed -e "s/@GRANIAN_WORKERS@/$granian_workers/g" \
         -e "s/@GRANIAN_THREADS@/$granian_threads/g" \
-        -e "s/@HUEY_WORKERS@/$huey_workers/g" "$1"
+        -e "s/@HUEY_WORKERS@/$huey_workers/g" \
+        -e "s/@SITE_HOSTNAMES@/$site_names/g" "$1"
   }
 
   # tree: /etc/credentials/app/.env.vm — content only; root:app + 750/640

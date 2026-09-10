@@ -51,7 +51,7 @@ provision_vm() {
   echo "==> [vm] apt packages"
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
-  apt-get install -y curl rsync git htop ufw avahi-daemon ripgrep fd-find \
+  apt-get install -y curl rsync git htop ufw ripgrep fd-find \
     postgresql postgresql-client redis-server ca-certificates gnupg
   # fd-find: pi auto-downloads its fd helper to ~/.pi/agent/bin on first
   # launch otherwise — pre-install so the first ./run pi is offline-clean.
@@ -96,18 +96,14 @@ provision_vm() {
   echo "==> [vm] redis (config lands later via the tree; start it stock)"
   systemctl enable --now redis-server >/dev/null
 
-  echo "==> [vm] avahi (app.local via the instance hostname)"
-  # The single name comes from the hostname claim (instance = `app`) — the
-  # one mDNS mechanism macOS/Linux clients resolve reliably. A second name
-  # via static hosts was tried and dropped (never announced/defended).
-  systemctl enable --now avahi-daemon >/dev/null
-
-  echo "==> [vm] ufw (ssh for multipass exec, http/https; LAN-wide)"
-  # 22 is multipass's OWN channel (exec/shell over the internal bridge) —
-  # the VM's only login path now; no authorized_keys are installed.
+  echo "==> [vm] ufw (ssh only — the app rides the tunnel's loopback hop)"
+  # 22 is multipass's OWN channel (exec/shell over the internal bridge) and
+  # the port-forward tunnel's ride (ubuntu@<bridged-ip>; provisioning
+  # installs no authorized_keys — the README's one-time pubkey step). The
+  # forward's target is the VM's loopback :443, which ufw never filters —
+  # so 80/443 stay CLOSED to the LAN: no name is served off-box (localhost
+  # only; avahi is gone, nothing is announced).
   ufw allow OpenSSH >/dev/null 2>&1 || ufw allow 22/tcp >/dev/null
-  ufw allow 80/tcp >/dev/null
-  ufw allow 443/tcp >/dev/null
   ufw --force enable >/dev/null
 }
 
@@ -222,7 +218,7 @@ SQL
   systemctl enable "app_huey.service" >/dev/null
 
   # ── files: /etc/caddy/Caddyfile + /etc/caddy/sites/app.caddy ──────────
-  # The import line (stock Caddyfile) + the app.local site (the app).
+  # The import line (stock Caddyfile) + the app site (names from ALLOWED_HOSTS).
   # Reload picks up sites/*.caddy.
   echo "==> [app] caddy (site + import line arrived via the tree)"
   systemctl enable caddy >/dev/null
@@ -235,7 +231,7 @@ SQL
   git config --system safe.directory "$appdir/main"
   git config --system --add safe.directory "$appdir/scratch"
 
-  echo "==> [app] build done (site: app.local)"
+  echo "==> [app] build done (site: localhost — via the ssh forward)"
 }
 
 case "$phase" in

@@ -420,7 +420,7 @@ are NOT clickable in chat. Always link as markdown
 `./run djangomanage hostnames` (allowlisted; prints
 `<hostname1,hostname2,…>`) and use `https://<first hostname>` — never
 assume a hostname, and never read the env file for it. Do NOT try to
-access the site yourself (e.g. https://app.local): you have no browser
+access the site yourself (e.g. https://localhost:8000): you have no browser
 session with the required user, and the hostname may not be that — build
 links from the command's output only. Placement of links in the message:
 [Message structure](#message-structure-the-single-rule).
