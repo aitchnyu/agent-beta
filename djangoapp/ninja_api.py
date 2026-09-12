@@ -23,6 +23,7 @@ from django.http import Http404, HttpRequest, HttpResponse
 from django.shortcuts import render
 from ninja import NinjaAPI, Router
 from ninja.errors import HttpError
+from ninja.utils import check_csrf
 
 from djangoapp.logging import get_logger
 
@@ -118,13 +119,59 @@ def register_api_error_handlers(api: NinjaAPI) -> None:
         return api.create_response(request, {"detail": _INTERNAL}, status=500)
 
 
-def make_ninja_api(name: str, router: Router, *, prefix: str | None = None) -> NinjaAPI:
+_SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
+
+
+class _CsrfPrincipal:
+    """Truthy sentinel ``request.auth`` value set when the guard passes.
+
+    Not an identity — a bare ``True`` would invite ``if request.auth:``
+    identity checks later; the repr makes log/debug output self-describing.
+    """
+
+    def __repr__(self) -> str:
+        return "<csrf-guard-passed>"
+
+
+_CSRF_PRINCIPAL = _CsrfPrincipal()
+
+
+def csrf_guard(request: HttpRequest) -> _CsrfPrincipal:
+    """Django's CSRF check (token + Origin/Referer) on unsafe methods.
+
+    Installed by ``make_ninja_api`` as the API-level ``auth`` — ninja
+    otherwise exempts its views from ``CsrfViewMiddleware``. Safe methods
+    and ``csrf=False`` mounts pass. Returns a truthy sentinel (a None return
+    ninja reads as auth failure); an explicit ``auth=`` override replaces
+    this guard entirely.
+    """
+    if request.method not in _SAFE_METHODS and check_csrf(request) is not None:
+        # check_csrf runs the real CsrfViewMiddleware logic (token match +
+        # Origin/Referer); non-None is its rejection.
+        raise ApiError(403, "CSRF verification failed.")
+    return _CSRF_PRINCIPAL
+
+
+def make_ninja_api(
+    name: str,
+    router: Router,
+    *,
+    prefix: str | None = None,
+    csrf: bool = True,
+) -> NinjaAPI:
     """Build an app NinjaAPI: URL namespace, error handlers, and router mount.
 
     ``prefix`` defaults to ``name``; pass ``""`` to mount the router at the API
     root (used when the API is itself mounted under a URL path, e.g. opencode).
+
+    CSRF is ON by default via the API-level ``csrf_guard`` auth (token +
+    Origin/Referer on unsafe methods). Pass ``csrf=False`` only for anonymous
+    sinks where tokenless POSTs are the point — and say why at the call site.
     """
-    api = NinjaAPI(urls_namespace=f"{name}-http")
+    api = NinjaAPI(
+        urls_namespace=f"{name}-http",
+        auth=csrf_guard if csrf else None,
+    )
     register_api_error_handlers(api)
     api.add_router(prefix if prefix is not None else name, router)
     return api

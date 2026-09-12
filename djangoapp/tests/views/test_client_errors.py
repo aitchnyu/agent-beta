@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 import redis
-from django.test import tag
+from django.test import Client, tag
 
 from djangoapp.logging import json_formatter
 from djangoapp.models import User
@@ -70,6 +70,7 @@ class ClientErrorViewTests(BaseTestCase):
 
     - test_authed_report_logs_client_error, authed POST → 204; source=client + row/col + user
     - test_anon_report_accepted, anonymous POST → 204 with user None
+    - test_tokenless_post_accepted_under_strict_csrf, opt-out holds even with CSRF enforcement on
     - test_rate_limit_returns_429_over_budget, over cap → 429 (real redis)
     - test_redis_failure_fails_closed, dead redis → 500 (fail closed)
     - test_client_body_cannot_forge_log_fields, stray keys → 422 (extra=forbid)
@@ -111,6 +112,24 @@ class ClientErrorViewTests(BaseTestCase):
         records = _ndjson(buf)
         rec = next(r for r in records if r.get("event") == "client error")
         self.assertIsNone(rec["user"])
+
+    def test_tokenless_post_accepted_under_strict_csrf(self) -> None:
+        """The csrf=False opt-out holds even with CSRF enforcement on.
+
+        make_ninja_api's default csrf_guard protects every API it builds;
+        this sink's mount passed csrf=False so tokenless beacons land. The
+        strict-CSRF client documents intent, though ninja's blanket
+        csrf_exempt means Django's middleware would skip it anyway — the
+        real pin is that the ninja-level guard does not reject a tokenless
+        POST to this API (and stays that way if the default flips).
+        """
+        strict = Client(enforce_csrf_checks=True)
+        with _capture_json() as buf:
+            response = strict.post(
+                "/client-errors", data=_payload(), content_type="application/json"
+            )
+        self.assertEqual(response.status_code, 204)
+        self.assertTrue(any(r.get("event") == "client error" for r in _ndjson(buf)))
 
     def test_rate_limit_returns_429_over_budget(self) -> None:
         """Over the per-identity cap, the (N+1)th report is 429 (real redis)."""
