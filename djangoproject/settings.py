@@ -171,8 +171,17 @@ STATIC_ROOT = Path(os.environ["STATIC_ROOT"])
 # the VM (https://localhost:8000 behind caddy), plain runserver in dev (where the
 # https://localhost origins are simply unused). ALLOWED_HOSTS validates the
 # Host header; this gates the CSRF Origin/Referer match, which needs scheme.
-# TODO do we need this?
+# Behind the proxy this is belt-and-braces: Django also accepts an Origin that
+# matches the request's own scheme+host (incl. non-standard ports).
 CSRF_TRUSTED_ORIGINS = [f"https://{host}" for host in ALLOWED_HOSTS]
+
+# Two layers make Django see https behind caddy: djangoproject/asgi.py wraps
+# the app with granian's proxy-header handler (peer-checked, the primary
+# mechanism on the VM), and this setting makes Django itself trust
+# X-Forwarded-Proto (META-style key) — covering WSGI/test contexts and any
+# non-granian deployment. Safe ONLY because granian binds 127.0.0.1
+# (deploy/granian.service.in) and dev runserver never sends the header.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field

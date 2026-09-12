@@ -24,7 +24,7 @@ redirect exception): register
 in the Google console, then:
   multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
     runasapp .venv/bin/python manage.py addoauth google <client_id> <secret>
-Or mint a one-time link (the user row must already exist, e.g. via a
+Or issue a one-time link (the user row must already exist, e.g. via a
 restored DB or Django shell):
   multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
     runasapp .venv/bin/python manage.py makeloginlink <email>

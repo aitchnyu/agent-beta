@@ -232,7 +232,7 @@ checkframework1() {
 # stack over HTTPS on the VM's loopback (caddy TLS, granian, postgres,
 # login links) — what only a real deployment shows.
 #
-# Organized as Setup 1-4 (build/deploy/mint) then Assert 1-6 (the
+# Organized as Setup 1-4 (build/deploy/issue) then Assert 1-6 (the
 # HTTP smoke, one banner per assertion, first failure aborts).
 checkframework2() {
   setenv
@@ -295,14 +295,14 @@ checkframework2() {
   vm_app .venv/bin/python manage.py createuser framework@example.com --first-name Framework --last-name Smoke --superuser
   multipass exec app -- sudo systemctl restart app_granian.service
 
-  # ── Setup 4/4: mint the one-time superuser login link ──────────────────
+  # ── Setup 4/4: issue the one-time superuser login link ──────────────────
   # makeloginlink inside the VM, extract the URL; the in-VM cookie jar
   # captures the session the assertions below ride on.
-  echo "=== Setup 4/4: mint the one-time superuser login link ==="
+  echo "=== Setup 4/4: issue the one-time superuser login link ==="
   local link
   link=$(vm_app .venv/bin/python manage.py makeloginlink framework@example.com --base-url "$vm_base" \
     | grep -oE "$vm_base/login-for-test/[^ ]+/" | head -1) || true
-  [ -n "$link" ] || { echo "FAILED: no login link minted" >&2; return 1; }
+  [ -n "$link" ] || { echo "FAILED: no login link issued" >&2; return 1; }
   trap 'multipass exec app -- rm -f "$vm_jar" >/dev/null 2>&1 || true' RETURN
 
   local code body

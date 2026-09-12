@@ -1,9 +1,17 @@
 <script setup lang="ts">
-import { computed } from "vue"
+import { computed, ref } from "vue"
+import type { z } from "zod"
 import { Link, usePage } from "@inertiajs/vue3"
 import PageTitle from "../components/PageTitle.vue"
 import RichTextViewer from "../components/RichTextViewer.vue"
-import { SharedPropsSchema, UserDetailsPropsSchema } from "../schemas.ts"
+import { postJSON } from "../utils/http"
+import { showErrorToast, showToast } from "../utils/sweetalert"
+import { formatDateTime } from "../utils/time"
+import {
+  LoginLinkResponseSchema,
+  SharedPropsSchema,
+  UserDetailsPropsSchema,
+} from "../schemas.ts"
 
 const props = defineProps<{
   props: object
@@ -14,6 +22,40 @@ const p = UserDetailsPropsSchema.parse(props.props)
 const isSuperuser = computed(
   () => SharedPropsSchema.parse(usePage().props).viewer_is_superuser,
 )
+
+// ── Admin action: login link ───────────────────────────────────────────────
+// Mutations ride the app's HTTP layer (CSRF hook + normalized errors), same
+// as the edit page.
+
+const showLinkPanel = ref(false)
+const ttlMinutes = ref(15)
+const linkResult = ref<z.infer<typeof LoginLinkResponseSchema> | null>(null)
+const generating = ref(false)
+
+async function generateLink() {
+  generating.value = true
+  try {
+    linkResult.value = LoginLinkResponseSchema.parse(
+      await postJSON(`${p.path_prefix}/api/${p.public_id}/loginlink`, {
+        ttl_minutes: ttlMinutes.value,
+      }),
+    )
+  } catch (e: unknown) {
+    showErrorToast(e, "Failed to generate login link")
+  } finally {
+    generating.value = false
+  }
+}
+
+async function copyLink() {
+  if (!linkResult.value) return
+  try {
+    await navigator.clipboard.writeText(linkResult.value.url)
+    showToast("success", "Login link copied")
+  } catch {
+    showToast("error", "Could not copy — select the URL manually")
+  }
+}
 </script>
 
 <template>
@@ -40,11 +82,72 @@ const isSuperuser = computed(
         class="btn btn-outline-secondary btn-sm"
         >Edit</Link
       >
+      <button
+        class="btn btn-outline-secondary btn-sm user-details-login-link-btn"
+        :aria-expanded="showLinkPanel"
+        aria-controls="user-details-link-panel"
+        @click="showLinkPanel = !showLinkPanel"
+      >
+        Login link
+      </button>
       <Link
         :href="`/users/history/${p.public_id}`"
         class="small text-muted text-decoration-none align-self-center"
         >History ({{ p.history_count }})</Link
       >
+    </div>
+
+    <div
+      v-if="isSuperuser && showLinkPanel"
+      id="user-details-link-panel"
+      class="card mb-4 user-details-link-panel"
+    >
+      <div class="card-body">
+        <div class="d-flex gap-2 align-items-center mb-2">
+          <label class="form-label mb-0" for="user-details-ttl"
+            >Valid for</label
+          >
+          <select
+            id="user-details-ttl"
+            v-model="ttlMinutes"
+            class="form-select form-select-sm w-auto"
+          >
+            <option :value="15">15 minutes</option>
+            <option :value="60">1 hour</option>
+            <option :value="480">8 hours</option>
+            <option :value="1440">24 hours</option>
+          </select>
+          <button
+            class="btn btn-sm btn-primary user-details-generate-link-btn"
+            :disabled="generating"
+            @click="generateLink()"
+          >
+            {{ generating ? "Generating..." : "Generate" }}
+          </button>
+        </div>
+        <div v-if="linkResult">
+          <div class="input-group input-group-sm">
+            <input
+              :value="linkResult.url"
+              type="text"
+              readonly
+              class="form-control user-details-link-url"
+              @focus="($event.target as HTMLInputElement).select()"
+            />
+            <button
+              class="btn btn-outline-secondary user-details-copy-link-btn"
+              @click="copyLink()"
+            >
+              Copy
+            </button>
+          </div>
+          <div class="form-text">
+            Single use, expires {{ formatDateTime(linkResult.expires_at) }}.
+            Anyone with this URL can sign in as {{ p.first_name }} — treat it
+            like a password.
+          </div>
+        </div>
+      </div>
     </div>
 
     <table v-if="isSuperuser" class="table table-sm user-details-attrs mb-4">
@@ -79,6 +182,13 @@ const isSuperuser = computed(
           <td>
             <span v-if="p.is_superuser" class="user-yes">Yes</span>
             <span v-else class="user-no">No</span>
+          </td>
+        </tr>
+        <tr>
+          <th scope="row">Last login</th>
+          <td>
+            <span v-if="p.last_login">{{ formatDateTime(p.last_login) }}</span>
+            <span v-else class="text-muted">Never</span>
           </td>
         </tr>
       </tbody>

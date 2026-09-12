@@ -4,6 +4,7 @@ import typing
 import uuid
 from typing import Any, ClassVar, Literal, cast
 
+from django.contrib.auth import login as auth_login
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.models import UserManager as DjangoUserManager
 from django.contrib.postgres.indexes import GinIndex
@@ -11,6 +12,13 @@ from django.contrib.postgres.search import TrigramSimilarity
 from django.db import models, transaction
 from django.utils import timezone
 from pydantic import BaseModel as PydanticBaseModel
+
+from djangoapp.logging import get_logger
+
+if typing.TYPE_CHECKING:
+    from django.http import HttpRequest
+
+logger = get_logger(__name__)
 
 
 def generate_uuid7_id() -> str:
@@ -149,6 +157,18 @@ class User(AbstractUser):
 
     generate_uuid7_id = staticmethod(generate_uuid7_id)
 
+    def login(self, request: HttpRequest) -> None:
+        """Start an authenticated session for this user on ``request``.
+
+        Wraps ``django.contrib.auth.login`` (which cycles the session and
+        refreshes ``last_login``) and records the event (UserHistory entry +
+        structlog). Used by the login-key redemption view; allauth social
+        logins keep their own path.
+        """
+        auth_login(request, self, backend="django.contrib.auth.backends.ModelBackend")
+        UserHistory.record_login(self)
+        logger.info("user logged in", user=self.public_id, via="login key")
+
 
 class UserProfile(PydanticBaseModel):
     # pk-free: only the URL-safe public_id is ever sent to clients.
@@ -175,6 +195,7 @@ class UserHistoryContent(PydanticBaseModel):
     is_active: BoolChange | None = None
     is_staff: BoolChange | None = None
     is_superuser: BoolChange | None = None
+    login_link_minutes: int | None = None
 
 
 class UserSnapshot(PydanticBaseModel):
@@ -232,9 +253,12 @@ class UserSnapshot(PydanticBaseModel):
         return UserHistoryContent(**changes)
 
 
+UserHistoryAction = Literal["created", "edited", "deleted", "login", "login_link"]
+
+
 class UserHistoryEntryItem(PydanticBaseModel):
     public_id: str
-    action: Literal["created", "edited", "deleted"]
+    action: UserHistoryAction
     time: str
     changes: UserHistoryContent
 
@@ -251,6 +275,8 @@ class UserHistory(models.Model):
         ("created", "Created"),
         ("edited", "Edited"),
         ("deleted", "Deleted"),
+        ("login", "Login"),
+        ("login_link", "Login link"),
     ]
 
     public_id = models.CharField(
@@ -293,7 +319,7 @@ class UserHistory(models.Model):
         )
         return UserHistoryEntryItem(
             public_id=self.public_id,
-            action=cast(Literal["created", "edited", "deleted"], self.action),
+            action=cast(UserHistoryAction, self.action),
             time=self.time.isoformat(),
             changes=content,
         )
@@ -342,6 +368,40 @@ class UserHistory(models.Model):
             user=user,
             action="deleted",
             _changes={},
+        )
+
+    @classmethod
+    def record_login(
+        cls,
+        target_user: User,
+    ) -> UserHistory:
+        """Audit trail for a session login (the user is their own actor)."""
+        return cls.objects.create(
+            target_user=target_user,
+            target_user_public_id_copy=target_user.public_id,
+            user=target_user,
+            action="login",
+            _changes={},
+        )
+
+    @classmethod
+    def record_login_link(
+        cls,
+        target_user: User,
+        user: User,
+        minutes: int,
+    ) -> UserHistory:
+        """Audit trail for an issued one-time login link (admin action).
+
+        The raw key is deliberately absent — it exists only in the API
+        response/command stdout, never in the database or history.
+        """
+        return cls.objects.create(
+            target_user=target_user,
+            target_user_public_id_copy=target_user.public_id,
+            user=user,
+            action="login_link",
+            _changes=UserHistoryContent(login_link_minutes=minutes).model_dump(mode="json"),
         )
 
 

@@ -137,4 +137,7 @@ def submit(request: HttpRequest, body: ClientErrorBody) -> HttpResponse:
 
 
 # Mount at the project root so the route is POST /client-errors.
-client_errors_api = make_ninja_api("clienterrors", client_errors_router, prefix="")
+# csrf=False: tokenless anonymous POSTs (sendBeacon on pagehide) are the
+# point of this sink — no csrf_guard — and the Redis per-identity rate limit
+# bounds the abuse vector to log spam.
+client_errors_api = make_ninja_api("clienterrors", client_errors_router, prefix="", csrf=False)

@@ -9,13 +9,13 @@ from django.core.management.base import CommandError
 from django.test import tag
 from django.utils import timezone
 
-from djangoapp.models import TestLoginKey, User
+from djangoapp.models import LoginKey, User
 from djangoapp.tests._base import BaseTestCase
 
-_KEY_URL_RE = re.compile(r"(/login-for-test/by-key/[A-Za-z0-9_\-]+/)")
+_KEY_URL_RE = re.compile(r"(/login-for-test/[A-Za-z0-9_\-]+/)")
 
 
-class TestLoginKeyTests(BaseTestCase):
+class LoginKeyTests(BaseTestCase):
     """Issue/redeem semantics for one-time login keys.
 
     Keys are hashed at rest, redeem exactly once, and refuse expired or
@@ -34,8 +34,8 @@ class TestLoginKeyTests(BaseTestCase):
 
     def test_issue_stores_hash_not_raw_key(self) -> None:
         """The table holds only the SHA-256; the raw key exists solely in the return."""
-        raw = TestLoginKey.issue(self.user, minutes=15)
-        row = TestLoginKey.objects.get()
+        raw, _expires_at = LoginKey.issue(self.user, minutes=15)
+        row = LoginKey.objects.get()
         self.assertNotEqual(row.key_hash, raw)
         self.assertEqual(len(row.key_hash), 64)
         self.assertIsNone(row.used_at)
@@ -43,37 +43,37 @@ class TestLoginKeyTests(BaseTestCase):
 
     def test_issue_sweeps_expired_rows(self) -> None:
         """issue() sweeps expired rows out of the table."""
-        raw = TestLoginKey.issue(self.user, minutes=15)
-        TestLoginKey.objects.update(expires_at=timezone.now() - timedelta(minutes=1))
-        TestLoginKey.issue(self.user, minutes=15)
-        self.assertEqual(TestLoginKey.objects.count(), 1)
-        self.assertIsNone(TestLoginKey.redeem(raw))
+        raw, _a = LoginKey.issue(self.user, minutes=15)
+        LoginKey.objects.update(expires_at=timezone.now() - timedelta(minutes=1))
+        LoginKey.issue(self.user, minutes=15)
+        self.assertEqual(LoginKey.objects.count(), 1)
+        self.assertIsNone(LoginKey.redeem(raw))
 
     @tag("scratch-test-subset")
     def test_redeem_consumed_after_success(self) -> None:
         """A valid key returns its user once, then None forever after."""
-        raw = TestLoginKey.issue(self.user, minutes=15)
-        redeemed = TestLoginKey.redeem(raw)
+        raw, _expires_at = LoginKey.issue(self.user, minutes=15)
+        redeemed = LoginKey.redeem(raw)
         self.assertEqual(redeemed, self.user)
-        self.assertIsNone(TestLoginKey.redeem(raw))
+        self.assertIsNone(LoginKey.redeem(raw))
 
     def test_redeem_marks_used_at(self) -> None:
         """A successful redeem stamps used_at (mark, not delete)."""
-        raw = TestLoginKey.issue(self.user, minutes=15)
-        TestLoginKey.redeem(raw)
-        row = TestLoginKey.objects.get()
+        raw, _expires_at = LoginKey.issue(self.user, minutes=15)
+        LoginKey.redeem(raw)
+        row = LoginKey.objects.get()
         self.assertIsNotNone(row.used_at)
 
     def test_redeem_expired_is_none(self) -> None:
         """Keys past their expires_at are refused and never marked used."""
-        raw = TestLoginKey.issue(self.user, minutes=15)
-        TestLoginKey.objects.update(expires_at=timezone.now() - timedelta(minutes=1))
-        self.assertIsNone(TestLoginKey.redeem(raw))
-        self.assertIsNone(TestLoginKey.objects.get().used_at)
+        raw, _expires_at = LoginKey.issue(self.user, minutes=15)
+        LoginKey.objects.update(expires_at=timezone.now() - timedelta(minutes=1))
+        self.assertIsNone(LoginKey.redeem(raw))
+        self.assertIsNone(LoginKey.objects.get().used_at)
 
     def test_redeem_garbage_is_none(self) -> None:
         """Unknown keys hash to nothing and return None."""
-        self.assertIsNone(TestLoginKey.redeem("not-a-real-key"))
+        self.assertIsNone(LoginKey.redeem("not-a-real-key"))
 
 
 class MakeLoginLinkCommandTests(BaseTestCase):
@@ -115,7 +115,7 @@ class MakeLoginLinkCommandTests(BaseTestCase):
         """
         out = StringIO()
         call_command("makeloginlink", self.user.email, base_url="https://vm.example", stdout=out)
-        self.assertIn("https://vm.example/login-for-test/by-key/", out.getvalue())
+        self.assertIn("https://vm.example/login-for-test/", out.getvalue())
 
     def test_redeem_rotates_session_key(self) -> None:
         """login() cycles the session key (fixation-safe)."""
@@ -142,10 +142,10 @@ class MakeLoginLinkCommandTests(BaseTestCase):
         """The email lookup is case-insensitive."""
         out = StringIO()
         call_command("makeloginlink", "CMD@example.com", base_url="https://vm.example", stdout=out)
-        self.assertIn("/login-for-test/by-key/", out.getvalue())
+        self.assertIn("/login-for-test/", out.getvalue())
 
     def test_minutes_must_be_positive(self) -> None:
-        """0/negative --minutes would mint an already-dead link — refuse."""
+        """0/negative --minutes would issue an already-dead link — refuse."""
         for bad in (0, -5):
             with self.assertRaises(CommandError):
                 call_command("makeloginlink", self.user.email, minutes=bad, stdout=StringIO())

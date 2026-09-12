@@ -1,11 +1,6 @@
 from __future__ import annotations
 
-from django.conf import settings
-from django.contrib.auth import login
-from django.http import Http404, HttpRequest, HttpResponse
-from django.shortcuts import redirect
-
-from djangoapp.models import TestLoginKey
+from django.http import Http404, HttpRequest
 
 
 def require_superuser(request: HttpRequest) -> None:
@@ -18,21 +13,3 @@ def require_superuser(request: HttpRequest) -> None:
     viewer = request.user
     if not (viewer.is_authenticated and viewer.is_superuser):
         raise Http404
-
-
-def login_for_test_by_key(request: HttpRequest, key: str) -> HttpResponse:
-    """Log in a user via a one-time key issued by ``makeloginlink``.
-
-    The test VM cannot use Google OAuth (its ``.local`` hostname isn't
-    registrable), so the operator mints these links over multipass exec. The
-    key is the
-    sole credential and redemption consumes it atomically — the link works
-    exactly once. Any miss (unknown, used, expired) is a 404 like every other
-    resource gate. Not DEBUG-gated: the unguessable, single-use key is the
-    gate.
-    """
-    user = TestLoginKey.redeem(key)
-    if user is None:
-        raise Http404
-    login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-    return redirect(settings.LOGIN_REDIRECT_URL)

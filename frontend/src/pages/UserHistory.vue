@@ -3,6 +3,7 @@ import { Link } from "@inertiajs/vue3"
 import PageTitle from "../components/PageTitle.vue"
 import RichTextViewer from "../components/RichTextViewer.vue"
 import { UserHistoryPropsSchema } from "../schemas.ts"
+import { formatDateTime } from "../utils/time"
 
 const props = defineProps<{
   props: object
@@ -10,16 +11,6 @@ const props = defineProps<{
 
 const p = UserHistoryPropsSchema.parse(props.props)
 const pathPrefix = p.path_prefix
-
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  })
-}
 
 function actionLabel(action: string): string {
   switch (action) {
@@ -29,6 +20,10 @@ function actionLabel(action: string): string {
       return "Edited"
     case "deleted":
       return "Deleted"
+    case "login":
+      return "Login"
+    case "login_link":
+      return "Login link"
     default:
       return action
   }
@@ -45,7 +40,21 @@ type Changes = {
   is_active: BoolChange | null
   is_staff: BoolChange | null
   is_superuser: BoolChange | null
+  login_link_minutes: number | null
 }
+
+// Only the old→new diff fields render as diffs; the admin-action payload
+// field (login_link_minutes) gets its own summary.
+const DIFF_KEYS = [
+  "first_name",
+  "last_name",
+  "email",
+  "description",
+  "has_public_profile",
+  "is_active",
+  "is_staff",
+  "is_superuser",
+] as const
 
 interface FieldDiff {
   label: string
@@ -70,7 +79,8 @@ function fieldLabel(key: string): string {
 
 function diffsFor(changes: Changes): FieldDiff[] {
   const out: FieldDiff[] = []
-  for (const [key, change] of Object.entries(changes)) {
+  for (const key of DIFF_KEYS) {
+    const change = changes[key]
     if (!change) continue
     out.push({
       label: fieldLabel(key),
@@ -109,7 +119,9 @@ function diffsFor(changes: Changes): FieldDiff[] {
             <span class="badge bg-secondary">{{
               actionLabel(entry.action)
             }}</span>
-            <span class="text-muted small">{{ formatTime(entry.time) }}</span>
+            <span class="text-muted small">{{
+              formatDateTime(entry.time)
+            }}</span>
           </div>
           <div
             v-for="diff in diffsFor(entry.changes)"
@@ -147,6 +159,22 @@ function diffsFor(changes: Changes): FieldDiff[] {
               </template>
               <span class="user-history-new">{{ diff.new }}</span>
             </template>
+          </div>
+          <div
+            v-if="entry.action === 'login'"
+            class="text-muted small user-history-action-summary"
+          >
+            Signed in (new session started)
+          </div>
+          <div
+            v-else-if="
+              entry.action === 'login_link' &&
+              entry.changes.login_link_minutes !== null
+            "
+            class="text-muted small user-history-action-summary"
+          >
+            One-time login link issued, valid for
+            {{ entry.changes.login_link_minutes }} minutes
           </div>
         </div>
       </div>

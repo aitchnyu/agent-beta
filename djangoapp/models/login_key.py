@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import secrets
+from datetime import datetime as dt_datetime
 from datetime import timedelta
 from typing import TYPE_CHECKING
 
@@ -17,20 +18,21 @@ def _hash_key(key: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
 
 
-class TestLoginKey(models.Model):
-    """One-time login link for environments without social login (the test VM).
+class LoginKey(models.Model):
+    """One-time login link issued by an admin (CLI or the details page).
 
-    The VM's hostname (`<appname>.local`) is not registrable, so Google OAuth
-    cannot complete there; ``makeloginlink`` issues a secret URL instead and
-    ``login_for_test_by_key`` redeems it. Only the SHA-256 of the key is
-    stored — a database leak must not yield usable links — and redemption is
-    atomic, so a link logs its user in exactly once, ever.
+    ``makeloginlink`` and the user-details page issue a secret URL that
+    lets a chosen user sign in exactly once before it expires — the
+    operator path for the VM or any environment without Google
+    credentials; ``redeem_login_key`` redeems it. Only the SHA-256 of the
+    key is stored — a database leak must not yield usable links — and
+    redemption is atomic, so a link logs its user in exactly once, ever.
     """
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.RESTRICT,  # house default; also keeps spent keys attributable
-        related_name="test_login_keys",
+        related_name="login_keys",
     )
     key_hash = models.CharField(max_length=64, unique=True, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -38,21 +40,23 @@ class TestLoginKey(models.Model):
     used_at = models.DateTimeField(null=True, blank=True)
 
     @classmethod
-    def issue(cls, user: User, minutes: int = 15) -> str:
-        """Create a fresh key row for ``user`` and return the raw (unhashed) key.
+    def issue(cls, user: User, minutes: int = 15) -> tuple[str, dt_datetime]:
+        """Create a fresh key row for ``user``; return the raw key + its expiry.
 
-        The raw key exists only in this return value (and the command's
-        stdout) — never in the database. Expired rows are swept on every
-        issue: they can never redeem again, so they're pure clutter.
+        The raw key exists only in this return value (and the caller's
+        response/stdout) — never in the database. Expired rows are
+        swept on every issue: they can never redeem again, so they're pure
+        clutter.
         """
         cls.objects.filter(expires_at__lt=timezone.now()).delete()
         key = secrets.token_urlsafe(32)
+        expires_at = timezone.now() + timedelta(minutes=minutes)
         cls.objects.create(
             user=user,
             key_hash=_hash_key(key),
-            expires_at=timezone.now() + timedelta(minutes=minutes),
+            expires_at=expires_at,
         )
-        return key
+        return key, expires_at
 
     @classmethod
     def redeem(cls, key: str) -> User | None:

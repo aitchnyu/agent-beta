@@ -15,15 +15,15 @@ from djangoapp.models.base import (
     generate_uuid7_id,
     user_profile,
 )
-from djangoapp.models.login_key import TestLoginKey
+from djangoapp.models.login_key import LoginKey
 
 __all__ = [
     "MANAGE_MODELS_URL_PREFIX",
     "BaseModel",
     "BaseModelUpdateLog",
     "BoolChange",
+    "LoginKey",
     "StringChange",
-    "TestLoginKey",
     "UpdateLogEntryItem",
     "User",
     "UserHistory",

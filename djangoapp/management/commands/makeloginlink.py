@@ -5,15 +5,15 @@ from typing import Any
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
-from djangoapp.models import TestLoginKey, User
+from djangoapp.models import LoginKey, User
 
 
 class Command(BaseCommand):
     """Print a one-time login URL for an existing user (looked up by email).
 
     The test VM cannot complete Google OAuth (its ``.local`` hostname isn't
-    registrable), so this is how the operator signs in there: it mints a
-    ``/login-for-test/by-key/<key>/`` URL that logs the user in exactly once
+    registrable), so this is how the operator signs in there: it issues a
+    ``/login-for-test/<key>/`` URL that logs the user in exactly once
     before it expires. Only the SHA-256 of the key is stored server-side, so
     the printed line is the only place the raw key exists.
     """
@@ -43,7 +43,7 @@ class Command(BaseCommand):
         email: str = options["email"]
         minutes: int = options["minutes"]
         base_url: str | None = options["base_url"]
-        # 0/negative would mint an already-dead link and print it as success.
+        # 0/negative would issue an already-dead link and print it as success.
         if minutes <= 0:
             msg = f"--minutes must be > 0 (got {minutes})."
             raise CommandError(msg)
@@ -57,7 +57,7 @@ class Command(BaseCommand):
             msg = f"Multiple users share email '{email}'; dedupe accounts first."
             raise CommandError(msg)
         user = matches.get()
-        key = TestLoginKey.issue(user, minutes=minutes)
+        key, _expires_at = LoginKey.issue(user, minutes=minutes)
         # Outside DEBUG the app is always behind the HTTPS proxy at its first
         # allowed host; in dev the runserver port is the only reachable origin.
         if base_url is None:
@@ -66,7 +66,7 @@ class Command(BaseCommand):
                 if settings.DEBUG
                 else f"https://{settings.ALLOWED_HOSTS[0]}"
             )
-        url = f"{base_url}/login-for-test/by-key/{key}/"
+        url = f"{base_url}/login-for-test/{key}/"
         self.stdout.write(
             self.style.SUCCESS(
                 f"One-time login for '{user.username}' (valid {minutes} min, single use):\n{url}"

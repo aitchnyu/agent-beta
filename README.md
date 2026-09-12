@@ -47,7 +47,7 @@ changes through an agent that edits a throwaway.
   one-time link —
   `./run djangomanage createuser you@example.com --first-name You --last-name Name --superuser`
   then `./run djangomanage makeloginlink you@example.com` (opens
-  `/login-for-test/by-key/…`, single use; `promotetosuperuser <email>`
+  `/login-for-test/<key>/`, single use; `promotetosuperuser <email>`
   promotes an existing user later).
 - **Google login** (dev) — register OAuth credentials and store them with
   `./run djangomanage addoauth google <client_id> <secret>`.
@@ -111,7 +111,7 @@ means a click-through warning (the supported mode):
     runasapp .venv/bin/python manage.py addoauth google <client_id> <secret>
   ```
 
-  — or mint a one-time link for an existing user (single use, 15-min
+  — or issue a one-time link for an existing user (single use, 15-min
   expiry), then `promotetosuperuser <email>` to unlock admin pages:
 
   ```bash
@@ -165,17 +165,18 @@ hardcoded to Google (the `INSTALLED_APPS` provider app and the CSP
 ## Sign in (one-time login link)
 
 There is no signup flow and (in dev) possibly no Google login yet — sign in
-by minting a one-time link for an existing user (e.g. one created with
+by issuing a one-time link for an existing user (e.g. one created with
 `createuser`):
 
 ```bash
 ./run python manage.py makeloginlink alice@example.com
 ```
 
-Open the printed `/login-for-test/by-key/…` URL once — single use,
+Open the printed `/login-for-test/<key>/` URL once — single use,
 15-minute expiry (`--minutes N` to change), and only the SHA-256 of the key
-is stored. On the test VM the same command runs via `multipass exec` — see
-[VM (test server)](#vm-test-server).
+is stored. Superusers can also issue the same link from a user's details
+page (`/users/id/<public_id>` → "Login link"), with 15 m / 1 h / 8 h / 24 h
+TTLs and a copy button.
 
 ## Promote a user to superuser
 

@@ -64,6 +64,8 @@ export const UserDetailsPropsSchema = z.object({
   is_staff: z.boolean(),
   is_superuser: z.boolean(),
   history_count: z.number(),
+  // Admin-only (superuser viewers): null when not populated.
+  last_login: z.string().nullable(),
 })
 
 export const UserEditItemSchema = z.object({
@@ -96,11 +98,13 @@ export const UserHistoryChangesSchema = z.object({
   is_active: UserBoolChangeSchema.nullable(),
   is_staff: UserBoolChangeSchema.nullable(),
   is_superuser: UserBoolChangeSchema.nullable(),
+  // Admin-action payload (login_link), not a field diff.
+  login_link_minutes: z.number().nullable(),
 })
 
 export const UserHistoryEntrySchema = z.object({
   public_id: z.string(),
-  action: z.enum(["created", "edited", "deleted"]),
+  action: z.enum(["created", "edited", "deleted", "login", "login_link"]),
   time: z.string(),
   changes: UserHistoryChangesSchema,
 })
@@ -113,6 +117,13 @@ export const UserHistoryPropsSchema = z.object({
 })
 
 export const MessageResponseSchema = z.object({ id: z.string() })
+
+// ---- Users admin actions (details page) ----
+
+export const LoginLinkResponseSchema = z.object({
+  url: z.string(),
+  expires_at: z.string(),
+})
 
 // ---- Shared props (Inertia shared, injected by SharedPropsMiddleware) ----
 

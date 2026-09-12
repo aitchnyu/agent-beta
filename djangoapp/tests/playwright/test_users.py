@@ -157,3 +157,58 @@ class UserHistoryE2eTestCase(BasePlaywrightTestCase):
             response = page.goto(f"{self.live_server_url}/users/history/{self.target.public_id}")
             assert response is not None
             self.assertEqual(response.status, HTTPStatus.NOT_FOUND)
+
+
+class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):
+    """E2E for the details page admin action (login link).
+
+    The admin issues a one-time link on the details page and an anonymous
+    browser redeems it — the target is then signed in there.
+
+    - test_login_link_issues_and_redeems, issue on the details page, redeem in a 2nd browser
+    - test_details_requires_no_superuser_rows, non-superuser viewer sees no admin actions/attrs
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.superuser = User.objects.create_user(
+            username="root",
+            password="pass",
+            is_staff=True,
+            is_superuser=True,
+        )
+        self.target = User.objects.create_user(
+            username="target",
+            password="pass",
+            first_name="Link",
+            last_name="Target",
+            email="target@example.com",
+        )
+        self.login_as(self.superuser)
+
+    def test_login_link_issues_and_redeems(self) -> None:
+        """Issue on the details page, redeem in a second browser."""
+        # Sweetalert renders in-DOM and toasts are fire-and-forget; the e2e
+        # budget covers the chunk loads under VM load.
+        self.page.set_default_timeout(4000)
+        page = self.page
+        page.goto(f"{self.live_server_url}/users/id/{self.target.public_id}")
+        page.wait_for_selector(".user-details-login-link-btn")
+
+        page.locator(".user-details-login-link-btn").click()
+        page.locator(".user-details-generate-link-btn").click()
+        page.wait_for_selector(".user-details-link-url")
+        url = page.locator(".user-details-link-url").input_value()
+
+        with self.anon_page() as anon:
+            anon.goto(url)
+            anon.wait_for_selector(".home-status-signed-in")
+            self.assertIn("Link Target", anon.locator(".home-status-signed-in").inner_text())
+
+    def test_details_requires_no_superuser_rows(self) -> None:
+        """Non-superuser viewer sees no admin actions/attrs."""
+        with self.anon_page() as page:
+            page.goto(f"{self.live_server_url}/users/id/{self.target.public_id}")
+            page.wait_for_selector(".user-details-page")
+            self.assertEqual(page.locator(".user-details-login-link-btn").count(), 0)
+            self.assertEqual(page.locator(".user-details-attrs").count(), 0)

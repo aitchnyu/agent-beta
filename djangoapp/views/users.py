@@ -1,10 +1,17 @@
+from __future__ import annotations
+
+from typing import Literal
+
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.core.validators import validate_email
-from django.http import (  # noqa: TC002 # ninja inspects view signatures at runtime
+from django.http import (  # ninja inspects view signatures at runtime
+    Http404,
     HttpRequest,
     HttpResponse,
 )
+from django.shortcuts import redirect
 from inertia import InertiaResponse
 from ninja import (
     Query,
@@ -13,7 +20,9 @@ from ninja import (
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Field, field_validator
 
+from djangoapp.logging import get_logger
 from djangoapp.models import (
+    LoginKey,
     User,
     UserHistory,
     UserHistoryEntryItem,
@@ -22,6 +31,8 @@ from djangoapp.ninja_api import ApiError, make_ninja_api
 from djangoapp.utils import sanitize_html
 
 USERS_PATH_PREFIX = "/users"
+
+logger = get_logger(__name__)
 
 
 class UserListItem(PydanticBaseModel):
@@ -73,6 +84,8 @@ class UserDetailsProps(PydanticBaseModel):
     is_staff: bool = False
     is_superuser: bool = False
     history_count: int = 0
+    # Admin-only, populated for superuser viewers like the attrs above.
+    last_login: str | None = None
 
 
 class UserEditItem(PydanticBaseModel):
@@ -133,6 +146,17 @@ class MessageResponse(PydanticBaseModel):
     id: str = ""
 
 
+class LoginLinkRequest(PydanticBaseModel):
+    """Issue payload; the allowlist is the UI's TTL select (minutes)."""
+
+    ttl_minutes: Literal[15, 60, 480, 1440] = 15
+
+
+class LoginLinkResponse(PydanticBaseModel):
+    url: str
+    expires_at: str
+
+
 class UserSearchItem(PydanticBaseModel):
     public_id: str
     username: str
@@ -170,6 +194,23 @@ def get_user_or_404(public_id: str) -> User:
         raise ApiError(404, "User not found") from None
     else:
         return target
+
+
+def redeem_login_key(request: HttpRequest, key: str) -> HttpResponse:
+    """Log in a user via a one-time key (``makeloginlink`` / details page).
+
+    Login keys are the operator path for environments without Google
+    credentials (the VM); the key is the sole credential and redemption
+    consumes it atomically — the link works exactly once. Any miss
+    (unknown, used, expired) is a 404 like every other resource gate. Not
+    DEBUG-gated: the unguessable, single-use key is the gate.
+    """
+    user = LoginKey.redeem(key)
+    if user is None:
+        raise Http404
+    # User.login wraps auth.login + records the event (history + log).
+    user.login(request)
+    return redirect(settings.LOGIN_REDIRECT_URL)
 
 
 users_router = Router()
@@ -263,6 +304,7 @@ def details_page(request: HttpRequest, public_id: str) -> HttpResponse:
         props.is_staff = target.is_staff
         props.is_superuser = target.is_superuser
         props.history_count = UserHistory.objects.filter(target_user=target).count()
+        props.last_login = target.last_login.isoformat() if target.last_login else None
     return InertiaResponse(request, "UserDetails", {"props": props.model_dump()})
 
 
@@ -331,4 +373,35 @@ def history_page(request: HttpRequest, public_id: str) -> HttpResponse:
     return InertiaResponse(request, "UserHistory", {"props": props.model_dump()})
 
 
+@users_router.post("/api/{public_id}/loginlink", response=LoginLinkResponse)
+def issue_login_link(
+    request: HttpRequest,
+    public_id: str,
+    payload: LoginLinkRequest,
+) -> LoginLinkResponse:
+    """Issue a one-time login link for the target (superuser only).
+
+    The URL is built from the request origin, so it is correct behind the
+    VM's tunnel (https://localhost:8000). The raw key exists only in this
+    response (and the audit history records the event, never the key).
+    """
+    viewer = superuser_or_404(request)
+    target = get_user_or_404(public_id)
+    key, expires_at = LoginKey.issue(target, minutes=payload.ttl_minutes)
+    UserHistory.record_login_link(target, viewer, minutes=payload.ttl_minutes)
+    logger.info(
+        "login link generated",
+        actor=viewer.public_id,
+        target=target.public_id,
+        ttl_minutes=payload.ttl_minutes,
+    )
+    return LoginLinkResponse(
+        url=request.build_absolute_uri(f"/login-for-test/{key}/"),
+        # The row's own deadline, straight from LoginKey.issue.
+        expires_at=expires_at.isoformat(),
+    )
+
+
+# Both POSTs are CSRF-protected by make_ninja_api's default csrf_guard (it
+# runs in ninja's auth pipeline; the frontend sends X-CSRFToken always).
 users_api = make_ninja_api("users", users_router, prefix=USERS_PATH_PREFIX.strip("/"))

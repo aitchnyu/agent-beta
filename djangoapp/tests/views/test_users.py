@@ -1,6 +1,7 @@
 import json
+from datetime import UTC, datetime
 
-from django.test import tag
+from django.test import Client, tag
 
 from djangoapp.models import User, UserHistory
 from djangoapp.tests.query_budget import (
@@ -190,6 +191,7 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
     - test_details_shared_is_superuser_false, others get the shared flag False
     - test_details_admin_attrs_for_superuser, superuser sees target email/flags + history_count
     - test_details_admin_attrs_hidden_for_anonymous, anonymous viewer gets no real email (None)
+    - test_details_last_login_for_superuser, superuser sees last_login (iso) / Never marker data
     - test_details_missing_404, unknown public_id returns 404
     """
 
@@ -293,6 +295,20 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
         # Admin gating now comes from the shared flag, not a page prop.
         self.assertFalse(self.props()["viewer_is_superuser"])
         self.assertEqual(props["history_count"], 0)
+
+    def test_details_last_login_for_superuser(self) -> None:
+        """Superuser sees the target's last_login; None means never logged in."""
+        # Two details GETs; frozen baseline incl. auth/session overhead.
+        self.allow_more_queries(12)
+        when = datetime(2026, 9, 10, 8, 30, tzinfo=UTC)
+        User.objects.filter(pk=self.public_user.pk).update(last_login=when)
+        self.client.force_login(self.superuser)
+        self.client.get(f"/users/id/{self.public_user.public_id}")
+        props = self.props()["props"]
+        self.assertEqual(props["last_login"], when.isoformat())
+        # A user who never logged in gets None (the UI renders "Never").
+        self.client.get(f"/users/id/{self.private_user.public_id}")
+        self.assertIsNone(self.props()["props"]["last_login"])
 
     def test_details_missing_404(self) -> None:
         """Unknown public_id returns 404."""
@@ -531,3 +547,138 @@ class UserHistoryViewTests(QueryBudgetInertiaTestCase):
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0]["action"], "edited")
         self.assertEqual(entries[0]["changes"]["is_staff"], {"old": False, "new": True})
+
+
+class UserAdminActionsApiTests(QueryBudgetTestCase):
+    """POST /users/api/<id>/loginlink superuser admin action.
+
+    - test_loginlink_issues_redeemable_url, POST returns a URL redeeming once (302 then 404)
+    - test_loginlink_url_is_http_without_proxy_header, no X-Forwarded-Proto → the URL is http (dev)
+    - test_loginlink_url_is_https_behind_tls_proxy, X-Forwarded-Proto → the URL is https (VM)
+    - test_loginlink_requires_csrf_token, tokenless POST is 403; with X-CSRFToken it is 200
+    - test_loginlink_records_history, generation writes a login_link entry with the ttl, not the key
+    - test_loginlink_non_superuser_404, non-superuser POST returns 404
+    - test_loginlink_invalid_ttl_rejected, a ttl outside the allowlist is a 422
+    """
+
+    def setUp(self) -> None:
+        self.superuser = User.objects.create_user(
+            username="root",
+            password="pass",
+            is_staff=True,
+            is_superuser=True,
+        )
+        self.target = User.objects.create_user(
+            username="target",
+            password="pass",
+            first_name="Link",
+            last_name="Target",
+            email="target@example.com",
+        )
+        self.peon = User.objects.create_user(username="peon", password="pass")
+        super().setUp()
+
+    def _issue(self, ttl: int = 15) -> dict[str, str]:
+        self.client.force_login(self.superuser)
+        response = self.client.post(
+            f"/users/api/{self.target.public_id}/loginlink",
+            {"ttl_minutes": ttl},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        issued: dict[str, str] = json.loads(response.content)
+        return issued
+
+    def test_loginlink_url_is_http_without_proxy_header(self) -> None:
+        """Dev runserver reality: no X-Forwarded-Proto → the URL is http."""
+        self.allow_more_queries(9)  # frozen baseline incl. auth/session overhead
+        url = self._issue()["url"]
+        self.assertTrue(url.startswith("http://testserver/login-for-test/"))
+
+    def test_loginlink_url_is_https_behind_tls_proxy(self) -> None:
+        """VM tunnel reality: caddy's X-Forwarded-Proto flips the scheme.
+
+        SECURE_PROXY_SSL_HEADER makes Django trust the header granian
+        receives from caddy, so the issued URL opens through
+        https://localhost:8000 instead of sending plain HTTP into caddy's
+        TLS listener.
+        """
+        self.allow_more_queries(9)  # frozen baseline incl. auth/session overhead
+        self.client.force_login(self.superuser)
+        response = self.client.post(
+            f"/users/api/{self.target.public_id}/loginlink",
+            {"ttl_minutes": 15},
+            content_type="application/json",
+            headers={"x-forwarded-proto": "https"},
+        )
+        url: str = json.loads(response.content)["url"]
+        # ":80" may trail testserver — a test-client artifact of the changed
+        # scheme; real hosts carry their own port in the Host header.
+        self.assertTrue(url.startswith("https://testserver"))
+        self.assertIn("/login-for-test/", url)
+
+    def test_loginlink_issues_redeemable_url(self) -> None:
+        """Superuser POST returns a URL that redeems once (302 then 404)."""
+        self.allow_more_queries(16)  # frozen baseline incl. auth/session + redemption overhead
+        data = self._issue()
+        self.assertTrue(data["url"].startswith("http://testserver/login-for-test/"))
+        self.assertTrue(data["expires_at"])
+        redemption = self.client.get(data["url"])
+        self.assertEqual(redemption.status_code, 302)
+        # Single use: the same URL never logs in again.
+        self.assertEqual(self.client.get(data["url"]).status_code, 404)
+
+    def test_loginlink_requires_csrf_token(self) -> None:
+        """Tokenless POST is 403; with the X-CSRFToken header it is 200."""
+        # A GET first (session+cookie bootstrap) rides along in the budget.
+        self.allow_more_queries(11)  # frozen baseline incl. auth/session overhead
+        strict_client = Client(enforce_csrf_checks=True)
+        strict_client.force_login(self.superuser)
+        # Any page response sets the csrftoken cookie (InertiaMiddleware).
+        strict_client.get("/")
+        token = strict_client.cookies["csrftoken"].value
+        path = f"/users/api/{self.target.public_id}/loginlink"
+
+        # Without the header (a smuggled cross-site form): 403.
+        denied = strict_client.post(path, {"ttl_minutes": 15}, content_type="application/json")
+        self.assertEqual(denied.status_code, 403)
+
+        # With it (what the app's ky layer always sends): 200.
+        ok = strict_client.post(
+            path,
+            {"ttl_minutes": 15},
+            content_type="application/json",
+            headers={"x-csrftoken": token},
+        )
+        self.assertEqual(ok.status_code, 200)
+
+    def test_loginlink_records_history(self) -> None:
+        """Generation writes a login_link entry with the ttl, never the key."""
+        self.allow_more_queries(9)  # frozen baseline incl. auth/session overhead
+        data = self._issue(ttl=60)
+        entry = UserHistory.objects.filter(target_user=self.target, action="login_link").get()
+        self.assertEqual(entry.user, self.superuser)
+        self.assertEqual(entry._changes["login_link_minutes"], 60)
+        # The audit trail must not contain the redeemable key/URL.
+        self.assertNotIn(data["url"].rsplit("/", 2)[-2], json.dumps(entry._changes))
+
+    def test_loginlink_non_superuser_404(self) -> None:
+        """Non-superuser POST returns 404."""
+        self.client.force_login(self.peon)
+        response = self.client.post(
+            f"/users/api/{self.superuser.public_id}/loginlink",
+            {"ttl_minutes": 15},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 404)
+
+    def test_loginlink_invalid_ttl_rejected(self) -> None:
+        """A ttl outside the allowlist is a 422."""
+        self.client.force_login(self.superuser)
+        response = self.client.post(
+            f"/users/api/{self.target.public_id}/loginlink",
+            {"ttl_minutes": 7},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 422)
+        self.assertFalse(UserHistory.objects.filter(action="login_link").exists())
