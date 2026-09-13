@@ -4,12 +4,14 @@ import typing
 import uuid
 from typing import Any, ClassVar, Literal, cast
 
-from django.contrib.auth import login as auth_login
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.contrib.auth.models import UserManager as DjangoUserManager
+from django.contrib.auth.signals import user_logged_in
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import TrigramSimilarity
 from django.db import models, transaction
+from django.dispatch import receiver
 from django.utils import timezone
 from pydantic import BaseModel as PydanticBaseModel
 
@@ -157,18 +159,6 @@ class User(AbstractUser):
 
     generate_uuid7_id = staticmethod(generate_uuid7_id)
 
-    def login(self, request: HttpRequest) -> None:
-        """Start an authenticated session for this user on ``request``.
-
-        Wraps ``django.contrib.auth.login`` (which cycles the session and
-        refreshes ``last_login``) and records the event (UserHistory entry +
-        structlog). Used by the login-key redemption view; allauth social
-        logins keep their own path.
-        """
-        auth_login(request, self, backend="django.contrib.auth.backends.ModelBackend")
-        UserHistory.record_login(self)
-        logger.info("user logged in", user=self.public_id, via="login key")
-
 
 class UserProfile(PydanticBaseModel):
     # pk-free: only the URL-safe public_id is ever sent to clients.
@@ -195,7 +185,9 @@ class UserHistoryContent(PydanticBaseModel):
     is_active: BoolChange | None = None
     is_staff: BoolChange | None = None
     is_superuser: BoolChange | None = None
+    # Admin-action payloads (login_link, logout_all), not field diffs.
     login_link_minutes: int | None = None
+    logout_all_sessions: int | None = None
 
 
 class UserSnapshot(PydanticBaseModel):
@@ -253,7 +245,7 @@ class UserSnapshot(PydanticBaseModel):
         return UserHistoryContent(**changes)
 
 
-UserHistoryAction = Literal["created", "edited", "deleted", "login", "login_link"]
+UserHistoryAction = Literal["created", "edited", "deleted", "login", "login_link", "logout_all"]
 
 
 class UserHistoryEntryItem(PydanticBaseModel):
@@ -277,6 +269,7 @@ class UserHistory(models.Model):
         ("deleted", "Deleted"),
         ("login", "Login"),
         ("login_link", "Login link"),
+        ("logout_all", "Logout all"),
     ]
 
     public_id = models.CharField(
@@ -403,6 +396,67 @@ class UserHistory(models.Model):
             action="login_link",
             _changes=UserHistoryContent(login_link_minutes=minutes).model_dump(mode="json"),
         )
+
+    @classmethod
+    def record_logout_all(
+        cls,
+        target_user: User,
+        user: User,
+        sessions: int,
+    ) -> UserHistory:
+        """Audit trail for logout-all (admin action): how many sessions died."""
+        return cls.objects.create(
+            target_user=target_user,
+            target_user_public_id_copy=target_user.public_id,
+            user=user,
+            action="logout_all",
+            _changes=UserHistoryContent(logout_all_sessions=sessions).model_dump(mode="json"),
+        )
+
+
+class UserSessionIndex(models.Model):
+    """One row per authenticated session: (user, session) + expire copy.
+
+    Sessions carry no user column — this is the indexed mapping for the
+    details-page count and logout-all. Both FKs CASCADE (index rows die
+    with their session) and reads filter ``expire_date > now`` so drift
+    only undercounts. Full design:
+    prompts/20260912-session-index-sliding-idle.md.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+    )
+    session = models.OneToOneField(
+        "sessions.Session",
+        on_delete=models.CASCADE,
+    )
+    expire_date = models.DateTimeField()
+
+    class Meta:
+        indexes: ClassVar[list[models.Index]] = [models.Index(fields=["user", "expire_date"])]
+
+    def __str__(self) -> str:
+        """Shown in admin/debug output as ``user @ session_key``."""
+        return f"{self.user} @ {self.session_id}"
+
+
+@receiver(user_logged_in, dispatch_uid="djangoapp.record_login")
+def on_user_logged_in(
+    sender: object,  # noqa: ARG001 # signal contract
+    request: HttpRequest,  # noqa: ARG001 # signal contract
+    user: User,
+    **kwargs: object,  # noqa: ARG001 # signal contract
+) -> None:
+    """Record every login (UserHistory entry + log line), all paths alike.
+
+    No indexing here: at signal time ``auth.login`` may hold an unsaved or
+    flushed session (key not final) — the idle-touch middleware creates
+    the index row on the session's first authenticated request.
+    """
+    UserHistory.record_login(user)
+    logger.info("user logged in", user=user.public_id)
 
 
 # Full URL prefix for the superuser-only models-management pages. The routes in

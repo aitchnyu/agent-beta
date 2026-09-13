@@ -81,6 +81,7 @@ MIDDLEWARE = [
     # Shares the viewer profile + superuser flag on every Inertia page;
     # reads request.user, so it must run after AuthenticationMiddleware.
     "djangoapp.middleware.SharedPropsMiddleware",
+    "djangoapp.middleware.SessionIdleTouchMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     # Allauth middleware
@@ -213,6 +214,11 @@ INERTIA_LAYOUT = "inertia/base.html"
 
 # Content Security Policy
 # https://docs.djangoproject.com/en/6.0/ref/csp/
+
+# Sessions expire SESSION_IDLE_DAYS days after the user's LAST request
+# (sliding — SessionIdleTouchMiddleware re-arms at half-life), not after
+# login. Mandatory: no silent default lifetime.
+SESSION_COOKIE_AGE = int(os.environ["SESSION_IDLE_DAYS"]) * 86400
 
 _CSP_COMMON = {
     # Fallback for any directive not explicitly set

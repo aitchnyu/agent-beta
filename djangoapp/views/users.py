@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Literal
 
 from django.conf import settings
+from django.contrib.auth import login as auth_login
+from django.contrib.sessions.models import Session
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator
 from django.core.validators import validate_email
@@ -12,6 +14,7 @@ from django.http import (  # ninja inspects view signatures at runtime
     HttpResponse,
 )
 from django.shortcuts import redirect
+from django.utils import timezone
 from inertia import InertiaResponse
 from ninja import (
     Query,
@@ -26,6 +29,7 @@ from djangoapp.models import (
     User,
     UserHistory,
     UserHistoryEntryItem,
+    UserSessionIndex,
 )
 from djangoapp.ninja_api import ApiError, make_ninja_api
 from djangoapp.utils import sanitize_html
@@ -86,6 +90,7 @@ class UserDetailsProps(PydanticBaseModel):
     history_count: int = 0
     # Admin-only, populated for superuser viewers like the attrs above.
     last_login: str | None = None
+    session_count: int = 0
 
 
 class UserEditItem(PydanticBaseModel):
@@ -157,6 +162,10 @@ class LoginLinkResponse(PydanticBaseModel):
     expires_at: str
 
 
+class LogoutResponse(PydanticBaseModel):
+    sessions: int
+
+
 class UserSearchItem(PydanticBaseModel):
     public_id: str
     username: str
@@ -208,8 +217,10 @@ def redeem_login_key(request: HttpRequest, key: str) -> HttpResponse:
     user = LoginKey.redeem(key)
     if user is None:
         raise Http404
-    # User.login wraps auth.login + records the event (history + log).
-    user.login(request)
+    # No authenticate() happened, so the backend must be explicit; the
+    # user_logged_in receiver records the login, and the session is indexed
+    # by SessionIdleTouchMiddleware on its next authenticated request.
+    auth_login(request, user, backend="django.contrib.auth.backends.ModelBackend")
     return redirect(settings.LOGIN_REDIRECT_URL)
 
 
@@ -305,6 +316,9 @@ def details_page(request: HttpRequest, public_id: str) -> HttpResponse:
         props.is_superuser = target.is_superuser
         props.history_count = UserHistory.objects.filter(target_user=target).count()
         props.last_login = target.last_login.isoformat() if target.last_login else None
+        props.session_count = UserSessionIndex.objects.filter(
+            user=target, expire_date__gt=timezone.now()
+        ).count()
     return InertiaResponse(request, "UserDetails", {"props": props.model_dump()})
 
 
@@ -400,6 +414,37 @@ def issue_login_link(
         # The row's own deadline, straight from LoginKey.issue.
         expires_at=expires_at.isoformat(),
     )
+
+
+@users_router.post("/api/{public_id}/logout", response=LogoutResponse)
+def force_logout(request: HttpRequest, public_id: str) -> LogoutResponse:
+    """End every active session of the target (superuser only).
+
+    Deletes the unexpired session rows via the UserSessionIndex mapping;
+    index rows CASCADE away. The target's next request is anonymous.
+    Unindexed sessions (pre-index or flush-login, until their next request)
+    can survive this.
+    """
+    viewer = superuser_or_404(request)
+    target = get_user_or_404(public_id)
+    keys = list(
+        UserSessionIndex.objects.filter(user=target, expire_date__gt=timezone.now()).values_list(
+            "session_id", flat=True
+        )
+    )
+    _total, by_model = Session.objects.filter(session_key__in=keys).delete()
+    # by-model dict: the cascade also removes index rows, which are not sessions.
+    sessions = by_model.get("sessions.Session", 0)
+    # Audit trail like the sibling admin action (issue_login_link): the
+    # destructive action must be visible in the target's timeline + logs.
+    UserHistory.record_logout_all(target, viewer, sessions)
+    logger.info(
+        "user sessions ended",
+        actor=viewer.public_id,
+        target=target.public_id,
+        sessions=sessions,
+    )
+    return LogoutResponse(sessions=sessions)
 
 
 # Both POSTs are CSRF-protected by make_ninja_api's default csrf_guard (it

@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import http
+from datetime import timedelta
 from typing import TYPE_CHECKING, cast
 
+from django.conf import settings
+from django.contrib.sessions.models import Session
+from django.utils import timezone
+from django.utils.deprecation import MiddlewareMixin
 from inertia import share
 
 from djangoapp.logging import bind_log_context, clear_log_context, get_logger
-from djangoapp.models import User, UserProfile
+from djangoapp.models import User, UserProfile, UserSessionIndex
 from djangoapp.shortcuts import maybe_user
 
 if TYPE_CHECKING:
@@ -92,3 +98,60 @@ class SharedPropsMiddleware:
             ),
         )
         return self.get_response(request)
+
+
+class SessionIdleTouchMiddleware(MiddlewareMixin):
+    """Sliding idle expiry for authenticated sessions.
+
+    Sessions die SESSION_COOKIE_AGE after the user's last request, not
+    after login. Half-life touch, amortized: only when more than half the
+    window has elapsed does anything write. The deadline lives in TWO
+    places, both re-armed here: (1) the UserSessionIndex row — direct
+    single-column UPDATE below; (2) the session row itself — NOT here:
+    setting ``session.modified`` makes SessionMiddleware's save (its
+    ``create_model_instance``) recompute ``expire_date = now + window`` and
+    re-issue the cookie. A daily-active user writes ~once per week instead
+    of per request. Also lazily backfills index rows for sessions created
+    before the index existed. Runs AFTER SessionMiddleware in MIDDLEWARE so
+    this ``process_response`` fires first (responses run bottom-up) and the
+    modified flag is still seen.
+    """
+
+    def process_response(self, request: HttpRequest, response: HttpResponse) -> HttpResponse:
+        # 5xx responses skip the touch: SessionMiddleware also skips its
+        # save for status >= 500 (a failing request must not extend the
+        # session)
+        if response.status_code >= http.HTTPStatus.INTERNAL_SERVER_ERROR:
+            return response
+
+        session = getattr(request, "session", None)
+        user = getattr(request, "user", None)
+        key = session.session_key if session is not None else None
+        if session is None or not key or user is None or not user.is_authenticated:
+            return response
+
+        now = timezone.now()
+        window = timedelta(seconds=settings.SESSION_COOKIE_AGE)
+        row = UserSessionIndex.objects.filter(session_id=key).first()
+        if row is None:
+            # Lazy backfill: session predates the index (or the receiver
+            # missed); copy the authoritative expire_date from the row.
+            session_row = (
+                Session.objects.filter(session_key=key)
+                .values_list("expire_date", flat=True)
+                .first()
+            )
+            if session_row is None:
+                return response
+            UserSessionIndex.objects.get_or_create(
+                session_id=key,
+                defaults={"user": user, "expire_date": session_row},
+            )
+            return response
+        if now > row.expire_date - window / 2:
+            new_expiry = now + window
+            UserSessionIndex.objects.filter(pk=row.pk).update(expire_date=new_expiry)
+            # re-saves the session row with the same deadline and
+            # re-issues the cookie with the fresh max-age.
+            session.modified = True
+        return response

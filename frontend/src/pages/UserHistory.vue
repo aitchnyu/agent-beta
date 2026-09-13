@@ -176,6 +176,12 @@ function diffsFor(changes: Changes): FieldDiff[] {
             One-time login link issued, valid for
             {{ entry.changes.login_link_minutes }} minutes
           </div>
+          <div
+            v-else-if="entry.action === 'logout_all'"
+            class="text-muted small user-history-action-summary"
+          >
+            Signed out everywhere — all active sessions ended
+          </div>
         </div>
       </div>
     </div>

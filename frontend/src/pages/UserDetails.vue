@@ -5,10 +5,11 @@ import { Link, usePage } from "@inertiajs/vue3"
 import PageTitle from "../components/PageTitle.vue"
 import RichTextViewer from "../components/RichTextViewer.vue"
 import { postJSON } from "../utils/http"
-import { showErrorToast, showToast } from "../utils/sweetalert"
+import { confirmAction, showErrorToast, showToast } from "../utils/sweetalert"
 import { formatDateTime } from "../utils/time"
 import {
   LoginLinkResponseSchema,
+  LogoutResponseSchema,
   SharedPropsSchema,
   UserDetailsPropsSchema,
 } from "../schemas.ts"
@@ -23,14 +24,16 @@ const isSuperuser = computed(
   () => SharedPropsSchema.parse(usePage().props).viewer_is_superuser,
 )
 
-// ── Admin action: login link ───────────────────────────────────────────────
+// ── Admin actions: login link + logout everywhere ──────────────────────────
 // Mutations ride the app's HTTP layer (CSRF hook + normalized errors), same
 // as the edit page.
 
+const sessionCount = ref(p.session_count)
 const showLinkPanel = ref(false)
 const ttlMinutes = ref(15)
 const linkResult = ref<z.infer<typeof LoginLinkResponseSchema> | null>(null)
 const generating = ref(false)
+const loggingOut = ref(false)
 
 async function generateLink() {
   generating.value = true
@@ -54,6 +57,35 @@ async function copyLink() {
     showToast("success", "Login link copied")
   } catch {
     showToast("error", "Could not copy — select the URL manually")
+  }
+}
+
+async function logoutEverywhere() {
+  // Disable through the whole action (dialog + request): a double-click
+  // during the lazy chunk load could stack confirms and double-POST.
+  loggingOut.value = true
+  try {
+    const ok = await confirmAction(
+      "Log out everywhere?",
+      `End all of ${p.first_name} ${p.last_name}'s active sessions? Their next request will be signed out.`,
+    )
+    if (!ok) return
+    try {
+      const res = LogoutResponseSchema.parse(
+        await postJSON(`${p.path_prefix}/api/${p.public_id}/logout`),
+      )
+      sessionCount.value = 0
+      showToast(
+        "success",
+        res.sessions > 0
+          ? `Logged out ${res.sessions} session(s)`
+          : "No active sessions",
+      )
+    } catch (e: unknown) {
+      showErrorToast(e, "Failed to log out user")
+    }
+  } finally {
+    loggingOut.value = false
   }
 }
 </script>
@@ -89,6 +121,13 @@ async function copyLink() {
         @click="showLinkPanel = !showLinkPanel"
       >
         Login link
+      </button>
+      <button
+        class="btn btn-outline-danger btn-sm user-details-logout-btn"
+        :disabled="loggingOut"
+        @click="logoutEverywhere()"
+      >
+        {{ loggingOut ? "Logging out..." : "Log out everywhere" }}
       </button>
       <Link
         :href="`/users/history/${p.public_id}`"
@@ -190,6 +229,10 @@ async function copyLink() {
             <span v-if="p.last_login">{{ formatDateTime(p.last_login) }}</span>
             <span v-else class="text-muted">Never</span>
           </td>
+        </tr>
+        <tr>
+          <th scope="row">Sessions</th>
+          <td class="user-details-session-count">{{ sessionCount }}</td>
         </tr>
       </tbody>
     </table>

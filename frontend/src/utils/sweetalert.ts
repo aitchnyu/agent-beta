@@ -76,6 +76,28 @@ export const showErrorToast = async (
 }
 
 /**
+ * Blocking confirm dialog for destructive actions. Resolves true only on an
+ * explicit confirm; cancel/dismiss resolve false.
+ */
+export const confirmAction = async (
+  title: string,
+  text: string,
+): Promise<boolean> => {
+  const mod = await import("sweetalert2")
+  const res = await mod.default.fire({
+    icon: "warning",
+    title,
+    text,
+    showCancelButton: true,
+    confirmButtonText: "Confirm",
+    confirmButtonColor: "#dc3545",
+    // Destructive action: focus the safe choice so a stray Enter cancels.
+    focusCancel: true,
+  })
+  return res.isConfirmed
+}
+
+/**
  * Pull a human message from a ninja/ApiError JSON body.
  * Handles `{"detail": "msg"}`, `{"message": "msg"}`, a bare string,
  * and arbitrary dict bodies.

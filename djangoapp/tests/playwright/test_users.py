@@ -163,9 +163,11 @@ class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):
     """E2E for the details page admin action (login link).
 
     The admin issues a one-time link on the details page and an anonymous
-    browser redeems it — the target is then signed in there.
+    browser redeems it — the target is then signed in there — and
+    "Log out everywhere" ends that session from the admin side.
 
     - test_login_link_issues_and_redeems, issue on the details page, redeem in a 2nd browser
+    - test_logout_everywhere_ends_session, the admin button kills the redeemed session
     - test_details_requires_no_superuser_rows, non-superuser viewer sees no admin actions/attrs
     """
 
@@ -204,6 +206,27 @@ class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):
             anon.goto(url)
             anon.wait_for_selector(".home-status-signed-in")
             self.assertIn("Link Target", anon.locator(".home-status-signed-in").inner_text())
+
+    def test_logout_everywhere_ends_session(self) -> None:
+        """The admin button kills a session redeemed in a second browser."""
+        self.page.set_default_timeout(4000)
+        page = self.page
+        page.goto(f"{self.live_server_url}/users/id/{self.target.public_id}")
+        page.locator(".user-details-login-link-btn").click()
+        page.locator(".user-details-generate-link-btn").click()
+        page.wait_for_selector(".user-details-link-url")
+        url = page.locator(".user-details-link-url").input_value()
+
+        with self.anon_page() as anon:
+            anon.goto(url)
+            anon.wait_for_selector(".home-status-signed-in")
+
+            page.locator(".user-details-logout-btn").click()
+            page.locator(".swal2-confirm").click()
+            page.wait_for_selector(".user-details-logout-btn:not([disabled])")
+
+            anon.goto(f"{self.live_server_url}/")
+            anon.wait_for_selector(".home-status-signed-out")
 
     def test_details_requires_no_superuser_rows(self) -> None:
         """Non-superuser viewer sees no admin actions/attrs."""
