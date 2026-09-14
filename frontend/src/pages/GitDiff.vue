@@ -1,14 +1,14 @@
 <template>
   <PageTitle :value="data.title" />
-  <GitNav />
-  <h1>{{ data.title }}</h1>
+  <RepoNav />
+  <h3>{{ data.title }}</h3>
   <p v-if="!data.diff" class="text-muted">No changes.</p>
   <SplitDiff v-else :diff="data.diff" />
 </template>
 
 <script setup lang="ts">
 import PageTitle from "../components/PageTitle.vue"
-import GitNav from "../components/GitNav.vue"
+import RepoNav from "../components/RepoNav.vue"
 import SplitDiff from "../components/SplitDiff.vue"
 import { GitDiffPropsSchema } from "../schemas"
 

@@ -2,7 +2,6 @@
 import { computed } from "vue"
 import { Link, usePage } from "@inertiajs/vue3"
 import { getCsrfToken } from "../utils/csrf"
-import { fileUrl } from "../utils/files"
 import { SharedPropsSchema } from "../schemas"
 
 // The signed-in viewer's profile + superuser flag are Inertia shared props,
@@ -21,11 +20,8 @@ const csrfToken = computed(() => getCsrfToken())
       <Link v-if="isSuperuser" class="nav-link" href="/manage/models">
         Models
       </Link>
-      <Link v-if="isSuperuser" class="nav-link" :href="fileUrl('main/ourapp')">
-        Files
-      </Link>
       <Link v-if="isSuperuser" class="nav-link" href="/git/uncommitted/">
-        Git
+        Code
       </Link>
       <Link v-if="isSuperuser" class="nav-link" href="/users/list">
         Users

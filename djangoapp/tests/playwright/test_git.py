@@ -28,6 +28,9 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
     - test_diff_split_and_unified_by_viewport — side-by-side wide, line-by-line narrow
     - test_diff_opens_via_click — a commit file-diff link clicked (Inertia swap) renders
     - test_commit_navigation — the commits → files → diff link chain works
+    - test_repo_subnav_highlights_section — the Code sub-nav (Uncommitted /
+      Commits / Files) marks the URL's section with aria-current across git
+      and files pages
     - test_non_superuser_404 — an anonymous viewer of /git gets 404
     """
 
@@ -165,7 +168,7 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         """``/git/commits`` shows the 3 subjects (newest first) + a commit count."""
         page = self.page
         page.goto(f"{self.live_server_url}/git/commits")
-        page.get_by_role("link", name=self.short_b).wait_for(state="visible")
+        page.get_by_role("link", name="Add create endpoint").wait_for(state="visible")
         body = page.inner_text("body")
         self.assertIn("Add delete endpoint", body)
         self.assertIn("Add create endpoint", body)
@@ -251,8 +254,8 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         page = self.page
         # Commit list has a link to each commit.
         page.goto(f"{self.live_server_url}/git/commits")
-        page.get_by_role("link", name=self.short_b).wait_for(state="visible")
-        self.assertIn("Add create endpoint", page.inner_text("body"))
+        page.get_by_role("link", name="Add create endpoint").wait_for(state="visible")
+        self.assertIn("Add delete endpoint", page.inner_text("body"))
         # The commit page links to each changed file.
         page.goto(f"{self.live_server_url}/git/commits/{self.short_b}")
         page.get_by_role("link", name="endpoints.py").wait_for(state="visible")
@@ -263,6 +266,52 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         diff_text = page.locator("[data-split-diff]").text_content() or ""
         self.assertIn("ADDED", diff_text)
         self.assertIn("TodoApp/endpoints.py", diff_text)
+
+    def test_repo_subnav_highlights_section(self) -> None:
+        """The Code sub-nav links all three sections and marks the active one.
+
+        Every code-viewer page (git + files) renders the same sub-nav; the
+        active tab derives from the URL prefix (uncommitted pages →
+        Uncommitted, commit pages → Commits, files pages → Files) and is the
+        one link carrying ``aria-current="page"``.
+        """
+        page = self.page
+        subnav = page.get_by_role("navigation", name="Code views")
+
+        def assert_active(label: str) -> None:
+            links = subnav.get_by_role("link")
+            self.assertEqual(links.count(), 3)
+            # One name→aria-current map: exactly `label` carries "page"
+            current = {
+                (link.text_content() or "").strip(): link.get_attribute("aria-current")
+                for link in links.all()
+            }
+            self.assertEqual(
+                current,
+                {
+                    name: ("page" if name == label else None)
+                    for name in ("Uncommitted", "Commits", "Files")
+                },
+            )
+
+        # The merged navbar entry lands on the default section (Uncommitted).
+        page.goto(f"{self.live_server_url}/git/uncommitted/")
+        page.get_by_role("link", name="app.py").wait_for(state="visible")
+        self.assertEqual(
+            page.get_by_role("link", name="Code", exact=True).get_attribute("href"),
+            "/git/uncommitted/",
+        )
+        assert_active("Uncommitted")
+
+        # A commit's file-diff page still reads as the Commits section.
+        page.goto(f"{self.live_server_url}/git/commits/{self.short_b}/TodoApp/endpoints.py")
+        page.wait_for_selector("[data-split-diff] .d2h-ins")
+        assert_active("Commits")
+
+        # The files browser shares the sub-nav, with Files current.
+        page.goto(f"{self.live_server_url}/files/main/ourapp")
+        page.get_by_role("link", name="urls.py").wait_for(state="visible")
+        assert_active("Files")
 
     def test_non_superuser_404(self) -> None:
         """An anonymous viewer of the git viewer gets a 404 (the gate holds over HTTP)."""

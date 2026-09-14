@@ -1,14 +1,14 @@
 <template>
   <PageTitle value="Uncommitted changes" />
-  <GitNav />
-  <h1>Uncommitted changes</h1>
+  <RepoNav />
+  <h3>Uncommitted changes</h3>
   <section
     v-for="wt in sections"
     :key="wt.name"
     class="mb-4"
     :data-tree-section="wt.name"
   >
-    <h2 class="h6 mb-1">{{ wt.name }}</h2>
+    <h4 class="h6 mb-1">{{ wt.name }}</h4>
     <FileTree
       v-if="wt.files.length"
       :node="wt.tree"
@@ -22,7 +22,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import FileTree from "../components/FileTree.vue"
-import GitNav from "../components/GitNav.vue"
+import RepoNav from "../components/RepoNav.vue"
 import PageTitle from "../components/PageTitle.vue"
 import { GitUncommittedPropsSchema } from "../schemas"
 import { buildFileTree, type FileTreeFolder } from "../utils/fileTree"

@@ -4,6 +4,7 @@ import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import MarkdownView from "../components/MarkdownView.vue"
 import PageTitle from "../components/PageTitle.vue"
+import RepoNav from "../components/RepoNav.vue"
 import { FileViewerPropsSchema } from "../schemas"
 import {
   detectLanguage,
@@ -47,11 +48,8 @@ onMounted(async () => {
 
 <template>
   <PageTitle :value="p.name" />
-  <div
-    class="container files-page"
-    :data-files-state="filesState"
-    :aria-busy="filesState === 'loading'"
-  >
+  <div :data-files-state="filesState" :aria-busy="filesState === 'loading'">
+    <RepoNav />
     <nav class="files-breadcrumb">
       <template v-for="c in p.breadcrumb" :key="c.rel">
         <Link class="files-crumb" :href="fileUrl(c.rel)">{{ c.label }}</Link>
@@ -59,7 +57,7 @@ onMounted(async () => {
       </template>
     </nav>
     <div class="files-header">
-      <h1 class="files-name">{{ p.name }}</h1>
+      <h3 class="files-name">{{ p.name }}</h3>
       <p class="text-muted files-meta">
         {{ formatSize(p.size) }} · {{ p.kind }} ·
         <HumanizedTime :ms="p.mtime" />

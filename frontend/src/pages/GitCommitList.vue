@@ -1,20 +1,16 @@
 <template>
   <PageTitle value="Commits" />
-  <GitNav />
-  <h1>Commits</h1>
+  <RepoNav />
+  <h3>Commits</h3>
   <p v-if="!data.commits.length" class="text-muted">No commits.</p>
   <ul v-else class="list-group">
     <li v-for="c in data.commits" :key="c.sha" class="list-group-item">
-      <Link
-        :href="`/git/commits/${c.short_sha}`"
-        :aria-label="`Commit ${c.short_sha}: ${c.subject}`"
-        prefetch="hover"
-        ><code>{{ c.short_sha }}</code></Link
-      >
-      {{ c.subject }}
+      <Link :href="`/git/commits/${shortSha(c.sha)}`" prefetch="hover">{{
+        c.subject
+      }}</Link>
       <br />
       <small class="text-muted"
-        >{{ c.author }} · <HumanizedTime :ms="c.date"
+        ><code>{{ shortSha(c.sha) }}</code> · <HumanizedTime :ms="c.date"
       /></small>
     </li>
   </ul>
@@ -55,8 +51,9 @@
 import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import PageTitle from "../components/PageTitle.vue"
-import GitNav from "../components/GitNav.vue"
+import RepoNav from "../components/RepoNav.vue"
 import { GitCommitListPropsSchema } from "../schemas"
+import { shortSha } from "../utils/git"
 
 const props = defineProps<{ props: object }>()
 const data = GitCommitListPropsSchema.parse(props.props)

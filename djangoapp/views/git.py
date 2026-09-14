@@ -68,7 +68,7 @@ class GitDiffProps(BaseModel):
 
 
 class GitCommitListProps(BaseModel):
-    commits: list[git_data.CommitSummary]
+    commits: list[git_data.CommitListItem]
     pagination: git_data.GitPagination
 
 

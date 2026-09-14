@@ -284,8 +284,14 @@ export const GitUncommittedFileSchema = z.object({
 
 export const GitCommitSummarySchema = z.object({
   sha: z.string(),
-  short_sha: z.string(),
   author: z.string(),
+  date: z.number(), // epoch ms — rendered via HumanizedTime
+  subject: z.string(),
+})
+
+// List rows render subject + sha + date only
+export const GitCommitListItemSchema = z.object({
+  sha: z.string(),
   date: z.number(), // epoch ms — rendered via HumanizedTime
   subject: z.string(),
 })
@@ -312,7 +318,7 @@ export const GitUncommittedPropsSchema = z.object({
 })
 
 export const GitCommitListPropsSchema = z.object({
-  commits: z.array(GitCommitSummarySchema),
+  commits: z.array(GitCommitListItemSchema),
   pagination: GitPaginationSchema,
 })
 

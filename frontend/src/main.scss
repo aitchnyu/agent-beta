@@ -25,6 +25,17 @@ body {
   border-radius: $radius-md;
 }
 
+// RepoNav (the Code sub-nav): plain bootstrap .nav ships no active state
+// (only the nav-tabs/pills variants style .active), so the current section
+// highlights itself — link-colored, bold, underlined off the baseline.
+// Scoped to .repo-nav so a future bootstrap .nav elsewhere stays unstyled.
+.repo-nav .nav-link.active {
+  color: $blue-600;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+}
+
 .apps-back-to-top {
   display: inline-flex;
   align-items: center;

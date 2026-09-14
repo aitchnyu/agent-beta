@@ -79,7 +79,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         # "rendered" (component state), not on content magic strings, the
         # element (already visible), or network quiescence (~0.7s slower).
         page.goto(self._files(_TEXT_FILE))
-        page.wait_for_selector('.files-page[data-files-state="rendered"]')
+        page.wait_for_selector('[data-files-state="rendered"]')
         preview = page.locator(".files-code")
         text = preview.text_content() or ""
         self.assertIn("BaseModel", text)
@@ -95,7 +95,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         page = self.page
         page.goto(self._files("main/frontend/src/pages/FileBrowser.vue"))
         # Same as test_text_file_preview: wait on component state, not content.
-        page.wait_for_selector('.files-page[data-files-state="rendered"]')
+        page.wait_for_selector('[data-files-state="rendered"]')
         preview = page.locator(".files-code")
         # The file's markup is shown as text (highlight.js escapes it), not parsed.
         self.assertIn("<template>", preview.text_content() or "")
@@ -126,7 +126,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         page.goto(self._files("main/djangoapp/tests/filefixtures/sample.md"))
         # Both the rendered view and the raw block fill asynchronously — wait
         # on the component state flip, not their (already-visible) elements.
-        page.wait_for_selector('.files-page[data-files-state="rendered"]')
+        page.wait_for_selector('[data-files-state="rendered"]')
         rendered = page.locator(".files-markdown")
         self.assertIn("Sample markdown", rendered.inner_text())
         img = rendered.locator("img")
@@ -155,7 +155,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
     def _goto_sample_md(self) -> None:
         """Open the markdown fixture and wait for the async preview to render."""
         self.page.goto(self._files("main/djangoapp/tests/filefixtures/sample.md"))
-        self.page.wait_for_selector('.files-page[data-files-state="rendered"]')
+        self.page.wait_for_selector('[data-files-state="rendered"]')
 
     def test_markdown_outline_renders_and_expands(self) -> None:
         """The heading outline shows at the top and expands past its 300px cap.
@@ -265,7 +265,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         # markdown render before reading content (slow VM exposed the race).
         rendered.get_by_role("link", name="another file").click()
         page.wait_for_url("**/filefixtures/other.md")
-        page.wait_for_selector('.files-page[data-files-state="rendered"]')
+        page.wait_for_selector('[data-files-state="rendered"]')
         self.assertIn("Other file", page.locator(".files-markdown").inner_text())
 
     def test_no_mermaid_requests_without_diagrams(self) -> None:
@@ -282,7 +282,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         """
         page = self.page
         page.goto(self._files("main/djangoapp/tests/filefixtures/other.md"))
-        page.wait_for_selector('.files-page[data-files-state="rendered"]')
+        page.wait_for_selector('[data-files-state="rendered"]')
         mermaid_resources = page.evaluate(
             "performance.getEntriesByType('resource')"
             ".map(e => e.name).filter(n => n.includes('/mermaid-'))"
@@ -313,7 +313,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         """
         page = self.page
         page.goto(self._files("main/djangoapp/tests/filefixtures/dedupe.md"))
-        page.wait_for_selector('.files-page[data-files-state="rendered"]')
+        page.wait_for_selector('[data-files-state="rendered"]')
         rendered = page.locator(".files-markdown")
         self.assertEqual(rendered.locator("h2").count(), 5)
         self.assertEqual(rendered.locator("h2#foo").count(), 1)
@@ -326,7 +326,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         """An invalid mermaid fence shows the raw source in the error style."""
         page = self.page
         page.goto(self._files("main/djangoapp/tests/filefixtures/dedupe.md"))
-        page.wait_for_selector('.files-page[data-files-state="rendered"]')
+        page.wait_for_selector('[data-files-state="rendered"]')
         error = page.locator(".files-markdown .rich-diagram-error")
         # Same mermaid chunk-load exception as the fence test above.
         error.wait_for(state="visible", timeout=15000)

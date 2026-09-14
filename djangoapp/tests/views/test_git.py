@@ -43,7 +43,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     test_uncommitted_diff_unknown — unknown path → 404
     test_uncommitted_scratch_diff — a diff resolves against the scratch worktree
     test_commit_list — /git/commits lists 3 commits with pagination
-    test_commit_list_fields — commit summary fields (sha, author, date type)
+    test_commit_list_fields — list rows carry shas/subject/date and NOT author
     test_commit_list_page_clamped — ?page=999 clamps to last page
     test_commit_list_bad_page — ?page=abc clamps to 1
     test_commit_files — commit meta + changed files with statuses
@@ -141,14 +141,16 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         self.assertEqual(props["pagination"]["total_count"], 3)
 
     def test_commit_list_fields(self) -> None:
-        """Each commit summary has all expected fields with correct types."""
+        """List rows carry subject + sha + date, and NOT author/short_sha."""
         self.client.get("/git/commits")
         first = self.props()["props"]["commits"][0]
         self.assertEqual(first["subject"], "Add delete endpoint")
-        self.assertEqual(first["short_sha"], self.short_c)
         self.assertEqual(first["sha"], self.commit_c.hexsha)
-        self.assertEqual(first["author"], "Tester <t@example.com>")
         self.assertIsInstance(first["date"], int)
+        # The row ships only what it renders: author lives on the detail
+        # page, short_sha is derived client-side from sha.
+        self.assertNotIn("author", first)
+        self.assertNotIn("short_sha", first)
 
     def test_commit_list_page_clamped(self) -> None:
         """``?page=999`` clamps to the last page (1 here), not an impossible number."""

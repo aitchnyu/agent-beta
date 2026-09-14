@@ -1,3 +1,6 @@
+User details
+Code
+
 Test `createscratch`, `deployscratch`, `cleanscratch`
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
@@ -30,10 +33,16 @@ import from git repo tags?
 Run all tests in checkproject and merge coverage from both stages. Improve test coverage
 
 ## Deployment
-Readme for end users and devs
 Tool to analyse error logs and stacktraces, both backend and sourcemap stacktraces, mlr (miller) for logs
 Backup regularly - https://www.pghardstorage.org/examples
 Provision in vm with domain with curl|bash
+
+## Document
+Readme for end users and devs
+Code and git viewing
+Models management
+Logout sessions, view sessions
+Session length is a sliding window
 
 ## Future
 Have a sequence generator for tables
@@ -42,6 +51,5 @@ rate limiting for http requests?
 Support multiple apps in same server
 Model logs should store FK name, link, url and M2M changes too
 Whitelist services for outbound connections
-Have a real tui to manage users?
 Accelerate file serving with Caddy - have FileResponse - test with checkframework2
 Redis and db memory usage?

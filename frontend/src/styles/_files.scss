@@ -1,7 +1,18 @@
 @use "variables" as *;
 
-.files-page {
-  max-width: 64rem;
+// Breadcrumb row: the nav landmark left, the hidden-dirs toggle right — the
+// toggle is a display control, not navigation, so it sits beside the nav.
+.files-crumbs-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.files-crumbs-row .files-breadcrumb {
+  margin: 0;
 }
 
 // Breadcrumb: root / seg / seg
@@ -22,12 +33,6 @@
 }
 
 // Directory listing
-.files-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 0.5rem;
-}
-
 .files-entry {
   display: inline-flex;
   align-items: center;

@@ -2,6 +2,7 @@
 import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import PageTitle from "../components/PageTitle.vue"
+import RepoNav from "../components/RepoNav.vue"
 import { FileBrowserPropsSchema } from "../schemas"
 import { fileUrl, formatSize } from "../utils/files"
 
@@ -16,16 +17,19 @@ function entryUrl(name: string): string {
 
 <template>
   <PageTitle value="Files" />
-  <div class="container files-page">
-    <nav class="files-breadcrumb">
-      <template v-for="c in p.breadcrumb" :key="c.rel">
-        <Link class="files-crumb" :href="fileUrl(c.rel)">{{ c.label }}</Link>
-        <span class="files-sep" aria-hidden="true">/</span>
-      </template>
-    </nav>
-    <!-- Toggles excluded dirs (.venv/node_modules/.git/__pycache__) via ?hidden.
-           Uses contains_hidden_entries so the label reflects the current state. -->
-    <div class="files-toolbar">
+  <div>
+    <RepoNav />
+    <h3>Files</h3>
+    <div class="files-crumbs-row">
+      <nav class="files-breadcrumb">
+        <template v-for="c in p.breadcrumb" :key="c.rel">
+          <Link class="files-crumb" :href="fileUrl(c.rel)">{{ c.label }}</Link>
+          <span class="files-sep" aria-hidden="true">/</span>
+        </template>
+      </nav>
+      <!-- Toggles excluded dirs (.venv/node_modules/.git/__pycache__) via ?hidden.
+           Uses contains_hidden_entries so the label reflects the current state.
+           Beside the nav (not inside it) — a display control isn't navigation. -->
       <Link
         class="files-toggle-hidden"
         :href="

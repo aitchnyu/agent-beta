@@ -72,7 +72,7 @@ class FrameworkSmokeE2e(GitRepoMixin, BasePlaywrightTestCase):
         """/git/commits lists the fixture's commits with the count."""
         page = self.page
         page.goto(f"{self.live_server_url}/git/commits")
-        page.get_by_role("link", name=self.short_b).wait_for(state="visible")
+        page.get_by_role("link", name="Add create endpoint").wait_for(state="visible")
         self.assertIn("3 commits", page.inner_text("body"))
 
     def test_client_errors_smoke(self) -> None:

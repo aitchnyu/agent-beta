@@ -606,6 +606,10 @@ Run through every box; the order is the order you build in.
       in `ours/schemas.ts`, side-effect styles in `ours/style.scss`.
 - [ ] **PageTitle** — the page renders `<PageTitle :value="…"/>` (import from
       `components/PageTitle.vue`); see "For every Inertia page" below.
+- [ ] **Toasts** — user feedback goes through the framework's toast helpers
+      (`frontend/src/utils/sweetalert.ts`): a mutating action that succeeds
+      confirms with `showToast("success", …)`; failures follow the HTTP
+      convention's `showErrorToast(e, fallback)` — never a silent catch.
 - [ ] **Home navigation (ask first)** — during planning, **ask how the feature
       surfaces on the landing page**: a link, a summary/card, or reached from
       another page (e.g. listed inside a related feature). Then add that to

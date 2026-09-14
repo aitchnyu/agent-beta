@@ -44,12 +44,23 @@ class UncommittedFile(BaseModel):
 
 
 class CommitSummary(BaseModel):
-    """One row of the paginated commit list (newest first)."""
+    """A commit's identity (the detail page header + link targets)."""
 
     sha: str
-    short_sha: str
     author: str
     date: int  # epoch ms — the frontend renders via HumanizedTime (matches FileEntry.mtime)
+    subject: str
+
+
+class CommitListItem(BaseModel):
+    """One row of the paginated commit list (newest first).
+
+    Slimmer than CommitSummary: the list page renders subject + sha + date
+    only, so author doesn't ship for every row.
+    """
+
+    sha: str
+    date: int
     subject: str
 
 
@@ -118,7 +129,7 @@ def _diff_path(diff: git.Diff) -> str:
     return path
 
 
-def _commit_summary(c: git.Commit) -> CommitSummary:
+def _subject(c: git.Commit) -> str:
     # Commit.message is str | bytes | None (GitPython decodes lazily); normalise
     # so .strip()/splitlines() are type-safe regardless of the declared union.
     raw_message = c.message
@@ -127,12 +138,19 @@ def _commit_summary(c: git.Commit) -> CommitSummary:
         if isinstance(raw_message, bytes)
         else (raw_message or "")
     )
+    return (message.strip().splitlines()[:1] or [""])[0]
+
+
+def _epoch_ms(c: git.Commit) -> int:
+    return int(c.committed_datetime.timestamp() * 1000)
+
+
+def _commit_summary(c: git.Commit) -> CommitSummary:
     return CommitSummary(
         sha=c.hexsha,
-        short_sha=c.hexsha[:7],
         author=f"{c.author.name} <{c.author.email}>",
-        date=int(c.committed_datetime.timestamp() * 1000),
-        subject=(message.strip().splitlines()[:1] or [""])[0],
+        date=_epoch_ms(c),
+        subject=_subject(c),
     )
 
 
@@ -155,7 +173,7 @@ def uncommitted(name: str = "main") -> list[UncommittedFile]:
     return out
 
 
-def commits(page: int) -> tuple[list[CommitSummary], GitPagination]:
+def commits(page: int) -> tuple[list[CommitListItem], GitPagination]:
     """Return a page of commits (newest first) + pager state.
 
     ``page`` is clamped to ``[1, total_pages]`` so an out-of-range request
@@ -169,7 +187,10 @@ def commits(page: int) -> tuple[list[CommitSummary], GitPagination]:
     total_pages = max(1, (total + _PAGE_SIZE - 1) // _PAGE_SIZE)
     page = min(max(1, page), total_pages)
     skip = (page - 1) * _PAGE_SIZE
-    items = [_commit_summary(c) for c in repo.iter_commits(max_count=_PAGE_SIZE, skip=skip)]
+    items = [
+        CommitListItem(sha=c.hexsha, date=_epoch_ms(c), subject=_subject(c))
+        for c in repo.iter_commits(max_count=_PAGE_SIZE, skip=skip)
+    ]
     return items, GitPagination(page=page, total_pages=total_pages, total_count=total)
 
 

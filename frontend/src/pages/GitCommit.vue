@@ -1,11 +1,11 @@
 <template>
   <PageTitle
-    :value="'Commit ' + data.commit.short_sha + ' ' + data.commit.subject"
+    :value="'Commit ' + shortSha(data.commit.sha) + ' ' + data.commit.subject"
   />
-  <GitNav />
-  <h1>
-    <code>{{ data.commit.short_sha }}</code> {{ data.commit.subject }}
-  </h1>
+  <RepoNav />
+  <h3>
+    <code>{{ shortSha(data.commit.sha) }}</code> {{ data.commit.subject }}
+  </h3>
   <p class="text-muted">
     {{ data.commit.author }} · <HumanizedTime :ms="data.commit.date" />
   </p>
@@ -14,7 +14,7 @@
     <FileTree
       :node="tree"
       :diff-href="
-        (path: string) => `/git/commits/${data.commit.short_sha}/${path}`
+        (path: string) => `/git/commits/${shortSha(data.commit.sha)}/${path}`
       "
       :file-href="(path: string) => fileUrl(`main/${path}`)"
     />
@@ -26,10 +26,11 @@ import { computed } from "vue"
 import FileTree from "../components/FileTree.vue"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import PageTitle from "../components/PageTitle.vue"
-import GitNav from "../components/GitNav.vue"
+import RepoNav from "../components/RepoNav.vue"
 import { GitCommitPropsSchema } from "../schemas"
 import { buildFileTree, type FileTreeFolder } from "../utils/fileTree"
 import { fileUrl } from "../utils/files"
+import { shortSha } from "../utils/git"
 
 const props = defineProps<{ props: object }>()
 const data = GitCommitPropsSchema.parse(props.props)
