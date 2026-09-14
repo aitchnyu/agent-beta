@@ -26,9 +26,11 @@ class HomeViewTests(BaseInertiaTestCase):
                     "display_name": "",
                     "public_id": "",
                 },
-                # Shared viewer props (SharedPropsMiddleware) are anonymous here.
+                # Shared viewer props (SharedPropsMiddleware) are anonymous
+                # here; no SocialApps configured → empty provider list.
                 "user": None,
                 "viewer_is_superuser": False,
+                "login_providers": [],
             },
         )
 
@@ -51,6 +53,8 @@ class HomeViewTests(BaseInertiaTestCase):
                 },
                 "user": {"public_id": user.public_id, "title": "Alice Smith"},
                 "viewer_is_superuser": False,
+                # Signed-in requests get null — no provider lookup runs.
+                "login_providers": None,
             },
         )
 

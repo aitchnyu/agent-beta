@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from allauth.socialaccount.models import SocialApp
+from django.conf import settings
+from django.contrib.sites.models import Site
+
 from djangoapp.models import User
 from djangoapp.tests._base import BaseInertiaTestCase
 
@@ -11,13 +15,29 @@ class SharedPropsMiddlewareTests(
 
     The shared ``user``/``viewer_is_superuser`` props back the navbar
     (Layout.vue reads them via ``usePage()``); they must reflect the actual
-    viewer, be pk-free, and be present even on the public Home route.
+    viewer, be pk-free, and be present even on the public Home route. The
+    shared ``login_providers`` list drives the anonymous navbar's Sign-in
+    dropdown from the configured SocialApps.
 
     - test_anonymous_gets_no_user, anonymous request shares user None + flag False
     - test_plain_user_gets_profile_not_superuser, authed non-superuser gets profile, flag False
     - test_superuser_gets_profile_and_flag, superuser gets profile + viewer_is_superuser True
     - test_shared_user_is_pk_free, shared user carries public_id, never an integer id/pk
+    - test_anonymous_gets_login_providers, configured providers share id/name/login url
+    - test_no_providers_configured_shares_empty_list, no SocialApp rows share an empty list
+    - test_stale_provider_row_is_skipped, uninstalled-provider rows never appear
+    - test_duplicate_provider_rows_collapse_to_one, same-provider rows share a single entry
     """
+
+    def _add_social_app(self) -> None:
+        """Seed the one configured provider (google), as addoauth does."""
+        app = SocialApp.objects.create(
+            provider="google",
+            name="Google",
+            client_id="client-abc",
+            secret="secret",
+        )
+        app.sites.add(Site.objects.get(pk=settings.SITE_ID))
 
     def test_anonymous_gets_no_user(self) -> None:
         """Anonymous request shares user None and viewer_is_superuser False."""
@@ -38,6 +58,8 @@ class SharedPropsMiddlewareTests(
         props = self.props()
         self.assertEqual(props["user"], {"public_id": user.public_id, "title": "Alice Smith"})
         self.assertFalse(props["viewer_is_superuser"])
+        # Null (not []) — the provider lookup must not even run signed in.
+        self.assertIsNone(props["login_providers"])
 
     def test_superuser_gets_profile_and_flag(self) -> None:
         """Superuser gets a profile and viewer_is_superuser True."""
@@ -64,3 +86,52 @@ class SharedPropsMiddlewareTests(
         self.assertEqual(shared_user["public_id"], user.public_id)
         self.assertNotIn("id", shared_user)
         self.assertNotIn("pk", shared_user)
+
+    def test_anonymous_gets_login_providers(self) -> None:
+        """Anonymous request shares the configured providers for the Sign-in dropdown."""
+        self._add_social_app()
+        self.inertia.get("/")
+        self.assertEqual(
+            self.props()["login_providers"],
+            [{"id": "google", "name": "Google", "url": "/accounts/google/login/"}],
+        )
+
+    def test_no_providers_configured_shares_empty_list(self) -> None:
+        """No SocialApp rows share an empty list (navbar falls back to a plain link)."""
+        self.inertia.get("/")
+        self.assertEqual(self.props()["login_providers"], [])
+
+    def test_stale_provider_row_is_skipped(self) -> None:
+        """A SocialApp row for an uninstalled provider never appears."""
+        self._add_social_app()
+        # github has no provider module installed — a leftover row like this
+        # must be skipped, not 500 every anonymous page.
+        stale = SocialApp.objects.create(
+            provider="github",
+            name="GitHub",
+            client_id="client-xyz",
+            secret="secret",
+        )
+        stale.sites.add(Site.objects.get(pk=settings.SITE_ID))
+        self.inertia.get("/")
+        self.assertEqual(
+            self.props()["login_providers"],
+            [{"id": "google", "name": "Google", "url": "/accounts/google/login/"}],
+        )
+
+    def test_duplicate_provider_rows_collapse_to_one(self) -> None:
+        """Two SocialApp rows for the same provider share a single entry."""
+        self._add_social_app()
+        duplicate = SocialApp.objects.create(
+            provider="google",
+            name="Google again",
+            client_id="client-dupe",
+            secret="secret",
+        )
+        duplicate.sites.add(Site.objects.get(pk=settings.SITE_ID))
+        self.inertia.get("/")
+        # distinct("provider") — one dropdown entry, not two links to Google.
+        self.assertEqual(
+            self.props()["login_providers"],
+            [{"id": "google", "name": "Google", "url": "/accounts/google/login/"}],
+        )

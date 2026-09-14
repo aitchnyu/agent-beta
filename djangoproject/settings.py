@@ -206,6 +206,12 @@ ACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = True
 
+# A Google-verified email IS the identity: logging in with an email logs INTO that
+# account instead of asking you to connect it
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {"EMAIL_AUTHENTICATION": True},
+}
+
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 

@@ -702,8 +702,9 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
     def test_logout_ends_indexed_sessions(self) -> None:
         """Logout-all deletes target sessions; CASCADE clears the index."""
         # frozen baseline incl. two clients' auth/session overhead + the
+        # final anonymous "/" (Sign-in dropdown's provider SELECT) + the
         # audit-history assertion
-        self.allow_more_queries(24)
+        self.allow_more_queries(25)
         target_client = Client()
         target_client.force_login(self.target)
         self.assertEqual(target_client.get("/").status_code, 200)

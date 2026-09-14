@@ -6,6 +6,8 @@ import http
 from datetime import timedelta
 from typing import TYPE_CHECKING, cast
 
+from allauth.socialaccount.models import SocialApp
+from allauth.socialaccount.providers import registry
 from django.conf import settings
 from django.contrib.sessions.models import Session
 from django.utils import timezone
@@ -28,6 +30,37 @@ def _viewer_profile(user: object) -> UserProfile | None:
         return None
     viewer = cast("User", user)
     return UserProfile(public_id=viewer.public_id, title=viewer.display_name)
+
+
+def _login_providers(request: HttpRequest) -> list[dict[str, str]]:
+    """Build the configured social-login provider list for the navbar dropdown.
+
+    Mirrors the allauth login page's provider list (DB-driven, current
+    site). distinct("provider") keeps one entry per provider even if
+    duplicate SocialApp rows exist (lowest pk wins — deterministic); a
+    leftover row whose provider module is no longer installed is skipped —
+    registry.get_class() returning None means SocialApp.get_provider()
+    would call None(...) (TypeError), and a stale row must not 500 every
+    page.
+    """
+    providers: list[dict[str, str]] = []
+    apps = (
+        SocialApp.objects.filter(sites__id=settings.SITE_ID)
+        .order_by("provider", "pk")
+        .distinct("provider")
+    )
+    for app in apps:
+        if registry.get_class(app.provider) is None:
+            continue
+        provider = app.get_provider(request)
+        providers.append(
+            {
+                "id": app.provider,
+                "name": provider.name,
+                "url": provider.get_login_url(request),
+            }
+        )
+    return providers
 
 
 class LoggingContextMiddleware:
@@ -76,12 +109,9 @@ class LoggingContextMiddleware:
 
 
 class SharedPropsMiddleware:
-    """Share the viewer profile + superuser flag on every Inertia page.
+    """Share viewer profile, superuser flag, and login providers on every page.
 
-    ``share`` makes the viewer profile (``user``) and superuser flag
-    (``viewer_is_superuser``) available to every page via ``usePage().props``,
-    so views need not thread them per-page. pk-free: only the URL-safe
-    ``public_id`` is sent.
+    Read via ``usePage().props`` (the navbar); pk-free — ``public_id`` only.
     """
 
     def __init__(self, get_response: Callable[..., HttpResponse]) -> None:
@@ -96,6 +126,9 @@ class SharedPropsMiddleware:
             viewer_is_superuser=bool(
                 getattr(user, "is_authenticated", False) and getattr(user, "is_superuser", False)
             ),
+            # Signed-in requests never render the Sign-in dropdown — they
+            # get null (no SocialApp lookup; query budgets are per-test).
+            login_providers=None if profile else _login_providers(request),
         )
         return self.get_response(request)
 

@@ -142,6 +142,10 @@ export const LogoutResponseSchema = z.object({ sessions: z.number() })
 export const SharedPropsSchema = z.object({
   user: UserSchema.nullable(),
   viewer_is_superuser: z.boolean(),
+  // Null when signed in (the dropdown never renders); anonymous gets the list.
+  login_providers: z
+    .array(z.object({ id: z.string(), name: z.string(), url: z.string() }))
+    .nullable(),
 })
 
 export type SharedProps = z.infer<typeof SharedPropsSchema>

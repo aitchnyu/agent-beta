@@ -36,6 +36,50 @@ body {
   text-underline-offset: 0.3em;
 }
 
+// Anonymous navbar: one Sign-in button opening a native <details> dropdown
+// of the configured login providers (Layout.vue closes it on outside
+// clicks). No bootstrap dropdown — its JS plugin isn't imported.
+.layout-signin {
+  position: relative;
+}
+
+.layout-signin summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.layout-signin summary::-webkit-details-marker {
+  display: none;
+}
+
+.layout-signin summary::after {
+  content: " ▾";
+  font-size: 0.7em;
+}
+
+.layout-signin-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 10;
+  min-width: 10rem;
+  padding: 0.35rem 0;
+  background-color: #fff;
+  border: $border-light;
+  border-radius: $radius-md;
+  box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.12);
+}
+
+.layout-signin-link {
+  display: block;
+  padding: 0.4rem 0.9rem;
+  color: $blue-600;
+}
+
+.layout-signin-link:hover {
+  background-color: $gray-100;
+}
+
 .apps-back-to-top {
   display: inline-flex;
   align-items: center;
