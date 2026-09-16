@@ -1,13 +1,17 @@
-User details
-Code
+Tool to analyse error logs and stacktraces, both backend and sourcemap stacktraces, mlr (miller) for logs
 
-Test `createscratch`, `deployscratch`, `cleanscratch`
+Generate backend logs with some test function.
+Generate frontend errors from some playwright actions.
+Use miller (mlr) command to track error by backend stacktrace/frontend stacktrace
+How will we decode frontend logs which are minified
+Track by user
+Have a tool that will
+Mention in steer.md, which links to docs/logs.md
+Document in readme - find all errors by user, find all errors by user, both frontend and backend, from the logs you gathered
+Gather logs from Huey too
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis.
-
-Use toasts in steer.md checklist
-Merge Files and Git in nav bar, have Uncommitted, committed, files links in a sub nav bar, highlight which of the 3 is selected.
 
 Notification center
 Service worker and PWA?
@@ -18,6 +22,7 @@ Which ones to mute?
 
 Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH. Obscura for tests?
 --------
+Reuse ubuntu/debian user. Have a des command that calls ./run
 
 ```
 multipass shell app
@@ -33,7 +38,6 @@ import from git repo tags?
 Run all tests in checkproject and merge coverage from both stages. Improve test coverage
 
 ## Deployment
-Tool to analyse error logs and stacktraces, both backend and sourcemap stacktraces, mlr (miller) for logs
 Backup regularly - https://www.pghardstorage.org/examples
 Provision in vm with domain with curl|bash
 
@@ -43,6 +47,7 @@ Code and git viewing
 Models management
 Logout sessions, view sessions
 Session length is a sliding window
+Mockup widgets - have a demo page
 
 ## Future
 Have a sequence generator for tables

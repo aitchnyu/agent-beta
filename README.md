@@ -372,10 +372,18 @@ Four tiers:
   `frontend/src/ours/`), which adds the tagged `scratch-test-subset` smoke tests.
 - **`checkframework1`** — the full gate, run in `main/`. ruff + mypy + the whole backend
   suite + frontend lint/type-check + Playwright.
-- **`checkframework2`** — the deployment gate. Rebuilds the test VM from scratch
-  (`./testvm`), deploys the Books test app over the VM's `ourapp/`, and smokes
-  the live stack over HTTPS from the host (login link → session, superuser
-  gates, agent-user readiness). Destructive: the previous VM is deleted.
+- **`checkframework2`** — the deployment gate (destructive: the previous VM is
+  deleted). The host rebuilds the test VM from scratch (`./testvm`), then runs
+  the in-VM gate (`deploy/vm.sh gate`, dispatched like the other guest-side
+  helpers) over one multipass exec — the gate's exit code is the verdict. The
+  gate:
+  - deploys the Books test app over the VM's `ourapp/`
+  - smokes the live stack over HTTPS on the VM's loopback (login link →
+    session, superuser gates, agent-user readiness)
+  - runs the agent's full scratch cycle as the agent user:
+    `createscratch` (with both refusal guards) → marker edit →
+    `deployscratch` provably live (marker served after the granian restart) →
+    `cleanscratch`
 - **`checkproject`** — overlay validation against a real app. Two `createscratch`
   cycles:
   1. Overlays the **test app** (`djangoapp/tests/testapp/`) → runs the full suite

@@ -44,13 +44,16 @@ and never hits them).
 - **A no-op deployscratch is cheap to make live-provable**: the Books test
   app's home view (`djangoapp/tests/testapp/ourapp/views/home.py`) ships props
   that land in the Inertia page JSON embedded in the HTML body — the same
-  channel assert 4 greps "Framework Smoke" through. The testapp ships NO
-  `ourapp` tests of its own (`tests/` is empty) and `home.py` is inside
-  `ourapp/`, so a one-line marker prop:
+  channel assert 4 greps "Framework Smoke" through. The marker prop must be
+  HEADER-GATED (only requests carrying `X-Scratch-Probe` get it): the seed's
+  `ourapp` exact-props tests (surviving the overlay merge — the testapp
+  itself ships no `ourapp` tests) would break on an unconditional prop.
+  Gated, the tests never send the header and stay exact, while the gate's
+  curl opts in. `home.py` is inside `ourapp/`, so the insert also:
   - keeps the framework-file watch quiet (no scratch-test-subset detour),
   - passes the battery (ruff format/mypy clean: plain dict assignment),
   - and, being Python view code, is served only after deployscratch's granian
-    restart — grep-after-deploy proves deploy AND restart, not just rsync.
+  restart — grep-after-deploy proves deploy AND restart, not just rsync.
 - **Cost**: the added wall time is dominated by the agent-side scratch build
   (full `cp -a` of .venv + node_modules, cold uv/npm caches in /home/agent)
   plus the battery (cold mypy/eslint/tsc/vite on the 2G VM) — order ~10 min on
@@ -74,45 +77,47 @@ gated on exit code:
   framework-file watch precondition, run:389-390), echo `agent createscratch
   OK`. Call site greps the OK line like assert 6's probe.
 - **Assert 8/9 — deployscratch as agent, deploy provably live**:
-  1. `agent-scratch-edit`: idempotent `sed -i` inserting
-     `props["scratch_marker"] = "scratch-deploy-live"` before the
+  1. `agent-scratch-edit`: idempotent `sed -i` inserting a header-gated
+     marker (only `X-Scratch-Probe` requests get
+     `props["scratch_marker"] = "scratch-deploy-live"`) before the
      `return InertiaResponse` line in `/srv/app/scratch/ourapp/views/home.py`
      (grep-guarded so a rerun no-ops), echo the confirmation.
   2. `agent-scratch-deploy`: `_vm_env; ./run deployscratch` — exit code is
      the assert (the full battery runs inside; nothing deploys red).
-  3. Host-side liveness: `systemctl is-active app_granian.service`, then curl
-     `/` with the existing cookie jar (`--retry 10 --retry-delay 2
+  3. Liveness (in-VM, part of the gate since the restructure): `systemctl
+     is-active app_granian.service`, then curl `/` with the existing cookie
+     jar AND `-H "X-Scratch-Probe: 1"` (`--retry 10 --retry-delay 2
      --retry-connrefused` to absorb the restart race) and grep
-     `scratch-deploy-live`. The DB-backed session survives the restart, so
-     the jar from Setup 4 is still a superuser session.
+     `scratch-deploy-live`. The DB-backed session survives the restart,
+     so the jar from the gate's Setup 3/3 is still a superuser session.
 - **Assert 9/9 — cleanscratch as agent**: `agent-scratch-clean` = `_vm_env;
   ./run cleanscratch`, then `[ ! -e /srv/app/scratch ]`, echo OK; call site
   greps it.
 - **Optional guard sub-assert** (cheap, no battery): before assert 7's create,
   run `cd /srv/app/scratch && ./run deployscratch` style refusal once scratch
-  exists — expect `_require_main_run`'s nonzero refusal (run:493-498) — and/or
+  exists — expect `_require_main_run`'s nonzero refusal (run:383-388) — and/or
   deployscratch-before-createscratch's "Run createscratch first" refusal
-  (run:514). Take both only if they stay one-liners; otherwise skip.
+  (run:404). Take both only if they stay one-liners; otherwise skip.
 
 ## Checklist
 
-- [ ] deploy/vm.sh — § agent user, after `agent-playwright-probe`:
-    - [ ] `agent-scratch-create` — `_vm_env`, `./run createscratch`, dir +
+- [x] deploy/vm.sh — § agent user, after `agent-playwright-probe`:
+    - [x] `agent-scratch-create` — `_vm_env`, `./run createscratch`, dir +
           `scratch-baseline` ref checks, OK line
-    - [ ] `agent-scratch-edit` — grep-guarded marker insert into
+    - [x] `agent-scratch-edit` — grep-guarded marker insert into
           scratch's `ourapp/views/home.py`, confirmation line
-    - [ ] `agent-scratch-deploy` — `_vm_env`, `./run deployscratch`
-    - [ ] `agent-scratch-clean` — `_vm_env`, `./run cleanscratch`, dir-gone
+    - [x] `agent-scratch-deploy` — `_vm_env`, `./run deployscratch`
+    - [x] `agent-scratch-clean` — `_vm_env`, `./run cleanscratch`, dir-gone
           check, OK line
-- [ ] run — checkframework2:
-    - [ ] header comment "Assert 1-6" → 1-9 (run:235-236)
-    - [ ] renumber existing `=== Assert N/6 ===` banners → `/9`
-    - [ ] Assert 7/9 (create), 8/9 (edit+deploy+is-active+curl grep marker,
-          reusing `cookie_jar`), 9/9 (clean) per Design
-    - [ ] optional refusal sub-asserts (only if one-liners)
-- [ ] README.md — checkframework2 bullet (~line 346): mention the scratch
+- [x] run — checkframework2:
+    - [x] header comment "Assert 1-6" → 1-9 (run:235-236)
+    - [x] renumber existing `=== Assert N/6 ===` banners → `/9`
+    - [x] Assert 7/9 (create), 8/9 (edit+deploy+is-active+curl grep marker,
+          reusing `gate_jar`), 9/9 (clean) per Design
+    - [x] optional refusal sub-asserts (only if one-liners)
+- [x] README.md — checkframework2 bullet (~line 346): mention the scratch
       lifecycle cycle among what the gate smokes.
-- [ ] steer.md — nothing (checkframework2 stays operator-only, run:870 note
+- [x] steer.md — nothing (checkframework2 stays operator-only, run:870 note
       untouched; the scratch commands were already allowlisted for the agent
       in .pi/extensions/pi-permission-system/config.json:47-49).
 
@@ -128,12 +133,72 @@ gated on exit code:
 
 ## Verification
 
-- [ ] `bash -n run deploy/vm.sh` parses; `./run lintfix` + `./run typecheck`
+- [x] `bash -n run deploy/vm.sh` parses; `./run lintfix` + `./run typecheck`
       green (repo untouched by the marker edit — it happens only inside the
       VM's scratch copy).
-- [ ] Operator (destructive, operator-only per steer:870): `./testvm delete
-      && ./run checkframework2` → all 9 asserts green, including
+- [x] Operator (destructive, operator-only per steer.md:942-945): `./testvm
+      delete && ./run checkframework2` → all 9 asserts green, including
       `scratch-deploy-live` visible on `/` after the cycle, and no
-      `/srv/app/scratch` remaining afterwards.
-- [ ] Watch the added wall time on one run; if it exceeds ~15 min, file the
-      cache-sharing follow-up rather than trimming asserts.
+      `/srv/app/scratch` remaining afterwards. (Agent-run 2026-09-15 at the
+      operator's instruction; green across multiple full runs and, after the
+      restructure below, one clean end-to-end run of the new architecture.)
+- [x] Watch the added wall time on one run; if it exceeds ~15 min, file the
+      cache-sharing follow-up rather than trimming asserts. (Scratch cycle
+      adds ~13-15 min on the 1-CPU VM — cold agent caches dominate; the
+      UV_CACHE_DIR follow-up remains the lever if that ever hurts.)
+
+## Implementation notes (2026-09-14)
+
+Three fixes landed alongside the asserts, found by actually running the gate:
+
+- **`.env.vm` was missing `SESSION_IDLE_DAYS`** — the 2026-09-12 sliding-idle
+  work made settings require it, but only `.env.example`/`.env.vm.example`
+  got the key; provisioning's bootstrap died with KeyError before any
+  assert. Fixed in the operator's root `.env.vm` (gitignored, not committable
+  — other operators hit this only if they skip the example's key).
+- **Testapp fixture lint (TC002)**: overlaid as `ourapp/`, the fixture's
+  `views/home.py` + `views/books.py` imported `django.http.HttpRequest` at
+  module level — ruff's battery refused them. Fixed to the repo's own
+  `TYPE_CHECKING` pattern (matches `ourapp/views/home.py`).
+- **Marker is header-gated** (see Findings): the seed's `ourapp`
+  exact-props tests (which survive the overlay merge) broke on an
+  unconditional prop. Also observed, left as-is: on the VM the
+  framework-file watch lists `.pi/extensions/pi-permission-system/config.json`
+  (the seed commits it; a fresh scratch lacks it → reads as deleted vs the
+  baseline) and runs the 9-test smoke subset (~30s) — harmless, passes.
+
+## aihere sweep (2026-09-16, addressed same day)
+
+- [x] `deploy/vm.sh` gate-section header — rewritten as bullet points
+- [x] `gate-as-app`/`gate-as-agent` renamed to `gate-as-app-user`/
+      `gate-as-agent-user` (definitions + all call sites)
+- [x] `gate-step` dropped; banners are plain `echo; echo "=== … ==="`
+      (identical output, one helper less)
+- [x] Assert banners lost their `/9` denominators (`Assert 7/9` →
+      `Assert 7`) — adding/removing an assert no longer edits every banner
+- [x] `agent-playwright-probe` timeout 120 → 10s (healthy launches fit;
+      wedges fail fast)
+- [x] `gate-agent-says` removed — exit codes carry the asserts (wrappers
+      check postconditions before echoing OK under vm.sh's set -e); the
+      wrappers keep their OK lines as operator output
+- [x] aihere: assert 7/8 comment blobs rewritten as per-line comments
+- [x] aihere: `run`'s checkframework2 comment + README bullet split into
+      points
+- [x] per-check comments in asserts use `# Postcondition N:` (asserts 5-9
+      and the agent-scratch-create/clean wrappers); a later aihere further
+      split `run`'s "the gate" bullet into subpoints
+- [x] verified: full `./run checkframework2` green end-to-end after the
+      10s probe timeout + gate-agent-says removal (the later comment-only
+      changes rode no behavior)
+
+## Restructure (2026-09-15, operator-approved)
+
+The gate body moved INTO `deploy/vm.sh` as `gate` (plus `gate-*` helpers),
+dispatched like every other guest-side helper. `run`'s `checkframework2` is
+now: delete + `./testvm provision` (the only host-only part), then ONE
+`multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh gate` whose exit
+code is the verdict. Benefits: the ~190-line host function with 30+
+multipass calls is gone; the testapp overlay tars from the seeded tree
+(no host tar + `multipass transfer`); and the multipass-exec wedge class
+(first exec after an exec piped into an early-exit `grep -q`) is
+structurally impossible — one exec, no pipes on exec output.

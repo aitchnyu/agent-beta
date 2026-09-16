@@ -226,140 +226,28 @@ checkframework1() {
   playwrighttest
 }
 
-# The deployment gate: rebuild the test VM FROM SCRATCH (destructive — the
-# old VM's git + database are gone), deploy the Books test app
-# (djangoapp/tests/testapp) over the VM's ourapp/, then smoke the LIVE
-# stack over HTTPS on the VM's loopback (caddy TLS, granian, postgres,
-# login links) — what only a real deployment shows.
-#
-# Organized as Setup 1-4 (build/deploy/issue) then Assert 1-6 (the
-# HTTP smoke, one banner per assertion, first failure aborts).
+# The deployment gate (destructive — the old VM's git + database are gone):
+# - rebuild the test VM from scratch (`./testvm delete` + `provision`)
+# - run the in-VM gate — deploy/vm.sh's `gate`, dispatched like every other
+#   guest-side helper — over ONE multipass exec; its exit code is the verdict.
+#   The gate:
+#   - overlays the Books test app (djangoapp/tests/testapp) over the VM's
+#     ourapp/
+#   - smokes the LIVE stack over HTTPS on loopback (caddy TLS, granian,
+#     postgres, login links)
+#   - runs the agent's full scratch lifecycle
+#   - three setup phases, nine asserts, first failure aborts
+# - NB: the exec's output streams unfiltered — never pipe an exec into
+#   grep -q (early-exit readers wedge the daemon's next exec on this host)
 checkframework2() {
   setenv
-  local vm_base="https://localhost"
-  # Cookie jar for the smoke curls — a path INSIDE the VM
-  local vm_jar="/tmp/fw-smoke-cookies"
-
-  # Run a command in the VM as the app user — one thin wrapper over the
-  # guest-side helper library deploy/vm.sh (env sourced, repo cwd, uv on
-  # PATH), so call sites stay one-liners (INSTRUCTIONS.md § Multipass
-  # helpers in deploy/vm.sh).
-  vm_app() {
-    multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh runasapp "$@"
-  }
-
-  # curl inside the VM — loopback through the live caddy/granian stack.
-  vm_curl() {
-    multipass exec app -- curl -k -sS "$@"
-  }
-
-  # assert <expected[ expected...]> <got> <what-is-being-asserted> — a single
-  # value ("404") or space-separated alternatives ("302 200"). NB: a
-  # case-pattern CANNOT take its | alternation from an expanded variable
-  # (parse-time construct), hence the loop. Failures name the assertion and
-  # abort under set -e, like every other check in this script.
-  assert() {
-    local alt
-    for alt in $1; do
-      [ "$alt" = "$2" ] && return 0
-    done
-    echo "FAILED: $3 (expected $1, got $2)" >&2
-    return 1
-  }
-
-  # ── Setup 1/4: rebuild the VM from scratch ─────────────────────────────
-  # Delete any existing 'app' VM (destructive), provision a fresh one via
-  # ./testvm. Gated by provision's own set -e: every phase it runs
-  # (packages, tree, seed, bootstrap, services) must exit 0.
-  echo "=== Setup 1/4: rebuild the VM from scratch (destructive) ==="
+  echo "=== Rebuild the VM from scratch (destructive) ==="
   if multipass info app >/dev/null 2>&1; then
     "$_MAIN_DIR/testvm" delete
   fi
   "$_MAIN_DIR/testvm" provision
-
-  # ── Setup 2/4: deploy the Books test app ───────────────────────────────
-  # Tar the testapp's ourapp/, ship it, then extract over the VM's
-  # /srv/app/main/ourapp (full replace) as root — the body lives in
-  # deploy/vm.sh (deploy-ourapp).
-  echo "=== Setup 2/4: deploy the Books test app over the VM's ourapp/ ==="
-  (cd "$_MAIN_DIR/djangoapp/tests/testapp" && COPYFILE_DISABLE=1 tar czf /tmp/testapp-ourapp.tgz ourapp)
-  multipass transfer /tmp/testapp-ourapp.tgz app:/tmp/testapp-ourapp.tgz
-  multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh deploy-ourapp
-
-  # ── Setup 3/4: migrate, restart the app ─────────────────────────────────
-  # Migrate the fresh database, create the smoke superuser
-  # (framework@example.com, "Framework Smoke"), restart granian on the new
-  # code. Gated by each command's exit code.
-  echo "=== Setup 3/4: migrate, create the smoke superuser ==="
-  vm_app .venv/bin/python manage.py migrate --noinput
-  vm_app .venv/bin/python manage.py createuser framework@example.com --first-name Framework --last-name Smoke --superuser
-  multipass exec app -- sudo systemctl restart app_granian.service
-
-  # ── Setup 4/4: issue the one-time superuser login link ──────────────────
-  # makeloginlink inside the VM, extract the URL; the in-VM cookie jar
-  # captures the session the assertions below ride on.
-  echo "=== Setup 4/4: issue the one-time superuser login link ==="
-  local link
-  link=$(vm_app .venv/bin/python manage.py makeloginlink framework@example.com --base-url "$vm_base" \
-    | grep -oE "$vm_base/login-for-test/[^ ]+/" | head -1) || true
-  [ -n "$link" ] || { echo "FAILED: no login link issued" >&2; return 1; }
-  trap 'multipass exec app -- rm -f "$vm_jar" >/dev/null 2>&1 || true' RETURN
-
-  local code body
-
-  # ── Assert 1/6: the login link redeems ─────────────────────────────────
-  # 302 (redirect after login; 200 also fine) and leaves a session cookie
-  # in the jar.
-  echo "=== Assert 1/6: login link redeems ==="
-  code=$(vm_curl -o /dev/null -w '%{http_code}' -c "$vm_jar" "$link")
-  assert "302 200" "$code" "login link redemption status"
-
-  # ── Assert 2/6: /users/list gate, anonymous ────────────────────────────
-  # The framework superuser route hides from anonymous viewers: 404.
-  echo "=== Assert 2/6: anonymous /users/list → 404 ==="
-  code=$(vm_curl -o /dev/null -w '%{http_code}' "$vm_base/users/list")
-  assert 404 "$code" "anonymous /users/list"
-
-  # ── Assert 3/6: /users/list gate, superuser session ────────────────────
-  # 200 proves the redeemed cookie is a real superuser session.
-  echo "=== Assert 3/6: authed /users/list → 200 (session proof) ==="
-  code=$(vm_curl -o /dev/null -w '%{http_code}' -b "$vm_jar" "$vm_base/users/list")
-  assert 200 "$code" "authed /users/list (session proof)"
-
-  # ── Assert 4/6: home renders the test app ──────────────────────────────
-  # The home page shows the smoke user's display name "Framework Smoke".
-  echo "=== Assert 4/6: home shows the smoke user ==="
-  body=$(vm_curl -b "$vm_jar" "$vm_base/")
-  grep -q "Framework Smoke" <<<"$body" \
-    || { echo "FAILED: home does not show the smoke user" >&2; return 1; }
-
-  # ── Assert 5/6: agent user ready (pi + credentials env) ─────────────
-  # The browser console is gone; the operator shells in via multipass and
-  # becomes the agent user (sudo -iu agent). The two `./run pi`
-  # preconditions: pi on PATH, and the credentials env (AGENT_MODEL)
-  # readable as agent via its app-group membership.
-  echo "=== Assert 5/6: agent user can run ./run pi ==="
-  multipass exec app -- sudo -u agent -H bash -c 'command -v pi >/dev/null' \
-    || { echo "FAILED: pi not on the agent user's PATH" >&2; return 1; }
-  multipass exec app -- sudo -u agent -H bash -c \
-    '. /etc/credentials/app/.env.vm 2>/dev/null; test -n "${AGENT_MODEL:-}"' \
-    || { echo "FAILED: AGENT_MODEL does not resolve as agent (credentials env unreadable)" >&2; return 1; }
-
-  # ── Assert 6/6: playwright ready for the agent (shared browsers + deps) ─
-  # The agent's scratch ./run playwrighttest needs: browsers in the
-  # SHARED cache (readable as agent, via PLAYWRIGHT_BROWSERS_PATH from the
-  # credentials env) and a firefox that actually LAUNCHES headless as
-  # agent — the acceptance probe, platform-agnostic by construction.
-  echo "=== Assert 6/6: playwright browsers launch as agent ==="
-  local browsers
-  browsers=$(multipass exec app -- sudo -u agent -H bash /srv/app/main/deploy/vm.sh agent-browsers)
-  [ -n "$browsers" ] \
-    || { echo "FAILED: shared playwright browser cache empty/unreadable as agent" >&2; return 1; }
-  multipass exec app -- sudo -u agent -H bash /srv/app/main/deploy/vm.sh agent-playwright-probe \
-    | grep -q "launch OK" \
-    || { echo "FAILED: headless firefox does not launch as agent (deps or platform env missing)" >&2; return 1; }
-
-  echo "checkframework2 green."
+  echo "=== Run the in-VM gate (testapp overlay + 9 asserts) ==="
+  multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh gate
 }
 
 # The scratch/ fast loop: validate the agent's ourapp/ edits without re-running the

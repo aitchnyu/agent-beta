@@ -8,11 +8,15 @@ a home route).
 
 from __future__ import annotations
 
-from django.http import HttpRequest
+from typing import TYPE_CHECKING
+
 from inertia import InertiaResponse
 from ninja import Router
 
 from djangoapp.shortcuts import maybe_user
+
+if TYPE_CHECKING:
+    from django.http import HttpRequest
 
 router = Router()
 
