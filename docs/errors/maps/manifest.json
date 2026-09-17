@@ -1,0 +1,87 @@
+{
+  "_mermaid-sZWCToAb.js": {
+    "file": "assets/mermaid-sZWCToAb.js",
+    "name": "mermaid",
+    "imports": [
+      "_rolldown-runtime-QTnfLwEv.js",
+      "_vendor-shared-yKmICLuQ.js"
+    ],
+    "dynamicImports": [
+      "_mermaid-sZWCToAb.js"
+    ]
+  },
+  "_rolldown-runtime-QTnfLwEv.js": {
+    "file": "assets/rolldown-runtime-QTnfLwEv.js",
+    "name": "rolldown-runtime"
+  },
+  "_vendor-shared-yKmICLuQ.js": {
+    "file": "assets/vendor-shared-yKmICLuQ.js",
+    "name": "vendor-shared",
+    "imports": [
+      "_rolldown-runtime-QTnfLwEv.js"
+    ]
+  },
+  "node_modules/diff2html/bundles/css/diff2html.min.css": {
+    "file": "assets/diff2html-DhpiFlgV.css",
+    "src": "node_modules/diff2html/bundles/css/diff2html.min.css"
+  },
+  "node_modules/diff2html/lib-esm/ui/js/diff2html-ui-base.js": {
+    "file": "assets/diff2html-ui-base-C5rjhsYA.js",
+    "name": "diff2html-ui-base",
+    "src": "node_modules/diff2html/lib-esm/ui/js/diff2html-ui-base.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-QTnfLwEv.js"
+    ]
+  },
+  "node_modules/sweetalert2/dist/sweetalert2.all.js": {
+    "file": "assets/sweetalert2.all-DiuxoNnV.js",
+    "name": "sweetalert2.all",
+    "src": "node_modules/sweetalert2/dist/sweetalert2.all.js",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-QTnfLwEv.js"
+    ]
+  },
+  "src/components/RichTextEditor.vue": {
+    "file": "assets/RichTextEditor-DXpRoGcH.js",
+    "name": "RichTextEditor",
+    "src": "src/components/RichTextEditor.vue",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-QTnfLwEv.js",
+      "_vendor-shared-yKmICLuQ.js",
+      "src/main.ts"
+    ]
+  },
+  "src/main.ts": {
+    "file": "main-CjayHrlg.js",
+    "name": "main",
+    "src": "src/main.ts",
+    "isEntry": true,
+    "imports": [
+      "_rolldown-runtime-QTnfLwEv.js",
+      "_vendor-shared-yKmICLuQ.js"
+    ],
+    "dynamicImports": [
+      "_mermaid-sZWCToAb.js",
+      "src/utils/filePreview.ts",
+      "node_modules/diff2html/lib-esm/ui/js/diff2html-ui-base.js",
+      "node_modules/sweetalert2/dist/sweetalert2.all.js",
+      "src/components/RichTextEditor.vue"
+    ],
+    "css": [
+      "assets/main-D7mvNvpb.css"
+    ]
+  },
+  "src/utils/filePreview.ts": {
+    "file": "assets/filePreview-COpQAFGp.js",
+    "name": "filePreview",
+    "src": "src/utils/filePreview.ts",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-QTnfLwEv.js",
+      "src/main.ts"
+    ]
+  }
+}

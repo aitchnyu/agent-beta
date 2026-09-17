@@ -361,6 +361,27 @@ Sourcemaps are emitted in every build (`vite.config.js` `sourcemap: true`) for
 offline/server-side row:col resolution; the serving layer must deny `*.map`
 under `/static/djangoapp/` so they never reach clients.
 
+### Searching captured errors
+
+Backend errors, huey failures, and frontend-reported errors are all captured
+as NDJSON in the journals (`app_granian`, `app_huey`) and can be queried with
+[miller](https://miller.readthedocs.io) (`mlr`) straight off `journalctl` —
+streaming, no intermediate files. Inside the VM:
+
+```bash
+# every error for one user — backend AND frontend, both units in one pass
+journalctl -u app_granian.service -u app_huey.service -o cat --since=-1h \
+  | grep '^{' \
+  | mlr --jsonl filter '$level=="error" || $source=="client"' \
+    then filter '$username=="<username>"' \
+    then cut -o -f timestamp,source,level,event,client_message
+```
+
+Minified frontend stacks (`main-<hash>.js:line:col`) decode back to source
+with `frontend/scripts/decode-stack.mjs` against the build's sourcemaps. The
+full cookbook — per-origin queries, groupings, decoding, a real sample corpus
+in `docs/errors/` — is in [docs/logging.md](docs/logging.md).
+
 ## Testing
 
 Four tiers:

@@ -766,6 +766,14 @@ stream — never `print()` for diagnostics.
   (toast) or let the global net catch it; both end up observable.
 - When **updating an existing app**, route its diagnostics through this logging
   instead of leaving silent catches or `print`s behind.
+
+### Searching error logs
+Backend errors, huey failures, and frontend (`client`) errors are all captured
+as NDJSON in the journal. When a question is answerable from logs — what
+errors a user encountered, tracing their requests, grouping errors by
+stacktrace or user, decoding a minified frontend stack — query them instead
+of guessing. Verified commands live in **docs/logging.md** (read it first);
+run the queries inside the VM (`multipass exec app -- …`).
 ## Background tasks (Huey)
 Huey (Redis-backed) runs background + cron tasks. It's enabled framework-wide via
 `huey.contrib.djhuey` (see `HUEY` in `djangoproject/settings.py`), which

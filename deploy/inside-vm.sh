@@ -51,12 +51,13 @@ provision_vm() {
   echo "==> [vm] apt packages"
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
-  apt-get install -y curl rsync git htop ufw ripgrep fd-find \
+  apt-get install -y curl rsync git htop ufw ripgrep fd-find miller \
     postgresql postgresql-client redis-server ca-certificates gnupg
   # fd-find: pi auto-downloads its fd helper to ~/.pi/agent/bin on first
   # launch otherwise — pre-install so the first ./run pi is offline-clean.
   # Debian names the binary fdfind; pi (and muscle memory) wants fd.
   ln -sf /usr/bin/fdfind /usr/local/bin/fd
+  # miller (mlr): journal error-log queries per docs/logging.md.
   # NOTE: node 22 below stays: the frontend build (vite/rolldown) needs it,
   # even though the agent CLI no longer rides npm.
 

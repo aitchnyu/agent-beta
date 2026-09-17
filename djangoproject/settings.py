@@ -305,6 +305,10 @@ LOGGING = {
     "loggers": {
         # django.server already logs every request; keep it (now JSON) at INFO.
         "django.server": {"level": _LOG_LEVEL},
+        # Own the huey logger so `run_huey` never attaches ITS plain-text
+        # handler:  NDJSON exactly once; propagate stays
+        # False so the root handler doesn't double-print them.
+        "huey": {"level": _LOG_LEVEL, "handlers": ["console"], "propagate": False},
     },
 }
 

@@ -1,0 +1,39 @@
+
+> frontend@0.0.0 build
+> run-p type-check "build-only {@}" --
+
+
+> frontend@0.0.0 build-only
+> vite build
+
+
+> frontend@0.0.0 type-check
+> vue-tsc --noEmit
+
+vite v8.1.5 building client environment for production...
+[2Ktransforming...✓ 2467 modules transformed.
+rendering chunks...
+computing gzip size...
+../djangoapp/static/djangoapp/.vite/manifest.json                       2.45 kB │ gzip:   0.52 kB
+../djangoapp/static/djangoapp/assets/diff2html-DhpiFlgV.css            15.87 kB │ gzip:   2.40 kB
+../djangoapp/static/djangoapp/assets/main-D7mvNvpb.css                215.51 kB │ gzip:  31.18 kB
+../djangoapp/static/djangoapp/assets/rolldown-runtime-QTnfLwEv.js       0.69 kB │ gzip:   0.42 kB
+../djangoapp/static/djangoapp/assets/diff2html-ui-base-C5rjhsYA.js     57.92 kB │ gzip:  17.78 kB │ map:    224.58 kB
+../djangoapp/static/djangoapp/assets/filePreview-COpQAFGp.js           74.27 kB │ gzip:  21.39 kB │ map:    262.50 kB
+../djangoapp/static/djangoapp/assets/sweetalert2.all-DiuxoNnV.js       78.21 kB │ gzip:  20.88 kB │ map:    236.85 kB
+../djangoapp/static/djangoapp/assets/vendor-shared-yKmICLuQ.js        117.12 kB │ gzip:  42.15 kB │ map:    690.56 kB
+../djangoapp/static/djangoapp/assets/RichTextEditor-DXpRoGcH.js       172.00 kB │ gzip:  50.28 kB │ map:    607.59 kB
+../djangoapp/static/djangoapp/main-CjayHrlg.js                        379.75 kB │ gzip: 120.83 kB │ map:  1,736.47 kB
+../djangoapp/static/djangoapp/assets/mermaid-sZWCToAb.js            3,258.64 kB │ gzip: 869.25 kB │ map: 10,921.24 kB
+
+[33m[PLUGIN_TIMINGS] [0mYour build spent significant time in plugins. Here is a breakdown:
+  - vite:vue (62%)
+  - vite:css (29%)
+See https://rolldown.rs/reference/InputOptions.checks#plugintimings for more details.
+
+[plugin builtin:vite-reporter] 
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 15.43s

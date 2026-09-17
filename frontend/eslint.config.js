@@ -39,8 +39,8 @@ export default defineConfigWithVueTs(
     },
   },
   {
-    // Node-side scripts (build config) — node globals.
-    files: ["eslint.config.js", "vite.config.js"],
+    // Node-side scripts (build config, tools) — node globals.
+    files: ["eslint.config.js", "vite.config.js", "scripts/**/*.mjs"],
     languageOptions: {
       globals: {
         console: "readonly",

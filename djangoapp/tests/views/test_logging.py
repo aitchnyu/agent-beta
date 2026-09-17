@@ -15,6 +15,8 @@ import logging
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
+from django.conf import settings
+
 from djangoapp.logging import get_logger, json_formatter
 from djangoapp.models import User
 from djangoapp.tests._base import BaseTestCase
@@ -124,3 +126,46 @@ class StructuredLoggingTests(BaseTestCase):
         records = _ndjson(buf)
         rec = next(r for r in records if r.get("event") == "ping")
         self.assertEqual(rec["source"], "server")
+
+
+class HueyLoggerConfigTests(BaseTestCase):
+    """The huey consumer must emit NDJSON only, in dev and on the VM.
+
+    ``run_huey`` attaches its own plain-text handler
+    (``[time] LEVEL:name:worker: message``) ONLY when the "huey" logger has
+    no handlers — owning the logger in ``LOGGING`` keeps the journal free of
+    non-JSON lines (docs/errors/ shows the mixed output this prevents).
+
+    - test_huey_logger_owned_by_json_config: the huey logger has a handler
+      (run_huey's guard), wired to the console handler with propagate=False,
+      and renders NDJSON
+    """
+
+    def test_huey_logger_owned_by_json_config(self) -> None:
+        """run_huey's guard sees a handler; records render as JSON lines."""
+        huey_logger = logging.getLogger("huey")
+        # The exact condition run_huey checks before attaching its plain-text
+        # handler — an empty handlers list means the journal gets non-JSON lines.
+        self.assertTrue(
+            huey_logger.handlers,
+            "the huey logger must have a handler, or run_huey attaches plain text",
+        )
+        # Wiring: console (JSON) handler, no propagation to the root handler.
+        loggers_cfg = settings.LOGGING["loggers"]
+        assert isinstance(loggers_cfg, dict)
+        entry = loggers_cfg["huey"]
+        assert isinstance(entry, dict)
+        self.assertIn("console", entry["handlers"])
+        self.assertFalse(entry["propagate"])
+        # Render: a record through the huey logger comes out as one JSON object.
+        buf: io.StringIO = io.StringIO()
+        handler = logging.StreamHandler(buf)
+        handler.setFormatter(json_formatter())
+        huey_logger.addHandler(handler)
+        try:
+            huey_logger.warning("huey ndjson check")
+        finally:
+            huey_logger.removeHandler(handler)
+        rec = _ndjson(buf)[0]
+        self.assertEqual(rec["event"], "huey ndjson check")
+        self.assertEqual(rec["logger"], "huey")

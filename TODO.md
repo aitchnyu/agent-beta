@@ -1,3 +1,13 @@
+drobeans 
+dendron 	Greek   δένδρον 	tree / wood 	105
+lobos 	    Greek   λῶβος 	pod 	1029
+umbellatum 	Latin 	umbels — flower clusters radiating from a common center 	11
+umbella 	Latin 	a sunshade, parasol, or umbrella (dim. of umbra, shade) 	30
+
+desm- 	Greek δεσμός (desmos) 	band, bond, chain ?
+-od- 	Greek -oeides / -odes 	"like, of the shape of" ?
+-ium 	Latin 	taxonomic singular noun ending ?
+
 Tool to analyse error logs and stacktraces, both backend and sourcemap stacktraces, mlr (miller) for logs
 
 Generate backend logs with some test function.
@@ -9,6 +19,7 @@ Have a tool that will
 Mention in steer.md, which links to docs/logs.md
 Document in readme - find all errors by user, find all errors by user, both frontend and backend, from the logs you gathered
 Gather logs from Huey too
+Can agent use this?
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis.
@@ -22,7 +33,7 @@ Which ones to mute?
 
 Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH. Obscura for tests?
 --------
-Reuse ubuntu/debian user. Have a des command that calls ./run
+Reuse ubuntu/debian user instead of agent user. Have a des command that calls ./run
 
 ```
 multipass shell app
