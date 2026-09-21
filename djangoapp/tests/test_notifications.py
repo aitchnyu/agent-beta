@@ -129,7 +129,7 @@ class NotificationRecordTests(BaseTestCase):
     """``Notification.record`` stores the row and schedules the fan-out.
 
     - test_record_creates_and_returns_row, all fields land, public_id minted
-    - test_record_pushes_only_after_commit, on_commit gates the push
+    - test_record_schedules_push_only_after_commit, on_commit gates the push enqueue
     """
 
     def setUp(self) -> None:
@@ -149,20 +149,28 @@ class NotificationRecordTests(BaseTestCase):
         self.assertTrue(notification.public_id)
         self.assertTrue(Notification.objects.filter(public_id=notification.public_id).exists())
 
-    def test_record_pushes_only_after_commit(self) -> None:
-        """The push waits for on_commit — a rolled-back row never pushes."""
-        with patch("djangoapp.models.notifications.notify_sessions") as notify_mock:
+    def test_record_schedules_push_only_after_commit(self) -> None:
+        """The push ENQUEUE waits for on_commit — a rolled-back row never pushes."""
+        with patch("djangoapp.models.notifications.deliver_push") as schedule_mock:
             # capture(execute=True) collects AND runs the on_commit
             # callbacks when ITS context exits — still inside the patch,
-            # so the deferred notify_sessions lands on the mock. The
-            # assert inside the block fails if record() ever pushes
-            # eagerly (e.g. an on_commit refactor); the count pins that
-            # exactly the push dispatch was scheduled.
+            # so the deferred enqueue lands on the mock. The assert inside
+            # the block fails if record() ever pushes eagerly; the count
+            # pins that exactly one thing — the push enqueue — was
+            # scheduled, carrying the stored row's fields.
             with self.captureOnCommitCallbacks(execute=True) as callbacks:
-                Notification.record(recipient=self.user, kind="k", body="b")
-                notify_mock.assert_not_called()
+                notification = Notification.record(
+                    recipient=self.user, kind="k", body="b", url="/x"
+                )
+                schedule_mock.assert_not_called()
             self.assertEqual(len(callbacks), 1)
-            notify_mock.assert_called_once()
+            schedule_mock.assert_called_once()
+            user_pk, payload_arg = schedule_mock.call_args.args
+            self.assertEqual(user_pk, self.user.pk)
+            self.assertEqual(
+                payload_arg,
+                {"public_id": notification.public_id, "kind": "k", "body": "b", "url": "/x"},
+            )
 
 
 class PushDispatchTests(BaseTestCase):
@@ -175,7 +183,8 @@ class PushDispatchTests(BaseTestCase):
     - test_non_webpush_exception_never_propagates, arbitrary exceptions are contained
     - test_disabled_vapid_skips_webpush, unset VAPID means no push attempts
     - test_no_superuser_email_skips_webpush, no contact to sign for → skip
-    - test_push_test_fans_out_without_row, push_test delivers to all, stores nothing
+    - test_push_test_enqueues_without_row, push_test counts + enqueues, stores nothing
+    - test_push_test_zero_devices_schedules_nothing, count 0 enqueues nothing
     """
 
     def setUp(self) -> None:
@@ -207,9 +216,13 @@ class PushDispatchTests(BaseTestCase):
             session_index=index,
         )
 
-    def _record(self) -> Notification:
-        with self.captureOnCommitCallbacks(execute=True):
-            return Notification.record(recipient=self.user, kind="task.done", body="hi", url="/x")
+    def _notify(self) -> None:
+        # Dispatch tests exercise the delivery core directly — record()
+        # only enqueues the Huey task (see the record tests above).
+        notify_sessions(
+            self.user,
+            {"public_id": "x1", "kind": "task.done", "body": "hi", "url": "/x"},
+        )
 
     @PUSH_CONFIGURED
     def test_push_called_once_per_subscription(self) -> None:
@@ -217,7 +230,7 @@ class PushDispatchTests(BaseTestCase):
         self._subscription("https://push.example/e1")
         self._subscription("https://push.example/e2")
         with patch("djangoapp.models.notifications.webpush") as webpush_mock:
-            self._record()
+            self._notify()
         self.assertEqual(webpush_mock.call_count, 2)
         endpoints = sorted(
             call.kwargs["subscription_info"]["endpoint"] for call in webpush_mock.call_args_list
@@ -234,9 +247,9 @@ class PushDispatchTests(BaseTestCase):
         """The JSON payload mirrors the row (public_id/kind/body/url)."""
         self._subscription("https://push.example/e1")
         with patch("djangoapp.models.notifications.webpush") as webpush_mock:
-            notification = self._record()
+            self._notify()
         payload = json.loads(webpush_mock.call_args.kwargs["data"])
-        self.assertEqual(payload["public_id"], notification.public_id)
+        self.assertEqual(payload["public_id"], "x1")
         self.assertEqual(payload["kind"], "task.done")
         self.assertEqual(payload["body"], "hi")
         self.assertEqual(payload["url"], "/x")
@@ -251,7 +264,7 @@ class PushDispatchTests(BaseTestCase):
                     "djangoapp.models.notifications.webpush",
                     side_effect=WebPushException("gone", response=_FakeResponse(status)),
                 ):
-                    self._record()
+                    self._notify()
                 self.assertFalse(
                     PushSubscription.objects.filter(endpoint="https://push.example/dead").exists()
                 )
@@ -264,7 +277,7 @@ class PushDispatchTests(BaseTestCase):
             "djangoapp.models.notifications.webpush",
             side_effect=WebPushException("boom", response=_FakeResponse(500)),
         ):
-            self._record()
+            self._notify()
         self.assertTrue(
             PushSubscription.objects.filter(endpoint="https://push.example/flaky").exists()
         )
@@ -274,8 +287,7 @@ class PushDispatchTests(BaseTestCase):
         """Arbitrary exceptions inside delivery are contained (logged, not raised)."""
         self._subscription("https://push.example/e1")
         with patch("djangoapp.models.notifications.webpush", side_effect=OSError("network")):
-            self._record()  # must not raise
-        self.assertTrue(Notification.objects.filter(recipient=self.user).exists())
+            self._notify()  # must not raise
 
     def test_disabled_vapid_skips_webpush(self) -> None:
         """Unset VAPID (the dev sentinel default) skips push attempts entirely."""
@@ -289,17 +301,24 @@ class PushDispatchTests(BaseTestCase):
         webpush_mock.assert_not_called()
 
     @PUSH_CONFIGURED
-    def test_push_test_fans_out_without_row(self) -> None:
-        """push_test delivers to every subscription and stores NO row."""
+    def test_push_test_enqueues_without_row(self) -> None:
+        """push_test returns the device count and enqueues — no row, no inline delivery."""
         self._subscription("https://push.example/e1")
         self._subscription("https://push.example/e2")
-        with patch("djangoapp.models.notifications.webpush") as webpush_mock:
+        with patch("djangoapp.models.notifications.deliver_push") as schedule_mock:
             count = push_test(self.user)
         self.assertEqual(count, 2)
-        self.assertEqual(webpush_mock.call_count, 2)
-        payload = json.loads(webpush_mock.call_args.kwargs["data"])
+        _user_pk, payload = schedule_mock.call_args.args
         self.assertEqual(payload["kind"], "test")
+        self.assertEqual(payload["url"], "/")
         self.assertEqual(Notification.objects.count(), 0)
+
+    @PUSH_CONFIGURED
+    def test_push_test_zero_devices_schedules_nothing(self) -> None:
+        """No subscriptions → count 0 and nothing enqueued."""
+        with patch("djangoapp.models.notifications.deliver_push") as schedule_mock:
+            self.assertEqual(push_test(self.user), 0)
+        schedule_mock.assert_not_called()
 
     @PUSH_CONFIGURED
     def test_no_superuser_email_skips_webpush(self) -> None:
@@ -308,10 +327,8 @@ class PushDispatchTests(BaseTestCase):
         vapid_subject.cache_clear()
         self._subscription("https://push.example/e1")
         with patch("djangoapp.models.notifications.webpush") as webpush_mock:
-            self._record()
+            self._notify()
         webpush_mock.assert_not_called()
-        # The row itself is intact: store yes, deliver no.
-        self.assertTrue(Notification.objects.filter(recipient=self.user).exists())
 
 
 class PushSubscriptionModelTests(BaseTestCase):

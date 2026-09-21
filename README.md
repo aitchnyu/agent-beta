@@ -24,6 +24,9 @@ changes through an agent that edits a throwaway.
 - **File browser** — `/files` to browse and preview the repo filesystem in-app.
 - **Git viewer** — `/git` to browse commits, view diffs, and inspect the
   uncommitted working tree.
+- **Notifications** — `/notifications`: every user's bell, list, and browser
+  (Web Push) delivery — rows live until deleted; pushes ride the user's live
+  sessions (logout/GC cascade-drops them) via VAPID (see `generatevapid`).
 - **Structured logging** — one NDJSON line per record across the backend **and**
   frontend-reported errors (`/client-errors`, rate-limited via Redis), all
   `jq`-filterable. See [Logging](#logging).

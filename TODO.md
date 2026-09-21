@@ -1,3 +1,4 @@
+Notifications page?
 How to recommend notifications to user? After transaction? Add transactions to reference app
 
 UserSessionIndex is tracking sessions for user. Can we make PushSubscription a one to one relationship to UserSessionIndex?
@@ -5,13 +6,14 @@ why have `session_key = models.CharField....` when there is UserSessionIndex.
 push_test and _push call _deliver. Cant we have an easy to use function that notifies a users active sessions?
 is on_user_logged_out needed anymore?
 
-
 session_key = models.CharField(max_length=40, null=True, blank=True, editable=False)
 
 Subscription truth in wrong place?
 
-VAPID_PRIVATE_KEY="DANGEROUSLYUNSET" Generate in provision along with db pass?
 Move notifications to async tasks?
+
+VAPID_PRIVATE_KEY="DANGEROUSLYUNSET" Generate in provision along with db pass?
+
 CSRF, allow token based requests to pass if not sent by frontend?
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
@@ -32,6 +34,7 @@ Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH. Obscura for test
 Have a playwright test for generating screenshots in a small viewport. Screenshots are needed for and referenced in readme.
 Capture only specific areas for screenshots.
 Capture screenshots for
+    notifications page
     list of models, list for a model, row details
     user list, user details
     all code and git features
@@ -54,6 +57,7 @@ import from git repo tags?
 Run all tests in checkproject and merge coverage from both stages. Improve test coverage
 
 ## Deployment
+Uploads dir is a single thing too
 Backup regularly - https://www.pghardstorage.org/examples
 Provision in vm with domain with curl|bash. What all should user provide?
 

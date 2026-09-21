@@ -30,6 +30,7 @@ from pywebpush import WebPushException, webpush
 
 from djangoapp.logging import get_logger
 from djangoapp.models.base import User, UserSessionIndex, generate_uuid7_id
+from djangoapp.tasks import deliver_push
 
 if typing.TYPE_CHECKING:
     from django.db.models.query import QuerySet
@@ -180,15 +181,21 @@ class Notification(models.Model):
         """Store a notification and schedule its Web Push fan-out.
 
         Callable from views and Huey tasks alike (no request involved).
-        The push runs ``on_commit`` so an uncommitted (or rolled-back)
-        row is never pushed; in the Huey worker there is no surrounding
-        transaction, so it fires immediately. Push failures never
-        propagate — see ``notify_sessions``.
+        The push is ENQUEUED as a Huey task on ``on_commit`` — never run
+        inline — so neither a rolled-back row is pushed nor a request
+        waits on push-service HTTP. In the Huey worker there is no
+        surrounding transaction, so the enqueue fires immediately. Push
+        failures never propagate — see ``notify_sessions``.
         """
         notification = cls.objects.create(recipient=recipient, kind=kind, body=body, url=url)
+        # The fan-out is a Huey TASK, never inline: push-service HTTP is
+        # seconds-slow worst case (10s timeout x N subscriptions), which no
+        # view or task should wait on. on_commit gates it — a rolled-back
+        # row never pushes; without a running consumer the task queues and
+        # delivery degrades to in-app, gracefully.
         transaction.on_commit(
-            lambda: notify_sessions(
-                recipient,
+            lambda: deliver_push(
+                recipient.pk,
                 {
                     "public_id": notification.public_id,
                     "kind": kind,
@@ -289,23 +296,28 @@ def notify_sessions(user: User, payload: dict[str, str]) -> int:
 
 
 def push_test(user: User) -> int:
-    """Push a test notification to every subscription of the user — NO row stored.
+    """Queue a test push to every subscription of the user — NO row stored.
 
     The notifications page's "Send test notification" button: a pure
     delivery check (the browser toast on each device IS the result), so
     unlike ``record`` nothing lands in the table or the badge. Returns
-    the number of subscriptions the payload was handed to (0 when push
-    is off or none exist — the caller decides what to tell the user).
+    the device count the enqueued task will fan out to (0 when push is
+    off or none exist — the caller decides what to tell the user); the
+    count gates mirror ``notify_sessions`` exactly so the number never
+    promises a delivery the task would skip.
     """
-    return notify_sessions(
-        user,
-        {
-            "public_id": "test",
-            "kind": "test",
-            "body": "Test notification",
-            "url": "/notifications",
-        },
-    )
+    count = user.push_subscriptions.count() if is_push_enabled() and vapid_subject() else 0
+    if count:
+        deliver_push(
+            user.pk,
+            {
+                "public_id": "test",
+                "kind": "test",
+                "body": "Clicking this will take you to homepage",
+                "url": "/",
+            },
+        )
+    return count
 
 
 def _deliver(subscriptions: QuerySet[PushSubscription], payload: str, log_id: str) -> None:

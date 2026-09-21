@@ -134,22 +134,25 @@ async function onResubscribe(): Promise<void> {
 // browser toast on each device IS the result. Nothing in-app happens by
 // design (no row, no badge bump, no reload): a stored test row would
 // pollute the list and defeat the point of testing ONLY the push path.
+// Busy gates only the POST itself — the toast wait must not disable the
+// button (a repeat click just sends another test).
 async function onSendTest(): Promise<void> {
   testBusy.value = true
+  let count: number
   try {
-    const { count } = TestNotificationResponseSchema.parse(
+    ({ count } = TestNotificationResponseSchema.parse(
       await postJSON("/notifications/api/test"),
-    )
-    if (count > 0) {
-      await showToast("success", `Test push sent to ${count} device(s)`)
-    } else {
-      await showToast(
-        "warning",
-        "No devices to push to — enable notifications first",
-      )
-    }
+    ))
   } finally {
     testBusy.value = false
+  }
+  if (count > 0) {
+    await showToast("success", `Test push sent to ${count} device(s)`)
+  } else {
+    await showToast(
+      "warning",
+      "No devices to push to — enable notifications first",
+    )
   }
 }
 
@@ -255,58 +258,62 @@ async function onClearAll(): Promise<void> {
               closed.
             </template>
             <template v-else>
-              Show system notifications, even with this tab closed.
+              System notifications arrive while your BROWSER runs — even
+              with this tab closed; fully quitting the browser pauses them
+              (queued up to a day). The in-app bell and this list only
+              update while the app is open.
             </template>
           </div>
         </div>
-        <!-- v-if on the group too: denied-but-unsubscribed leaves zero
-             buttons (canEnable excludes denied) — no empty btn-group. -->
-        <div
-          v-if="pushSupported && (canEnable || pushSubscribed)"
-          class="btn-group btn-group-sm"
-          role="group"
-        >
-          <button
-            v-if="canEnable"
-            class="btn btn-primary notifications-enable"
-            :disabled="pushBusy"
-            @click="onEnable"
+        <!-- Controls cluster as ONE right-hand child: with text + group +
+             button as three card-body children, justify-content-between
+             spread them to opposite ends. -->
+        <div class="d-flex align-items-center gap-2">
+          <!-- v-if on the group too: denied-but-unsubscribed leaves zero
+               buttons (canEnable excludes denied) — no empty btn-group. -->
+          <div
+            v-if="pushSupported && (canEnable || pushSubscribed)"
+            class="btn-group"
+            role="group"
           >
-            Enable notifications
+            <button
+              v-if="canEnable"
+              class="btn btn-sm btn-primary notifications-enable"
+              :disabled="pushBusy"
+              @click="onEnable"
+            >
+              Enable notifications
+            </button>
+            <template v-else-if="pushSubscribed">
+              <button
+                class="btn btn-sm btn-outline-secondary notifications-resubscribe"
+                :disabled="pushBusy"
+                @click="onResubscribe"
+              >
+                Resubscribe
+              </button>
+              <button
+                class="btn btn-sm btn-outline-secondary notifications-disable"
+                :disabled="pushBusy"
+                @click="onDisable"
+              >
+                Disable
+              </button>
+            </template>
+          </div>
+          <!-- Delivery probe, same card: pushes to every subscribed device,
+               no row stored. Hidden when the server can't push at all (the
+               click could only ever toast "no devices"). -->
+          <button
+            v-if="p.push_enabled && pushSupported"
+            class="btn btn-sm btn-outline-primary notifications-test"
+            :disabled="testBusy"
+            @click="onSendTest"
+          >
+            Send test
           </button>
-          <template v-else-if="pushSubscribed">
-            <button
-              class="btn btn-outline-secondary notifications-resubscribe"
-              :disabled="pushBusy"
-              @click="onResubscribe"
-            >
-              Resubscribe
-            </button>
-            <button
-              class="btn btn-outline-secondary notifications-disable"
-              :disabled="pushBusy"
-              @click="onDisable"
-            >
-              Disable
-            </button>
-          </template>
         </div>
       </div>
-    </div>
-
-    <!-- Only when the server can push at all: with VAPID off the button
-         would only ever toast "no devices" — an impossible action. -->
-    <div
-      v-if="p.push_enabled && pushSupported"
-      class="d-flex justify-content-end mb-3"
-    >
-      <button
-        class="btn btn-sm btn-outline-primary notifications-test"
-        :disabled="testBusy"
-        @click="onSendTest"
-      >
-        Send test notification
-      </button>
     </div>
 
     <div v-if="notifications.length === 0" class="text-muted py-4">

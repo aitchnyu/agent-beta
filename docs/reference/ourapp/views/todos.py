@@ -11,11 +11,12 @@ beyond ``save_with_logs``'s own. Data is pk-free (only ``public_id``).
 
 from __future__ import annotations
 
+from django.db import transaction
 from django.http import Http404, HttpRequest
 from inertia import InertiaResponse
 from ninja import Router, Schema
 
-from djangoapp.models import User
+from djangoapp.models import Notification, User
 from djangoapp.shortcuts import user_or_404
 from ourapp.models import Todo
 
@@ -74,12 +75,24 @@ def todos_page(request: HttpRequest) -> InertiaResponse:
 def create_todo(request: HttpRequest, payload: TodoCreateSchema) -> TodoOutSchema:
     """Create a todo from a JSON body; return the new todo.
 
-    Uses ``save_with_logs`` (not ``objects.create``) so the write is audit-logged
-    as a ``created`` revision and stamps ``created_by``/``last_updated_by``.
+    The canonical multi-write shape: the todo + its notification are one
+    ``transaction.atomic()`` block (all-or-nothing — a partial commit
+    must never leave a todo the user wasn't told about), and the
+    notification push is scheduled by ``record`` itself on ``on_commit``
+    — the user is only ever informed AFTER the data is durable.
+    ``save_with_logs`` (not ``objects.create``) so the write is
+    audit-logged and stamps ``created_by``/``last_updated_by``.
     """
     user = user_or_404(request)
-    todo = Todo(text=payload.text.strip(), owner=user)
-    todo.save_with_logs(actor=user)
+    with transaction.atomic():
+        todo = Todo(text=payload.text.strip(), owner=user)
+        todo.save_with_logs(actor=user)
+        Notification.record(
+            recipient=user,
+            kind="todo.created",
+            body=f"Todo created: {todo.text[:80]}",
+            url="/todos",
+        )
     return _todo_out(todo)
 
 

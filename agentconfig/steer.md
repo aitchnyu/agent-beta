@@ -649,7 +649,13 @@ lookup that hides the concrete model from the type checker — don't reach for i
       or two rows that are meaningless apart). A partial commit leaves the data
       model in an inconsistent state — the transaction makes it all-or-nothing.
       `BaseModel.save_with_logs` already does this internally; do it yourself
-      only when a view composes several writes.
+      only when a view composes several writes. **Do the same in tasks and
+      management commands** — anything that writes more than one row.
+- [ ] **Inform the user only after the data commits**: call
+      `Notification.record(...)` INSIDE the atomic block — its push is
+      scheduled on `on_commit`, so a rollback leaves no row and no
+      notification, and delivery never blocks the request (see
+      [Notifications](#notifications-framework)).
 - [ ] Mutating writes go through `save_with_logs`/`delete_with_logs` (audited),
       not bare `.save()`/`.delete()`.
 - [ ] Returns a pydantic schema (data) or `InertiaResponse` (page) — never a raw
@@ -710,6 +716,45 @@ framework's `utils/http.ts` and wrap every call in `try/catch` +
 where possible** — keep the app out of the framework's `pages/`, `components/`,
 shared `schemas.ts`, and `styles/` (those hold framework code; the app's own
 schemas/styles live inside `ours/`).
+
+### Notifications (framework)
+Every user has a notifications feature for free (framework, `djangoapp`):
+the bell + `/notifications` page (rows live until deleted) and Web Push
+delivery to the user's subscribed browsers. To notify a user from Python —
+a view, a Huey task, a management command, anywhere:
+
+```python
+from djangoapp.models import Notification
+
+Notification.record(recipient=user, kind="todo.created", body="…", url="/todos")
+```
+
+Parameters (all keyword-only):
+- `recipient` — the `User` being notified; the row and every push target
+  are theirs alone (other users never see it).
+- `kind` — short dotted bucket (`todo.created`, `import.finished`) the
+  UI groups/filters on; free-form, no central registry — mint your own.
+- `body` — the human sentence shown in the bell list AND the OS toast;
+  keep it plain text (no HTML) and under ~120 chars before OS ellipsis.
+- `url` — optional deep link the toast and the list row open; omit when
+  nothing specific to show.
+
+**Call it inside the transaction, and only after commit does the user hear
+about it.** `record` stores the row and schedules the push fan-out as a
+Huey task on `transaction.on_commit` — so:
+
+- Wrap multi-write work (data + its notification) in one
+  `transaction.atomic()` block; `record` belongs INSIDE it. If anything
+  rolls back, no row and no push — the user is never told about data that
+  doesn't exist. (Example: the reference app's todo create,
+  `docs/reference/ourapp/views/todos.py`.)
+- Delivery is async by design — no request ever waits on push-service
+  HTTP; without a running consumer, rows still store and the bell works.
+- `url` is the deep link the push toast and the list row open — make it
+  PERTINENT to the message: land the user on the thing the notification
+  is about (a project notification links to that project, a comment to
+  the comment's hash anchor within it, e.g. `/projects/abc#comment-42`),
+  not a generic page. When there is nothing specific to show, omit it.
 
 ### Logging
 **Try to log problems; don't swallow them.** A caught-and-recovered exception

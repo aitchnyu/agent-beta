@@ -12,7 +12,13 @@ from django.contrib.sessions.models import Session
 from django.test import Client, override_settings
 from django.utils import timezone
 
-from djangoapp.models import Notification, PushSubscription, User, UserSessionIndex
+from djangoapp.models import (
+    Notification,
+    PushSubscription,
+    User,
+    UserSessionIndex,
+    vapid_subject,
+)
 from djangoapp.tests._base import BaseInertiaTestCase
 
 
@@ -86,7 +92,7 @@ class NotificationActionTests(BaseInertiaTestCase):
     - test_delete_removes_row, DELETE removes the row
     - test_delete_other_users_row_404, another user's row can't be deleted
     - test_clear_deletes_only_own, clear wipes the viewer's rows only
-    - test_send_test_notification, POST test pushes to subscriptions without storing a row
+    - test_send_test_notification, POST test counts devices + enqueues, no row
     - test_send_test_anonymous_404, anonymous POST is 404
     """
 
@@ -102,16 +108,24 @@ class NotificationActionTests(BaseInertiaTestCase):
 
     @PUSH_CONFIGURED
     def test_send_test_notification(self) -> None:
-        """POST test reports the viewer's subscription count, storing NO row."""
-        # webpush mocked: the count is what's under test, not delivery
-        # (delivery has its own suite in test_notifications.py).
-        with patch("djangoapp.models.notifications.webpush"):
+        """POST test counts devices and enqueues — no row, no inline delivery.
+
+        Delivery is async (a Huey task); _schedule_push is mocked — the
+        count + enqueue contract is what this endpoint owns.
+        """
+        User.objects.create_user(
+            username="root", password="pw", email="root@example.com", is_superuser=True
+        )
+        vapid_subject.cache_clear()
+        with patch("djangoapp.models.notifications.deliver_push") as schedule_mock:
             response = self.client.post("/notifications/api/test")
             self.assertEqual(response.status_code, 200)
             self.assertEqual(json.loads(response.content)["count"], 0)
+            schedule_mock.assert_not_called()
             _make_subscription(self.alice, "https://push.example/e1")
             response = self.client.post("/notifications/api/test")
             self.assertEqual(json.loads(response.content)["count"], 1)
+            schedule_mock.assert_called_once()
         # Pure delivery probe: nothing lands in the table or the badge.
         self.assertEqual(
             Notification.objects.filter(recipient=self.alice).count(),
