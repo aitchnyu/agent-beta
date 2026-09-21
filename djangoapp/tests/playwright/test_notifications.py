@@ -8,13 +8,10 @@ and the badge updating after actions via the partial reload.
 
 from __future__ import annotations
 
-from django.test import override_settings
-
 from djangoapp.models import Notification
 from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 
 
-@override_settings(VAPID_PRIVATE_KEY="e2e-test-key")
 class NotificationsE2e(BasePlaywrightTestCase):
     """Bell badge + /notifications page flows, end-to-end.
 
@@ -22,11 +19,8 @@ class NotificationsE2e(BasePlaywrightTestCase):
     - test_mark_read_updates_badge, Mark read on the page drops the badge by one
     - test_delete_removes_row, Delete removes the row (and it stays gone on reload)
     - test_clear_all_wipes_list, Clear all (confirmed) empties the page and the badge
-    - test_send_test_notification, the test button pushes only — toast, no row, no badge
+    - test_send_test_notification, the test button records a real row (toast + list + badge)
     """
-
-    # Class-level VAPID: the Send-test button renders only when the server
-    # can push (the dev .env carries the sentinel).
 
     def _seed(self, count: int) -> None:
         for i in range(count):
@@ -86,18 +80,23 @@ class NotificationsE2e(BasePlaywrightTestCase):
         page.click(".notifications-clear")
         page.click(".swal2-confirm")
         page.wait_for_selector(".notification-item", state="detached")
-        # Badge gone (count 0 renders without the span).
-        page.wait_for_selector(".notifications-badge", state="detached")
+        # The badge never disappears — it says 0.
+        page.wait_for_function(
+            "() => document.querySelector('.notifications-badge')?.textContent === '0'"
+        )
 
     def test_send_test_notification(self) -> None:
-        """The test button toasts and leaves NO row/badge (push-only probe)."""
+        """The test button records a real row: toast, list row, badge bump."""
         page = self.page
         page.goto(f"{self.live_server_url}/notifications")
         page.wait_for_selector(".notifications-test")
         page.click(".notifications-test")
-        # Zero subscriptions in this browser → the warning toast is the
-        # contract; a stored row would defeat the push-only point.
+        # The row IS the result: it lands in the list (the page's partial
+        # reload swaps props in) and bumps the bell badge (shared prop in
+        # the same reload).
         page.wait_for_selector(".swal2-container")
-        page.wait_for_selector(".notification-item", state="detached")
-        page.wait_for_selector(".notifications-badge", state="detached")
-        self.assertEqual(Notification.objects.filter(recipient=self.user).count(), 0)
+        page.wait_for_selector(".notification-item")
+        page.wait_for_function(
+            "() => document.querySelector('.notifications-badge')?.textContent === '1'"
+        )
+        self.assertEqual(Notification.objects.filter(recipient=self.user).count(), 1)

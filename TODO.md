@@ -1,19 +1,10 @@
 VAPID_PRIVATE_KEY="DANGEROUSLYUNSET" Generate in provision along with db pass?
+Pi's native login
 
 CSRF, allow token based requests to pass if not sent by frontend?
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis.
-
-Notification center
-Service worker and PWA?
-Have link to correct place
-Group them by url/key
-Browser notification/email to send to user
-Which ones to mute?
-
-Every request sends an update response for unread
-Show badge with unread count
 
 Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH. Obscura for tests?
 
@@ -28,6 +19,8 @@ Capture screenshots for
 
 --------
 Reuse ubuntu/debian user instead of agent user. Have a des command that calls ./run
+
+Allauth blacklist
 
 ```
 multipass shell app
@@ -46,7 +39,7 @@ Run all tests in checkproject and merge coverage from both stages. Improve test 
 Uploads dir is a single thing too
 Backup regularly - https://www.pghardstorage.org/examples
 Provision in vm with domain with curl|bash. What all should user provide?
-Readme for end users and devs
+Readme for end users and devs, Desec dns
 
 ## Future
 Have a sequence generator for tables
@@ -58,3 +51,4 @@ Whitelist services for outbound connections
 Accelerate file serving with Caddy - have FileResponse - test with checkframework2
 Redis and db memory usage?
 Group and mute notification groups
+Obscura for browser tests?

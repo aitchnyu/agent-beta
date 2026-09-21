@@ -3,9 +3,11 @@
 ``Notification`` rows live until the user deletes them (no TTL, no
 auto-purge) and are created through :meth:`Notification.record` — the one
 call shape tasks (Huey workers, no request) and page views alike use.
-After the row is durably saved, ``transaction.on_commit`` fans it out to
-every ``PushSubscription`` of the recipient via ``pywebpush`` (RFC 8291
-payload encryption + RFC 8292 VAPID auth).
+After the row is durably saved, ``transaction.on_commit`` enqueues the
+``deliver_push`` Huey task, whose ``notify_sessions``/``_deliver`` fan it
+out to every ``PushSubscription`` of the recipient via ``pywebpush``
+(RFC 8291 payload encryption + RFC 8292 VAPID auth) — no request path
+ever runs push-service HTTP inline.
 
 Both models are plain ``models.Model`` with a uuid7 ``public_id`` (the
 ``UserHistory`` pattern), NOT ``BaseModel``: rows are system-generated and
@@ -42,10 +44,10 @@ logger = get_logger(__name__)
 # pushed copy by design ("till deleted").
 _PUSH_TTL_SECONDS = 24 * 60 * 60
 
-# Per-request socket timeout for the POST to the push service — on_commit
-# runs synchronously inside the record() caller (view/task), so an
-# unbounded default (pywebpush passes timeout=None to requests) would let
-# one hung connection block the caller indefinitely.
+# Per-attempt socket timeout for the POST to the push service — webpush
+# runs in the Huey CONSUMER (deliver_push), and an unbounded default
+# (pywebpush passes timeout=None to requests) would let one hung
+# connection pin a worker thread indefinitely.
 _PUSH_TIMEOUT_SECONDS = 10
 
 # Push-service statuses meaning "this subscription no longer exists" —
@@ -265,15 +267,15 @@ def notify_sessions(user: User, payload: dict[str, str]) -> int:
     THE delivery entrypoint: subscriptions ride the CASCADE chain
     (Session → index → subscription), so "the user's subscription rows"
     already means "the user's active sessions' devices" — dead sessions'
-    rows are gone referentially. Wrappers: ``Notification.record`` (store
-    a row + this, on commit) and ``push_test`` (this alone, no row).
+    rows are gone referentially. Reached through ``Notification.record``
+    (store a row + this, on commit).
 
     Returns the subscription count the payload was handed to — 0 when
     push is off (dev sentinel), no superuser email exists for the VAPID
-    subject, or the user simply has no subscriptions; callers decide
-    what to tell the user. Failures NEVER propagate to the caller: a
-    broken push (dead endpoint, network error, VAPID misconfiguration)
-    is logged and skipped — see ``_deliver``.
+    subject, or the user simply has no subscriptions; callers never
+    report delivery that did not happen. Failures NEVER propagate to the
+    caller: a broken push (dead endpoint, network error, VAPID
+    misconfiguration) is logged and skipped — see ``_deliver``.
     """
     if not is_push_enabled():
         # VAPID unset (dev sentinel / misconfigured deploy): rows still
@@ -283,8 +285,7 @@ def notify_sessions(user: User, payload: dict[str, str]) -> int:
     if not vapid_subject():
         # Key configured but no superuser email to serve as the RFC 8292
         # contact: nothing CAN be delivered — return 0, not the count, so
-        # callers (the test button's "sent to N devices") never report
-        # delivery that did not happen.
+        # callers never report delivery that did not happen.
         logger.warning("push skipped (no superuser email for the VAPID subject)")
         return 0
     subscriptions: QuerySet[PushSubscription] = user.push_subscriptions.all()
@@ -295,41 +296,15 @@ def notify_sessions(user: User, payload: dict[str, str]) -> int:
     return count
 
 
-def push_test(user: User) -> int:
-    """Queue a test push to every subscription of the user — NO row stored.
-
-    The notifications page's "Send test notification" button: a pure
-    delivery check (the browser toast on each device IS the result), so
-    unlike ``record`` nothing lands in the table or the badge. Returns
-    the device count the enqueued task will fan out to (0 when push is
-    off or none exist — the caller decides what to tell the user); the
-    count gates mirror ``notify_sessions`` exactly so the number never
-    promises a delivery the task would skip.
-    """
-    count = user.push_subscriptions.count() if is_push_enabled() and vapid_subject() else 0
-    if count:
-        deliver_push(
-            user.pk,
-            {
-                "public_id": "test",
-                "kind": "test",
-                "body": "Clicking this will take you to homepage",
-                "url": "/",
-            },
-        )
-    return count
-
-
 def _deliver(subscriptions: QuerySet[PushSubscription], payload: str, log_id: str) -> None:
     """Fan a serialized payload out to subscriptions; failures never propagate.
 
-    Shared by ``record``'s committed pushes and ``push_test``'s rowless
-    probes — both arrive pre-gated (VAPID set + subject resolvable; see
-    ``notify_sessions``). A broken push (dead endpoint, network error,
-    VAPID misconfiguration — or a DB hiccup fetching/pruning
-    subscriptions) is logged and skipped. Dead endpoints (404/410 per
-    RFC 8030) are pruned so the table self-cleans; every other outcome
-    leaves the subscription for the next attempt.
+    Runs the fan-out that ``record`` scheduled — pre-gated (VAPID set +
+    subject resolvable; see ``notify_sessions``). A broken push (dead
+    endpoint, network error, VAPID misconfiguration — or a DB hiccup
+    fetching/pruning subscriptions) is logged and skipped. Dead endpoints
+    (404/410 per RFC 8030) are pruned so the table self-cleans; every
+    other outcome leaves the subscription for the next attempt.
     """
     subject = vapid_subject()
     try:

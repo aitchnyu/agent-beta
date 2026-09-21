@@ -359,7 +359,3 @@ export const NotificationsPagePropsSchema = z.object({
 export const SubscribeResponseSchema = z.object({
   subscribed: z.boolean(),
 })
-
-export const TestNotificationResponseSchema = z.object({
-  count: z.number(),
-})

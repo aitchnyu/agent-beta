@@ -64,8 +64,9 @@ PushSubscription:
   - **404/410 → delete the subscription** (self-pruning dead endpoints).
   - Any other failure: structured-log and continue — a failed push must
     never propagate into the task/view that recorded.
-  - Runs in the requesting worker today; moving it into a Huey task later
-    is a drop-in (``record()`` stays the only public entry).
+  - Delivery is ASYNC: on_commit enqueues the ``deliver_push`` Huey task
+    (djangoapp/tasks.py) whose ``notify_sessions`` runs the fan-out — no
+    request path ever waits on push-service HTTP (shipped in 40a376c).
 - New dependency: ``pywebpush`` (uv).
 
 ### VAPID keys (env)
@@ -229,9 +230,11 @@ referentially. Subscribe get_or_creates the index row (the middleware
 backfills lazily; a first-request subscribe can beat it).
 
 Delivery API collapsed to ``notify_sessions(user, payload) -> int``
-(the one entrypoint): ``Notification.record`` = store + notify on
-commit; ``push_test`` = notify only, no row. ``_deliver`` is the
-private transport.
+(the one delivery core, called by the ``deliver_push`` Huey task):
+``Notification.record`` = store + on-commit enqueue. ``_deliver`` is the
+private transport. (The rowless ``push_test`` probe was later REMOVED —
+6ab1955 — the page's Send-test button now records a real notification
+through the same pipeline, no special case.)
 
 A one-shot ``just_logged_in`` session flag (set by the login signal,
 popped by SharedPropsMiddleware into the landing render) drives the

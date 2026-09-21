@@ -19,7 +19,6 @@ from djangoapp.models import (
     UserSessionIndex,
     is_push_enabled,
     notify_sessions,
-    push_test,
     vapid_public_key,
     vapid_subject,
 )
@@ -183,8 +182,6 @@ class PushDispatchTests(BaseTestCase):
     - test_non_webpush_exception_never_propagates, arbitrary exceptions are contained
     - test_disabled_vapid_skips_webpush, unset VAPID means no push attempts
     - test_no_superuser_email_skips_webpush, no contact to sign for → skip
-    - test_push_test_enqueues_without_row, push_test counts + enqueues, stores nothing
-    - test_push_test_zero_devices_schedules_nothing, count 0 enqueues nothing
     """
 
     def setUp(self) -> None:
@@ -299,26 +296,6 @@ class PushDispatchTests(BaseTestCase):
             count = notify_sessions(self.user, {"public_id": "x", "kind": "k", "body": "b"})
             self.assertEqual(count, 0)  # off is off, even with a subscription present
         webpush_mock.assert_not_called()
-
-    @PUSH_CONFIGURED
-    def test_push_test_enqueues_without_row(self) -> None:
-        """push_test returns the device count and enqueues — no row, no inline delivery."""
-        self._subscription("https://push.example/e1")
-        self._subscription("https://push.example/e2")
-        with patch("djangoapp.models.notifications.deliver_push") as schedule_mock:
-            count = push_test(self.user)
-        self.assertEqual(count, 2)
-        _user_pk, payload = schedule_mock.call_args.args
-        self.assertEqual(payload["kind"], "test")
-        self.assertEqual(payload["url"], "/")
-        self.assertEqual(Notification.objects.count(), 0)
-
-    @PUSH_CONFIGURED
-    def test_push_test_zero_devices_schedules_nothing(self) -> None:
-        """No subscriptions → count 0 and nothing enqueued."""
-        with patch("djangoapp.models.notifications.deliver_push") as schedule_mock:
-            self.assertEqual(push_test(self.user), 0)
-        schedule_mock.assert_not_called()
 
     @PUSH_CONFIGURED
     def test_no_superuser_email_skips_webpush(self) -> None:

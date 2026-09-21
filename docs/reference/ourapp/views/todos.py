@@ -5,8 +5,10 @@ Endpoints (all under ``/todos``, one Inertia page ``ours/TodosPage``):
 - POST /todos/create             — add a todo (audit-logged) → TodoOutSchema
 - POST /todos/{public_id}/toggle — flip completion (audit-logged) → TodoOutSchema
 
-A toggle and a create each write one row, so they need no extra transaction
-beyond ``save_with_logs``'s own. Data is pk-free (only ``public_id``).
+Create writes a todo + its notification in one ``transaction.atomic()``
+block (see ``create_todo`` — the canonical multi-write shape); toggle is
+single-row and needs no extra transaction beyond ``save_with_logs``'s own.
+Data is pk-free (only ``public_id``).
 """
 
 from __future__ import annotations

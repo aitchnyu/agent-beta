@@ -732,8 +732,8 @@ Notification.record(recipient=user, kind="todo.created", body="…", url="/todos
 Parameters (all keyword-only):
 - `recipient` — the `User` being notified; the row and every push target
   are theirs alone (other users never see it).
-- `kind` — short dotted bucket (`todo.created`, `import.finished`) the
-  UI groups/filters on; free-form, no central registry — mint your own.
+- `kind` — short dotted bucket (`todo.created`, `import.finished`) shown
+  as the row's badge label; free-form, no central registry — mint your own.
 - `body` — the human sentence shown in the bell list AND the OS toast;
   keep it plain text (no HTML) and under ~120 chars before OS ellipsis.
 - `url` — optional deep link the toast and the list row open; omit when

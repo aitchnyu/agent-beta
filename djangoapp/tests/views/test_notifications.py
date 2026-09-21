@@ -17,7 +17,6 @@ from djangoapp.models import (
     PushSubscription,
     User,
     UserSessionIndex,
-    vapid_subject,
 )
 from djangoapp.tests._base import BaseInertiaTestCase
 
@@ -92,7 +91,7 @@ class NotificationActionTests(BaseInertiaTestCase):
     - test_delete_removes_row, DELETE removes the row
     - test_delete_other_users_row_404, another user's row can't be deleted
     - test_clear_deletes_only_own, clear wipes the viewer's rows only
-    - test_send_test_notification, POST test counts devices + enqueues, no row
+    - test_send_test_notification, POST test records a real row and schedules its push
     - test_send_test_anonymous_404, anonymous POST is 404
     """
 
@@ -106,31 +105,29 @@ class NotificationActionTests(BaseInertiaTestCase):
         # which would drop a session logged in before it ran.
         self.client.force_login(self.alice)
 
-    @PUSH_CONFIGURED
+    @override_settings(VAPID_PRIVATE_KEY="")
     def test_send_test_notification(self) -> None:
-        """POST test counts devices and enqueues — no row, no inline delivery.
+        """POST test records a real row and schedules its push on commit.
 
-        Delivery is async (a Huey task); _schedule_push is mocked — the
-        count + enqueue contract is what this endpoint owns.
+        Delivery is async (a Huey task); deliver_push is mocked — the
+        row + response contract is what this endpoint owns. VAPID is
+        forced OFF to pin that the enqueue is unconditional (the task
+        itself gates on VAPID/subscriptions), whatever the ambient .env.
         """
-        User.objects.create_user(
-            username="root", password="pw", email="root@example.com", is_superuser=True
-        )
-        vapid_subject.cache_clear()
-        with patch("djangoapp.models.notifications.deliver_push") as schedule_mock:
+        with (
+            patch("djangoapp.models.notifications.deliver_push") as schedule_mock,
+            self.captureOnCommitCallbacks(execute=True),
+        ):
             response = self.client.post("/notifications/api/test")
-            self.assertEqual(response.status_code, 200)
-            self.assertEqual(json.loads(response.content)["count"], 0)
-            schedule_mock.assert_not_called()
-            _make_subscription(self.alice, "https://push.example/e1")
-            response = self.client.post("/notifications/api/test")
-            self.assertEqual(json.loads(response.content)["count"], 1)
-            schedule_mock.assert_called_once()
-        # Pure delivery probe: nothing lands in the table or the badge.
-        self.assertEqual(
-            Notification.objects.filter(recipient=self.alice).count(),
-            1,  # only setUp's seeded row
-        )
+        self.assertEqual(response.status_code, 200)
+        notification = Notification.objects.get(recipient=self.alice, kind="test")
+        self.assertEqual(notification.body, "This is a test notification")
+        self.assertEqual(notification.url, "/")
+        self.assertEqual(json.loads(response.content)["id"], notification.public_id)
+        schedule_mock.assert_called_once()
+        user_pk, payload = schedule_mock.call_args.args
+        self.assertEqual(user_pk, self.alice.pk)
+        self.assertEqual(payload["public_id"], notification.public_id)
 
     def test_send_test_anonymous_404(self) -> None:
         """Anonymous POST is 404."""

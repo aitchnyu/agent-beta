@@ -22,9 +22,9 @@ def deliver_push(user_pk: int, payload: dict[str, str]) -> None:
     Thin wrapper by repo convention (fat model, thin task):
     ``djangoapp.models.notify_sessions`` owns the logic — VAPID gating,
     pruning, failure containment. Enqueued by ``Notification.record``'s
-    on_commit and by ``push_test`` (views never run the fan-out inline —
-    push-service HTTP is slow and capped by a 10s timeout per
-    subscription). The user crosses the queue as a pk, not an instance:
+    on_commit (views never run the fan-out inline — push-service HTTP is
+    slow and capped by a 10s timeout per subscription). The user crosses
+    the queue as a pk, not an instance:
     task args serialize, and a stale instance would push stale data.
     A missing user raises (huey logs the failure) — honest signal that
     the user was deleted between commit and delivery; their

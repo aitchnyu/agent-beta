@@ -85,11 +85,18 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <Link href="/notifications" class="nav-link notifications-bell">
-    Notifications
+  <!-- Badge-only bell (no visible label): the number IS the affordance —
+       always shown, 0 included, red when unread work waits, muted at zero.
+       aria-label keeps the link meaningful to screen readers (a bare
+       number is not a name). -->
+  <Link
+    href="/notifications"
+    class="nav-link notifications-bell"
+    aria-label="Notifications"
+  >
     <span
-      v-if="unreadCount > 0"
-      class="badge text-bg-danger notifications-badge"
+      class="badge notifications-badge"
+      :class="unreadCount > 0 ? 'text-bg-danger' : 'text-bg-secondary'"
       >{{ unreadCount }}</span
     >
   </Link>

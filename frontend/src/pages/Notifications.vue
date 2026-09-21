@@ -5,7 +5,7 @@ import PageTitle from "../components/PageTitle.vue"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import {
   NotificationsPagePropsSchema,
-  TestNotificationResponseSchema,
+  MessageResponseSchema,
 } from "../schemas.ts"
 import type { NotificationItem } from "../schemas.ts"
 import { deleteJSON, postJSON } from "../utils/http"
@@ -130,30 +130,22 @@ async function onResubscribe(): Promise<void> {
   }
 }
 
-// Pure delivery check: pushes to every subscription of this user — the
-// browser toast on each device IS the result. Nothing in-app happens by
-// design (no row, no badge bump, no reload): a stored test row would
-// pollute the list and defeat the point of testing ONLY the push path.
-// Busy gates only the POST itself — the toast wait must not disable the
-// button (a repeat click just sends another test).
+// The test button exercises the REAL pipeline: the server stores a
+// Notification row (list + badge) whose on_commit fan-out pushes to
+// every subscribed device. Busy gates only the POST itself — the toast
+// wait must not disable the button (a repeat click just sends another).
 async function onSendTest(): Promise<void> {
   testBusy.value = true
-  let count: number
   try {
-    ({ count } = TestNotificationResponseSchema.parse(
-      await postJSON("/notifications/api/test"),
-    ))
+    MessageResponseSchema.parse(await postJSON("/notifications/api/test"))
   } finally {
     testBusy.value = false
   }
-  if (count > 0) {
-    await showToast("success", `Test push sent to ${count} device(s)`)
-  } else {
-    await showToast(
-      "warning",
-      "No devices to push to — enable notifications first",
-    )
-  }
+  // The row is the result: one targeted partial reload refreshes the
+  // list AND the shared badge count (the watcher above re-parses the
+  // swapped props reactively).
+  router.reload({ only: ["props", "unread_notifications"] })
+  await showToast("success", "Test notification sent — shown in the app")
 }
 
 const testBusy = ref(false)
@@ -258,10 +250,10 @@ async function onClearAll(): Promise<void> {
               closed.
             </template>
             <template v-else>
-              System notifications arrive while your BROWSER runs — even
-              with this tab closed; fully quitting the browser pauses them
-              (queued up to a day). The in-app bell and this list only
-              update while the app is open.
+              System notifications arrive while your BROWSER runs — even with
+              this tab closed; fully quitting the browser pauses them (queued up
+              to a day). The in-app bell and this list only update while the app
+              is open.
             </template>
           </div>
         </div>
@@ -301,11 +293,11 @@ async function onClearAll(): Promise<void> {
               </button>
             </template>
           </div>
-          <!-- Delivery probe, same card: pushes to every subscribed device,
-               no row stored. Hidden when the server can't push at all (the
-               click could only ever toast "no devices"). -->
+          <!-- The test button, same card: records a REAL notification —
+               row in the list, badge bump, push to every subscribed
+               device — so it always renders (the in-app result needs no
+               push configuration). -->
           <button
-            v-if="p.push_enabled && pushSupported"
             class="btn btn-sm btn-outline-primary notifications-test"
             :disabled="testBusy"
             @click="onSendTest"

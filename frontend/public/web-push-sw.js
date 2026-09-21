@@ -13,7 +13,8 @@
 // return an empty list here. Window matching keys on the app origin for
 // the same reason (page URLs never live under the SW's /static scope).
 //
-// Payload shape (djangoapp/models/notifications.py::_push):
+// Payload shape (minted by Notification.record, serialized by
+// djangoapp/models/notifications.py::_deliver):
 //   { public_id, kind, body, url }
 
 self.addEventListener("push", (event) => {

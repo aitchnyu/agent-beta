@@ -1,7 +1,7 @@
 """Web notifications: list page + user-scoped API (read/delete/subscriptions).
 
 Every route is scoped to ``request.user`` (``user_or_404``): a user only
-ever sees and act on their own rows, addressed by ``public_id`` only. The
+ever sees and acts on their own rows, addressed by ``public_id`` only. The
 navbar bell's unread count lives in the Inertia shared props
 (SharedPropsMiddleware) — this module owns just the page and its actions.
 """
@@ -24,7 +24,6 @@ from djangoapp.models import (
     PushSubscription,
     UserSessionIndex,
     is_push_enabled,
-    push_test,
     vapid_public_key,
 )
 from djangoapp.ninja_api import ApiError, make_ninja_api
@@ -136,16 +135,19 @@ def mark_all_read(request: HttpRequest) -> CountResponse:
 # /api/test, /api/subscriptions, /api/clear and /api/read-all.
 
 
-@router.post("/api/test", response=CountResponse)
-def send_test_notification(request: HttpRequest) -> CountResponse:
-    """Push a test notification to every subscription of the viewer — no row.
+@router.post("/api/test", response=MessageResponse)
+def send_test_notification(request: HttpRequest) -> MessageResponse:
+    """Record a test notification for the viewer — the real pipeline.
 
-    The page's "Send test notification" button: a pure delivery check
-    (the browser toast on each device is the result). The count tells
-    the frontend what happened: 0 means push is off or no subscriptions.
+    The page's "Send test" button: a genuine ``Notification.record`` (row
+    in the list, badge bump, on_commit push fan-out to every subscribed
+    device) — the click exercises exactly what any notification does.
     """
     user = user_or_404(request)
-    return CountResponse(count=push_test(user))
+    notification = Notification.record(
+        recipient=user, kind="test", body="This is a test notification", url="/"
+    )
+    return MessageResponse(id=notification.public_id)
 
 
 def _session_index(request: HttpRequest, user: User) -> UserSessionIndex:
