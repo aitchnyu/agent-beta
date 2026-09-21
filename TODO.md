@@ -1,17 +1,3 @@
-Notifications page?
-How to recommend notifications to user? After transaction? Add transactions to reference app
-
-UserSessionIndex is tracking sessions for user. Can we make PushSubscription a one to one relationship to UserSessionIndex?
-why have `session_key = models.CharField....` when there is UserSessionIndex.
-push_test and _push call _deliver. Cant we have an easy to use function that notifies a users active sessions?
-is on_user_logged_out needed anymore?
-
-session_key = models.CharField(max_length=40, null=True, blank=True, editable=False)
-
-Subscription truth in wrong place?
-
-Move notifications to async tasks?
-
 VAPID_PRIVATE_KEY="DANGEROUSLYUNSET" Generate in provision along with db pass?
 
 CSRF, allow token based requests to pass if not sent by frontend?
@@ -60,10 +46,7 @@ Run all tests in checkproject and merge coverage from both stages. Improve test 
 Uploads dir is a single thing too
 Backup regularly - https://www.pghardstorage.org/examples
 Provision in vm with domain with curl|bash. What all should user provide?
-
-## Document
 Readme for end users and devs
-Session length is a sliding window, we have login links
 
 ## Future
 Have a sequence generator for tables

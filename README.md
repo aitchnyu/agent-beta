@@ -181,6 +181,12 @@ is stored. Superusers can also issue the same link from a user's details
 page (`/users/id/<public_id>` → "Login link"), with 15 m / 1 h / 8 h / 24 h
 TTLs and a copy button.
 
+Session lifetime is **sliding**: a session expires `SESSION_IDLE_DAYS`
+after the user's last *successful* request (set in `.env` — required, no
+silent default), not after login. `SessionIdleTouchMiddleware`
+re-arms the deadline (amortized at half-life; 5xx responses don't extend
+it), and huey's daily `clearsessions` purges expired sessions.
+
 ## Promote a user to superuser
 
 Social-login users can't be superuser at creation. Promote an existing user by
