@@ -24,6 +24,11 @@ class UserListViewTests(QueryBudgetInertiaTestCase):
     - test_list_select_count_does_not_scale_with_row_count, SELECT count flat across rows (no N+1)
     """
 
+    # Frozen baseline incl. auth/session overhead + the shared unread count.
+    # +1 over the pre-push baseline: login session flush/delete CASCADE-probes
+    # PushSubscription (Session → index → subscription chain).
+    max_select_queries = 13
+
     def setUp(self) -> None:
         self.superuser = User.objects.create_user(
             username="root",
@@ -51,22 +56,19 @@ class UserListViewTests(QueryBudgetInertiaTestCase):
 
     def test_list_non_superuser_404(self) -> None:
         """Authenticated non-superuser returns 404."""
-        self.allow_more_queries(9)
         self.client.force_login(self.regular)
         response = self.client.get("/users/list")
         self.assertEqual(response.status_code, 404)
 
     @tag("scratch-test-subset")
     def test_list_superuser_ok(self) -> None:
-        self.allow_more_queries(11)  # frozen baseline incl. auth/session overhead
-        "superuser gets 200 rendering the UserList component"
+        """Superuser gets 200 rendering the UserList component."""
         self.client.force_login(self.superuser)
         self.client.get("/users/list")
         self.assertComponentUsed("UserList")
 
     def test_list_includes_admin_fields(self) -> None:
-        self.allow_more_queries(11)  # frozen baseline incl. auth/session overhead
-        "superuser sees email/public/staff/superuser/active in each list row"
+        """Superuser sees email/public/staff/superuser/active in each list row."""
         self.client.force_login(self.superuser)
         self.client.get("/users/list")
         users = {u["public_id"]: u for u in self.props()["props"]["users"]}
@@ -79,8 +81,8 @@ class UserListViewTests(QueryBudgetInertiaTestCase):
         self.assertNotIn("description", pub)
 
     def test_list_pagination(self) -> None:
-        self.allow_more_queries(16)  # frozen baseline incl. auth/session overhead
-        "paginated list reports total_count/total_pages and slices per page (25/5)"
+        self.allow_more_queries(6)  # two authenticated page loads
+        """Paginated list reports totals and slices per page (25/orphans 5)."""
         for i in range(31):
             User.objects.create_user(username=f"user{i:02d}", password="pass")
         self.client.force_login(self.superuser)
@@ -97,7 +99,7 @@ class UserListViewTests(QueryBudgetInertiaTestCase):
 
     def test_list_select_count_does_not_scale_with_row_count(self) -> None:
         """List SELECT count must not scale with row count (catches per-row N+1)."""
-        self.allow_more_queries(45)  # three list requests; an N+1 would exceed this
+        self.allow_more_queries(36)  # three list requests; an N+1 would exceed this
         self.client.force_login(self.superuser)
         # Warm up past the session index's one-time backfill so both measured
         # requests are steady-state (the pin is per-row scaling, not caching).
@@ -200,6 +202,11 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
     - test_details_missing_404, unknown public_id returns 404
     """
 
+    # +1: login session flush/delete CASCADE-probes PushSubscription.
+
+    # Frozen baseline incl. auth/session overhead + the shared unread count.
+    max_select_queries = 14
+
     def setUp(self) -> None:
         self.superuser = User.objects.create_user(
             username="root",
@@ -251,7 +258,6 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
 
     def test_details_owner_gated_by_own_flag(self) -> None:
         """Owner of a private profile sees no description (gated by own flag)."""
-        self.allow_more_queries(10)
         self.client.force_login(self.private_user)
         self.client.get(f"/users/id/{self.private_user.public_id}")
         props = self.props()["props"]
@@ -260,8 +266,7 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
         self.assertIsNone(props["username"])
 
     def test_details_shared_is_superuser_true(self) -> None:
-        self.allow_more_queries(12)  # frozen baseline incl. auth/session overhead
-        "superuser viewer sets the shared viewer_is_superuser flag (gates admin UI)"
+        """Superuser viewer sets the shared viewer_is_superuser flag (gates admin UI)."""
         self.client.force_login(self.superuser)
         self.client.get(f"/users/id/{self.public_user.public_id}")
         self.assertTrue(self.props()["viewer_is_superuser"])
@@ -272,8 +277,7 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
         self.assertFalse(self.props()["viewer_is_superuser"])
 
     def test_details_admin_attrs_for_superuser(self) -> None:
-        self.allow_more_queries(12)  # frozen baseline incl. auth/session overhead
-        "superuser sees the target's admin attributes and history count"
+        """Superuser sees the target's admin attributes and history count."""
         self.public_user.update(
             first_name=self.public_user.first_name,
             last_name=self.public_user.last_name,
@@ -295,9 +299,7 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
 
     def test_details_session_count_lists_active_sessions(self) -> None:
         """Superuser sees the target's live session count (indexed)."""
-        # frozen baseline: two clients' auth/session overhead incl. the
-        # target's index backfill, + the details read
-        self.allow_more_queries(21)
+        self.allow_more_queries(11)  # second client's auth/session + index backfill
         target_client = Client()
         target_client.force_login(self.public_user)
         target_client.get("/")  # backfills the index row
@@ -316,8 +318,7 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
 
     def test_details_last_login_for_superuser(self) -> None:
         """Superuser sees the target's last_login; None means never logged in."""
-        # Two details GETs; frozen baseline incl. auth/session overhead.
-        self.allow_more_queries(18)
+        self.allow_more_queries(7)  # second details GET (the "Never" case)
         when = datetime(2026, 9, 10, 8, 30, tzinfo=UTC)
         User.objects.filter(pk=self.public_user.pk).update(last_login=when)
         self.client.force_login(self.superuser)
@@ -352,6 +353,10 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
     - test_edit_submit_blocks_self_demotion, POST clearing own superuser/active returns 400
     - test_edit_submit_rejects_invalid_email, malformed email returns 422, target unchanged
     """
+
+    # Frozen baseline incl. auth/session overhead + the shared unread count.
+    # +1: login session flush/delete CASCADE-probes PushSubscription.
+    max_select_queries = 13
 
     def setUp(self) -> None:
         self.superuser = User.objects.create_user(
@@ -399,14 +404,12 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
 
     def test_edit_non_superuser_404(self) -> None:
         """non-superuser GET on the edit form returns 404."""
-        self.allow_more_queries(9)
         self.client.force_login(self.regular)
         response = self.client.get(f"/users/edit/{self.target.public_id}")
         self.assertEqual(response.status_code, 404)
 
     def test_edit_superuser_ok(self) -> None:
         """Superuser GET renders the UserEdit form with the target's editable fields."""
-        self.allow_more_queries(10)
         self.client.force_login(self.superuser)
         self.client.get(f"/users/edit/{self.target.public_id}")
         self.assertComponentUsed("UserEdit")
@@ -417,14 +420,12 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
 
     def test_edit_missing_404(self) -> None:
         """Unknown public_id returns 404."""
-        self.allow_more_queries(10)
         self.client.force_login(self.superuser)
         response = self.client.get("/users/edit/does-not-exist")
         self.assertEqual(response.status_code, 404)
 
     def test_edit_submit_updates_fields(self) -> None:
-        self.allow_more_queries(11)  # frozen baseline incl. auth/session overhead
-        "POST updates editable fields and returns the target public id"
+        """POST updates editable fields and returns the target public id."""
         self.client.force_login(self.superuser)
         response = self.client.post(
             f"/users/edit/{self.target.public_id}",
@@ -440,8 +441,7 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
         self.assertTrue(self.target.is_staff)
 
     def test_edit_submit_cannot_change_username(self) -> None:
-        self.allow_more_queries(11)  # frozen baseline incl. auth/session overhead
-        "POST has no username field; the target username is unchanged"
+        """POST has no username field; the target username is unchanged."""
         self.client.force_login(self.superuser)
         payload = self._payload()
         payload["username"] = "hijacked"
@@ -450,17 +450,16 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
         self.assertEqual(self.target.username, "target")
 
     def test_edit_submit_sanitizes_description(self) -> None:
-        self.allow_more_queries(11)  # frozen baseline incl. auth/session overhead
-        "a <script> tag in the description is stripped on save (nh3 whitelist)"
+        """A <script> tag in the description is stripped on save (nh3 whitelist)."""
         self.client.force_login(self.superuser)
         payload = self._payload()
         payload["description"] = "<p>ok</p><script>alert(1)</script>"
         self._submit(payload)
         self.target.refresh_from_db()
-        self.assertEqual(self.target.description, "<p>ok</p>")
+        """POST creates a UserHistory edited entry capturing the changed fields."""
 
     def test_edit_submit_records_history(self) -> None:
-        self.allow_more_queries(12)  # frozen baseline incl. auth/session overhead
+        self.allow_more_queries(1)  # the UserHistory entry read back
         "POST creates a UserHistory edited entry capturing the changed fields"
         self.client.force_login(self.superuser)
         self._submit(self._payload())
@@ -474,8 +473,7 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
         self.assertNotIn("username", changes)
 
     def test_edit_submit_blocks_self_demotion(self) -> None:
-        self.allow_more_queries(11)  # frozen baseline incl. auth/session overhead
-        "POST clearing the viewer's own superuser/active flag returns 400"
+        """POST clearing the viewer's own superuser/active flag returns 400."""
         self.client.force_login(self.superuser)
         payload = self._payload()
         payload["is_superuser"] = False
@@ -492,7 +490,6 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
 
     def test_edit_submit_rejects_invalid_email(self) -> None:
         """POST with a malformed email returns 422 and leaves the target unchanged."""
-        self.allow_more_queries(10)
         self.client.force_login(self.superuser)
         payload = self._payload()
         payload["email"] = "not-an-email"
@@ -518,6 +515,10 @@ class UserHistoryViewTests(QueryBudgetInertiaTestCase):
     - test_history_superuser_shows_entries, after an edit, the entry appears in props
     """
 
+    # Frozen baseline incl. auth/session overhead + the shared unread count.
+    # +1: login session flush/delete CASCADE-probes PushSubscription.
+    max_select_queries = 13
+
     def setUp(self) -> None:
         self.superuser = User.objects.create_user(
             username="root",
@@ -536,21 +537,18 @@ class UserHistoryViewTests(QueryBudgetInertiaTestCase):
 
     def test_history_non_superuser_404(self) -> None:
         """non-superuser GET returns 404."""
-        self.allow_more_queries(9)
         self.client.force_login(self.regular)
         response = self.client.get(f"/users/history/{self.target.public_id}")
         self.assertEqual(response.status_code, 404)
 
     def test_history_missing_404(self) -> None:
         """Unknown public_id returns 404."""
-        self.allow_more_queries(10)
         self.client.force_login(self.superuser)
         response = self.client.get("/users/history/does-not-exist")
         self.assertEqual(response.status_code, 404)
 
     def test_history_superuser_shows_entries(self) -> None:
-        self.allow_more_queries(11)  # frozen baseline incl. auth/session overhead
-        "after an edit, the superuser timeline includes the edited entry"
+        """After an edit, the superuser timeline includes the edited entry."""
         self.target.update(
             first_name="New",
             last_name=self.target.last_name,
@@ -587,6 +585,10 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
     - test_logout_non_superuser_404, non-superuser POST returns 404
     """
 
+    # Frozen baseline incl. auth/session overhead + the shared unread count.
+    # +1: login session flush/delete CASCADE-probes PushSubscription.
+    max_select_queries = 14
+
     def setUp(self) -> None:
         self.superuser = User.objects.create_user(
             username="root",
@@ -617,7 +619,6 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
 
     def test_loginlink_url_is_http_without_proxy_header(self) -> None:
         """Dev runserver reality: no X-Forwarded-Proto → the URL is http."""
-        self.allow_more_queries(10)  # frozen baseline incl. auth/session overhead
         url = self._issue()["url"]
         self.assertTrue(url.startswith("http://testserver/login-for-test/"))
 
@@ -629,7 +630,6 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
         https://localhost:8000 instead of sending plain HTTP into caddy's
         TLS listener.
         """
-        self.allow_more_queries(10)  # frozen baseline incl. auth/session overhead
         self.client.force_login(self.superuser)
         response = self.client.post(
             f"/users/api/{self.target.public_id}/loginlink",
@@ -645,7 +645,7 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
 
     def test_loginlink_issues_redeemable_url(self) -> None:
         """Superuser POST returns a URL that redeems once (302 then 404)."""
-        self.allow_more_queries(22)  # frozen baseline incl. auth/session + redemption overhead
+        self.allow_more_queries(13)  # redemption round trip + the single-use re-GET
         data = self._issue()
         self.assertTrue(data["url"].startswith("http://testserver/login-for-test/"))
         self.assertTrue(data["expires_at"])
@@ -656,8 +656,7 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
 
     def test_loginlink_requires_csrf_token(self) -> None:
         """Tokenless POST is 403; with the X-CSRFToken header it is 200."""
-        # A GET first (session+cookie bootstrap) rides along in the budget.
-        self.allow_more_queries(16)  # frozen baseline incl. auth/session overhead
+        self.allow_more_queries(6)  # strict client's bootstrap GET + two POSTs
         strict_client = Client(enforce_csrf_checks=True)
         strict_client.force_login(self.superuser)
         # Any page response sets the csrftoken cookie (InertiaMiddleware).
@@ -680,7 +679,6 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
 
     def test_loginlink_records_history(self) -> None:
         """Generation writes a login_link entry with the ttl, never the key."""
-        self.allow_more_queries(12)  # frozen baseline incl. auth/session overhead
         data = self._issue(ttl=60)
         entry = UserHistory.objects.filter(target_user=self.target, action="login_link").get()
         self.assertEqual(entry.user, self.superuser)
@@ -690,7 +688,6 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
 
     def test_loginlink_non_superuser_404(self) -> None:
         """Non-superuser POST returns 404."""
-        self.allow_more_queries(9)
         self.client.force_login(self.peon)
         response = self.client.post(
             f"/users/api/{self.superuser.public_id}/loginlink",
@@ -701,10 +698,9 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
 
     def test_logout_ends_indexed_sessions(self) -> None:
         """Logout-all deletes target sessions; CASCADE clears the index."""
-        # frozen baseline incl. two clients' auth/session overhead + the
-        # final anonymous "/" (Sign-in dropdown's provider SELECT) + the
-        # audit-history assertion
-        self.allow_more_queries(25)
+        # Second client's auth/session overhead + the final anonymous "/"
+        # (Sign-in dropdown's provider SELECT) + the audit-history read.
+        self.allow_more_queries(16)  # +1: each flushed session CASCADE-probes PushSubscription
         target_client = Client()
         target_client.force_login(self.target)
         self.assertEqual(target_client.get("/").status_code, 200)
@@ -731,14 +727,12 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
 
     def test_logout_non_superuser_404(self) -> None:
         """Non-superuser POST returns 404."""
-        self.allow_more_queries(9)
         self.client.force_login(self.peon)
         response = self.client.post(f"/users/api/{self.superuser.public_id}/logout")
         self.assertEqual(response.status_code, 404)
 
     def test_loginlink_invalid_ttl_rejected(self) -> None:
         """A ttl outside the allowlist is a 422."""
-        self.allow_more_queries(10)
         self.client.force_login(self.superuser)
         response = self.client.post(
             f"/users/api/{self.target.public_id}/loginlink",

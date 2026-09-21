@@ -30,10 +30,10 @@ def _is_read_query(sql: str) -> bool:
 class QueryBudgetMixin(TestCase):
     """Fails a test whose SELECT-query count exceeds `max_select_queries`.
 
-    Plain-``unittest.TestCase`` cooperative mixin (no Django base, so no
-    ``client`` of its own): mix FIRST, before the real test base —
-    ``BaseTestCase`` for plain view tests, ``BaseInertiaTestCase`` for
-    inertia-prop assertions — so ``super().setUp()`` chains down the MRO.
+    Plain-``unittest.TestCase`` cooperative mixin: mix FIRST (before the
+    real test base) so ``super().setUp()`` chains down the MRO. The class
+    attribute is the frozen baseline; ``allow_more_queries`` ADDS to it —
+    per-test extras only, and framework shifts re-freeze one line.
     """
 
     max_select_queries: int = 8
@@ -46,8 +46,8 @@ class QueryBudgetMixin(TestCase):
         self.addCleanup(self._assert_select_budget)
 
     def allow_more_queries(self, count: int) -> None:
-        """Raise this test's SELECT-query budget (state why at the call site)."""
-        self.max_select_queries = count
+        """Raise this test's SELECT-query budget BY `count` (state why at the call site)."""
+        self.max_select_queries += count
 
     def captured_select_queries(self) -> list[dict[str, str]]:
         return [q for q in self._query_capture.captured_queries if _is_read_query(q["sql"])]
