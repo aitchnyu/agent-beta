@@ -3,8 +3,9 @@ from __future__ import annotations
 from allauth.socialaccount.models import SocialApp
 from django.conf import settings
 from django.contrib.sites.models import Site
+from django.utils import timezone
 
-from djangoapp.models import User
+from djangoapp.models import Notification, User
 from djangoapp.tests._base import BaseInertiaTestCase
 
 
@@ -27,6 +28,10 @@ class SharedPropsMiddlewareTests(
     - test_no_providers_configured_shares_empty_list, no SocialApp rows share an empty list
     - test_stale_provider_row_is_skipped, uninstalled-provider rows never appear
     - test_duplicate_provider_rows_collapse_to_one, same-provider rows share a single entry
+    - test_anonymous_unread_count_is_zero, anonymous shares a static 0 (no query)
+    - test_unread_count_reflects_read_state, signed-in count is the unread rows only
+    - test_just_logged_in_is_one_shot, the flag rides the first rendered page after login only
+    - test_just_logged_in_survives_non_page_requests, XHR/JSON responses never burn the one shot
     """
 
     def _add_social_app(self) -> None:
@@ -45,6 +50,63 @@ class SharedPropsMiddlewareTests(
         props = self.props()
         self.assertIsNone(props["user"])
         self.assertFalse(props["viewer_is_superuser"])
+
+    def test_anonymous_unread_count_is_zero(self) -> None:
+        """Anonymous shares a static unread count of 0."""
+        self.inertia.get("/")
+        self.assertEqual(self.props()["unread_notifications"], 0)
+
+    def test_unread_count_reflects_read_state(self) -> None:
+        """Signed-in count covers unread rows only, own rows only."""
+        user = User.objects.create_user(username="alice")
+        other = User.objects.create_user(username="bob")
+        Notification.record(recipient=user, kind="k1", body="unread")
+        Notification.record(recipient=user, kind="k2", body="read")
+        Notification.record(recipient=user, kind="k3", body="also unread")
+        Notification.objects.filter(kind="k2").update(read_at=timezone.now())
+        Notification.record(recipient=other, kind="k4", body="not mine")
+        self.inertia.force_login(user)
+        self.inertia.get("/")
+        self.assertEqual(self.props()["unread_notifications"], 2)
+
+    def test_just_logged_in_is_one_shot(self) -> None:
+        """The login flag rides the first rendered page after login, then is gone.
+
+        force_login sets it (via the user_logged_in signal, like a real
+        login); the landing render — a plain HTML document GET, no
+        X-Inertia — carries it in the embedded page props and consumes
+        it; a second render does neither. (The inertia test client's
+        visits all carry X-Inertia and so never consume — that is the
+        point of the scope guard.)
+        """
+        user = User.objects.create_user(username="alice")
+        self.client.force_login(user)
+        self.assertIn("just_logged_in", self.client.session)
+        first = self.client.get("/")
+        self.assertIn(b'"just_logged_in": true', first.content)
+        self.assertNotIn("just_logged_in", self.client.session)
+        second = self.client.get("/")
+        self.assertNotIn(b'"just_logged_in": true', second.content)
+
+    def test_just_logged_in_survives_non_page_requests(self) -> None:
+        """XHR/partials and JSON responses must not burn the one shot.
+
+        Only a successfully rendered full page delivers the flag to the
+        bell — an Inertia partial (X-Inertia header) and a JSON API
+        response both leave it for the real landing to consume.
+        """
+        user = User.objects.create_user(username="alice")
+        self.client.force_login(user)
+        self.assertTrue("just_logged_in" in self.client.session)
+        # Inertia partial-style request: carries the X-Inertia header.
+        self.client.get("/", headers={"x-inertia": "true"})
+        self.assertTrue("just_logged_in" in self.client.session)
+        # A JSON API response (no X-Inertia, but not an HTML render).
+        self.client.post("/notifications/api/test")
+        self.assertTrue("just_logged_in" in self.client.session)
+        # The full HTML landing consumes it.
+        self.client.get("/")
+        self.assertFalse("just_logged_in" in self.client.session)
 
     def test_plain_user_gets_profile_not_superuser(self) -> None:
         """Authenticated non-superuser gets a profile but viewer_is_superuser False."""

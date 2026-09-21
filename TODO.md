@@ -1,25 +1,18 @@
-drobeans 
-dendron 	Greek   δένδρον 	tree / wood 	105
-lobos 	    Greek   λῶβος 	pod 	1029
-umbellatum 	Latin 	umbels — flower clusters radiating from a common center 	11
-umbella 	Latin 	a sunshade, parasol, or umbrella (dim. of umbra, shade) 	30
+How to recommend notifications to user? After transaction? Add transactions to reference app
 
-desm- 	Greek δεσμός (desmos) 	band, bond, chain ?
--od- 	Greek -oeides / -odes 	"like, of the shape of" ?
--ium 	Latin 	taxonomic singular noun ending ?
+UserSessionIndex is tracking sessions for user. Can we make PushSubscription a one to one relationship to UserSessionIndex?
+why have `session_key = models.CharField....` when there is UserSessionIndex.
+push_test and _push call _deliver. Cant we have an easy to use function that notifies a users active sessions?
+is on_user_logged_out needed anymore?
 
-Tool to analyse error logs and stacktraces, both backend and sourcemap stacktraces, mlr (miller) for logs
 
-Generate backend logs with some test function.
-Generate frontend errors from some playwright actions.
-Use miller (mlr) command to track error by backend stacktrace/frontend stacktrace
-How will we decode frontend logs which are minified
-Track by user
-Have a tool that will
-Mention in steer.md, which links to docs/logs.md
-Document in readme - find all errors by user, find all errors by user, both frontend and backend, from the logs you gathered
-Gather logs from Huey too
-Can agent use this?
+session_key = models.CharField(max_length=40, null=True, blank=True, editable=False)
+
+Subscription truth in wrong place?
+
+VAPID_PRIVATE_KEY="DANGEROUSLYUNSET" Generate in provision along with db pass?
+Move notifications to async tasks?
+CSRF, allow token based requests to pass if not sent by frontend?
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis.
@@ -31,7 +24,19 @@ Group them by url/key
 Browser notification/email to send to user
 Which ones to mute?
 
+Every request sends an update response for unread
+Show badge with unread count
+
 Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH. Obscura for tests?
+
+Have a playwright test for generating screenshots in a small viewport. Screenshots are needed for and referenced in readme.
+Capture only specific areas for screenshots.
+Capture screenshots for
+    list of models, list for a model, row details
+    user list, user details
+    all code and git features
+    mockup - have a route which renders a todo list (static html) with mockup background
+
 --------
 Reuse ubuntu/debian user instead of agent user. Have a des command that calls ./run
 
@@ -50,15 +55,11 @@ Run all tests in checkproject and merge coverage from both stages. Improve test 
 
 ## Deployment
 Backup regularly - https://www.pghardstorage.org/examples
-Provision in vm with domain with curl|bash
+Provision in vm with domain with curl|bash. What all should user provide?
 
 ## Document
 Readme for end users and devs
-Code and git viewing
-Models management
-Logout sessions, view sessions
-Session length is a sliding window
-Mockup widgets - have a demo page
+Session length is a sliding window, we have login links
 
 ## Future
 Have a sequence generator for tables
@@ -69,3 +70,4 @@ Model logs should store FK name, link, url and M2M changes too
 Whitelist services for outbound connections
 Accelerate file serving with Caddy - have FileResponse - test with checkframework2
 Redis and db memory usage?
+Group and mute notification groups

@@ -445,7 +445,7 @@ class UserSessionIndex(models.Model):
 @receiver(user_logged_in, dispatch_uid="djangoapp.record_login")
 def on_user_logged_in(
     sender: object,  # noqa: ARG001 # signal contract
-    request: HttpRequest,  # noqa: ARG001 # signal contract
+    request: HttpRequest,
     user: User,
     **kwargs: object,  # noqa: ARG001 # signal contract
 ) -> None:
@@ -454,9 +454,17 @@ def on_user_logged_in(
     No indexing here: at signal time ``auth.login`` may hold an unsaved or
     flushed session (key not final) — the idle-touch middleware creates
     the index row on the session's first authenticated request.
+
+    Also sets the one-shot ``just_logged_in`` session flag: login dies
+    with its request (the landing page is a fresh one after the
+    redirect), so the only bridge across is the session. The shared-props
+    middleware pops it into the landing render, where NotificationsBell
+    uses it to silently rebind the browser's push subscription (logout
+    deleted its server row).
     """
     UserHistory.record_login(user)
     logger.info("user logged in", user=user.public_id)
+    request.session["just_logged_in"] = True
 
 
 # Full URL prefix for the superuser-only models-management pages. The routes in

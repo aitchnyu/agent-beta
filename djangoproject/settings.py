@@ -312,6 +312,16 @@ LOGGING = {
     },
 }
 
+# Web Push VAPID identity: VAPID_PRIVATE_KEY from `manage.py generatevapid`
+# (base64url). None = off (missing/sentinel): rows still store and render
+# in-app, just no browser delivery. The subject is derived at send time
+# from the first superuser (djangoapp.models.notifications.vapid_subject).
+_vapid_key = os.environ["VAPID_PRIVATE_KEY"]
+VAPID_PRIVATE_KEY = None if _vapid_key == "DANGEROUSLYUNSET" else _vapid_key
+# The public half is DERIVED from the private one at call time by
+# djangoapp.models.notifications.vapid_public_key() (py_vapid computes it
+# internally for signing but never exposes it — see that function).
+
 # Huey — Redis-backed background tasks + cron. Reuses REDIS_URL (shared with the
 # client-error rate limiter, djangoapp/views/client_errors.py). `immediate` is
 # False: enqueued tasks run via the consumer (`./run hueydev` / `./run dev`), and

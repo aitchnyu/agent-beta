@@ -15,6 +15,7 @@ dependencies = [
     "psycopg2-binary>=2.9.10", # Postgres driver
     "pydantic>=2.11.10",
     "python-dateutil>=2.9.0.post0",
+    "pywebpush>=2.5.0", # Web Push delivery (RFC 8291/8292) for notifications
     "structlog>=26.1",
     "redis>=5.0",
     "types-python-dateutil>=2.9.0.20260124",
@@ -32,7 +33,8 @@ dev = [
 ]
 
 [tool.uv]
-# Relative cutoff: only releases from the last 7 days are eligible
+# Relative cutoff: releases YOUNGER than 7 days are excluded (a soak
+# period — nothing brand-new gets locked). Older releases pass freely.
 exclude-newer = "P7D"
 
 [tool.ruff]
@@ -131,7 +133,10 @@ plugins = ["mypy_django_plugin.main"]
 # py.typed is an *error* by default (so a new untyped dep can't sneak in
 # unnoticed); packages that legitimately lack stubs are allow-listed here.
 [[tool.mypy.overrides]]
-module = ["allauth.*"]
+# pywebpush (and its py_vapid) implement RFC 8291/8292 with no py.typed; the
+# calls are confined to djangoapp/models/notifications.py + the generatevapid
+# command, both of which discard the untyped returns.
+module = ["allauth.*", "pywebpush.*", "py_vapid.*"]
 ignore_missing_imports = true
 
 # inertia-django 2.0 ships py.typed, but its inertia.test helpers are untyped

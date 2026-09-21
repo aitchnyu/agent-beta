@@ -15,7 +15,7 @@ from django.utils.deprecation import MiddlewareMixin
 from inertia import share
 
 from djangoapp.logging import bind_log_context, clear_log_context, get_logger
-from djangoapp.models import User, UserProfile, UserSessionIndex
+from djangoapp.models import Notification, User, UserProfile, UserSessionIndex
 from djangoapp.shortcuts import maybe_user
 
 if TYPE_CHECKING:
@@ -109,7 +109,7 @@ class LoggingContextMiddleware:
 
 
 class SharedPropsMiddleware:
-    """Share viewer profile, superuser flag, and login providers on every page.
+    """Share viewer profile, superuser flag, login providers, unread count.
 
     Read via ``usePage().props`` (the navbar); pk-free — ``public_id`` only.
     """
@@ -119,18 +119,50 @@ class SharedPropsMiddleware:
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
         profile = _viewer_profile(request.user)
-        user = request.user
+        user = maybe_user(request)
+        # The login-rebind flow, step by step:
+        # 1. on_user_logged_in (models/base.py) sets
+        #    session["just_logged_in"] on the login request — which then
+        #    redirects, so the flag crosses requests via the session.
+        # 2. Here it is READ without popping: the render shares it with
+        #    the bell, but consumption is decided AFTER the response.
+        # 3. Only a successful FULL page pops it — HTML content, no
+        #    X-Inertia request header, not a 5xx. A racing XHR, an
+        #    Inertia partial, or an error page must not burn the one shot.
+        # 4. NotificationsBell, mounted by that landing page, re-POSTs the
+        #    browser's still-held push subscription — recreating the row
+        #    logout's CASCADE deleted, bound to the fresh session.
+        just_logged_in = user is not None and "just_logged_in" in request.session
         share(
             request,
             user=profile.model_dump() if profile else None,
             viewer_is_superuser=bool(
                 getattr(user, "is_authenticated", False) and getattr(user, "is_superuser", False)
             ),
-            # Signed-in requests never render the Sign-in dropdown — they
-            # get null (no SocialApp lookup; query budgets are per-test).
+            # Signed-in: no Sign-in dropdown → null, no provider lookup.
             login_providers=None if profile else _login_providers(request),
+            # The bell badge (NotificationsBell.vue): fresh on every visit,
+            # partial-reloaded between them. One COUNT per AUTHENTICATED
+            # request (API calls too); anonymous gets a static 0.
+            unread_notifications=(
+                Notification.objects.filter(recipient=user, read_at__isnull=True).count()
+                if user is not None
+                else 0
+            ),
+            just_logged_in=just_logged_in,
         )
-        return self.get_response(request)
+        response = self.get_response(request)
+        # Consume (step 3): a non-5xx, non-Inertia, HTML response — the
+        # bell's landing render. Anything else leaves the flag for the
+        # real landing to pick up.
+        if (
+            just_logged_in
+            and response.status_code < http.HTTPStatus.INTERNAL_SERVER_ERROR
+            and not request.headers.get("x-inertia")
+            and response.headers.get("Content-Type", "").startswith("text/html")
+        ):
+            request.session.pop("just_logged_in", None)
+        return response
 
 
 class SessionIdleTouchMiddleware(MiddlewareMixin):

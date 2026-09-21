@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import { Link, usePage } from "@inertiajs/vue3"
 import { getCsrfToken } from "../utils/csrf"
 import { SharedPropsSchema } from "../schemas"
+import NotificationsBell from "./NotificationsBell.vue"
 
 // The signed-in viewer's profile + superuser flag are Inertia shared props,
 // injected for every page by SharedPropsMiddleware (not threaded per-view).
@@ -43,6 +44,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocClick))
           <Link :href="`/users/id/${user.public_id}`">{{ user.title }}</Link
           >!
         </span>
+        <NotificationsBell />
         <form
           action="/accounts/logout/"
           method="post"

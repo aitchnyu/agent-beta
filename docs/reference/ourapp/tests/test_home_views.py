@@ -33,6 +33,9 @@ class HomeViewTests(BaseInertiaTestCase):
                 # Shared viewer props (SharedPropsMiddleware) are anonymous here.
                 "user": None,
                 "viewer_is_superuser": False,
+                "login_providers": [],
+                "unread_notifications": 0,
+                "just_logged_in": False,
             },
         )
 
@@ -56,6 +59,12 @@ class HomeViewTests(BaseInertiaTestCase):
                 },
                 "user": {"public_id": user.public_id, "title": "Alice Smith"},
                 "viewer_is_superuser": False,
+                # Signed-in requests get null — no provider lookup runs.
+                "login_providers": None,
+                "unread_notifications": 0,
+                # force_login IS a login: the first render after it
+                # carries the one-shot rebind flag.
+                "just_logged_in": True,
             },
         )
 

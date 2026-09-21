@@ -129,4 +129,8 @@ class SessionIndexTests(BaseTestCase):
         row = self._row()
         self.assertEqual(row.user, self.user)
         session_row = Session.objects.get(session_key=row.session_id)
-        self.assertEqual(row.expire_date, session_row.expire_date)
+        # Not exact equality: the backfill reads the session's expiry
+        # during the request, and any later in-request session save
+        # (e.g. the one-shot just_logged_in pop on the login landing)
+        # re-derives it moments later — sub-second drift is expected.
+        self.assertAlmostEqual(row.expire_date, session_row.expire_date, delta=timedelta(seconds=1))

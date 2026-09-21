@@ -41,8 +41,11 @@ function csrfToken(): string | null {
   return match ? decodeURIComponent(match[1]) : null
 }
 
+/** Rethrow a ky error as the ONE taxonomy (see header). Never resolves. */
 async function normalizeError(err: unknown): Promise<never> {
   if (err instanceof HTTPError) {
+    // HTTP-level failure: carry status + body + headers across (the body
+    // is what showErrorToast and /client-errors report show).
     let body = ""
     try {
       body = await err.response.text()
@@ -60,11 +63,16 @@ async function normalizeError(err: unknown): Promise<never> {
     )
   }
   if (err instanceof TimeoutError) {
+    // ky's timeout fires before any socket error: report as network.
     throw new HttpNetworkError(err.message)
   }
   if (err instanceof DOMException && err.name === "AbortError") {
+    // Caller-initiated cancel, not a failure — propagate untouched so
+    // consumers can distinguish the two.
     throw err
   }
+  // Everything else (fetch network errors, unexpected throws): network
+  // class, original error chained as the cause.
   throw new HttpNetworkError(
     err instanceof Error ? err.message : "Network request failed",
     undefined,
@@ -98,6 +106,19 @@ export async function postJSON(url: string, data?: unknown): Promise<unknown> {
   if (data !== undefined) req.json = data
   try {
     return await api.post(url, req).json()
+  } catch (err) {
+    return normalizeError(err)
+  }
+}
+
+export async function deleteJSON(
+  url: string,
+  data?: unknown,
+): Promise<unknown> {
+  const req: Options = {}
+  if (data !== undefined) req.json = data
+  try {
+    return await api.delete(url, req).json()
   } catch (err) {
     return normalizeError(err)
   }

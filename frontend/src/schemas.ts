@@ -146,6 +146,11 @@ export const SharedPropsSchema = z.object({
   login_providers: z
     .array(z.object({ id: z.string(), name: z.string(), url: z.string() }))
     .nullable(),
+  // The navbar bell's badge (NotificationsBell.vue); static 0 when anonymous.
+  unread_notifications: z.number(),
+  // One-shot: true only on the landing render after login (the bell
+  // rebinds the browser's push subscription on it).
+  just_logged_in: z.boolean(),
 })
 
 export type SharedProps = z.infer<typeof SharedPropsSchema>
@@ -329,4 +334,32 @@ export const GitCommitListPropsSchema = z.object({
 export const GitCommitPropsSchema = z.object({
   commit: GitCommitSummarySchema,
   files: z.array(GitCommitFileSchema),
+})
+
+// ---- Notifications (framework; /notifications) ----
+
+export const NotificationItemSchema = z.object({
+  public_id: z.string(),
+  kind: z.string(),
+  body: z.string(),
+  url: z.string(),
+  read: z.boolean(),
+  created_at: z.number(), // epoch ms — rendered via HumanizedTime
+})
+
+export type NotificationItem = z.infer<typeof NotificationItemSchema>
+
+export const NotificationsPagePropsSchema = z.object({
+  notifications: z.array(NotificationItemSchema),
+  unread_count: z.number(),
+  push_enabled: z.boolean(),
+  vapid_public_key: z.string(),
+})
+
+export const SubscribeResponseSchema = z.object({
+  subscribed: z.boolean(),
+})
+
+export const TestNotificationResponseSchema = z.object({
+  count: z.number(),
 })

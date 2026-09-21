@@ -49,6 +49,20 @@ export default defineConfigWithVueTs(
     },
   },
   {
+    // The Web Push service worker (frontend/public/) is plain JS copied
+    // verbatim by Vite; `self` is its global scope (no window/document)
+    // and `URL` the worker-context constructor it uses for the
+    // same-origin navigation guard.
+    files: ["public/**/*.js"],
+    languageOptions: {
+      globals: {
+        self: "readonly",
+        URL: "readonly",
+      },
+      sourceType: "script",
+    },
+  },
+  {
     ignores: ["dist/**", "node_modules/**"],
   },
   prettierConfig,

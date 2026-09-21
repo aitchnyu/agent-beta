@@ -17,6 +17,16 @@ from djangoapp.models.base import (
     user_profile,
 )
 from djangoapp.models.login_key import LoginKey
+from djangoapp.models.notifications import (
+    Notification,
+    NotificationItem,
+    PushSubscription,
+    is_push_enabled,
+    notify_sessions,
+    push_test,
+    vapid_public_key,
+    vapid_subject,
+)
 
 __all__ = [
     "MANAGE_MODELS_URL_PREFIX",
@@ -24,6 +34,9 @@ __all__ = [
     "BaseModelUpdateLog",
     "BoolChange",
     "LoginKey",
+    "Notification",
+    "NotificationItem",
+    "PushSubscription",
     "StringChange",
     "UpdateLogEntryItem",
     "User",
@@ -35,5 +48,10 @@ __all__ = [
     "UserSessionIndex",
     "UserSnapshot",
     "generate_uuid7_id",
+    "is_push_enabled",
+    "notify_sessions",
+    "push_test",
     "user_profile",
+    "vapid_public_key",
+    "vapid_subject",
 ]
