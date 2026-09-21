@@ -206,6 +206,18 @@ playwrighttest() {
   uv run manage.py test $_DJANGO_NO_COLOR --tag playwright --noinput "$@"
 }
 
+screenshots() {
+  setenv
+  cd frontend
+  npm run build
+  cd ..
+  # Regenerates the committed README PNGs in docs/screenshots/. The pass
+  # self-gates on GENERATE_SCREENSHOTS (tests skip without it). The models-management
+  # shots additionally need the testapp overlay — see
+  # docs/screenshots/README.md for the manual overlay recipe.
+  GENERATE_SCREENSHOTS=1 uv run manage.py test $_DJANGO_NO_COLOR --tag screenshots --noinput "$@"
+}
+
 checkframework1() {
   setenv
   echo "Running ruff format --check (formatting drift)"

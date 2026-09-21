@@ -45,3 +45,28 @@
     );
   }
 }
+
+// Mockup demo page (/mockup-todos) — mirrors the reference app's todos page
+// styles (docs/reference/frontend/src/ours/style.scss) so the demo shows the
+// todos UI exactly as the example app renders it, under the crosshatch.
+.ours-todos-page {
+  max-width: 48rem;
+}
+
+.ours-todos-list {
+  list-style: none;
+  padding: 0;
+}
+
+.ours-todo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.ours-todo-completed span {
+  text-decoration: line-through;
+  color: #888;
+}

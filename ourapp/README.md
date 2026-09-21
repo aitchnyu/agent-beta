@@ -13,6 +13,10 @@ runnable out of the box. Add your features following the checklist in
 
 - **Home** — the landing page at `/`, showing login state. See
   [docs/home.md](docs/home.md).
+- **Mockup todos (demo)** — `/mockup-todos`, the shipped, permanent example of
+  the mockup convention (superuser-only, static markup, crosshatch wrapper;
+  `?final=1` shows it without the overlay); the README's mockup screenshots
+  come from it.
 
 ## Layout
 

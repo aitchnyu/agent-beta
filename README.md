@@ -22,17 +22,23 @@ changes through an agent that edits a throwaway.
   the integer `pk`), audit history, and Google social login. See
   [User management](#user-management) and [Google OAuth](#google-oauth-social-login).
 - **File browser** — `/files` to browse and preview the repo filesystem in-app.
+  See [Code viewer (superuser)](#code-viewer-superuser).
 - **Git viewer** — `/git` to browse commits, view diffs, and inspect the
-  uncommitted working tree.
+  uncommitted working tree. See [Code viewer (superuser)](#code-viewer-superuser).
 - **Notifications** — `/notifications`: every user's bell, list, and browser
   (Web Push) delivery — rows live until deleted; pushes ride the user's live
-  sessions (logout/GC cascade-drops them) via VAPID (see `generatevapid`).
+  sessions (logout/GC cascade-drops them) via VAPID (see `generatevapid`). See
+  [Notifications](#notifications).
 - **Structured logging** — one NDJSON line per record across the backend **and**
   frontend-reported errors (`/client-errors`, rate-limited via Redis), all
   `jq`-filterable. See [Logging](#logging).
 - **Single-page Inertia + Vue frontend** — one build, sourcemaps emitted for
   offline row:col resolution; framework pages under `frontend/src/pages/`, the
   app's own under `frontend/src/ours/`.
+- **Design mockups** — throwaway superuser-only `/mockup-<feature>` pages with
+  a crosshatch overlay let you review a UI before it's built
+  (the convention lives in `agentconfig/steer.md`; `/mockup-todos` ships as the
+  permanent demo — see [Edit → test → deploy workflow](#edit--test--deploy-workflow)).
 
 ## Quick start
 - **Prerequisites** — Python 3.14+ with [`uv`](https://docs.astral.sh/uv/),
@@ -244,9 +250,63 @@ concrete `BaseModel` subclass in `ourapp/` by class name, with its docstring and
 browseable rows. A foreign-key cell links to the referenced row via that row's
 `get_absolute_url()`.
 
-- `/manage/models` — list of models (name, docstring, row count)
-- `/manage/models/<model>/list` — paginated rows (sortable by created/edited)
-- `/manage/models/<model>/id/<public_id>` — single-row detail
+<figure>
+  <img src="docs/screenshots/models.png" alt="Models list" />
+  <figcaption><code>/manage/models</code> — every model with its docstring and row count.</figcaption>
+</figure>
+
+<figure>
+  <img src="docs/screenshots/model-rows.png" alt="Rows for one model" />
+  <figcaption><code>/manage/models/&lt;model&gt;/list</code> — paginated rows, sortable by created/edited.</figcaption>
+</figure>
+
+<figure>
+  <img src="docs/screenshots/row-detail.png" alt="Row detail with audit log" />
+  <figcaption><code>/manage/models/&lt;model&gt;/id/&lt;public_id&gt;</code> — the row's columns and audit log.</figcaption>
+</figure>
+
+## Code viewer (superuser)
+
+The navbar's single "Code" link — one surface for reviewing what changed
+before a deploy. Both parts are superuser-only (anyone else gets a 404) and
+read-only; the git side reads `main` (and `scratch/` when it exists), the
+files side browses the repo's parent directory (so `main/…` paths are the
+deployed truth) and previews files in-app — rendered markdown, highlighted
+code, and images.
+
+### Git viewer
+
+<figure>
+  <img src="docs/screenshots/git-uncommitted.png" alt="Uncommitted changes" />
+  <figcaption><code>/git/uncommitted</code> — both worktrees' uncommitted files, as folder trees.</figcaption>
+</figure>
+
+<figure>
+  <img src="docs/screenshots/git-commits.png" alt="Commit list" />
+  <figcaption><code>/git/commits</code> — newest-first history; each entry links to its files.</figcaption>
+</figure>
+
+<figure>
+  <img src="docs/screenshots/git-commit.png" alt="Commit detail" />
+  <figcaption><code>/git/commits/&lt;sha&gt;</code> — the commit's changed files.</figcaption>
+</figure>
+
+<figure>
+  <img src="docs/screenshots/git-diff.png" alt="Diff viewer" />
+  <figcaption><code>/git/uncommitted/&lt;worktree&gt;/&lt;path&gt;</code> — one file's diff, side by side (same view at <code>/git/commits/&lt;sha&gt;/&lt;path&gt;</code> for committed files).</figcaption>
+</figure>
+
+### File browser
+
+<figure>
+  <img src="docs/screenshots/files.png" alt="File browser" />
+  <figcaption><code>/files/&lt;path&gt;</code> — directory listing with breadcrumb and hidden-entry toggle.</figcaption>
+</figure>
+
+<figure>
+  <img src="docs/screenshots/file-viewer.png" alt="File viewer" />
+  <figcaption><code>/files/&lt;path&gt;</code> — rendered markdown with its heading outline.</figcaption>
+</figure>
 
 ## Edit → test → deploy workflow
 
@@ -258,7 +318,9 @@ change:
    into a fresh `../scratch/`, sharing `main`'s `.git` (main's HEAD is frozen
    as the `scratch-baseline` ref), and bootstrap its env incrementally
    (`uv sync` + `npm install` over hardlink-copied `.venv`/`node_modules`).
-2. Edit `../scratch/`.
+2. Edit `../scratch/` — then review the changes against `main/` in the
+   [code viewer](#code-viewer-superuser) (its uncommitted page shows both
+   worktrees side by side).
 3. `./run deployscratch` — **run from `main/`, never from scratch's own
    `./run` (it refuses)**. The check battery: ruff + mypy + `ourapp` tests +
    frontend lint/type-check/build (the fast loop: the framework suite and
@@ -270,6 +332,22 @@ change:
    overwriting `main/.env`; on the VM it also migrates, collectstatics, and
    restarts granian/huey). This does **not** commit.
 
+Mid-build UIs are reviewed as **mockups**: throwaway superuser-only
+`/mockup-<feature>` pages rendered with a crosshatch overlay, so a design is
+visible in the real app before it's built (the convention lives in
+`agentconfig/steer.md`; the repo ships `/mockup-todos` as the permanent demo —
+append `?final=1` for its hatched-off "graduated" look).
+
+<figure>
+  <img src="docs/screenshots/mockup-todos.png" alt="Todos as a mockup" />
+  <figcaption><code>/mockup-todos</code> — the todos page as a mockup: same markup, crosshatch overlay marks it unfinished.</figcaption>
+</figure>
+
+<figure>
+  <img src="docs/screenshots/todos-final.png" alt="Todos finished" />
+  <figcaption>the finished look it graduates to.</figcaption>
+</figure>
+
 In dev the server auto-reloads `main/` after a deploy, so the user sees the
 change live. Commit in `main/` as a separate step when ready.
 
@@ -278,22 +356,49 @@ change live. Commit in `main/` as a separate step when ready.
 Users are managed under `/users/` (`djangoapp/views/users.py`). Every management
 route requires a superuser; anyone else gets a 404. A user's identity in every
 URL and response is `public_id` (a URL-safe UUID7); the integer `pk` is never
-sent to clients.
+sent to clients. Trigram search (`/users/api/search?q=`, similarity across
+first/last name + username) backs the list's jump-to-profile box;
+`/users/edit/<public_id>` edits, and `/users/history/<public_id>` shows the
+audit trail.
 
-- `/users/list` — paginated list (25/page); `?q=` trigram search; `?page=N`.
-- `/users/api/search?q=` — top-20 matches across first/last name + username.
-- `/users/id/<public_id>` — profile (superuser sees the admin panel).
-- `/users/edit/<public_id>` — superuser-only edit.
-- `/users/history/<public_id>` — superuser-only audit trail.
+<figure>
+  <img src="docs/screenshots/users.png" alt="User list" />
+  <figcaption><code>/users/list</code> — paginated roster (25/page) with its jump-to-profile search.</figcaption>
+</figure>
+
+<figure>
+  <img src="docs/screenshots/user-detail.png" alt="User details" />
+  <figcaption><code>/users/id/&lt;public_id&gt;</code> — profile; superusers get the admin panel (edit, login link, log out everywhere, history).</figcaption>
+</figure>
 
 A superuser can't clear their own `is_superuser`/`is_active`, so the active
 superuser count can never fall to zero through the UI.
+
+## Notifications
+
+Every user's notifications live at `/notifications` (page + API), surfaced by
+the navbar bell with an unread badge. Rows are stored, never TTL'd — they go
+away only when the user deletes them; mark-read is presentation state. Any
+view or Huey task records one with `Notification.record(...)`, which (on
+commit) enqueues the Web Push fan-out as its own task — push-service HTTP
+never runs inline in a request.
+
+Browser (Web Push) delivery rides the user's live sessions: a subscription is
+tied to its session's index row, so logout or session GC cascade-drops it —
+dead devices never receive anything. Keys are VAPID: `./run djangomanage
+generatevapid` writes the pair; with no key configured the page degrades to
+in-app only.
+
+<figure>
+  <img src="docs/screenshots/notifications.png" alt="Notifications list" />
+  <figcaption><code>/notifications</code> — the user's list: mark read, delete, clear, and the browser-push card.</figcaption>
+</figure>
 
 ## Commands
 
 App/dev via the `run` script: `init`, `runserver`, `dev`,
 `pi`, `test`,
-`typecheck`, `lintfix`, `playwrighttest`, `checkframework1`,
+`typecheck`, `lintfix`, `playwrighttest`, `screenshots`, `checkframework1`,
 `checkframework2`, `checkproject`, `createscratch`, `deployscratch`, `cleanscratch`,
 `hueydev` (background consumer alone), `coverage`,
 plus `djangomanage`/`python` passthroughs (e.g.
@@ -425,4 +530,12 @@ with models exercising every field kind + both FK types, plus an `ours/` page. T
 **reference app** (`docs/reference/`) is the user-facing example, same format,
 shipping its own tests. Both are excluded from ruff/mypy (they're only valid when
 overlaid onto `ourapp/`).
+
+The README's committed screenshots ([docs/screenshots/](docs/screenshots/)) come
+from a fifth, `screenshots`-tagged Playwright pass that self-gates on the
+`GENERATE_SCREENSHOTS` env var: `./run test` never collects it (it carries the
+`playwright` tag), `./run playwrighttest` collects it as skips, and `./run
+screenshots` (which sets the var) runs it. The models-management shots need the
+testapp overlay — [docs/screenshots/README.md](docs/screenshots/) has the
+recipe.
 

@@ -1,4 +1,4 @@
-"""Home feature — the app's landing page.
+"""Home feature — the app's landing page (plus the mockup demo route).
 
 Owns the single public route ``/`` (rendered as the Inertia component
 ``ours/Home``). It shows login state and links to the app's features; the
@@ -14,6 +14,7 @@ from ninja import Router
 
 from djangoapp.logging import get_logger
 from djangoapp.shortcuts import maybe_user
+from djangoapp.views import require_superuser
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -53,3 +54,19 @@ def home_page(request: HttpRequest) -> InertiaResponse:
         }
     )
     return InertiaResponse(request, "ours/Home", {"props": props})
+
+
+@router.get("/mockup-todos", response=None)
+def mockup_todos(request: HttpRequest) -> InertiaResponse:
+    """Render the static todo-list mockup (component ``ours/MockupTodos``).
+
+    ``/mockup-todos`` is a PERMANENT demo page (unlike feature mockups, it
+    never graduates into a real page): it shows what a mockup looks like —
+    the crosshatch ``div.mockup`` wrapper over a static todo list — so the
+    README can reference something live. It keeps all three mockup markers
+    from ``agentconfig/steer.md`` § Mockups and diagrams: superuser-only
+    route (404 otherwise), no data plumbing (no props, no DB), root
+    ``div.mockup`` wrapper.
+    """
+    require_superuser(request)
+    return InertiaResponse(request, "ours/MockupTodos", {"props": {}})

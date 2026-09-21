@@ -1,3 +1,9 @@
+Notification with denser info and select buttons. No need of new badge. kind info is deemphasized, if we click it, show a filtered list.
+
+No need of Hello, username
+Button has Username (profile)+ badge(notification) button, dropdown has profile, notification and logout links
+
+pyvapid for generating keys
 VAPID_PRIVATE_KEY="DANGEROUSLYUNSET" Generate in provision along with db pass?
 Pi's native login
 
@@ -8,16 +14,6 @@ Test with changing site theme. Generate color schemes. Then try to upgrade to po
 
 Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH. Obscura for tests?
 
-Have a playwright test for generating screenshots in a small viewport. Screenshots are needed for and referenced in readme.
-Capture only specific areas for screenshots.
-Capture screenshots for
-    notifications page
-    list of models, list for a model, row details
-    user list, user details
-    all code and git features
-    mockup - have a route which renders a todo list (static html) with mockup background
-
---------
 Reuse ubuntu/debian user instead of agent user. Have a des command that calls ./run
 
 Allauth blacklist
