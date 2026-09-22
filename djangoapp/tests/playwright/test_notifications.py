@@ -57,15 +57,15 @@ class NotificationsE2e(BasePlaywrightTestCase):
         page = self.page
         page.goto(f"{self.live_server_url}/")
         page.wait_for_selector(".layout-user-menu")
-        self.assertEqual(page.text_content(".notifications-badge"), "2")
+        expect(page.locator(".notifications-badge")).to_have_text("2")
 
     def test_menu_dropdown_links(self) -> None:
         """The dropdown opens and lists Profile / Notifications / Logout."""
         page = self.page
         page.goto(f"{self.live_server_url}/")
         page.click(".layout-user-menu summary")
-        page.wait_for_selector(".layout-user-menu-list")
-        self.assertEqual(page.locator(".layout-user-menu-link").count(), 3)
+        page.wait_for_selector(".layout-user-menu .layout-menu-panel")
+        self.assertEqual(page.locator(".layout-user-menu .layout-menu-link").count(), 3)
         profile_href = page.locator(".user-menu-profile").get_attribute("href") or ""
         self.assertIn("/users/id/", profile_href)
 
@@ -76,7 +76,7 @@ class NotificationsE2e(BasePlaywrightTestCase):
         self._open_notifications_page()
         page.wait_for_selector(".notification-item")
         # Badge (persistent Layout) still reads 2 while the page shows rows.
-        self.assertEqual(page.text_content(".notifications-badge"), "2")
+        expect(page.locator(".notifications-badge")).to_have_text("2")
         page.locator(".notification-select").first.click()
         page.wait_for_selector(".notifications-mark-selected")
         page.click(".notifications-mark-selected")
@@ -101,7 +101,9 @@ class NotificationsE2e(BasePlaywrightTestCase):
     def test_select_mode_unread_picks_unread(self) -> None:
         """The toolbar select's Unread option selects exactly the unread rows."""
         self._seed(3)
-        # Mark the newest row read via the API path the row-link uses.
+        # Mark the newest row read directly in the ORM — the state the
+        # row-link's API call would produce (that path itself has no
+        # E2E coverage yet).
         newest = Notification.objects.filter(recipient=self.user).order_by("-created_at").first()
         assert newest is not None
         Notification.objects.filter(pk=newest.pk).update(read_at=timezone.now())
@@ -109,16 +111,9 @@ class NotificationsE2e(BasePlaywrightTestCase):
         page.goto(f"{self.live_server_url}/notifications")
         page.wait_for_selector(".notification-item")
         page.select_option(".notifications-select-mode", "unread")
-        page.wait_for_selector(".notifications-selected-count")
-        self.assertEqual(
-            (page.text_content(".notifications-selected-count") or "").strip(),
-            "2 selected",
-        )
+        expect(page.locator(".notifications-selected-count")).to_have_text("2 selected")
         page.select_option(".notifications-select-mode", "read")
-        self.assertEqual(
-            (page.text_content(".notifications-selected-count") or "").strip(),
-            "1 selected",
-        )
+        expect(page.locator(".notifications-selected-count")).to_have_text("1 selected")
 
     def test_load_more_appends_rows(self) -> None:
         """55 rows render 50 first; Load more appends the tail and stops."""
@@ -144,7 +139,7 @@ class NotificationsE2e(BasePlaywrightTestCase):
         # matches the slashed form of the filtered URL.
         page.wait_for_url("**/notifications/?kind=invoice.paid")
         expect(page.locator(".notification-item")).to_have_count(1)
-        self.assertEqual(page.text_content(".notification-kind"), "invoice.paid")
+        expect(page.locator(".notification-kind")).to_have_text("invoice.paid")
         # The chip clears back to the full list.
         page.click(".notifications-filter-clear")
         page.wait_for_url("**/notifications/")

@@ -11,6 +11,24 @@
   gap: 0.35rem;
 }
 
+// The subscribed (normal) push state: one plain line — the sentence with
+// test + caret flowing INLINE (word spacing, no flex gaps), so the gaps
+// stay identical at every width. test + caret ride in one unbreakable
+// inline-flex unit (they must never split across a wrapped line), with
+// the DropdownMenu rendered as a small link-style caret.
+.notifications-push-actions {
+  gap: 0.25rem;
+}
+
+.notifications-push-on .notifications-test {
+  padding: 0;
+}
+
+.notifications-push-menu summary {
+  padding: 0;
+  color: $blue-600;
+}
+
 .notifications-filter-clear {
   margin-left: 0.25rem;
 }

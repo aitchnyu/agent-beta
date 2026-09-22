@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from "vue"
 import { router } from "@inertiajs/vue3"
 import PageTitle from "../components/PageTitle.vue"
+import DropdownMenu from "../components/DropdownMenu.vue"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import {
   CountResponseSchema,
@@ -33,6 +34,12 @@ const hasMore = ref(p.has_more)
 // props reactively — without this watcher the list/count would stay a
 // setup-time snapshot. Re-parsed per change: small, and stays zod-true.
 const pageData = computed(() => NotificationsPagePropsSchema.parse(props.props))
+
+// The kind filter follows the LIVE props, not the setup-time snapshot:
+// history back/forward preserves this component (preserveState) while
+// swapping props — `p` would render a stale chip and page the wrong
+// filter. Server-config fields never change per visit; those stay on `p`.
+const kind = computed(() => pageData.value.kind)
 // Bumped whenever a partial reload replaces the list wholesale — Load more
 // captures the epoch before its fetch and drops responses that straddle a
 // swap (otherwise stale-cursored appends would land on a fresh page-1 list
@@ -204,6 +211,7 @@ async function onClearAll(): Promise<void> {
   await postJSON("/notifications/api/clear")
   notifications.value = []
   unreadCount.value = 0
+  hasMore.value = false
   notifyBadge()
 }
 
@@ -280,7 +288,7 @@ async function onLoadMore(): Promise<void> {
   loadingMore.value = true
   try {
     const params = new URLSearchParams({ after: last.public_id })
-    if (p.kind) params.set("kind", p.kind)
+    if (kind.value) params.set("kind", kind.value)
     const page = NotificationPageResponseSchema.parse(
       await getJSON(`/notifications/api/page?${params.toString()}`),
     )
@@ -345,6 +353,11 @@ async function onDeleteSelected(): Promise<void> {
   notifications.value = notifications.value.filter(
     (n) => !idSet.has(n.public_id),
   )
+  // Deleting every RENDERED row while older pages remain server-side
+  // would dead-end the list
+  if (notifications.value.length === 0 && hasMore.value) {
+    router.reload({ only: ["props", "unread_notifications"] })
+  }
   selected.value = new Set()
   resetSelectMode()
   notifyBadge()
@@ -386,7 +399,51 @@ function clearKindFilter(): void {
       </div>
     </div>
 
-    <div class="notifications-push card mb-3">
+    <!-- Subscribed (the normal state): ONE plain line — the sentence with
+         the test link and maintenance caret flowing inline after it (no
+         flex row: on narrow widths the sentence wraps and the buttons
+         would otherwise float detached mid-line). -->
+    <div v-if="pushSubscribed" class="notifications-push-on mb-3">
+      <span class="text-muted small">
+        Browser notifications enabled on this device — notifications arrive even
+        with the tab closed.
+      </span>
+      <span class="notifications-push-actions d-inline-flex align-items-center">
+        <button
+          type="button"
+          class="btn btn-link btn-sm notifications-test"
+          :disabled="testBusy"
+          @click="onSendTest"
+        >
+          test
+        </button>
+        <DropdownMenu align="right" class="notifications-push-menu">
+          <template #trigger>
+            <span class="visually-hidden">Browser notification actions</span>
+          </template>
+          <button
+            type="button"
+            class="layout-menu-link notifications-resubscribe"
+            :disabled="pushBusy"
+            @click="onResubscribe"
+          >
+            Resubscribe
+          </button>
+          <button
+            type="button"
+            class="layout-menu-link notifications-disable"
+            :disabled="pushBusy"
+            @click="onDisable"
+          >
+            Unsubscribe
+          </button>
+        </DropdownMenu>
+      </span>
+    </div>
+
+    <!-- Setup / problem states (server-off, unsupported, blocked,
+         not-yet-enabled): the explanatory card. -->
+    <div v-else class="notifications-push card mb-3">
       <div class="card-body d-flex align-items-center justify-content-between">
         <div>
           <strong>Browser notifications</strong>
@@ -401,10 +458,6 @@ function clearKindFilter(): void {
               Blocked in this browser — allow notifications for this site in the
               browser settings, then reload.
             </template>
-            <template v-else-if="pushSubscribed">
-              Enabled on this device — notifications arrive even with the tab
-              closed.
-            </template>
             <template v-else>
               System notifications arrive while your BROWSER runs — even with
               this tab closed; fully quitting the browser pauses them (queued up
@@ -413,42 +466,15 @@ function clearKindFilter(): void {
             </template>
           </div>
         </div>
-        <!-- Controls cluster as ONE right-hand child: with text + group +
-             button as three card-body children, justify-content-between
-             spread them to opposite ends. -->
         <div class="d-flex align-items-center gap-2">
-          <!-- v-if on the group too: denied-but-unsubscribed leaves zero
-               buttons (canEnable excludes denied) — no empty btn-group. -->
-          <div
-            v-if="pushSupported && (canEnable || pushSubscribed)"
-            class="btn-group"
-            role="group"
+          <button
+            v-if="canEnable"
+            class="btn btn-sm btn-primary notifications-enable"
+            :disabled="pushBusy"
+            @click="onEnable"
           >
-            <button
-              v-if="canEnable"
-              class="btn btn-sm btn-primary notifications-enable"
-              :disabled="pushBusy"
-              @click="onEnable"
-            >
-              Enable notifications
-            </button>
-            <template v-else-if="pushSubscribed">
-              <button
-                class="btn btn-sm btn-outline-secondary notifications-resubscribe"
-                :disabled="pushBusy"
-                @click="onResubscribe"
-              >
-                Resubscribe
-              </button>
-              <button
-                class="btn btn-sm btn-outline-secondary notifications-disable"
-                :disabled="pushBusy"
-                @click="onDisable"
-              >
-                Disable
-              </button>
-            </template>
-          </div>
+            Enable notifications
+          </button>
           <!-- The test button, same card: records a REAL notification —
                row in the list, badge bump, push to every subscribed
                device — so it always renders (the in-app result needs no
@@ -464,9 +490,9 @@ function clearKindFilter(): void {
       </div>
     </div>
 
-    <div v-if="p.kind" class="notifications-filter mb-2">
+    <div v-if="kind" class="notifications-filter mb-2">
       <span class="text-muted">Kind:</span>
-      <code>{{ p.kind }}</code>
+      <code>{{ kind }}</code>
       <a
         href="/notifications"
         class="notifications-filter-clear"

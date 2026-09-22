@@ -152,6 +152,11 @@ class Notification(models.Model):
             # first. A read_at-partial index would serve counts better but
             # adds write cost for zero felt benefit at this scale.
             models.Index(fields=["recipient", "-created_at"]),
+            # The list page's cursor walk: filter by recipient, ORDER BY
+            # public_id DESC with a public_id < cursor bound — without
+            # this every page render (and every Load-more chunk) sorts
+            # the user's full row set in Postgres.
+            models.Index(fields=["recipient", "-public_id"]),
         ]
         # pk tiebreaker: same-microsecond rows otherwise order arbitrarily
         # across page loads.

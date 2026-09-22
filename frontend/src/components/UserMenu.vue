@@ -5,11 +5,12 @@
 // - badge refresh between visits: SW postMessage, window event,
 //   visibilitychange → partial reload of just that prop
 // - push SW registration + the one-shot post-login subscription rebind
-import { computed, onBeforeUnmount, onMounted, ref } from "vue"
+import { computed, onBeforeUnmount, onMounted } from "vue"
 import { Link, router, usePage } from "@inertiajs/vue3"
 import { getCsrfToken } from "../utils/csrf"
 import { SharedPropsSchema } from "../schemas"
 import type { User } from "../schemas"
+import DropdownMenu from "./DropdownMenu.vue"
 import { registerPushSW, rebindAfterLogin } from "../utils/push"
 
 defineProps<{
@@ -20,14 +21,6 @@ const page = usePage()
 const shared = computed(() => SharedPropsSchema.parse(page.props))
 const unreadCount = computed(() => shared.value.unread_notifications)
 const csrfToken = computed(() => getCsrfToken())
-
-// Native <details> dropdown, closed on any outside click (same pattern as
-// the anonymous Sign-in menu in Layout.vue).
-const menu = ref<HTMLDetailsElement>()
-function onClick(e: MouseEvent) {
-  const el = menu.value
-  if (el?.open && !el.contains(e.target as Node)) el.open = false
-}
 
 function refreshCount(): void {
   // Partial reload: re-render the current page server-side, receiving
@@ -41,7 +34,7 @@ function refreshCount(): void {
 // deep-links an open window (notificationclick in the SW). event.data is
 // UNTRUSTED (any same-origin script can postMessage): unknown shapes are
 // ignored, and navigate URLs are constrained to same-origin paths.
-async function onSWMessage(event: MessageEvent): Promise<void> {
+function onSWMessage(event: MessageEvent): void {
   const data = event.data as { type?: unknown; url?: unknown } | null
   if (!data || typeof data !== "object" || typeof data.type !== "string") {
     return
@@ -68,14 +61,6 @@ function onNotificationsChanged(): void {
   refreshCount()
 }
 
-// Inertia visits keep Layout (and this <details>) mounted — an open panel
-// would survive navigation and overlap the next page's top-right corner.
-// Links close the menu as they navigate; the logout form full-page
-// submits, which tears the DOM down anyway.
-function close(): void {
-  if (menu.value) menu.value.open = false
-}
-
 // Returning to an idle tab (visibilitychange → visible) is exactly when a
 // stale badge gets noticed — and the one state no other path covers: a
 // browser WITHOUT push, parked on one page, gets no SW message and no
@@ -89,7 +74,6 @@ onMounted(() => {
   registerPushSW()
   navigator.serviceWorker?.addEventListener("message", onSWMessage)
   window.addEventListener("notifications-changed", onNotificationsChanged)
-  document.addEventListener("click", onClick)
   document.addEventListener("visibilitychange", onVisibilityChange)
   // One-shot post-login rebind: logout deleted this browser's server
   // row; re-POST the still-held subscription so delivery resumes
@@ -100,49 +84,46 @@ onMounted(() => {
 onBeforeUnmount(() => {
   navigator.serviceWorker?.removeEventListener("message", onSWMessage)
   window.removeEventListener("notifications-changed", onNotificationsChanged)
-  document.removeEventListener("click", onClick)
   document.removeEventListener("visibilitychange", onVisibilityChange)
 })
 </script>
 
 <template>
   <!-- The badge is part of the username button (always shown, 0 included,
-       red when unread work waits, muted at zero); the dropdown carries the
-       profile/notifications/logout links and the logout POST form. -->
-  <details ref="menu" class="layout-user-menu">
-    <summary class="btn btn-sm btn-outline-primary layout-user-button">
-      <!-- No aria-label: the accessible name is the content — username plus
-           the badge count, which is the point of the button. -->
-      {{ user.title }}
-      <span
-        class="badge notifications-badge"
-        :class="unreadCount > 0 ? 'text-bg-danger' : 'text-bg-secondary'"
-        >{{ unreadCount }}</span
-      >
-    </summary>
-    <div class="layout-user-menu-list">
-      <Link
-        :href="`/users/id/${user.public_id}`"
-        class="layout-user-menu-link user-menu-profile"
-        @click="close"
-        >Profile</Link
-      >
-      <Link
-        href="/notifications"
-        class="layout-user-menu-link user-menu-notifications"
-        @click="close"
-        >Notifications</Link
-      >
-      <form
-        action="/accounts/logout/"
-        method="post"
-        class="layout-user-logout-form"
-      >
-        <input type="hidden" name="csrfmiddlewaretoken" :value="csrfToken" />
-        <button class="layout-user-menu-link user-menu-logout" type="submit">
-          Logout
-        </button>
-      </form>
-    </div>
-  </details>
+       red when unread work waits, muted at zero) -->
+  <DropdownMenu align="right" class="layout-user-menu" :caret="false">
+    <template #trigger>
+      <span class="btn btn-sm btn-outline-primary layout-user-button">
+        <!-- No aria-label: the accessible name is the content — username
+             plus the badge count, which is the point of the button. -->
+        {{ user.title }}
+        <span
+          class="badge notifications-badge"
+          :class="unreadCount > 0 ? 'text-bg-danger' : 'text-bg-secondary'"
+          >{{ unreadCount }}</span
+        >
+        <!-- Caret lives INSIDE the button box (the summary-level one
+             renders detached outside it). -->
+        <span class="layout-user-caret" aria-hidden="true">▾</span>
+      </span>
+    </template>
+    <Link
+      :href="`/users/id/${user.public_id}`"
+      class="layout-menu-link user-menu-profile"
+      >Profile</Link
+    >
+    <Link href="/notifications" class="layout-menu-link user-menu-notifications"
+      >Notifications</Link
+    >
+    <form
+      action="/accounts/logout/"
+      method="post"
+      class="layout-user-logout-form"
+    >
+      <input type="hidden" name="csrfmiddlewaretoken" :value="csrfToken" />
+      <button class="layout-menu-link user-menu-logout" type="submit">
+        Logout
+      </button>
+    </form>
+  </DropdownMenu>
 </template>

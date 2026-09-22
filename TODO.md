@@ -1,18 +1,21 @@
 Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH. Obscura for tests?
 
-Dropdown menu for header, auto hide header when scrolling down.
-Header has home button, buttons after that collapse to dropdown in responsive mode
-
-VAPID_PRIVATE_KEY="DANGEROUSLYUNSET" Generate in provision along with db pass?
-Pi's native login
+`Signed in as Frank Einstien` and button
+Login link if already logged in? Refuse redemption
 
 CSRF, allow token based requests to pass if not sent by frontend? csrf_guard and new function for make_ninja_api? Document?
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis.
 
+VAPID_PRIVATE_KEY="DANGEROUSLYUNSET" Generate in provision along with db pass?
+Pi's native login
+
 Reuse ubuntu/debian user instead of having an agent user. Can we do it with existing privileges? 
-Have a desmo command that calls ./run on app dir. For example `desmo pi` is same as cd-ing to app dir and running `./run pi` 
+Have a desmo command that calls ./run on app dir. For example `desmo pi` is same as cd-ing to app dir and running `./run pi`
+The ubuntu/debian user has desmo command available to him.
+Instead of app in srv and systemd, call it desmo 
+Readme to mention steps
 
 Allauth whitelist/blacklist to allow only certain users. Document in readme.
 
@@ -33,9 +36,6 @@ Run all tests in checkproject and merge coverage from both stages. Improve test 
 Uploads dir is a single thing too
 Backup regularly - https://www.pghardstorage.org/examples
 Provision in vm with domain with curl|bash. What all should user provide?
-
-## Docs
-desmo command
 Readme for end users and devs, Desec dns
 
 ## Future

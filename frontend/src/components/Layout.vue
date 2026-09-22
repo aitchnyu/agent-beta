@@ -28,32 +28,44 @@ const navLinks = computed(() =>
 // Responsive collapse: below the breakpoint the links fold into a native
 // <details> dropdown (same pattern as Sign in / the user menu). Home and
 // the user badge stay outside it — identity and notifications must remain
-// one click away at every width.
-const navCompact = ref(false)
-let navMedia: MediaQueryList | null = null
+// one click away at every width. The query is evaluated at setup (not on
+// mount) so narrow devices never render one wide-layout frame first.
+const navMedia = window.matchMedia("(max-width: 767.98px)")
+const navCompact = ref(navMedia.matches)
 function onMediaChange(event: MediaQueryListEvent): void {
   navCompact.value = event.matches
 }
-onMounted(() => {
-  navMedia = window.matchMedia("(max-width: 767px)")
-  navCompact.value = navMedia.matches
-  navMedia.addEventListener("change", onMediaChange)
-})
-onBeforeUnmount(() => navMedia?.removeEventListener("change", onMediaChange))
+onMounted(() => navMedia.addEventListener("change", onMediaChange))
+onBeforeUnmount(() => navMedia.removeEventListener("change", onMediaChange))
 
 // Native <details> dropdowns (Sign in, the compact nav Menu): close on any
 // outside click — they would otherwise stay open; links inside navigate
 // away, closing them. UserMenu carries the same handling for its own
-// dropdown.
+// dropdown. Escape closes too (the disclosure pattern's keyboard contract;
+// outside-click alone is mouse-only).
 const signin = ref<HTMLDetailsElement>()
 const navMenu = ref<HTMLDetailsElement>()
+function closeMenus(): void {
+  for (const el of [signin.value, navMenu.value]) {
+    if (el) el.open = false
+  }
+}
 function onDocClick(e: MouseEvent) {
   for (const el of [signin.value, navMenu.value]) {
     if (el?.open && !el.contains(e.target as Node)) el.open = false
   }
 }
-onMounted(() => document.addEventListener("click", onDocClick))
-onBeforeUnmount(() => document.removeEventListener("click", onDocClick))
+function onKeydown(e: KeyboardEvent) {
+  if (e.key === "Escape") closeMenus()
+}
+onMounted(() => {
+  document.addEventListener("click", onDocClick)
+  document.addEventListener("keydown", onKeydown)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener("click", onDocClick)
+  document.removeEventListener("keydown", onKeydown)
+})
 </script>
 
 <template>
@@ -70,13 +82,16 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocClick))
         >
       </template>
       <details v-else-if="navLinks.length" ref="navMenu" class="layout-navmenu">
-        <summary class="nav-link layout-navmenu-summary">Menu</summary>
-        <div class="layout-navmenu-list">
+        <summary class="nav-link layout-menu-summary layout-navmenu-summary">
+          Menu
+        </summary>
+        <div class="layout-menu-panel layout-navmenu-list">
           <Link
             v-for="link in navLinks"
             :key="link.href"
-            class="layout-navmenu-link"
+            class="layout-menu-link layout-navmenu-link"
             :href="link.href"
+            @click="closeMenus"
             >{{ link.label }}</Link
           >
         </div>
@@ -89,12 +104,14 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocClick))
         ref="signin"
         class="layout-signin ms-auto"
       >
-        <summary class="btn btn-sm btn-outline-primary">Sign in</summary>
-        <div class="layout-signin-menu">
+        <summary class="btn btn-sm btn-outline-primary layout-menu-summary">
+          Sign in
+        </summary>
+        <div class="layout-menu-panel layout-signin-menu">
           <a
             v-for="p in loginProviders"
             :key="p.id"
-            class="layout-signin-link"
+            class="layout-menu-link layout-signin-link"
             :href="p.url"
             >{{ p.name }}</a
           >

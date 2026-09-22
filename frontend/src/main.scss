@@ -15,16 +15,22 @@ body {
 // Hide-on-scroll (HideOnScroll.vue): the sticky/hide mechanics for any
 // wrapped bar. Scrolling down translates the element fully out of view
 // (padding + border included); scrolling up restores it. A transform never
-// reflows the content behind it. Visuals belong to the consumer's class.
+// reflows the content behind it — and `visibility: hidden` (delayed until
+// the slide completes) drops the bar from the tab order and a11y tree
+// while hidden, so nothing focusable sits off-screen. Visuals belong to
+// the consumer's class. z-index matches bootstrap's sticky tier so
+// bootstrap's own sticky elements never overlap the bar.
 .hide-on-scroll {
   position: sticky;
   top: 0;
-  z-index: 20;
+  z-index: 1020;
   transition: transform 0.2s ease-out;
 }
 
 .hide-on-scroll-hidden {
   transform: translateY(calc(-100% - 1rem));
+  visibility: hidden;
+  transition: transform 0.2s ease-out, visibility 0s 0.2s;
 }
 
 // Navbar visuals (the element itself is the HideOnScroll wrapper): the
@@ -41,47 +47,107 @@ body {
   border-radius: $radius-md;
 }
 
-// Compact navbar (narrow viewports): the superuser links fold into this
-// native <details> dropdown — same panel shape as .layout-signin.
-.layout-navmenu {
+// ── Navbar dropdown panels ────────────────────────────────────────────────
+// One shared shape for the native-<details> menus. DropdownMenu.vue renders .layout-dropdown + .layout-menu-panel;
+// Layout's hand-rolled menus reuse the same panel classes.
+.layout-dropdown {
   position: relative;
 }
 
-.layout-navmenu-summary {
-  list-style: none;
-  cursor: pointer;
-}
-
-.layout-navmenu-summary::-webkit-details-marker {
-  display: none;
-}
-
-.layout-navmenu-summary::after {
-  content: " ▾";
-  font-size: 0.7em;
-}
-
-.layout-navmenu-list {
-  position: absolute;
+.layout-dropdown-left .layout-menu-panel {
   left: 0;
+}
+
+.layout-dropdown-right .layout-menu-panel {
+  right: 0;
+}
+
+.layout-menu-panel {
+  position: absolute;
   top: calc(100% + 0.35rem);
   z-index: 10;
-  min-width: 8rem;
+  min-width: 10rem;
   padding: 0.35rem 0;
-  background-color: #fff;
+  background-color: $white;
   border: $border-light;
   border-radius: $radius-md;
   box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.12);
 }
 
-.layout-navmenu-link {
+.layout-menu-link {
   display: block;
+  width: 100%;
   padding: 0.4rem 0.9rem;
+  text-align: left;
+  background: none;
+  border: none;
   color: $blue-600;
 }
 
-.layout-navmenu-link:hover {
+.layout-menu-link:hover {
   background-color: $gray-100;
+}
+
+.layout-menu-summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.layout-menu-summary::-webkit-details-marker {
+  display: none;
+}
+
+.layout-menu-summary::after {
+  content: "▾";
+  margin-left: 0.35rem;
+  vertical-align: 0.1em;
+}
+
+// A boxed trigger (e.g. UserMenu's button-styled span) carries its caret
+// INSIDE the box — the summary-level ::after one would sit detached
+// outside it, so DropdownMenu's :caret="false" suppresses it here.
+.layout-menu-no-caret::after {
+  content: none;
+}
+
+// Anchor sides: the nav menu drops left of its trigger, the right-aligned
+// menus (Sign in, user menu) drop right.
+.layout-navmenu-list {
+  left: 0;
+}
+
+.layout-signin-menu,
+.layout-user-menu-list {
+  right: 0;
+}
+
+// Compact navbar (narrow viewports): the superuser links fold into this
+// native <details> dropdown.
+.layout-navmenu {
+  position: relative;
+}
+
+// Anonymous navbar: one Sign-in button opening a native <details> dropdown
+// of the configured login providers (Layout.vue closes it on outside
+// clicks / Escape).
+.layout-signin {
+  position: relative;
+}
+
+// Signed-in navbar: the username + badge button opening the user dropdown
+// (UserMenu.vue).
+.layout-user-menu {
+  position: relative;
+}
+
+.layout-user-menu summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.layout-user-caret {
+  margin-left: 0.25rem; // + the summary's 0.4rem gap = the badge→caret space
 }
 
 // RepoNav (the Code sub-nav): plain bootstrap .nav ships no active state
@@ -93,101 +159,6 @@ body {
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 0.3em;
-}
-
-// Anonymous navbar: one Sign-in button opening a native <details> dropdown
-// of the configured login providers (Layout.vue closes it on outside
-// clicks). No bootstrap dropdown — its JS plugin isn't imported.
-.layout-signin {
-  position: relative;
-}
-
-.layout-signin summary {
-  list-style: none;
-  cursor: pointer;
-}
-
-.layout-signin summary::-webkit-details-marker {
-  display: none;
-}
-
-.layout-signin summary::after {
-  content: " ▾";
-  font-size: 0.7em;
-}
-
-.layout-signin-menu {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 0.35rem);
-  z-index: 10;
-  min-width: 10rem;
-  padding: 0.35rem 0;
-  background-color: #fff;
-  border: $border-light;
-  border-radius: $radius-md;
-  box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.12);
-}
-
-.layout-signin-link {
-  display: block;
-  padding: 0.4rem 0.9rem;
-  color: $blue-600;
-}
-
-.layout-signin-link:hover {
-  background-color: $gray-100;
-}
-
-// Signed-in navbar: the username + badge button opening the user dropdown
-// (UserMenu.vue). Same native-<details> pattern as .layout-signin (no
-// bootstrap dropdown JS), so the menu shares its marker/caret/panel shape.
-.layout-user-menu {
-  position: relative;
-}
-
-.layout-user-menu summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  list-style: none;
-  cursor: pointer;
-}
-
-.layout-user-menu summary::-webkit-details-marker {
-  display: none;
-}
-
-.layout-user-menu summary::after {
-  content: " ▾";
-  font-size: 0.7em;
-}
-
-.layout-user-menu-list {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 0.35rem);
-  z-index: 10;
-  min-width: 10rem;
-  padding: 0.35rem 0;
-  background-color: #fff;
-  border: $border-light;
-  border-radius: $radius-md;
-  box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.12);
-}
-
-.layout-user-menu-link {
-  display: block;
-  width: 100%;
-  padding: 0.4rem 0.9rem;
-  text-align: left;
-  background: none;
-  border: none;
-  color: $blue-600;
-}
-
-.layout-user-menu-link:hover {
-  background-color: $gray-100;
 }
 
 .apps-back-to-top {

@@ -33,6 +33,17 @@ class NavbarE2e(BasePlaywrightTestCase):
         )
         self.login_as(self.admin)
 
+    def _set_viewport(self, width: int, height: int = 800) -> None:
+        """Set a non-default viewport; addCleanup restores it after the test.
+
+        The suite shares ONE page for the whole process, so a leaked
+        viewport would change every later module's layout — the restore
+        runs even when the test fails.
+        """
+        default = self.page.viewport_size or {"width": 1280, "height": 720}
+        self.page.set_viewport_size({"width": width, "height": height})
+        self.addCleanup(self.page.set_viewport_size, default)
+
     def _goto_tall_page(self) -> None:
         """Open a page with guaranteed scroll room.
 
@@ -57,7 +68,7 @@ class NavbarE2e(BasePlaywrightTestCase):
     def test_wide_viewport_shows_flat_links(self) -> None:
         """At desktop width the superuser links render as flat nav links."""
         page = self.page
-        page.set_viewport_size({"width": 1280, "height": 800})
+        self._set_viewport(1280, 800)
         page.goto(f"{self.live_server_url}/")
         page.wait_for_selector(".layout-navbar")
         expect(page.get_by_role("link", name="Models", exact=True)).to_be_visible()
@@ -68,7 +79,7 @@ class NavbarE2e(BasePlaywrightTestCase):
     def test_narrow_viewport_collapses_links_to_menu(self) -> None:
         """Below the breakpoint the links fold into the Menu dropdown."""
         page = self.page
-        page.set_viewport_size({"width": 375, "height": 800})
+        self._set_viewport(375)
         page.goto(f"{self.live_server_url}/")
         page.wait_for_selector(".layout-navmenu")
         expect(page.get_by_role("link", name="Models", exact=True)).to_have_count(0)
@@ -80,7 +91,7 @@ class NavbarE2e(BasePlaywrightTestCase):
     def test_user_badge_stays_outside_collapse(self) -> None:
         """The user badge button renders in narrow mode, outside the menu."""
         page = self.page
-        page.set_viewport_size({"width": 375, "height": 800})
+        self._set_viewport(375)
         page.goto(f"{self.live_server_url}/")
         page.wait_for_selector(".layout-user-menu")
         expect(page.locator(".notifications-badge")).to_be_visible()
