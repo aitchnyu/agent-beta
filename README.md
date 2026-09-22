@@ -25,7 +25,7 @@ changes through an agent that edits a throwaway.
   See [Code viewer (superuser)](#code-viewer-superuser).
 - **Git viewer** — `/git` to browse commits, view diffs, and inspect the
   uncommitted working tree. See [Code viewer (superuser)](#code-viewer-superuser).
-- **Notifications** — `/notifications`: every user's bell, list, and browser
+- **Notifications** — `/notifications`: every user's badge, list, and browser
   (Web Push) delivery — rows live until deleted; pushes ride the user's live
   sessions (logout/GC cascade-drops them) via VAPID (see `generatevapid`). See
   [Notifications](#notifications).
@@ -377,17 +377,16 @@ superuser count can never fall to zero through the UI.
 ## Notifications
 
 Every user's notifications live at `/notifications` (page + API), surfaced by
-the navbar bell with an unread badge. Rows are stored, never TTL'd — they go
-away only when the user deletes them; mark-read is presentation state. Any
-view or Huey task records one with `Notification.record(...)`, which (on
-commit) enqueues the Web Push fan-out as its own task — push-service HTTP
-never runs inline in a request.
+the unread badge on the navbar's user menu (username + badge; the dropdown
+carries Profile / Notifications / Logout). Any view or Huey task records one
+with `Notification.record(...)`, which (on commit) enqueues the Web Push
+fan-out as its own task — push-service HTTP never runs inline in a request.
 
-Browser (Web Push) delivery rides the user's live sessions: a subscription is
-tied to its session's index row, so logout or session GC cascade-drops it —
-dead devices never receive anything. Keys are VAPID: `./run djangomanage
-generatevapid` writes the pair; with no key configured the page degrades to
-in-app only.
+- Checkbox selection with bulk Mark read / Delete
+- Pagination with 50 rows per page
+- filters the list by message kind, via `?kind=`
+- Rows are stored till the user deletes
+- Browser (Web Push) delivery sends to each logged in browser.
 
 <figure>
   <img src="docs/screenshots/notifications.png" alt="Notifications list" />
@@ -536,6 +535,6 @@ from a fifth, `screenshots`-tagged Playwright pass that self-gates on the
 `GENERATE_SCREENSHOTS` env var: `./run test` never collects it (it carries the
 `playwright` tag), `./run playwrighttest` collects it as skips, and `./run
 screenshots` (which sets the var) runs it. The models-management shots need the
-testapp overlay — [docs/screenshots/README.md](docs/screenshots/) has the
+testapp overlay — [docs/screenshots/README.md](docs/screenshots/README.md) has the
 recipe.
 

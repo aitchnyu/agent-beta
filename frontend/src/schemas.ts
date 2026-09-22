@@ -146,9 +146,9 @@ export const SharedPropsSchema = z.object({
   login_providers: z
     .array(z.object({ id: z.string(), name: z.string(), url: z.string() }))
     .nullable(),
-  // The navbar bell's badge (NotificationsBell.vue); static 0 when anonymous.
+  // The navbar user menu's badge (UserMenu.vue); static 0 when anonymous.
   unread_notifications: z.number(),
-  // One-shot: true only on the landing render after login (the bell
+  // One-shot: true only on the landing render after login (the user menu
   // rebinds the browser's push subscription on it).
   just_logged_in: z.boolean(),
 })
@@ -354,8 +354,25 @@ export const NotificationsPagePropsSchema = z.object({
   unread_count: z.number(),
   push_enabled: z.boolean(),
   vapid_public_key: z.string(),
+  // The active ?kind= filter, echoed for the page's filter chip ("" = all).
+  kind: z.string(),
+  // Whether older rows exist beyond this page (drives "Load more").
+  has_more: z.boolean(),
+})
+
+export const NotificationPageResponseSchema = z.object({
+  notifications: z.array(NotificationItemSchema),
+  has_more: z.boolean(),
 })
 
 export const SubscribeResponseSchema = z.object({
   subscribed: z.boolean(),
+})
+
+export const CountResponseSchema = z.object({ count: z.number() })
+
+// The checkbox selection's bulk-action body: the checked rows' public ids
+// (bounded to match the server's SelectedIdsSchema).
+export const SelectedIdsSchema = z.object({
+  public_ids: z.string().min(1).array().min(1).max(500),
 })

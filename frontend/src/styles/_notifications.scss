@@ -1,0 +1,71 @@
+// /notifications — Gmail-dense list: one thin row per notification (checkbox
+// | kind | body | time), a selection toolbar over the rows, and a filter chip
+// when a ?kind= filter is active. Unread is typographic (bold body + tinted
+// row), never a badge.
+
+@use "variables" as *;
+
+.notifications-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.notifications-filter-clear {
+  margin-left: 0.25rem;
+}
+
+.notifications-list {
+  padding: 0 0.5rem;
+}
+
+.notifications-toolbar {
+  padding: 0.4rem 0.5rem;
+  min-height: 2.4rem;
+  // No border-bottom: the first row's border-top below is the separator
+  // (keeps the seam single even when the toolbar hides its buttons).
+}
+
+.notifications-load-more-row {
+  display: flex;
+  justify-content: center;
+  padding: 0.4rem 0;
+  border-top: $border-light;
+}
+
+// Borders ride on TOPS only: the toolbar/load-more rows draw their own
+// separators, and the last row never doubles the card's bottom border.
+.notification-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.3rem 0.5rem;
+  border-top: 1px solid $gray-200;
+
+  &:hover {
+    background-color: $gray-100;
+  }
+}
+
+// Unread: bold + faintly tinted (Gmail's cue), replacing the old "new" badge.
+.notification-unread {
+  font-weight: 600;
+  background-color: rgba(var(--bs-primary-rgb), 0.08);
+
+  &:hover {
+    background-color: rgba(var(--bs-primary-rgb), 0.12);
+  }
+}
+
+// The kind is deemphasized metadata that doubles as the filter link: small,
+// muted, no badge chrome — but a real button (title hints the action).
+.notification-kind {
+  padding: 0;
+  font-size: 0.8em;
+  color: $gray-600;
+}
+
+.notification-time {
+  white-space: nowrap;
+  font-weight: 400; // parent's bold must not re-emphasize the timestamp
+}

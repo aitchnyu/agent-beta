@@ -22,7 +22,7 @@ back:
 ```bash
 ./run createscratch
 rsync -a --delete djangoapp/tests/testapp/ourapp/ ../scratch/ourapp/
-( cd ../scratch && RUN_PROJECT_TESTS=1 ./run screenshots --noinput )
+( cd ../scratch && RUN_PROJECT_TESTS=1 ./run screenshots )
 cp ../scratch/docs/screenshots/models.png \
    ../scratch/docs/screenshots/model-rows.png \
    ../scratch/docs/screenshots/row-detail.png docs/screenshots/

@@ -125,11 +125,12 @@ class SharedPropsMiddleware:
         #    session["just_logged_in"] on the login request — which then
         #    redirects, so the flag crosses requests via the session.
         # 2. Here it is READ without popping: the render shares it with
-        #    the bell, but consumption is decided AFTER the response.
+        #    the user menu, but consumption is decided AFTER the response.
         # 3. Only a successful FULL page pops it — HTML content, no
         #    X-Inertia request header, not a 5xx. A racing XHR, an
         #    Inertia partial, or an error page must not burn the one shot.
-        # 4. NotificationsBell, mounted by that landing page, re-POSTs the
+        # 4. The navbar user menu (UserMenu.vue), mounted by that landing
+        #    page, re-POSTs the
         #    browser's still-held push subscription — recreating the row
         #    logout's CASCADE deleted, bound to the fresh session.
         just_logged_in = user is not None and "just_logged_in" in request.session
@@ -141,7 +142,7 @@ class SharedPropsMiddleware:
             ),
             # Signed-in: no Sign-in dropdown → null, no provider lookup.
             login_providers=None if profile else _login_providers(request),
-            # The bell badge (NotificationsBell.vue): fresh on every visit,
+            # The user menu's badge (UserMenu.vue): fresh on every visit,
             # partial-reloaded between them. One COUNT per AUTHENTICATED
             # request (API calls too); anonymous gets a static 0.
             unread_notifications=(
@@ -153,7 +154,7 @@ class SharedPropsMiddleware:
         )
         response = self.get_response(request)
         # Consume (step 3): a non-5xx, non-Inertia, HTML response — the
-        # bell's landing render. Anything else leaves the flag for the
+        # user menu's landing render. Anything else leaves the flag for the
         # real landing to pick up.
         if (
             just_logged_in

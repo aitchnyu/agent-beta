@@ -458,7 +458,7 @@ def on_user_logged_in(
     Also sets the one-shot ``just_logged_in`` session flag: login dies
     with its request (the landing page is a fresh one after the
     redirect), so the only bridge across is the session. The shared-props
-    middleware pops it into the landing render, where NotificationsBell
+    middleware pops it into the landing render, where UserMenu
     uses it to silently rebind the browser's push subscription (logout
     deleted its server row).
     """

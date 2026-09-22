@@ -43,7 +43,7 @@ class PushEnabledTests(BaseTestCase):
     """``is_push_enabled``: can the server deliver browser pushes at all.
 
     It means exactly "VAPID_PRIVATE_KEY is configured" — in-app storage,
-    the bell and the list page do NOT depend on it; only Web Push
+    the badge and the list page do NOT depend on it; only Web Push
     fan-out does. The subject is derived, not configured.
 
     - test_disabled_when_key_missing, empty private key → False

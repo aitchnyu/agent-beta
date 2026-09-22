@@ -4,11 +4,14 @@ import { router } from "@inertiajs/vue3"
 import PageTitle from "../components/PageTitle.vue"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import {
+  CountResponseSchema,
+  NotificationPageResponseSchema,
   NotificationsPagePropsSchema,
   MessageResponseSchema,
+  SelectedIdsSchema,
 } from "../schemas.ts"
 import type { NotificationItem } from "../schemas.ts"
-import { deleteJSON, postJSON } from "../utils/http"
+import { getJSON, postJSON } from "../utils/http"
 import { showToast, confirmAction } from "../utils/sweetalert"
 import {
   disablePush,
@@ -24,16 +27,24 @@ const props = defineProps<{
 const p = NotificationsPagePropsSchema.parse(props.props)
 const notifications = ref<NotificationItem[]>(p.notifications)
 const unreadCount = ref(p.unread_count)
+const hasMore = ref(p.has_more)
 
 // Partial reloads (e.g. the test button's targeted refresh) swap page
 // props reactively — without this watcher the list/count would stay a
 // setup-time snapshot. Re-parsed per change: small, and stays zod-true.
 const pageData = computed(() => NotificationsPagePropsSchema.parse(props.props))
+// Bumped whenever a partial reload replaces the list wholesale — Load more
+// captures the epoch before its fetch and drops responses that straddle a
+// swap (otherwise stale-cursored appends would land on a fresh page-1 list
+// and silently hide the rows in between for the session).
+const listEpoch = ref(0)
 watch(
   () => pageData.value.notifications,
   (rows) => {
     notifications.value = rows
     unreadCount.value = pageData.value.unread_count
+    hasMore.value = pageData.value.has_more
+    listEpoch.value++
   },
 )
 
@@ -151,8 +162,8 @@ async function onSendTest(): Promise<void> {
 const testBusy = ref(false)
 
 // Actions update the local list immediately (server responses confirm),
-// then tell the Layout to refresh its badge count (window event —
-// Layout.vue listens for it alongside the SW's postMessage).
+// then tell the navbar badge to refresh (window event — UserMenu.vue
+// listens for it alongside the SW's postMessage).
 function notifyBadge(): void {
   window.dispatchEvent(new Event("notifications-changed"))
 }
@@ -171,15 +182,6 @@ async function onMarkRead(item: NotificationItem): Promise<void> {
 async function onOpen(item: NotificationItem): Promise<void> {
   await onMarkRead(item)
   if (item.url) router.visit(item.url)
-}
-
-async function onDelete(item: NotificationItem): Promise<void> {
-  await deleteJSON(`/notifications/api/${item.public_id}`)
-  if (!item.read) unreadCount.value = Math.max(0, unreadCount.value - 1)
-  notifications.value = notifications.value.filter(
-    (n) => n.public_id !== item.public_id,
-  )
-  notifyBadge()
 }
 
 async function onMarkAllRead(): Promise<void> {
@@ -203,6 +205,161 @@ async function onClearAll(): Promise<void> {
   notifications.value = []
   unreadCount.value = 0
   notifyBadge()
+}
+
+// ── Checkbox selection (Gmail-style bulk actions) ──────────────────────────
+// Selection is page-local client state over the rendered rows; the actions
+// POST the id list (owner-scoped server-side), then update the local list
+// in place — same immediate-feedback contract as the single-row actions.
+
+const selected = ref(new Set<string>())
+
+// Rows swap out from under the selection (partial reloads, deletes): prune
+// ids that no longer render so "N selected" never counts ghosts.
+watch(notifications, (rows) => {
+  const live = new Set(rows.map((n) => n.public_id))
+  selected.value = new Set([...selected.value].filter((id) => live.has(id)))
+})
+
+const selectedCount = computed(() => selected.value.size)
+const allSelected = computed(
+  () =>
+    notifications.value.length > 0 &&
+    selected.value.size === notifications.value.length,
+)
+const someSelected = computed(() => selected.value.size > 0)
+
+function toggle(n: NotificationItem): void {
+  const next = new Set(selected.value)
+  if (next.has(n.public_id)) next.delete(n.public_id)
+  else next.add(n.public_id)
+  selected.value = next
+}
+
+function toggleAll(): void {
+  selected.value = allSelected.value
+    ? new Set()
+    : new Set(notifications.value.map((n) => n.public_id))
+}
+
+// The select next to the select-all checkbox (Gmail's triage menu): pick
+// which slice of the rendered rows the selection covers. Re-picking the
+// option the <select> already shows fires no change event, so bulk actions
+// and list swaps reset it to the placeholder ("Select…") — every mode stays
+// reachable in one click.
+function onSelectMode(event: Event): void {
+  const el = event.target as HTMLSelectElement
+  const mode = el.value
+  const pick = (predicate: (_: NotificationItem) => boolean) =>
+    new Set(notifications.value.filter(predicate).map((n) => n.public_id))
+  if (mode === "all") selected.value = pick(() => true)
+  else if (mode === "unread") selected.value = pick((n) => !n.read)
+  else if (mode === "read") selected.value = pick((n) => n.read)
+  else selected.value = new Set()
+  el.value = ""
+}
+
+function resetSelectMode(): void {
+  const el = document.querySelector<HTMLSelectElement>(
+    ".notifications-select-mode",
+  )
+  if (el) el.value = ""
+}
+
+// ── Load more (50 rows at a time, cursor-paged) ─────────────────────────────
+// The page renders the first chunk server-side; older rows append on demand
+// via /api/page, cursoring on the last rendered row's public_id within the
+// active kind filter.
+
+const loadingMore = ref(false)
+
+async function onLoadMore(): Promise<void> {
+  const last = notifications.value[notifications.value.length - 1]
+  if (!last || loadingMore.value) return
+  const epoch = listEpoch.value
+  loadingMore.value = true
+  try {
+    const params = new URLSearchParams({ after: last.public_id })
+    if (p.kind) params.set("kind", p.kind)
+    const page = NotificationPageResponseSchema.parse(
+      await getJSON(`/notifications/api/page?${params.toString()}`),
+    )
+    // A partial reload swapped the list while we were fetching — drop the
+    // response (its cursor belongs to the old list).
+    if (epoch !== listEpoch.value) return
+    // Appended rows are strictly older; selection keeps applying (its
+    // prune watcher only needs to fire on wholesale swaps).
+    notifications.value.push(...page.notifications)
+    hasMore.value = page.has_more
+  } finally {
+    loadingMore.value = false
+  }
+}
+
+async function onMarkSelectedRead(): Promise<void> {
+  const ids = [...selected.value]
+  CountResponseSchema.parse(
+    await postJSON(
+      "/notifications/api/read-selected",
+      SelectedIdsSchema.parse({ public_ids: ids }),
+    ),
+  )
+  const idSet = new Set(ids)
+  let newlyRead = 0
+  for (const n of notifications.value) {
+    if (idSet.has(n.public_id) && !n.read) {
+      n.read = true
+      newlyRead++
+    }
+  }
+  unreadCount.value = Math.max(0, unreadCount.value - newlyRead)
+  selected.value = new Set()
+  resetSelectMode()
+  notifyBadge()
+}
+
+// Destructive on potentially many rows: confirm first (same contract as
+// Clear all), then drop the rows locally and re-count the badge.
+async function onDeleteSelected(): Promise<void> {
+  const ids = [...selected.value]
+  if (
+    !(await confirmAction(
+      `Delete ${ids.length} notification${ids.length === 1 ? "" : "s"}?`,
+      "This cannot be undone.",
+    ))
+  )
+    return
+  CountResponseSchema.parse(
+    await postJSON(
+      "/notifications/api/delete-selected",
+      SelectedIdsSchema.parse({ public_ids: ids }),
+    ),
+  )
+  const idSet = new Set(ids)
+  unreadCount.value = Math.max(
+    0,
+    unreadCount.value -
+      notifications.value.filter((n) => idSet.has(n.public_id) && !n.read)
+        .length,
+  )
+  notifications.value = notifications.value.filter(
+    (n) => !idSet.has(n.public_id),
+  )
+  selected.value = new Set()
+  resetSelectMode()
+  notifyBadge()
+}
+
+// ── Kind filter (?kind=…) ───────────────────────────────────────────────────
+// The kind is deemphasized data, not a badge: clicking it narrows the list
+// via a real URL (shareable, back-button-able), and the chip clears it.
+
+function filterByKind(kind: string): void {
+  router.visit(`/notifications?kind=${encodeURIComponent(kind)}`)
+}
+
+function clearKindFilter(): void {
+  router.visit("/notifications")
 }
 </script>
 
@@ -235,8 +392,7 @@ async function onClearAll(): Promise<void> {
           <strong>Browser notifications</strong>
           <div class="text-muted small">
             <template v-if="!p.push_enabled">
-              Not configured on this server (VAPID keys missing) — in-app
-              notifications still work.
+              Unavailable on this server — in-app notifications still work.
             </template>
             <template v-else-if="!pushSupported">
               This browser does not support Web Push.
@@ -252,8 +408,8 @@ async function onClearAll(): Promise<void> {
             <template v-else>
               System notifications arrive while your BROWSER runs — even with
               this tab closed; fully quitting the browser pauses them (queued up
-              to a day). The in-app bell and this list only update while the app
-              is open.
+              to a day). The in-app badge and this list only update while the
+              app is open.
             </template>
           </div>
         </div>
@@ -308,55 +464,107 @@ async function onClearAll(): Promise<void> {
       </div>
     </div>
 
+    <div v-if="p.kind" class="notifications-filter mb-2">
+      <span class="text-muted">Kind:</span>
+      <code>{{ p.kind }}</code>
+      <a
+        href="/notifications"
+        class="notifications-filter-clear"
+        @click.prevent="clearKindFilter"
+        >clear</a
+      >
+    </div>
+
     <div v-if="notifications.length === 0" class="text-muted py-4">
       No notifications.
     </div>
 
-    <div v-else class="notifications-list">
+    <div v-else class="notifications-list card">
+      <div class="notifications-toolbar d-flex align-items-center gap-2">
+        <input
+          type="checkbox"
+          class="form-check-input mt-0 notifications-select-all"
+          aria-label="Select all notifications"
+          :checked="allSelected"
+          :indeterminate="someSelected && !allSelected"
+          @change="toggleAll"
+        />
+        <select
+          class="form-select form-select-sm w-auto notifications-select-mode"
+          aria-label="Select messages"
+          @change="onSelectMode"
+        >
+          <option value="" disabled selected>Select…</option>
+          <option value="all">All</option>
+          <option value="none">None</option>
+          <option value="unread">Unread</option>
+          <option value="read">Read</option>
+        </select>
+        <span
+          v-if="selectedCount > 0"
+          class="text-muted small notifications-selected-count"
+        >
+          {{ selectedCount }} selected
+        </span>
+        <button
+          v-if="selectedCount > 0"
+          class="btn btn-sm btn-outline-secondary notifications-mark-selected"
+          @click="onMarkSelectedRead"
+        >
+          Mark read
+        </button>
+        <button
+          v-if="selectedCount > 0"
+          class="btn btn-sm btn-outline-danger notifications-delete-selected"
+          @click="onDeleteSelected"
+        >
+          Delete
+        </button>
+      </div>
       <div
         v-for="n in notifications"
         :key="n.public_id"
-        class="notification-item card mb-2"
+        class="notification-item"
         :class="{ 'notification-unread': !n.read }"
+        :data-kind="n.kind"
       >
-        <div class="card-body d-flex align-items-start gap-2">
-          <div class="flex-grow-1">
-            <a
-              v-if="n.url"
-              :href="n.url"
-              class="notification-open"
-              @click.prevent="onOpen(n)"
-            >
-              <span class="badge bg-secondary me-1">{{ n.kind }}</span>
-              {{ n.body }}
-            </a>
-            <template v-else>
-              <span class="badge bg-secondary me-1">{{ n.kind }}</span>
-              {{ n.body }}
-            </template>
-            <div class="text-muted small">
-              <HumanizedTime :ms="n.created_at" />
-            </div>
-          </div>
-          <span
-            v-if="!n.read"
-            class="badge text-bg-primary notification-unread-dot"
-            >new</span
+        <input
+          type="checkbox"
+          class="form-check-input mt-0 notification-select"
+          :aria-label="`Select: ${n.body}`"
+          :checked="selected.has(n.public_id)"
+          @change="toggle(n)"
+        />
+        <button
+          type="button"
+          class="btn btn-link notification-kind"
+          :title="`Filter by ${n.kind}`"
+          @click="filterByKind(n.kind)"
+        >
+          {{ n.kind }}
+        </button>
+        <div class="notification-body flex-grow-1">
+          <a
+            v-if="n.url"
+            :href="n.url"
+            class="notification-open"
+            @click.prevent="onOpen(n)"
+            >{{ n.body }}</a
           >
-          <button
-            v-if="!n.read"
-            class="btn btn-sm btn-outline-secondary notification-mark-read"
-            @click="onMarkRead(n)"
-          >
-            Mark read
-          </button>
-          <button
-            class="btn btn-sm btn-outline-danger notification-delete"
-            @click="onDelete(n)"
-          >
-            Delete
-          </button>
+          <template v-else>{{ n.body }}</template>
         </div>
+        <span class="notification-time text-muted small">
+          <HumanizedTime :ms="n.created_at" />
+        </span>
+      </div>
+      <div v-if="hasMore" class="notifications-load-more-row">
+        <button
+          class="btn btn-sm btn-outline-primary notifications-load-more"
+          :disabled="loadingMore"
+          @click="onLoadMore"
+        >
+          Load more
+        </button>
       </div>
     </div>
   </div>

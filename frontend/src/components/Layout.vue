@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import { Link, usePage } from "@inertiajs/vue3"
-import { getCsrfToken } from "../utils/csrf"
 import { SharedPropsSchema } from "../schemas"
-import NotificationsBell from "./NotificationsBell.vue"
+import HideOnScroll from "./HideOnScroll.vue"
+import UserMenu from "./UserMenu.vue"
 
 // The signed-in viewer's profile + superuser flag are Inertia shared props,
 // injected for every page by SharedPropsMiddleware (not threaded per-view).
@@ -13,14 +13,44 @@ const user = computed(() => shared.value.user)
 const isSuperuser = computed(() => shared.value.viewer_is_superuser)
 const loginProviders = computed(() => shared.value.login_providers)
 
-const csrfToken = computed(() => getCsrfToken())
+// The superuser nav links, rendered flat on wide viewports and inside the
+// "Menu" dropdown on narrow ones (one source of truth for both shapes).
+const navLinks = computed(() =>
+  isSuperuser.value
+    ? [
+        { href: "/manage/models", label: "Models" },
+        { href: "/git/uncommitted/", label: "Code" },
+        { href: "/users/list", label: "Users" },
+      ]
+    : [],
+)
 
-// Native <details> dropdown for Sign in: closes on any outside click
-// (it would otherwise stay open; links inside navigate away, closing it).
+// Responsive collapse: below the breakpoint the links fold into a native
+// <details> dropdown (same pattern as Sign in / the user menu). Home and
+// the user badge stay outside it — identity and notifications must remain
+// one click away at every width.
+const navCompact = ref(false)
+let navMedia: MediaQueryList | null = null
+function onMediaChange(event: MediaQueryListEvent): void {
+  navCompact.value = event.matches
+}
+onMounted(() => {
+  navMedia = window.matchMedia("(max-width: 767px)")
+  navCompact.value = navMedia.matches
+  navMedia.addEventListener("change", onMediaChange)
+})
+onBeforeUnmount(() => navMedia?.removeEventListener("change", onMediaChange))
+
+// Native <details> dropdowns (Sign in, the compact nav Menu): close on any
+// outside click — they would otherwise stay open; links inside navigate
+// away, closing them. UserMenu carries the same handling for its own
+// dropdown.
 const signin = ref<HTMLDetailsElement>()
+const navMenu = ref<HTMLDetailsElement>()
 function onDocClick(e: MouseEvent) {
-  const el = signin.value
-  if (el?.open && !el.contains(e.target as Node)) el.open = false
+  for (const el of [signin.value, navMenu.value]) {
+    if (el?.open && !el.contains(e.target as Node)) el.open = false
+  }
 }
 onMounted(() => document.addEventListener("click", onDocClick))
 onBeforeUnmount(() => document.removeEventListener("click", onDocClick))
@@ -28,33 +58,31 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocClick))
 
 <template>
   <div>
-    <div class="layout-navbar">
-      <Link v-if="isSuperuser" class="nav-link" href="/manage/models">
-        Models
-      </Link>
-      <Link v-if="isSuperuser" class="nav-link" href="/git/uncommitted/">
-        Code
-      </Link>
-      <Link v-if="isSuperuser" class="nav-link" href="/users/list">
-        Users
-      </Link>
-      <template v-if="user">
-        <span class="layout-user ms-auto">
-          Hello,
-          <Link :href="`/users/id/${user.public_id}`">{{ user.title }}</Link
-          >!
-        </span>
-        <NotificationsBell />
-        <form
-          action="/accounts/logout/"
-          method="post"
-          class="layout-logout-form"
+    <HideOnScroll class="layout-navbar">
+      <Link class="nav-link" href="/">Home</Link>
+      <template v-if="!navCompact">
+        <Link
+          v-for="link in navLinks"
+          :key="link.href"
+          class="nav-link"
+          :href="link.href"
+          >{{ link.label }}</Link
         >
-          <input type="hidden" name="csrfmiddlewaretoken" :value="csrfToken" />
-          <button class="btn btn-sm btn-outline-primary" type="submit">
-            Logout
-          </button>
-        </form>
+      </template>
+      <details v-else-if="navLinks.length" ref="navMenu" class="layout-navmenu">
+        <summary class="nav-link layout-navmenu-summary">Menu</summary>
+        <div class="layout-navmenu-list">
+          <Link
+            v-for="link in navLinks"
+            :key="link.href"
+            class="layout-navmenu-link"
+            :href="link.href"
+            >{{ link.label }}</Link
+          >
+        </div>
+      </details>
+      <template v-if="user">
+        <UserMenu class="ms-auto" :user="user" />
       </template>
       <details
         v-else-if="loginProviders?.length"
@@ -79,7 +107,7 @@ onBeforeUnmount(() => document.removeEventListener("click", onDocClick))
       >
         Sign in
       </a>
-    </div>
+    </HideOnScroll>
     <slot />
   </div>
 </template>

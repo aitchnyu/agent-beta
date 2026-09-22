@@ -54,15 +54,15 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close()
-  // Same-origin guard by URL parsing (mirrors the page-side handler):
-  // an external-URL payload would be spec-rejected by openWindow anyway;
-  // better to fall through to the default page.
   let target = "/notifications"
   if (
     event.notification.data &&
     typeof event.notification.data.url === "string"
   ) {
     try {
+      // Same-origin guard by URL parsing (mirrors the page-side handler):
+      // an external-URL payload would be spec-rejected by openWindow anyway;
+      // better to fall through to the default page.
       const url = new URL(event.notification.data.url, self.location.origin)
       if (url.origin === self.location.origin) {
         target = url.pathname + url.search
@@ -76,7 +76,7 @@ self.addEventListener("notificationclick", (event) => {
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
         // Focus an existing app window and ask it to navigate to the deep
-        // link (NotificationsBell.vue routes the message via Inertia). With
+        // link (UserMenu.vue routes the message via Inertia). With
         // no window open (the news-site case), open one.
         const appClient = clientList.find((c) =>
           c.url.startsWith(self.location.origin + "/"),

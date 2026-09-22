@@ -92,7 +92,7 @@ class SharedPropsMiddlewareTests(
         """XHR/partials and JSON responses must not burn the one shot.
 
         Only a successfully rendered full page delivers the flag to the
-        bell — an Inertia partial (X-Inertia header) and a JSON API
+        user menu — an Inertia partial (X-Inertia header) and a JSON API
         response both leave it for the real landing to consume.
         """
         user = User.objects.create_user(username="alice")

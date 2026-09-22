@@ -5,9 +5,9 @@ split into modules (one per feature under `models/`, `views/`, and `tests/`,
 where tests are flat `test_<feature>_<layer>.py`) and combined into a whole; see
 `docs/` for each feature.
 
-This is the **placeholder**: it ships only the landing page so the project is
-runnable out of the box. Add your features following the checklist in
-`agentconfig/steer.md`.
+This is the **placeholder**: it ships the landing page (plus the permanent
+`/mockup-todos` demo below) so the project is runnable out of the box. Add
+your features following the checklist in `agentconfig/steer.md`.
 
 ## Features
 

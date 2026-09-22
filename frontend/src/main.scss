@@ -2,6 +2,7 @@
 @use "styles/users";
 @use "styles/files";
 @use "styles/richcontent";
+@use "styles/notifications";
 @use "styles/variables" as *;
 
 body {
@@ -11,8 +12,23 @@ body {
   color: #1a1a1a;
 }
 
-// Navbar: keep the greeting + logout on one line. Without flex the logout
-// <form> (block-level) drops to a second line under "Hello, username".
+// Hide-on-scroll (HideOnScroll.vue): the sticky/hide mechanics for any
+// wrapped bar. Scrolling down translates the element fully out of view
+// (padding + border included); scrolling up restores it. A transform never
+// reflows the content behind it. Visuals belong to the consumer's class.
+.hide-on-scroll {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  transition: transform 0.2s ease-out;
+}
+
+.hide-on-scroll-hidden {
+  transform: translateY(calc(-100% - 1rem));
+}
+
+// Navbar visuals (the element itself is the HideOnScroll wrapper): the
+// links (plus the user badge / Sign in) stay on one line.
 .layout-navbar {
   display: flex;
   flex-wrap: wrap;
@@ -23,6 +39,49 @@ body {
   background-color: $gray-100;
   border: $border-light;
   border-radius: $radius-md;
+}
+
+// Compact navbar (narrow viewports): the superuser links fold into this
+// native <details> dropdown — same panel shape as .layout-signin.
+.layout-navmenu {
+  position: relative;
+}
+
+.layout-navmenu-summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.layout-navmenu-summary::-webkit-details-marker {
+  display: none;
+}
+
+.layout-navmenu-summary::after {
+  content: " ▾";
+  font-size: 0.7em;
+}
+
+.layout-navmenu-list {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 10;
+  min-width: 8rem;
+  padding: 0.35rem 0;
+  background-color: #fff;
+  border: $border-light;
+  border-radius: $radius-md;
+  box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.12);
+}
+
+.layout-navmenu-link {
+  display: block;
+  padding: 0.4rem 0.9rem;
+  color: $blue-600;
+}
+
+.layout-navmenu-link:hover {
+  background-color: $gray-100;
 }
 
 // RepoNav (the Code sub-nav): plain bootstrap .nav ships no active state
@@ -77,6 +136,57 @@ body {
 }
 
 .layout-signin-link:hover {
+  background-color: $gray-100;
+}
+
+// Signed-in navbar: the username + badge button opening the user dropdown
+// (UserMenu.vue). Same native-<details> pattern as .layout-signin (no
+// bootstrap dropdown JS), so the menu shares its marker/caret/panel shape.
+.layout-user-menu {
+  position: relative;
+}
+
+.layout-user-menu summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  list-style: none;
+  cursor: pointer;
+}
+
+.layout-user-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.layout-user-menu summary::after {
+  content: " ▾";
+  font-size: 0.7em;
+}
+
+.layout-user-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 10;
+  min-width: 10rem;
+  padding: 0.35rem 0;
+  background-color: #fff;
+  border: $border-light;
+  border-radius: $radius-md;
+  box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.12);
+}
+
+.layout-user-menu-link {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.9rem;
+  text-align: left;
+  background: none;
+  border: none;
+  color: $blue-600;
+}
+
+.layout-user-menu-link:hover {
   background-color: $gray-100;
 }
 
