@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% block title %}{% endblock %}</title>
+  </head>
+  <body>
+    <main class="simple-page">
+      <h1>{% block heading %}{% endblock %}</h1>
+      {% block message %}{% endblock %}
+      <p><a href="/">Back to the homepage</a></p>
+    </main>
+  </body>
+</html>

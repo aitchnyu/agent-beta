@@ -13,7 +13,7 @@ from django.http import (  # ninja inspects view signatures at runtime
     HttpRequest,
     HttpResponse,
 )
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.utils import timezone
 from inertia import InertiaResponse
 from ninja import (
@@ -213,7 +213,16 @@ def redeem_login_key(request: HttpRequest, key: str) -> HttpResponse:
     consumes it atomically — the link works exactly once. Any miss
     (unknown, used, expired) is a 404 like every other resource gate. Not
     DEBUG-gated: the unguessable, single-use key is the gate.
+
+    An ALREADY-AUTHENTICATED viewer is refused with a plain explainer page
+    (409, shared ``simple.html`` shell) BEFORE the key is touched.
     """
+    if request.user.is_authenticated:
+        logger.warning(
+            "login link redemption refused, viewer already signed in",
+            viewer=request.user.username,
+        )
+        return render(request, "login_link_refused.html", status=409)
     user = LoginKey.redeem(key)
     if user is None:
         raise Http404

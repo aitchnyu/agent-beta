@@ -22,4 +22,6 @@ framework).
 
 - Model: none. View: `views/home.py` (`router`, mounted at `/`).
 - Frontend: `frontend/src/ours/pages/Home.vue`, schema in `ours/schemas.ts`.
-- Tests: `tests/test_home_views.py`, `tests/test_home_playwright.py`.
+- Tests: `tests/test_home_views.py` (the page has no e2e module of its own —
+  its auth chrome lives in the framework navbar, covered by the framework
+  e2e suite).

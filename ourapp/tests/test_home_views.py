@@ -65,10 +65,11 @@ class HomeViewTests(BaseInertiaTestCase):
         )
 
     def test_home_issues_csrftoken_cookie(self) -> None:
-        """GET / sets a csrftoken cookie so the logout form can POST."""
+        """GET / sets a csrftoken cookie so CSRF-needing POSTs can send it."""
         # {% csrf_token %} in the inertia layout calls get_token(), so the
-        # csrftoken cookie is issued on every GET - without it the logout
-        # form would post an empty token -> 403.
+        # csrftoken cookie is issued on every GET — without it the navbar
+        # user menu's logout form (and any other POSTing layer) would fail
+        # its token check -> 403.
         response = self.client.get("/")
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertIn("csrftoken", response.cookies)

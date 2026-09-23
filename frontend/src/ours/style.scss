@@ -6,8 +6,7 @@
   max-width: 32rem;
 }
 
-.home-login-link,
-.home-logout-btn {
+.home-login-link {
   display: inline-block;
   margin-top: 1rem;
   padding: 0.5rem 1rem;
@@ -18,10 +17,6 @@
   text-decoration: none;
   cursor: pointer;
   font: inherit;
-}
-
-.home-logout-btn {
-  background-color: var(--bs-gray-500, #6b7280);
 }
 
 // Design mockups (steer.md § Mockups): ONE crosshatch layer over the whole

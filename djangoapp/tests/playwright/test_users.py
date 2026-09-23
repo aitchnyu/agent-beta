@@ -24,8 +24,10 @@ class LoginForTestGateE2eTestCase(BasePlaywrightTestCase):
         just the cookie's presence) proves the server accepts the session.
         """
         self.page.goto(f"{self.live_server_url}/")
-        self.page.wait_for_selector(".home-status-signed-in")
-        expect(self.page.locator(".home-status-signed-in")).to_contain_text(self.user.username)
+        self.page.wait_for_selector(".layout-user-menu")
+        expect(self.page.locator(".layout-user-menu .layout-user-button")).to_contain_text(
+            self.user.username
+        )
 
 
 class UserEditE2eTestCase(BasePlaywrightTestCase):
@@ -172,6 +174,7 @@ class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):
     "Log out everywhere" ends that session from the admin side.
 
     - test_login_link_issues_and_redeems, issue on the details page, redeem in a 2nd browser
+      (an already-signed-in viewer gets a refusal page without burning the key)
     - test_logout_everywhere_ends_session, the admin button kills the redeemed session
     - test_details_requires_no_superuser_rows, non-superuser viewer sees no admin actions/attrs
     """
@@ -194,7 +197,12 @@ class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):
         self.login_as(self.superuser)
 
     def test_login_link_issues_and_redeems(self) -> None:
-        """Issue on the details page, redeem in a second browser."""
+        """Issue on the details page, redeem in a second browser.
+
+        The admin's own signed-in browser gets the refusal page first — an
+        authenticated viewer must NOT consume the one-time key (409 explainer
+        page); the anonymous browser then redeems it fine.
+        """
         # Sweetalert renders in-DOM and toasts are fire-and-forget; the e2e
         # budget covers the chunk loads under VM load.
         self.page.set_default_timeout(4000)
@@ -207,10 +215,20 @@ class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):
         page.wait_for_selector(".user-details-link-url")
         url = page.locator(".user-details-link-url").input_value()
 
+        # The shared page is still signed in as the admin → refused, key intact.
+        page.goto(url)
+        expect(page.locator(".simple-page")).to_contain_text("already signed in")
+        # The refusal's 409 status is a deliberate browser console entry.
+        self.pop_expected_console_error(
+            r"Failed to load resource: the server responded with a status of 409"
+        )
+
         with self.anon_page() as anon:
             anon.goto(url)
-            anon.wait_for_selector(".home-status-signed-in")
-            expect(anon.locator(".home-status-signed-in")).to_contain_text("Link Target")
+            anon.wait_for_selector(".layout-user-menu")
+            expect(anon.locator(".layout-user-menu .layout-user-button")).to_contain_text(
+                "Link Target"
+            )
 
     def test_logout_everywhere_ends_session(self) -> None:
         """The admin button kills a session redeemed in a second browser."""
@@ -224,7 +242,7 @@ class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):
 
         with self.anon_page() as anon:
             anon.goto(url)
-            anon.wait_for_selector(".home-status-signed-in")
+            anon.wait_for_selector(".layout-user-menu")
 
             page.locator(".user-details-logout-btn").click()
             page.locator(".swal2-confirm").click()

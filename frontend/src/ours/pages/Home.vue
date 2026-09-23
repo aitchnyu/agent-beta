@@ -3,7 +3,6 @@ import { computed } from "vue"
 // Framework layout sits at frontend/src/components/Layout.vue; from
 // src/ours/pages/ that is two levels up to src/ then into components/.
 import PageTitle from "../../components/PageTitle.vue"
-import { getCsrfToken } from "../../utils/csrf"
 import { HomePropsSchema } from "../schemas"
 // Side-effect import: the app ships its own styles from ours/style.scss, so the
 // feature is self-contained (no edit to the framework's main.scss).
@@ -12,7 +11,6 @@ import "../style.scss"
 // Inertia wraps the page data under a `props` key (page.props.props); parse it.
 const props = defineProps<{ props: object }>()
 const p = computed(() => HomePropsSchema.parse(props.props))
-const csrfToken = computed(() => getCsrfToken())
 </script>
 
 <template>
@@ -24,32 +22,8 @@ const csrfToken = computed(() => getCsrfToken())
       under <code>ourapp/</code> and <code>frontend/src/ours/</code> (see
       <code>docs/reference/</code> for a complete example).
     </p>
-    <p v-if="p.is_authenticated" class="home-status home-status-signed-in">
-      Signed in as
-      <strong class="home-display-name">{{ p.display_name }}</strong>
-    </p>
-    <p v-else class="home-status home-status-signed-out">
+    <p v-if="!p.is_authenticated" class="home-status home-status-signed-out">
       You are not signed in.
     </p>
-
-    <!-- Signed out: a generic sign-in link — the provider buttons live on the
-         allauth login page (rendered from the configured SocialApps). -->
-    <a
-      v-if="!p.is_authenticated"
-      class="home-login-link"
-      href="/accounts/login/"
-    >
-      Sign in
-    </a>
-    <!-- Signed in: a logout button (POSTs to allauth, redirects to LOGOUT_REDIRECT_URL). -->
-    <form
-      v-else
-      action="/accounts/logout/"
-      method="post"
-      class="home-logout-form"
-    >
-      <input type="hidden" name="csrfmiddlewaretoken" :value="csrfToken" />
-      <button class="home-logout-btn" type="submit">Sign out</button>
-    </form>
   </div>
 </template>

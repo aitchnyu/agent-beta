@@ -27,5 +27,7 @@ The landing page — plus the repo's permanent mockup demo route.
 - View: `views/home.py` (`router`, mounted at `/` — owns both routes).
 - Frontend: `frontend/src/ours/pages/Home.vue`,
   `frontend/src/ours/pages/MockupTodos.vue`, schema in `ours/schemas.ts`.
-- Tests: `tests/test_home_views.py`, `tests/test_home_playwright.py` (the
-  mockup route's superuser gate is covered by the framework screenshot pass).
+- Tests: `tests/test_home_views.py` (the page's own e2e module was retired
+  with the auth chrome: the anon landing elements are exercised by the
+  framework e2e suite, and the mockup route's superuser gate is covered by
+  the framework screenshot pass).

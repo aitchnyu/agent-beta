@@ -575,6 +575,8 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
     """POST /users/api/<id>/loginlink superuser admin action.
 
     - test_loginlink_issues_redeemable_url, POST returns a URL redeeming once (302 then 404)
+    - test_loginlink_refused_for_signed_in_viewer, an authenticated GET gets the 409 explainer
+      page WITHOUT consuming the key (an anonymous client can still redeem it)
     - test_loginlink_url_is_http_without_proxy_header, no X-Forwarded-Proto → the URL is http (dev)
     - test_loginlink_url_is_https_behind_tls_proxy, X-Forwarded-Proto → the URL is https (VM)
     - test_loginlink_requires_csrf_token, tokenless POST is 403; with X-CSRFToken it is 200
@@ -649,10 +651,32 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
         data = self._issue()
         self.assertTrue(data["url"].startswith("http://testserver/login-for-test/"))
         self.assertTrue(data["expires_at"])
-        redemption = self.client.get(data["url"])
+        # Redeem from an ANONYMOUS client — self.client is the signed-in
+        # superuser, which the refusal branch rejects (previous test).
+        redemption = Client().get(data["url"])
         self.assertEqual(redemption.status_code, 302)
         # Single use: the same URL never logs in again.
-        self.assertEqual(self.client.get(data["url"]).status_code, 404)
+        self.assertEqual(Client().get(data["url"]).status_code, 404)
+
+    def test_loginlink_refused_for_signed_in_viewer(self) -> None:
+        """An authenticated GET is refused (409) WITHOUT consuming the key.
+
+        A signed-in admin pasting the link into the wrong window must not
+        burn the target's one-time key: the refusal page renders before
+        LoginKey.redeem is ever called, so an anonymous client can still
+        redeem the very same URL afterwards.
+        """
+        # Authenticated refusal GET + a fresh client's redemption round trip.
+        self.allow_more_queries(16)
+        data = self._issue()  # leaves self.client signed in as the superuser
+        refusal = self.client.get(data["url"])
+        self.assertEqual(refusal.status_code, 409)
+        self.assertTemplateUsed(refusal, "login_link_refused.html")
+        self.assertIn("already signed in", refusal.content.decode())
+        # The explainer page carries the shared simple-page homepage link.
+        self.assertIn('href="/"', refusal.content.decode())
+        # Not consumed: an anonymous client still redeems it.
+        self.assertEqual(Client().get(data["url"]).status_code, 302)
 
     def test_loginlink_requires_csrf_token(self) -> None:
         """Tokenless POST is 403; with the X-CSRFToken header it is 200."""

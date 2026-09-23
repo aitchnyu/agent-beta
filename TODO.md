@@ -17,6 +17,8 @@ Readme to mention steps
 
 Allauth whitelist/blacklist to allow only certain users. Document in readme.
 
+_assert_select_budget - dont overprovision by more than 33%
+
 save_with_logs take sequence number
 
 ```

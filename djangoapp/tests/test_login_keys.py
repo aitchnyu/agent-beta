@@ -6,7 +6,7 @@ from io import StringIO
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.test import tag
+from django.test import Client, tag
 from django.utils import timezone
 
 from djangoapp.models import LoginKey, User
@@ -105,7 +105,10 @@ class MakeLoginLinkCommandTests(BaseTestCase):
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], "/")
         self.assertEqual(self.client.session["_auth_user_id"], str(self.user.pk))
-        self.assertEqual(self.client.get(path).status_code, 404)
+        # Single use: the same URL never logs in again. Asked from a FRESH
+        # anonymous client — this one is now signed in (the redemption logged
+        # it in), which the view refuses instead of 404ing.
+        self.assertEqual(Client().get(path).status_code, 404)
 
     def test_printed_url_honors_base_url(self) -> None:
         """--base-url prefixes the printed path.
