@@ -17,6 +17,7 @@ checkframework1 in main/.
 from __future__ import annotations
 
 from django.test import tag
+from playwright.sync_api import expect
 
 from djangoapp.models import User
 from djangoapp.tests._git_fixtures import GitRepoMixin
@@ -73,7 +74,7 @@ class FrameworkSmokeE2e(GitRepoMixin, BasePlaywrightTestCase):
         page = self.page
         page.goto(f"{self.live_server_url}/git/commits")
         page.get_by_role("link", name="Add create endpoint").wait_for(state="visible")
-        self.assertIn("3 commits", page.inner_text("body"))
+        expect(page.locator("body")).to_contain_text("3 commits")
 
     def test_client_errors_smoke(self) -> None:
         """An uncaught window error is captured and POSTed to /client-errors."""

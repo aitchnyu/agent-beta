@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from playwright.sync_api import expect
+
 from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 
 
@@ -21,17 +23,19 @@ class HomeAuthE2e(BasePlaywrightTestCase):
         with self.anon_page() as page:
             page.goto(f"{self.live_server_url}/")
             page.wait_for_selector(".home-status-signed-out")
-            self.assertEqual(page.get_attribute(".home-login-link", "href"), "/accounts/login/")
-            self.assertEqual(page.locator(".home-logout-btn").count(), 0)
+            expect(page.locator(".home-login-link")).to_have_attribute(
+                "href", "/accounts/login/"
+            )
+            expect(page.locator(".home-logout-btn")).to_have_count(0)
 
     def test_authenticated_home_shows_user(self) -> None:
         """Authed / shows the user's display name and a logout button, no login link."""
         page = self.page
         page.goto(f"{self.live_server_url}/")
         page.wait_for_selector(".home-status-signed-in")
-        self.assertEqual(page.text_content(".home-display-name"), self.user.display_name)
-        self.assertEqual(page.locator(".home-logout-btn").count(), 1)
-        self.assertEqual(page.locator(".home-login-link").count(), 0)
+        expect(page.locator(".home-display-name")).to_have_text(self.user.display_name)
+        expect(page.locator(".home-logout-btn")).to_have_count(1)
+        expect(page.locator(".home-login-link")).to_have_count(0)
 
     def test_logout_flow_returns_to_signed_out(self) -> None:
         """Clicking Sign out logs out and lands back on the signed-out home."""

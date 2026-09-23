@@ -9,6 +9,8 @@ the partial reload.
 
 from __future__ import annotations
 
+import re
+
 from django.utils import timezone
 from playwright.sync_api import expect
 
@@ -65,9 +67,10 @@ class NotificationsE2e(BasePlaywrightTestCase):
         page.goto(f"{self.live_server_url}/")
         page.click(".layout-user-menu summary")
         page.wait_for_selector(".layout-user-menu .layout-menu-panel")
-        self.assertEqual(page.locator(".layout-user-menu .layout-menu-link").count(), 3)
-        profile_href = page.locator(".user-menu-profile").get_attribute("href") or ""
-        self.assertIn("/users/id/", profile_href)
+        expect(page.locator(".layout-user-menu .layout-menu-link")).to_have_count(3)
+        expect(page.locator(".user-menu-profile")).to_have_attribute(
+            "href", re.compile(r"/users/id/")
+        )
 
     def test_select_and_mark_read_updates_badge(self) -> None:
         """Select one row → toolbar Mark read lowers the badge by one."""
@@ -83,7 +86,7 @@ class NotificationsE2e(BasePlaywrightTestCase):
         # The page updates the navbar badge via a partial reload of the
         # shared prop; expect() retries until it settles to 1.
         expect(page.locator(".notifications-badge")).to_have_text("1")
-        self.assertEqual(page.locator(".notification-unread").count(), 1)
+        expect(page.locator(".notification-unread")).to_have_count(1)
 
     def test_select_and_delete_removes_rows(self) -> None:
         """Select both rows → toolbar Delete (confirmed) empties the list."""

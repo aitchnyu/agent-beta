@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from playwright.sync_api import expect
+
 from djangoapp.models import User
 from djangoapp.tests._git_fixtures import GitRepoMixin
 from djangoapp.tests.playwright._base import BasePlaywrightTestCase
@@ -49,7 +51,6 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         page.get_by_role("link", name="scratch_only.py").wait_for(state="visible")
 
         # -- all files present, grouped under folder rows (bare filenames) --
-        body = page.inner_text("body")
         for name in (
             "app.py",
             "notes.md",
@@ -58,67 +59,50 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
             "scratch_only.py",
             "scratch_notes.md",
         ):
-            self.assertIn(name, body)
+            expect(page.locator("body")).to_contain_text(name)
 
         # -- folder rows: main's Docs/ + TodoApp/ (+ nested TodoApp/Docs/),
         #    then scratch's TodoApp/ — selected by full-dir-path attribute,
         #    scoped to each worktree's section container --
         main = page.locator('[data-tree-section="main"]')
         scratch = page.locator('[data-tree-section="scratch"]')
-        self.assertEqual(page.locator("[data-tree-folder]").count(), 4)
-        # text_content (not inner_text): the caret/name/count spans sit on
-        # one button; inner_text would split them by layout. Attribute values
-        # are full dir paths — the DISPLAY text is the bare segment, so the
-        # nested TodoApp/Docs/ shows "Docs/ (1)" like its root sibling; the
-        # attribute is what disambiguates them.
-        self.assertIn("Docs/ (1)", main.locator('[data-tree-toggle="Docs"]').text_content() or "")
-        self.assertIn(
-            "TodoApp/ (3)",
-            main.locator('[data-tree-toggle="TodoApp"]').text_content() or "",
-        )
-        self.assertIn(
-            "Docs/ (1)",
-            main.locator('[data-tree-toggle="TodoApp/Docs"]').text_content() or "",
-        )
-        self.assertIn(
-            "TodoApp/ (2)",
-            scratch.locator('[data-tree-toggle="TodoApp"]').text_content() or "",
-        )
+        expect(page.locator("[data-tree-folder]")).to_have_count(4)
+        # to_contain_text (not a raw text_content assert): the caret/name/
+        # count spans sit on one button and innerText splits them by layout —
+        # Playwright normalizes the whitespace, so they match again.
+        # Attribute values are full dir paths — the DISPLAY text is the bare
+        # segment, so the nested TodoApp/Docs/ shows "Docs/ (1)" like its root
+        # sibling; the attribute is what disambiguates them.
+        expect(main.locator('[data-tree-toggle="Docs"]')).to_contain_text("Docs/ (1)")
+        expect(main.locator('[data-tree-toggle="TodoApp"]')).to_contain_text("TodoApp/ (3)")
+        expect(main.locator('[data-tree-toggle="TodoApp/Docs"]')).to_contain_text("Docs/ (1)")
+        expect(scratch.locator('[data-tree-toggle="TodoApp"]')).to_contain_text("TodoApp/ (2)")
         # app.py's link lives INSIDE main's TodoApp folder li (nesting).
-        self.assertEqual(
+        expect(
             main.locator(
                 '[data-tree-folder="TodoApp"] a[href="/git/uncommitted/main/TodoApp/app.py"]'
-            ).count(),
-            1,
-        )
+            )
+        ).to_have_count(1)
 
         # -- file (diff) links keep the worktree in the path --
-        self.assertEqual(
-            page.get_by_role("link", name="app.py").get_attribute("href"),
-            "/git/uncommitted/main/TodoApp/app.py",
+        expect(page.get_by_role("link", name="app.py")).to_have_attribute(
+            "href", "/git/uncommitted/main/TodoApp/app.py"
         )
-        self.assertEqual(
-            page.get_by_role("link", name="scratch_only.py").get_attribute("href"),
-            "/git/uncommitted/scratch/TodoApp/scratch_only.py",
+        expect(page.get_by_role("link", name="scratch_only.py")).to_have_attribute(
+            "href", "/git/uncommitted/scratch/TodoApp/scratch_only.py"
         )
 
         # -- secondary links point at the file url (browse root = repo parent) --
-        self.assertEqual(
-            page.locator('a[href="/files/main/TodoApp/app.py"]').count(),
-            1,
-        )
-        self.assertEqual(
-            page.locator('a[href="/files/scratch/TodoApp/scratch_only.py"]').count(),
-            1,
-        )
+        expect(page.locator('a[href="/files/main/TodoApp/app.py"]')).to_have_count(1)
+        expect(page.locator('a[href="/files/scratch/TodoApp/scratch_only.py"]')).to_have_count(1)
 
         # -- status words new/mod with their color classes (4 untracked → new,
         #    2 modified → mod across the two worktrees) --
         words = page.locator(".git-status").all_inner_texts()
         self.assertIn("new", words)
         self.assertIn("mod", words)
-        self.assertEqual(page.locator(".git-status.text-success").count(), 4)
-        self.assertEqual(page.locator(".git-status.text-warning").count(), 2)
+        expect(page.locator(".git-status.text-success")).to_have_count(4)
+        expect(page.locator(".git-status.text-warning")).to_have_count(2)
 
     def test_file_tree_folds(self) -> None:
         """Folder rows fold their subtrees away and back, independently.
@@ -144,36 +128,36 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         app_link = page.locator('a[href="/git/uncommitted/main/TodoApp/app.py"]')
 
         # -- a11y wiring: expanded by default, toggle names its subtree --
-        self.assertEqual(docs_toggle.get_attribute("aria-expanded"), "true")
+        expect(docs_toggle).to_have_attribute("aria-expanded", "true")
         controls = docs_toggle.get_attribute("aria-controls")
-        self.assertTrue(controls and page.locator(f"#{controls}").count() == 1)
+        assert controls is not None
+        expect(page.locator(f"#{controls}")).to_have_count(1)
 
         # -- fold Docs/ --
         docs_toggle.click()
-        self.assertEqual(docs_toggle.get_attribute("aria-expanded"), "false")
-        self.assertFalse(idea_link.is_visible())
+        expect(docs_toggle).to_have_attribute("aria-expanded", "false")
+        expect(idea_link).to_be_hidden()
         # SIBLING folder unaffected — the bug folded every sibling together.
-        self.assertEqual(todoapp_toggle.get_attribute("aria-expanded"), "true")
-        self.assertTrue(app_link.is_visible())
+        expect(todoapp_toggle).to_have_attribute("aria-expanded", "true")
+        expect(app_link).to_be_visible()
         # NESTED same-named folder unaffected — per-LEVEL scoping.
-        self.assertEqual(nested_toggle.get_attribute("aria-expanded"), "true")
-        self.assertTrue(nested_link.is_visible())
+        expect(nested_toggle).to_have_attribute("aria-expanded", "true")
+        expect(nested_link).to_be_visible()
 
         # -- unfold Docs/ --
         docs_toggle.click()
-        self.assertEqual(docs_toggle.get_attribute("aria-expanded"), "true")
-        self.assertTrue(idea_link.is_visible())
+        expect(docs_toggle).to_have_attribute("aria-expanded", "true")
+        expect(idea_link).to_be_visible()
 
     def test_commit_list_renders(self) -> None:
         """``/git/commits`` shows the 3 subjects (newest first) + a commit count."""
         page = self.page
         page.goto(f"{self.live_server_url}/git/commits")
         page.get_by_role("link", name="Add create endpoint").wait_for(state="visible")
-        body = page.inner_text("body")
-        self.assertIn("Add delete endpoint", body)
-        self.assertIn("Add create endpoint", body)
-        self.assertIn("Initial TodoApp", body)
-        self.assertIn("3 commits", body)
+        expect(page.locator("body")).to_contain_text("Add delete endpoint")
+        expect(page.locator("body")).to_contain_text("Add create endpoint")
+        expect(page.locator("body")).to_contain_text("Initial TodoApp")
+        expect(page.locator("body")).to_contain_text("3 commits")
 
     def test_diff_highlighted(self) -> None:
         """An uncommitted diff renders as add/del colored rows (diff2html).
@@ -189,10 +173,10 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         # the view rendered before the asserts below.
         page.wait_for_selector("[data-split-diff] .d2h-ins")
         diff = page.locator("[data-split-diff]")
-        self.assertGreater(diff.locator(".d2h-ins").count(), 0)
-        self.assertGreater(diff.locator(".d2h-del").count(), 0)
-        self.assertIn("TodoApp/app.py", diff.text_content() or "")
-        self.assertIn("final", diff.text_content() or "")
+        expect(diff.locator(".d2h-ins").first).to_be_visible()
+        expect(diff.locator(".d2h-del").first).to_be_visible()
+        expect(diff).to_contain_text("TodoApp/app.py")
+        expect(diff).to_contain_text("final")
 
     def test_diff_split_and_unified_by_viewport(self) -> None:
         """The diff shows side-by-side on wide viewports, line-by-line on narrow.
@@ -208,14 +192,14 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         # Wide (default 1280x720): the side-by-side container shows (with
         # diff2html's two file panes inside), line-by-line hides.
         side = page.locator("[data-sd-side]")
-        self.assertTrue(side.is_visible())
+        expect(side).to_be_visible()
         # diff2html's side-by-side: one wrapper, two side panes.
-        self.assertEqual(side.locator(".d2h-file-side-diff").count(), 2)
-        self.assertFalse(page.locator("[data-sd-unified]").is_visible())
+        expect(side.locator(".d2h-file-side-diff")).to_have_count(2)
+        expect(page.locator("[data-sd-unified]")).to_be_hidden()
         # Narrow: the line-by-line container shows, side-by-side hides.
         page.set_viewport_size({"width": 375, "height": 800})
-        self.assertTrue(page.locator("[data-sd-unified]").is_visible())
-        self.assertFalse(side.is_visible())
+        expect(page.locator("[data-sd-unified]")).to_be_visible()
+        expect(side).to_be_hidden()
         page.set_viewport_size(default_viewport)
 
     def test_diff_opens_via_click(self) -> None:
@@ -242,8 +226,8 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         page.wait_for_url(f"**/git/commits/{self.short_b}/TodoApp/endpoints.py")
         page.wait_for_selector("[data-split-diff] .d2h-ins")
         diff = page.locator("[data-split-diff]")
-        self.assertGreater(diff.locator(".d2h-ins").count(), 0)
-        self.assertIn("ADDED", diff.text_content() or "")
+        expect(diff.locator(".d2h-ins").first).to_be_visible()
+        expect(diff).to_contain_text("ADDED")
 
     def test_commit_navigation(self) -> None:
         """The commits → files → diff link chain works end-to-end.
@@ -255,17 +239,17 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         # Commit list has a link to each commit.
         page.goto(f"{self.live_server_url}/git/commits")
         page.get_by_role("link", name="Add create endpoint").wait_for(state="visible")
-        self.assertIn("Add delete endpoint", page.inner_text("body"))
+        expect(page.locator("body")).to_contain_text("Add delete endpoint")
         # The commit page links to each changed file.
         page.goto(f"{self.live_server_url}/git/commits/{self.short_b}")
         page.get_by_role("link", name="endpoints.py").wait_for(state="visible")
-        self.assertIn("Add create endpoint", page.inner_text("body"))
+        expect(page.locator("body")).to_contain_text("Add create endpoint")
         # The file's diff renders (insert rows + the ADDED tag for a new file).
         page.goto(f"{self.live_server_url}/git/commits/{self.short_b}/TodoApp/endpoints.py")
         page.wait_for_selector("[data-split-diff] .d2h-ins")
-        diff_text = page.locator("[data-split-diff]").text_content() or ""
-        self.assertIn("ADDED", diff_text)
-        self.assertIn("TodoApp/endpoints.py", diff_text)
+        diff = page.locator("[data-split-diff]")
+        expect(diff).to_contain_text("ADDED")
+        expect(diff).to_contain_text("TodoApp/endpoints.py")
 
     def test_repo_subnav_highlights_section(self) -> None:
         """The Code sub-nav links all three sections and marks the active one.
@@ -280,7 +264,7 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
 
         def assert_active(label: str) -> None:
             links = subnav.get_by_role("link")
-            self.assertEqual(links.count(), 3)
+            expect(links).to_have_count(3)
             # One name→aria-current map: exactly `label` carries "page"
             current = {
                 (link.text_content() or "").strip(): link.get_attribute("aria-current")
@@ -297,9 +281,8 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         # The merged navbar entry lands on the default section (Uncommitted).
         page.goto(f"{self.live_server_url}/git/uncommitted/")
         page.get_by_role("link", name="app.py").wait_for(state="visible")
-        self.assertEqual(
-            page.get_by_role("link", name="Code", exact=True).get_attribute("href"),
-            "/git/uncommitted/",
+        expect(page.get_by_role("link", name="Code", exact=True)).to_have_attribute(
+            "href", "/git/uncommitted/"
         )
         assert_active("Uncommitted")
 

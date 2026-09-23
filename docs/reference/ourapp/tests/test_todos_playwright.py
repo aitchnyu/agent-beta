@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from playwright.sync_api import expect
+
 from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 
 
@@ -25,7 +27,7 @@ class TodosE2e(BasePlaywrightTestCase):
         page.get_by_label("New todo").fill("E2E todo")
         page.get_by_role("button", name="Add todo").click()
         page.wait_for_selector(".ours-todo-item")
-        self.assertIn("E2E todo", page.inner_text("body"))
+        expect(page.locator("body")).to_contain_text("E2E todo")
 
     def test_toggle_todo_completes(self) -> None:
         "Clicking toggle marks the todo complete."
@@ -36,5 +38,4 @@ class TodosE2e(BasePlaywrightTestCase):
         page.wait_for_selector(".ours-todo-item")
         # The toggle POSTs then reloads the list; wait for the completed class.
         page.get_by_role("button", name="Toggle complete").click()
-        page.wait_for_selector(".ours-todo-completed")
-        self.assertEqual(page.locator(".ours-todo-completed").count(), 1)
+        expect(page.locator(".ours-todo-completed")).to_have_count(1)

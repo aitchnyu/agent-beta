@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import re
+
+from playwright.sync_api import expect
+
 from djangoapp.models import User
 from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 
@@ -56,12 +60,11 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         """The ourapp/ listing renders its entries and a root/ourapp breadcrumb."""
         page = self.page
         page.goto(self._files(_DIR))
-        body = page.inner_text("body")
-        self.assertIn(_ENTRY_DIR, body)
-        self.assertIn("urls.py", body)
+        expect(page.locator("body")).to_contain_text(_ENTRY_DIR)
+        expect(page.locator("body")).to_contain_text("urls.py")
         crumb = page.locator(".files-breadcrumb")
-        self.assertTrue(crumb.get_by_role("link", name="root").is_visible())
-        self.assertTrue(crumb.get_by_role("link", name=_LEAF).is_visible())
+        expect(crumb.get_by_role("link", name="root")).to_be_visible()
+        expect(crumb.get_by_role("link", name=_LEAF)).to_be_visible()
 
     def test_clicking_directory_entry_navigates(self) -> None:
         """Clicking a directory entry navigates into it (Inertia SPA nav)."""
@@ -69,7 +72,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         page.goto(self._files(_DIR))
         page.get_by_role("link", name=_ENTRY_DIR).click()
         page.wait_for_url(lambda url: f"/files/{_DIR}/{_ENTRY_DIR}" in url)
-        self.assertIn(f"/files/{_DIR}/{_ENTRY_DIR}", page.url)
+        expect(page).to_have_url(re.compile(re.escape(f"/files/{_DIR}/{_ENTRY_DIR}")))
 
     def test_text_file_preview(self) -> None:
         """A code file renders its (escaped) content in the preview."""
@@ -81,9 +84,8 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         page.goto(self._files(_TEXT_FILE))
         page.wait_for_selector('[data-files-state="rendered"]')
         preview = page.locator(".files-code")
-        text = preview.text_content() or ""
-        self.assertIn("BaseModel", text)
-        self.assertIn("models-management", text)
+        expect(preview).to_contain_text("BaseModel")
+        expect(preview).to_contain_text("models-management")
 
     def test_text_preview_is_html_escaped(self) -> None:
         """File markup previews as escaped text, never as live elements.
@@ -98,22 +100,22 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         page.wait_for_selector('[data-files-state="rendered"]')
         preview = page.locator(".files-code")
         # The file's markup is shown as text (highlight.js escapes it), not parsed.
-        self.assertIn("<template>", preview.text_content() or "")
+        expect(preview).to_contain_text("<template>")
         # A v-html regression would parse the file's tags into live elements.
-        self.assertEqual(page.locator(".files-code script").count(), 0)
-        self.assertEqual(page.locator(".files-code template").count(), 0)
-        self.assertEqual(page.locator(".files-code div").count(), 0)
+        expect(page.locator(".files-code script")).to_have_count(0)
+        expect(page.locator(".files-code template")).to_have_count(0)
+        expect(page.locator(".files-code div")).to_have_count(0)
 
     def test_humanized_time_toggles_to_absolute(self) -> None:
         """Clicking the time swaps the relative label for the absolute one."""
         page = self.page
         page.goto(self._files(_DIR))
         t = page.locator(".humanized-time").first
-        relative = t.text_content()
+        relative = t.text_content() or ""
         t.click()
         # The deemphasized time small only exists in the absolute view.
         t.locator("small.humanized-time-time").wait_for(state="visible")
-        self.assertNotEqual(relative, t.text_content())
+        expect(t).not_to_have_text(relative)
 
     def test_markdown_renders_with_image(self) -> None:
         """Markdown shows a raw-source link, then rendered HTML, then raw source.
@@ -128,29 +130,27 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         # on the component state flip, not their (already-visible) elements.
         page.wait_for_selector('[data-files-state="rendered"]')
         rendered = page.locator(".files-markdown")
-        self.assertIn("Sample markdown", rendered.inner_text())
+        expect(rendered).to_contain_text("Sample markdown")
         img = rendered.locator("img")
-        img.wait_for(state="visible")
-        self.assertEqual(
-            img.get_attribute("src"),
-            "/files/raw/main/djangoapp/tests/filefixtures/diagram.svg",
+        expect(img).to_be_visible()
+        expect(img).to_have_attribute(
+            "src", "/files/raw/main/djangoapp/tests/filefixtures/diagram.svg"
         )
 
         # A deemphasized link targets the raw block.
         link = page.locator(".files-raw-link a")
-        self.assertEqual(link.get_attribute("href"), "#files-raw-source")
+        expect(link).to_have_attribute("href", "#files-raw-source")
 
         # The raw block shows the markdown source, not the rendered HTML: the
         # image is the literal `![…](…)` syntax, not an <img> element.
         raw = page.locator("#files-raw-source")
-        raw_text = raw.text_content() or ""
-        self.assertIn("# Sample markdown", raw_text)
-        self.assertIn("![A blue square](diagram.svg)", raw_text)
-        self.assertEqual(raw.locator("img").count(), 0)
+        expect(raw).to_contain_text("# Sample markdown")
+        expect(raw).to_contain_text("![A blue square](diagram.svg)")
+        expect(raw.locator("img")).to_have_count(0)
 
         # Clicking the link scrolls to the raw block (native hash navigation).
         link.click()
-        self.assertIn("#files-raw-source", page.url)
+        expect(page).to_have_url(re.compile(re.escape("#files-raw-source")))
 
     def _goto_sample_md(self) -> None:
         """Open the markdown fixture and wait for the async preview to render."""
@@ -171,9 +171,8 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         # Outline entries mirror the page's headings.
         links = outline.locator("a")
         self.assertGreater(links.count(), 20)
-        self.assertEqual(
-            outline.get_by_role("link", name="Section one").get_attribute("href"),
-            "#section-one",
+        expect(outline.get_by_role("link", name="Section one")).to_have_attribute(
+            "href", "#section-one"
         )
         # The outline precedes the rendered markdown.
         outline_box = outline.bounding_box()
@@ -185,18 +184,18 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         toggle = page.locator("[data-outline-toggle]")
         toggle.wait_for(state="visible")
         listing = page.locator(".markdown-outline-list")
-        self.assertIn("markdown-outline-collapsed", listing.get_attribute("class") or "")
-        self.assertEqual(toggle.get_attribute("aria-expanded"), "false")
+        expect(listing).to_have_class(re.compile(r"markdown-outline-collapsed"))
+        expect(toggle).to_have_attribute("aria-expanded", "false")
         toggle.click()
-        self.assertEqual(toggle.get_attribute("aria-expanded"), "true")
-        self.assertNotIn("markdown-outline-collapsed", listing.get_attribute("class") or "")
+        expect(toggle).to_have_attribute("aria-expanded", "true")
+        expect(listing).not_to_have_class(re.compile(r"markdown-outline-collapsed"))
 
     def test_markdown_hash_link_scrolls(self) -> None:
         """Clicking an outline link scrolls its heading into view (hash nav)."""
         page = self.page
         self._goto_sample_md()
         page.locator("[data-outline]").get_by_role("link", name="Heading 20").click()
-        self.assertIn("#heading-20", page.url)
+        expect(page).to_have_url(re.compile(re.escape("#heading-20")))
         heading = page.locator(".files-markdown h2#heading-20")
         heading.wait_for(state="attached")
         # Scrolled into view: the native anchor jump lands asynchronously on
@@ -223,42 +222,34 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         page = self.page
         self._goto_sample_md()
         rendered = page.locator(".files-markdown")
-        self.assertEqual(
-            rendered.get_by_role("link", name="another file").get_attribute("href"),
-            "/files/main/djangoapp/tests/filefixtures/other.md",
+        expect(rendered.get_by_role("link", name="another file")).to_have_attribute(
+            "href", "/files/main/djangoapp/tests/filefixtures/other.md"
         )
-        self.assertEqual(
-            rendered.get_by_role("link", name="subdir link").get_attribute("href"),
-            "/files/main/djangoapp/tests/filefixtures/sub/other.md",
+        expect(rendered.get_by_role("link", name="subdir link")).to_have_attribute(
+            "href", "/files/main/djangoapp/tests/filefixtures/sub/other.md"
         )
         # Leading-/ resolves against the file's worktree root (main/), not
         # the browse root.
-        self.assertEqual(
-            rendered.get_by_role("link", name="root-anchored link").get_attribute("href"),
-            "/files/main/djangoapp/tests/filefixtures/other.md",
+        expect(rendered.get_by_role("link", name="root-anchored link")).to_have_attribute(
+            "href", "/files/main/djangoapp/tests/filefixtures/other.md"
         )
         # Dot segments stay in the produced URL verbatim — the backend's
         # resolve-and-confine (PathWrapper) is the boundary for what arrives.
-        self.assertEqual(
-            rendered.get_by_role("link", name="dot-segment link").get_attribute("href"),
-            "/files/main/djangoapp/tests/filefixtures/sub/../other.md",
+        expect(rendered.get_by_role("link", name="dot-segment link")).to_have_attribute(
+            "href", "/files/main/djangoapp/tests/filefixtures/sub/../other.md"
         )
         # Climbing hrefs are still only ever /files/-prefixed paths.
-        self.assertEqual(
-            rendered.get_by_role("link", name="workroot-climbing link").get_attribute("href"),
-            "/files/main/djangoapp/tests/filefixtures/../../../other.md",
+        expect(rendered.get_by_role("link", name="workroot-climbing link")).to_have_attribute(
+            "href", "/files/main/djangoapp/tests/filefixtures/../../../other.md"
         )
-        self.assertEqual(
-            rendered.get_by_role("link", name="escape link").get_attribute("href"),
-            "/files/main/djangoapp/tests/filefixtures/../../../../../users/list",
+        expect(rendered.get_by_role("link", name="escape link")).to_have_attribute(
+            "href", "/files/main/djangoapp/tests/filefixtures/../../../../../users/list"
         )
-        self.assertEqual(
-            rendered.get_by_role("link", name="external site").get_attribute("href"),
-            "https://example.com",
+        expect(rendered.get_by_role("link", name="external site")).to_have_attribute(
+            "href", "https://example.com"
         )
-        self.assertEqual(
-            rendered.get_by_role("link", name="hash link").get_attribute("href"),
-            "#section-two",
+        expect(rendered.get_by_role("link", name="hash link")).to_have_attribute(
+            "href", "#section-two"
         )
         # The rewritten link navigates to the other file's viewer page (full
         # load — v-html anchors aren't Inertia links); wait for the async
@@ -266,7 +257,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         rendered.get_by_role("link", name="another file").click()
         page.wait_for_url("**/filefixtures/other.md")
         page.wait_for_selector('[data-files-state="rendered"]')
-        self.assertIn("Other file", page.locator(".files-markdown").inner_text())
+        expect(page.locator(".files-markdown")).to_contain_text("Other file")
 
     def test_no_mermaid_requests_without_diagrams(self) -> None:
         """A page without diagrams downloads no mermaid chunk.
@@ -298,9 +289,9 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         # lazy mermaid chunk (~900 KB gzipped) + parse can exceed the 2s
         # default on the test VM.
         svg.wait_for(state="visible", timeout=15000)
-        self.assertEqual(page.locator(".files-markdown .rich-diagram-error").count(), 0)
+        expect(page.locator(".files-markdown .rich-diagram-error")).to_have_count(0)
         # The fence is no longer a code block (the <pre> was swapped out).
-        self.assertEqual(page.locator(".files-markdown pre > code.language-mermaid").count(), 0)
+        expect(page.locator(".files-markdown pre > code.language-mermaid")).to_have_count(0)
 
     def test_markdown_heading_ids_dedupe(self) -> None:
         """Heading ids dedupe over ASSIGNED ids, not per-base counts.
@@ -315,12 +306,12 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         page.goto(self._files("main/djangoapp/tests/filefixtures/dedupe.md"))
         page.wait_for_selector('[data-files-state="rendered"]')
         rendered = page.locator(".files-markdown")
-        self.assertEqual(rendered.locator("h2").count(), 5)
-        self.assertEqual(rendered.locator("h2#foo").count(), 1)
-        self.assertEqual(rendered.locator("h2#foo-2").count(), 1)
-        self.assertEqual(rendered.locator("h2#foo-3").count(), 1)
-        self.assertEqual(rendered.locator("h2#section-1").count(), 1)
-        self.assertEqual(rendered.locator("h2#section-1-2").count(), 1)
+        expect(rendered.locator("h2")).to_have_count(5)
+        expect(rendered.locator("h2#foo")).to_have_count(1)
+        expect(rendered.locator("h2#foo-2")).to_have_count(1)
+        expect(rendered.locator("h2#foo-3")).to_have_count(1)
+        expect(rendered.locator("h2#section-1")).to_have_count(1)
+        expect(rendered.locator("h2#section-1-2")).to_have_count(1)
 
     def test_markdown_mermaid_error_fallback(self) -> None:
         """An invalid mermaid fence shows the raw source in the error style."""
@@ -330,4 +321,4 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         error = page.locator(".files-markdown .rich-diagram-error")
         # Same mermaid chunk-load exception as the fence test above.
         error.wait_for(state="visible", timeout=15000)
-        self.assertIn("this is not valid mermaid", error.inner_text())
+        expect(error).to_contain_text("this is not valid mermaid")

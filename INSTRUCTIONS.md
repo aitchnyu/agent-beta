@@ -250,6 +250,12 @@ When you encounter Playwright tests failing, consider that a showstopper. Isolat
 Dont change any timeout settings for Playwright tests. Everything is expected to run before timeout. I dont want any statement like `timeout=5000` in my tests. 
 Use only `page.wait_for_url` or `page.wait_for_selector` for Playwright tests except to debug stuff. Add classes to the html elements to facilitate this. page.wait_for_event, page.wait_for_timeout, page.wait_for_function, page.wait_for_load_state will lead to fragile, hard to understand tests. Do not use them except temporarily.
 
+Assert page state with Playwright's web-first `expect(locator).to_be_visible() / to_have_text(...) / to_have_count(...) / to_have_attribute(...)` (`from playwright.sync_api import expect`), NOT Django-style snapshots of page values. `expect` auto-retries until the assertion holds (or times out), so async Inertia renders don't flake, and the assertion reads as a claim about the page rather than about Python values:
+- ✗ `self.assertEqual(page.locator(".x").count(), 1)` — instant snapshot; races the render.
+- ✓ `expect(page.locator(".x")).to_have_count(1)`
+- `assertTrue(loc.is_visible())` → `expect(loc).to_be_visible()` (`assertFalse` → `to_be_hidden()`); `assertIn(t, loc.inner_text())` → `expect(loc).to_contain_text(t)`; `assertEqual(loc.get_attribute("k"), v)` → `expect(loc).to_have_attribute("k", v)`; `assertIn(s, page.url)` → `expect(page).to_have_url(re.compile(re.escape(s)))`.
+- Python-side values keep `self.assert*`: response statuses, request JSON bodies, ORM state, and page comparisons `expect()` can't express (bounding-box geometry, `> N` counts, token-list class checks).
+
 Something like:
 ```python
 def handle_console(msg: ConsoleMessage) -> None:

@@ -1,14 +1,3 @@
-self.expect_console_errors() - this could hide unexpected stuff. Error messages are browser specific too.
-
-For every instance, replace with
-self.pop_expected_console_error(message=...regex...)
-
-In all places use expect_console_errors(), replace with expected messages.
-
-expect(page.locator(".notifications-selected-count"))
-
-Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH. Obscura for tests?
-
 Remove `Signed in as Frank Einstien` and logout button in homepage
 Login link if already logged in? Refuse redemption with a simple page explaining error, link to homepage. Try to avoid duplicating html templates.
 

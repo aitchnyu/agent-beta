@@ -63,7 +63,7 @@ class NavbarE2e(BasePlaywrightTestCase):
         page.goto(f"{self.live_server_url}/")
         first = page.locator(".layout-navbar .nav-link").first
         expect(first).to_have_text("Home")
-        self.assertEqual(first.get_attribute("href"), "/")
+        expect(first).to_have_attribute("href", "/")
 
     def test_wide_viewport_shows_flat_links(self) -> None:
         """At desktop width the superuser links render as flat nav links."""

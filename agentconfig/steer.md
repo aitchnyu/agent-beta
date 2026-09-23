@@ -897,6 +897,23 @@ auto-discovers each installed app's `tasks` module. Redis is a **hard dependency
     word; breaks if the copy changes.
   - ✗ `.ours-note-form input[placeholder*='title']` — couples to a class
     name + placeholder text; breaks on either change.
+- **Playwright assertions** — assert page state with web-first
+  `expect(locator).to_be_visible()/to_have_text()/to_have_count()/…`
+  (`from playwright.sync_api import expect`), NOT Django-style snapshots of page
+  values. `expect` retries until the condition holds (or times out), so async
+  Inertia renders don't flake, and the assertion reads as a claim about the
+  page rather than about Python values:
+  - ✗ `self.assertEqual(page.locator(".x").count(), 1)` — instant snapshot;
+    races the render.
+  - ✓ `expect(page.locator(".x")).to_have_count(1)`
+  - `assertTrue(loc.is_visible())` → `expect(loc).to_be_visible()`
+    (`assertFalse` → `to_be_hidden()`); `assertIn(t, loc.inner_text())` →
+    `expect(loc).to_contain_text(t)`; `assertEqual(loc.get_attribute("k"), v)`
+    → `expect(loc).to_have_attribute("k", v)`; `assertIn(s, page.url)` →
+    `expect(page).to_have_url(re.compile(re.escape(s)))`.
+  - Python-side values keep `self.assert*`: response statuses, request JSON
+    bodies, ORM state, and page comparisons `expect()` can't express
+    (bounding-box geometry, `> N` counts, token-list class checks).
 
 ### Checklist — every test class
 Every test class documents itself in its **class docstring**: a brief one-line

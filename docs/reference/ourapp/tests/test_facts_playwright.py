@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from http import HTTPStatus
 
+from playwright.sync_api import expect
+
 from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 from ourapp.models import Fact, Topic
 
@@ -28,13 +30,13 @@ class FactsE2e(BasePlaywrightTestCase):
         "An ORM-seeded fact renders on the live /facts page."
         page = self.page
         page.goto(f"{self.live_server_url}/facts", wait_until="networkidle")
-        self.assertIn("E2E fact about cars", page.inner_text("body"))
+        expect(page.locator("body")).to_contain_text("E2E fact about cars")
 
     def test_topic_page_renders_fact(self) -> None:
         "/facts/<slug> renders a fact from that topic."
         page = self.page
         page.goto(f"{self.live_server_url}/facts/cars", wait_until="networkidle")
-        self.assertIn("E2E fact about cars", page.inner_text("body"))
+        expect(page.locator("body")).to_contain_text("E2E fact about cars")
 
     def test_missing_topic_404(self) -> None:
         "/facts/<bad-slug> is 404."

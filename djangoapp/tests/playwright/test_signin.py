@@ -3,6 +3,7 @@
 from allauth.socialaccount.models import SocialApp
 from django.conf import settings
 from django.contrib.sites.models import Site
+from playwright.sync_api import expect
 
 from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 
@@ -36,9 +37,9 @@ class SignInDropdownTests(BasePlaywrightTestCase):
             page.goto(f"{self.live_server_url}/")
             page.locator(".layout-signin summary").click()
             link = page.locator(".layout-signin-link")
-            link.wait_for(state="visible")
-            self.assertEqual(link.get_attribute("href"), "/accounts/google/login/")
-            self.assertEqual((link.text_content() or "").strip(), "Google")
+            expect(link).to_be_visible()
+            expect(link).to_have_attribute("href", "/accounts/google/login/")
+            expect(link).to_have_text("Google")
 
     def test_signin_dropdown_closes_on_outside_click(self) -> None:
         """Clicking outside the open dropdown folds it away."""

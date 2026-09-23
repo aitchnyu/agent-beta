@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from http import HTTPStatus
 
+from playwright.sync_api import expect
+
 from djangoapp.models import User
 from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 
@@ -23,10 +25,7 @@ class LoginForTestGateE2eTestCase(BasePlaywrightTestCase):
         """
         self.page.goto(f"{self.live_server_url}/")
         self.page.wait_for_selector(".home-status-signed-in")
-        self.assertIn(
-            self.user.username,
-            self.page.locator(".home-status-signed-in").inner_text(),
-        )
+        expect(self.page.locator(".home-status-signed-in")).to_contain_text(self.user.username)
 
 
 class UserEditE2eTestCase(BasePlaywrightTestCase):
@@ -150,9 +149,9 @@ class UserHistoryE2eTestCase(BasePlaywrightTestCase):
         page.goto(f"{self.live_server_url}/users/history/{self.target.public_id}")
         page.wait_for_selector(".user-history-entry")
 
-        self.assertGreaterEqual(page.locator("text=Edited").count(), 1)
-        self.assertGreaterEqual(page.locator(".user-history-old", has_text="Before").count(), 1)
-        self.assertGreaterEqual(page.locator(".user-history-new", has_text="After").count(), 1)
+        expect(page.locator("text=Edited").first).to_be_visible()
+        expect(page.locator(".user-history-old", has_text="Before").first).to_be_visible()
+        expect(page.locator(".user-history-new", has_text="After").first).to_be_visible()
 
     def test_history_page_requires_superuser(self) -> None:
         """Anonymous viewer of the history page gets a 404."""
@@ -211,7 +210,7 @@ class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):
         with self.anon_page() as anon:
             anon.goto(url)
             anon.wait_for_selector(".home-status-signed-in")
-            self.assertIn("Link Target", anon.locator(".home-status-signed-in").inner_text())
+            expect(anon.locator(".home-status-signed-in")).to_contain_text("Link Target")
 
     def test_logout_everywhere_ends_session(self) -> None:
         """The admin button kills a session redeemed in a second browser."""
@@ -239,5 +238,5 @@ class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):
         with self.anon_page() as page:
             page.goto(f"{self.live_server_url}/users/id/{self.target.public_id}")
             page.wait_for_selector(".user-details-page")
-            self.assertEqual(page.locator(".user-details-login-link-btn").count(), 0)
-            self.assertEqual(page.locator(".user-details-attrs").count(), 0)
+            expect(page.locator(".user-details-login-link-btn")).to_have_count(0)
+            expect(page.locator(".user-details-attrs")).to_have_count(0)
