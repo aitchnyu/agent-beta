@@ -6,7 +6,7 @@ from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 
 
 class TodosE2e(BasePlaywrightTestCase):
-    """``/todos`` create + toggle flow end-to-end (headless firefox).
+    """``/todos`` create + toggle flow end-to-end (headless chromium).
 
     - test_create_todo_renders, add a todo via the form and see it on the page
     - test_toggle_todo_completes, clicking toggle marks the todo complete

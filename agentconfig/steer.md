@@ -274,7 +274,7 @@ without the deploy tail) and deploy only when something real changed. A
 minutes and operator trust; batch the fixes, then deploy once.
 
 **On the VM, Playwright browsers are preinstalled** — one shared cache
-(`PLAYWRIGHT_BROWSERS_PATH`, exported by `./run`'s env) with firefox's system
+(`PLAYWRIGHT_BROWSERS_PATH`, exported by `./run`'s env) with chromium's system
 libs in place.
 
 `../scratch/` is disposable — re-running `createscratch` wipes it. Review in-progress

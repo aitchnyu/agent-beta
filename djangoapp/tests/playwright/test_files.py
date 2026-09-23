@@ -14,7 +14,7 @@ _LEAF = "ourapp"  # breadcrumb leaf segment (the current dir)
 
 
 class FilesBrowserE2e(BasePlaywrightTestCase):
-    """Basic E2E for the superuser ``/files`` browser (headless firefox).
+    """Basic E2E for the superuser ``/files`` browser (headless chromium).
 
     ``/files`` is superuser-only, so ``setUp`` re-auths the shared page as a
     superuser via ``login_as`` (cookie replacement — the harness's plain-user

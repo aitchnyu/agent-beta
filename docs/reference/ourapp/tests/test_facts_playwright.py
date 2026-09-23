@@ -9,7 +9,7 @@ from ourapp.models import Fact, Topic
 
 
 class FactsE2e(BasePlaywrightTestCase):
-    """``/facts`` + per-topic page end-to-end (headless firefox).
+    """``/facts`` + per-topic page end-to-end (headless chromium).
 
     - test_seeded_fact_renders, an ORM-seeded fact renders on the live /facts page
     - test_topic_page_renders_fact, /facts/<slug> renders a fact from that topic

@@ -81,19 +81,20 @@ cleanup-provision-tmp() {
     /tmp/vm-seed-commit.sh /tmp/vm-bootstrap.sh
 }
 
-# firefox system deps: playwright's own map when it fits the distro; else
-# the minimal launch set (t64 names first, pre-t64 fallback) — verified via
-# ldd + a headless launch (2026-08-31).
+# chromium system deps on ubuntu 26.04 (t64 names): playwright's own map,
+# else the minimal launch set (playwright's ubuntu map minus GTK/dbus-glib
+# — headless chromium dlopens neither).
 playwright-deps() {
   _vm_env
   export DEBIAN_FRONTEND=noninteractive
-  /srv/app/main/.venv/bin/python -m playwright install-deps firefox ||
-    apt-get install -y libgtk-3-0t64 libx11-xcb1 libdbus-glib-1-2 libxt6t64 \
-      libasound2t64 libxext6 libxfixes3 libxcb-shm0 libxcb1 libx11-6 \
-      libgbm1 libpango-1.0-0 libcairo2 ||
-    apt-get install -y libgtk-3-0 libx11-xcb1 libdbus-glib-1-2 libxt6 \
-      libasound2 libxext6 libxfixes3 libxcb-shm0 libxcb1 libx11-6 \
-      libgbm1 libpango-1.0-0 libcairo2
+  if /srv/app/main/.venv/bin/python -m playwright install-deps chromium; then
+    return 0
+  fi
+  apt-get install -y libnss3 libnspr4 libdbus-1-3 libdrm2 libgbm1 \
+    libxkbcommon0 libxcomposite1 libxdamage1 libxext6 libxfixes3 \
+    libxrandr2 libx11-6 libx11-xcb1 libxcb1 libpango-1.0-0 libcairo2 \
+    libasound2t64 libatk1.0-0t64 libatk-bridge2.0-0t64 libatspi2.0-0t64 \
+    libcups2t64 libglib2.0-0t64
 }
 
 deploy-ourapp() {
@@ -116,7 +117,7 @@ runasapp() {
 playwright-install() {
   _vm_env
   export PATH=/usr/local/bin:$PATH
-  uv run playwright install firefox
+  uv run playwright install chromium --only-shell
 }
 
 # ── agent user ─────────────────────────────────────────────────────────────
@@ -126,15 +127,15 @@ agent-browsers() {
   ls "$PLAYWRIGHT_BROWSERS_PATH" | sed -n '1,3p'
 }
 
-# The acceptance probe: firefox must LAUNCH headless as agent (the user
+# The acceptance probe: chromium must LAUNCH headless as agent (the user
 # the pi CLI runs as) — platform-agnostic by construction.
 agent-playwright-probe() {
   _vm_env
   timeout 10 .venv/bin/python -c '
 from playwright.sync_api import sync_playwright
 p = sync_playwright().start()
-b = p.firefox.launch()
-print("agent headless firefox launch OK")
+b = p.chromium.launch()
+print("agent headless chromium launch OK")
 b.close(); p.stop()
 '
 }
@@ -313,7 +314,7 @@ gate() {
     || gate-fail "AGENT_MODEL does not resolve as agent (credentials env unreadable)"
 
   # ── Assert 6: the agent's scratch ./run playwrighttest needs browsers
-  # in the SHARED cache (readable as agent) and a firefox that actually
+  # in the SHARED cache (readable as agent) and a chromium that actually
   # LAUNCHES headless as agent — the acceptance probe.
   echo; echo "=== Assert 6: playwright browsers launch as agent ==="
   local browsers
@@ -321,10 +322,10 @@ gate() {
   browsers=$(gate-as-agent-user agent-browsers) \
     || gate-fail "agent-browsers failed"
   [ -n "$browsers" ] || gate-fail "shared playwright browser cache empty/unreadable as agent"
-  # Postcondition 2: headless firefox actually launches as agent (exit 0;
+  # Postcondition 2: headless chromium actually launches as agent (exit 0;
   # the wrapper's OK line is operator output, the exit code is the assert)
   gate-as-agent-user agent-playwright-probe \
-    || gate-fail "headless firefox does not launch as agent (deps or platform env missing)"
+    || gate-fail "headless chromium does not launch as agent (deps or platform env missing)"
 
   # ── Assert 7: createscratch as the agent. The agent's whole edit loop
   # rides the scratch cycle; the fresh VM is the only place its VM-only

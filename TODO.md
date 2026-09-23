@@ -1,6 +1,9 @@
+self.expect_console_errors() - browser specific
+self.pop_expected_console_error(pattern)
+
 Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH. Obscura for tests?
 
-`Signed in as Frank Einstien` and button
+`Signed in as Frank Einstien` and logout button
 Login link if already logged in? Refuse redemption
 
 CSRF, allow token based requests to pass if not sent by frontend? csrf_guard and new function for make_ninja_api? Document?
@@ -18,6 +21,8 @@ Instead of app in srv and systemd, call it desmo
 Readme to mention steps
 
 Allauth whitelist/blacklist to allow only certain users. Document in readme.
+
+save_with_logs take sequence number
 
 ```
 multipass shell app

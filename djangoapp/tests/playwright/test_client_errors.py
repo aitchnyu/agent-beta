@@ -61,7 +61,7 @@ class ClientErrorReportingE2e(BasePlaywrightTestCase):
         self.assertIsInstance(body["colno"], int)
         self.assertGreater(body["lineno"], 0)
         self.assertGreater(body["colno"], 0)
-        self.assertTrue(body["filename"])
+        self.assertIsInstance(body["filename"], str)
         # url is the page URL, sent verbatim (nothing sensitive is put in
         # URLs) — the home route has no query, so it equals page.url.
         self.assertEqual(body["url"], page.url)

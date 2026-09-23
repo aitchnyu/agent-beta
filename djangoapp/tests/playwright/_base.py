@@ -90,7 +90,7 @@ def _on_pageerror(err: object) -> None:
     _console.errors.append(f"pageerror: {err}")
 
 
-# ONE playwright/firefox/context/page per test process, created lazily on the
+# ONE playwright/chromium/context/page per test process, created lazily on the
 # first playwright class. Sharing the browser skips per-class cold launches;
 # sharing ONE context + page (instead of per class/test) keeps a single HTTP
 # cache and a warm page across the whole run — per-test contexts/pages were
@@ -98,10 +98,10 @@ def _on_pageerror(err: object) -> None:
 # the context's cookies and injects this test's session (``login_as``). Tests
 # needing a genuinely separate viewer use ``anon_page`` (its own context).
 # Never explicitly closed — the runner is a one-shot process and playwright's
-# driver exits when the interpreter does (stdin EOF), taking firefox with it;
+# driver exits when the interpreter does (stdin EOF), taking chromium with it;
 # refcounted teardown was tried and only added failure modes.
 class _SharedBrowser:
-    """Lazily created process-wide playwright + firefox + context + page."""
+    """Lazily created process-wide playwright + chromium + context + page."""
 
     def __init__(self) -> None:
         self.browser: Browser | None = None
@@ -112,7 +112,7 @@ class _SharedBrowser:
     def ensure(self) -> tuple[Browser, BrowserContext, Page]:
         """Create everything on first use; return the (browser, context, page)."""
         if self.browser is None:
-            self.browser = sync_playwright().start().firefox.launch(headless=True)
+            self.browser = sync_playwright().start().chromium.launch(headless=True)
             self.context = self.browser.new_context()
             self.page = self.context.new_page()
             # Init script + handlers ONCE here — page.on stacks, so per-test
@@ -153,7 +153,7 @@ _COLD_START_TIMEOUT_MS = 15_000
 class BasePlaywrightTestCase(StaticLiveServerTestCase):
     """Playwright E2E harness.
 
-    Shares one headless firefox + one browser context + one page across the
+    Shares one headless chromium + one browser context + one page across the
     whole run (see the module globals). ``self.page`` is that shared page;
     per-test isolation comes from wiping the context's cookies in setUp and
     injecting this test's session (``login_as``) — no login navigation, no

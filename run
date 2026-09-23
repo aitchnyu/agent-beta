@@ -67,8 +67,8 @@ init() {
   setenv
   # Install packages using uv
   uv sync
-  # We have E2E tests
-  uv run playwright install firefox
+  # We have E2E tests — headless shell only
+  uv run playwright install chromium --only-shell
   # Create the database (name/user come from .env — convention <appname>_db)
   psql -U postgres -c "CREATE DATABASE $DB_NAME;" || echo "Database '$DB_NAME' already exists or creation failed"
   # Run Django migrations

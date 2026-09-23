@@ -419,6 +419,9 @@ class MockupScreenshotTests(BaseScreenshotTestCase):
 
     def test_mockup_hidden_from_anonymous(self) -> None:
         """An anonymous viewer of the mockup route gets a 404 (the gate holds)."""
+        # Chromium logs the deliberately-404 document load as a console
+        # error; the 404 IS this test's assertion, so it's expected here.
+        self.expect_console_errors()
         with self.anon_page() as page:
             response = page.goto(f"{self.live_server_url}/mockup-todos")
             assert response is not None

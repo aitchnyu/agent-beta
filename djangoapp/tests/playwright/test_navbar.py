@@ -101,9 +101,9 @@ class NavbarE2e(BasePlaywrightTestCase):
         page = self.page
         self._goto_tall_page()
         expect(page.locator(".layout-navbar")).to_be_visible()
-        page.evaluate("() => window.scrollTo(0, 800)")
+        page.evaluate("() => window.scrollTo({ top: 800, behavior: 'instant' })")
         expect(page.locator(".layout-navbar")).to_have_class(re.compile(r"hide-on-scroll-hidden"))
-        page.evaluate("() => window.scrollTo(0, 400)")
+        page.evaluate("() => window.scrollTo({ top: 400, behavior: 'instant' })")
         expect(page.locator(".layout-navbar")).not_to_have_class(
             re.compile(r"hide-on-scroll-hidden")
         )

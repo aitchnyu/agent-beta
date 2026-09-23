@@ -276,14 +276,15 @@ provision() {
   echo "==> bootstrap (uv sync, npm build, migrate, collectstatic)"
   multipass exec app -- sudo -u app -H bash /tmp/vm-bootstrap.sh
 
-  # ── 6b. playwright: shared browsers + firefox system deps ────────────────
-  # CROSS-PLATFORM (any Ubuntu, any arch) — bodies + per-step rationale in
-  # deploy/vm.sh (playwright-setup: native install first, nearest-LTS
-  # fallback computed per-arch and persisted to the credentials env;
-  # playwright-deps: the system libs firefox actually dlopens).
+  # ── 6b. playwright: shared browsers + chromium system deps ───────────────
+  # The distro is ubuntu 26.04; the arch varies — bodies + per-step
+  # rationale in deploy/vm.sh (playwright-setup: native install first,
+  # 26.04-unknown fallback computed per-arch and persisted to the
+  # credentials env; playwright-deps: the system libs chromium actually
+  # dlopens).
   echo "==> playwright browsers (shared cache, cross-platform)"
   multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh playwright-setup
-  echo "==> playwright firefox system deps"
+  echo "==> playwright chromium system deps"
   multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh playwright-deps
 
   # Provisioning's /tmp leftovers — per-file rationale in deploy/vm.sh
