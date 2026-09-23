@@ -7,7 +7,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-09-10T15:26:31.805483Z"
+exclude-newer = "2026-09-16T13:44:36.442818Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -713,7 +713,7 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "coverage", specifier = ">=7.10.7" },
-    { name = "playwright", specifier = ">=1.40" },
+    { name = "playwright", specifier = ">=1.52" },
     { name = "ruff", specifier = ">=0.15.0" },
     { name = "time-machine", specifier = ">=3.5.0" },
 ]

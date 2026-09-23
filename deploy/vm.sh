@@ -82,8 +82,7 @@ cleanup-provision-tmp() {
 }
 
 # chromium system deps on ubuntu 26.04 (t64 names): playwright's own map,
-# else the minimal launch set (playwright's ubuntu map minus GTK/dbus-glib
-# — headless chromium dlopens neither).
+# else the minimal launch set (playwright's ubuntu24.04 chromium map verbatim).
 playwright-deps() {
   _vm_env
   export DEBIAN_FRONTEND=noninteractive
@@ -134,7 +133,7 @@ agent-playwright-probe() {
   timeout 10 .venv/bin/python -c '
 from playwright.sync_api import sync_playwright
 p = sync_playwright().start()
-b = p.chromium.launch()
+b = p.chromium.launch(headless=True)
 print("agent headless chromium launch OK")
 b.close(); p.stop()
 '

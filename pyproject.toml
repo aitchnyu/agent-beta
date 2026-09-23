@@ -27,7 +27,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "coverage>=7.10.7",
-    "playwright>=1.40",
+    "playwright>=1.52",
     "ruff>=0.15.0",
     "time-machine>=3.5.0",
 ]
