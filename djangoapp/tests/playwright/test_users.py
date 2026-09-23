@@ -95,12 +95,13 @@ class UserEditE2eTestCase(BasePlaywrightTestCase):
 
     def test_edit_page_requires_superuser(self) -> None:
         """Anonymous viewer of the edit form gets a 404."""
-        # Chromium logs the deliberately-404 document load as a console error
-        self.expect_console_errors()
         with self.anon_page() as page:
             response = page.goto(f"{self.live_server_url}/users/edit/{self.target.public_id}")
             assert response is not None
             self.assertEqual(response.status, HTTPStatus.NOT_FOUND)
+        self.pop_expected_console_error(
+            r"Failed to load resource: the server responded with a status of 404"
+        )
 
 
 class UserHistoryE2eTestCase(BasePlaywrightTestCase):
@@ -155,12 +156,13 @@ class UserHistoryE2eTestCase(BasePlaywrightTestCase):
 
     def test_history_page_requires_superuser(self) -> None:
         """Anonymous viewer of the history page gets a 404."""
-        # Chromium logs the deliberately-404 document load as a console error
-        self.expect_console_errors()
         with self.anon_page() as page:
             response = page.goto(f"{self.live_server_url}/users/history/{self.target.public_id}")
             assert response is not None
             self.assertEqual(response.status, HTTPStatus.NOT_FOUND)
+        self.pop_expected_console_error(
+            r"Failed to load resource: the server responded with a status of 404"
+        )
 
 
 class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):

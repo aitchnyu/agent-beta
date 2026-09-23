@@ -77,7 +77,6 @@ class FrameworkSmokeE2e(GitRepoMixin, BasePlaywrightTestCase):
 
     def test_client_errors_smoke(self) -> None:
         """An uncaught window error is captured and POSTed to /client-errors."""
-        self.expect_console_errors()  # the handler logs the error before reporting it
         page = self.page
         page.goto(f"{self.live_server_url}/")
         with page.expect_request(
@@ -85,3 +84,7 @@ class FrameworkSmokeE2e(GitRepoMixin, BasePlaywrightTestCase):
         ) as req_info:
             page.evaluate("() => setTimeout(() => { throw new Error('framework smoke boom') }, 0)")
         self.assertIn("/client-errors", req_info.value.url)
+        # The handler logs the error before reporting it, and the uncaught
+        # error itself lands too — pop both, keeping tearDown armed.
+        self.pop_expected_console_error("framework smoke boom")
+        self.pop_expected_console_error("framework smoke boom")

@@ -315,11 +315,10 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
 
     def test_non_superuser_404(self) -> None:
         """An anonymous viewer of the git viewer gets a 404 (the gate holds over HTTP)."""
-        # Chromium logs the deliberately-404 document load as a console
-        # error ("Failed to load resource: … 404"); firefox logs nothing.
-        # The 404 IS this test's assertion, so it's expected here.
-        self.expect_console_errors()
         with self.anon_page() as page:
             response = page.goto(f"{self.live_server_url}/git/uncommitted/")
             assert response is not None
             self.assertEqual(response.status, 404)
+        self.pop_expected_console_error(
+            r"Failed to load resource: the server responded with a status of 404"
+        )

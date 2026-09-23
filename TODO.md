@@ -9,8 +9,8 @@ expect(page.locator(".notifications-selected-count"))
 
 Headless chromium, easier to install? PLAYWRIGHT_BROWSERS_PATH. Obscura for tests?
 
-`Signed in as Frank Einstien` and logout button
-Login link if already logged in? Refuse redemption
+Remove `Signed in as Frank Einstien` and logout button in homepage
+Login link if already logged in? Refuse redemption with a simple page explaining error, link to homepage. Try to avoid duplicating html templates.
 
 CSRF, allow token based requests to pass if not sent by frontend? csrf_guard and new function for make_ninja_api? Document?
 

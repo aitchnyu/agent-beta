@@ -19,9 +19,10 @@ class ClientErrorReportingE2e(BasePlaywrightTestCase):
     ``setTimeout`` (so ``window.onerror`` fires with ``lineno``/``colno`` and the
     handler POSTs), then assert on the captured request body: it must carry the
     source location, the page url, and the reporter's ``public_id``. The base
-    ``tearDown`` fails on console errors by default; this test calls
-    ``expect_console_errors()`` because the handler legitimately logs the error
-    to the console before reporting it.
+    ``tearDown`` fails on console errors by default; each test pops the two
+    entries its deliberate error produces (the handler's log and the uncaught
+    error itself) via ``pop_expected_console_error`` — so anything UNexpected
+    still fails the test.
 
     - test_uncaught_error_posts_client_location_and_user: window error → POST
       with lineno/colno/url/public_id
@@ -32,7 +33,6 @@ class ClientErrorReportingE2e(BasePlaywrightTestCase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.expect_console_errors()
         # Home route shares the viewer profile (public_id) on every Inertia page.
         # Plain goto suffices: handlers are wired at app boot and the tests
         # await the error POST via expect_request (networkidle here cost ~0.8s
@@ -68,6 +68,10 @@ class ClientErrorReportingE2e(BasePlaywrightTestCase):
         # Reporter identity, read from the Inertia shared prop — matches the
         # logged-in test user (backend re-derives it from request.user too).
         self.assertEqual(body["public_id"], self.user.public_id)
+        # Two entries carry the boom: the handler's console.error and the
+        # uncaught error itself — pop both so tearDown stays armed.
+        self.pop_expected_console_error("client-errors e2e boom")
+        self.pop_expected_console_error("client-errors e2e boom")
 
     def test_promise_rejection_posts_message(self) -> None:
         """An unhandled promise rejection POSTs a message (no line/col)."""
@@ -79,6 +83,9 @@ class ClientErrorReportingE2e(BasePlaywrightTestCase):
             page.evaluate("() => { Promise.reject(new Error('rejected boom')) }")
         body = json.loads(req_info.value.post_data or "{}")
         self.assertEqual(body["message"], "rejected boom")
+        # Handler log + the unhandled-rejection entry itself.
+        self.pop_expected_console_error("rejected boom")
+        self.pop_expected_console_error("rejected boom")
 
     def test_anonymous_report_omits_public_id(self) -> None:
         """An anonymous viewer's report carries no public_id (user info = auth)."""
@@ -90,3 +97,7 @@ class ClientErrorReportingE2e(BasePlaywrightTestCase):
                 page.evaluate("() => setTimeout(() => { throw new Error('anon boom') }, 0)")
             body = json.loads(req_info.value.post_data or "{}")
             self.assertIsNone(body["public_id"])
+        # Handler log + the uncaught error itself (anon context feeds the
+        # same sink).
+        self.pop_expected_console_error("anon boom")
+        self.pop_expected_console_error("anon boom")

@@ -9,6 +9,7 @@ playwright dependency into production code.
 from __future__ import annotations
 
 import os
+import re
 import typing
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field
@@ -63,7 +64,6 @@ class _ConsoleSink:
     """
 
     errors: list[str] = field(default_factory=list)
-    expect: bool = False
 
 
 _console = _ConsoleSink()
@@ -215,7 +215,6 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
         # the module sink; clear in place, never rebind) — then hand this test
         # the shared page + its own session cookie.
         _console.errors.clear()
-        _console.expect = False
         self.console_errors = _console.errors
         self.page = _SHARED_BROWSER.ensure()[2]
         # Reset the shared page's timeout per test: subclass setUps may raise
@@ -233,15 +232,50 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
         self.login_as(self.user)
         return super().setUp()
 
-    def expect_console_errors(self) -> None:
-        """Mark this test as expecting console/page errors (skip tearDown fail).
+    def pop_expected_console_error(self, message: str, *, all: bool = False) -> None:  # noqa: A002
+        """Account for an expected console/page error; remove it from the sink.
 
-        The default tearDown fails on ANY console.error / pageerror, which is
-        the right default for regression-hunting. Tests that deliberately raise
-        an uncaught error (e.g. to exercise the client-error reporting path and
-        assert on the network call instead) call this in setUp to opt out.
+        Use this in tests that expect console errors — either because the
+        test deliberately triggers one (a thrown error exercising the
+        client-error reporter) or because the scenario legitimately
+        produces one (an anonymous gate check loading a 404 page) —
+        instead of opting the whole test out of the console-error check.
+        Call it AFTER the action, with ``message`` being a regex
+        (``re.search``) matching the error you expect.
+
+        Be specific: quote the distinctive part of the message the browser
+        or app actually emits. For a expected 404 page load pop:
+
+            self.pop_expected_console_error(
+                r"Failed to load resource: the server responded with a status of 404"
+            )
+
+        A bare token like ``"404"`` would silently excuse ANY unrelated
+        error that happens to mention it.
+
+        By default the LAST (most recent) matching entry is popped; pass
+        ``all=True`` to pop every matching entry (for when one deliberate
+        error lands as several — the handler's log plus the browser's own
+        uncaught-error entry). If nothing matches, the test fails with the
+        sink's full contents. tearDown still fails on any UNPOPPED entry.
         """
-        _console.expect = True
+        # Pump playwright's event queue first: asynchronously-delivered
+        # entries (e.g. an unhandledrejection's pageerror) sit queued until
+        # some playwright call runs — without this a pop racing delivery
+        # would miss it. Same trick (and ~1ms cost) as tearDown.
+        with suppress(Exception):
+            self.page.wait_for_timeout(0)
+        pattern = re.compile(message)
+        if all:
+            if not any(pattern.search(entry) for entry in _console.errors):
+                self.fail(f"No console error matching {message!r}; sink: {_console.errors}")
+            _console.errors[:] = [entry for entry in _console.errors if not pattern.search(entry)]
+            return
+        for i in reversed(range(len(_console.errors))):
+            if pattern.search(_console.errors[i]):
+                del _console.errors[i]
+                return
+        self.fail(f"No console error matching {message!r}; sink: {_console.errors}")
 
     def tearDown(self) -> None:
         # The shared page is deliberately NOT closed — the next test reuses it.
@@ -254,7 +288,7 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
         # suppress keeps a dead page from masking the test's own failure.
         with suppress(Exception):
             self.page.wait_for_timeout(0)
-        if _console.errors and not _console.expect:
+        if _console.errors:
             self.fail(f"Console errors detected: {_console.errors}")
         return super().tearDown()
 
