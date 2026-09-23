@@ -1,5 +1,6 @@
-Remove `Signed in as Frank Einstien` and logout button in homepage
-Login link if already logged in? Refuse redemption with a simple page explaining error, link to homepage. Try to avoid duplicating html templates.
+Review N commits
+Readme - desmo is a codename
+Readme - tree of files created/affected
 
 CSRF, allow token based requests to pass if not sent by frontend? csrf_guard and new function for make_ninja_api? Document?
 
@@ -35,7 +36,8 @@ import from git repo tags?
 Run all tests in checkproject and merge coverage from both stages. Improve test coverage
 
 ## Deployment
-Uploads dir is a single thing too
+Uploads dir is a single thing too. Sample app for file hosting?
+Accelerate file serving with Caddy - have FileResponse - test with checkframework2
 Backup regularly - https://www.pghardstorage.org/examples
 Provision in vm with domain with curl|bash. What all should user provide?
 Readme for end users and devs, Desec dns
@@ -47,7 +49,5 @@ rate limiting for http requests?
 Support multiple apps in same server
 Model logs should store FK name, link, url and M2M changes too
 Whitelist services for outbound connections
-Accelerate file serving with Caddy - have FileResponse - test with checkframework2
 Redis and db memory usage?
 Group and mute notification groups
-Obscura for browser tests?
