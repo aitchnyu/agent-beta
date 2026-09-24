@@ -1,15 +1,71 @@
 # Instant
 
 A Django **single-app template**: clone it, build your app in `ourapp/`, and drive
-changes through an agent that edits a throwaway.
+changes through an agent that edits a throwaway. **desmo** — the VM/instance,
+service user, and `desmo` command name — is a codename for this deployment.
+
+## Layout — what the VM (and provisioning) creates
+
+One tree, rooted at `/` of the test VM — `/srv/desmo/main` is this repo (the
+seed `./testvm provision` ships from your dev machine), shown expanded;
+single-leaf paths are collapsed (`etc/redis/redis.conf` — nothing else of
+ours lives there):
+
+```text
+/                              the test VM — everything ./testvm provision creates/touches
+├── srv/desmo/
+│   ├── main/                  THIS REPO, seeded from the tracked tree (own git repo)
+│   │   ├── run                command dispatcher (`./run <cmd>` or `desmo <cmd>`)
+│   │   │                      (`./run help` lists all; no args also prints help)
+│   │   ├── djangoproject/     project config, not app logic
+│   │   ├── djangoapp/         the reusable framework app (ships with the template)
+│   │   │   ├── models/        User/UserHistory/Notification/LoginKey models
+│   │   │   ├── views/         users, files, git viewer, notifications, client-errors
+│   │   │   ├── management/commands/    createuser, makeloginlink, addoauth,
+│   │   │   │                           promotetosuperuser, hostnames, generatevapid
+│   │   │   ├── templates/ static/      server-rendered shells + built frontend assets
+│   │   ├── ourapp/            YOUR app — the one the template exists for
+│   │   │   ├── views/         your pages (home page ships as the placeholder)
+│   │   │   ├── tasks.py       your huey tasks (one file per feature)
+│   │   │   └── urls.py apps.py migrations/ tests/ docs/
+│   │   ├── frontend/          Vue 3 + Inertia SPA (vite build → djangoapp/static)
+│   │   │   ├── src/main.ts    entry: Inertia + router + push service wiring
+│   │   │   ├── src/ours/      YOUR pages (ours/pages/**/*.vue auto-globbed into
+│   │   │   │                  the bundle) + your schemas.ts/style.scss
+│   │   ├── agentconfig/       steering documents the pi agent reads
+│   │   ├── .pi/               pi CLI config: permissions allowlist, extensions
+│   ├── scratch/               throwaway agent edit copy (createscratch/deployscratch)
+│   └── playwright-browsers/   one shared browser cache for all users
+├── etc/
+│   ├── credentials/desmo/.env.vm   THE env file — every unit + ./run source it
+│   │                               (root:desmo 640)
+│   ├── systemd/system/
+│   │   ├── desmo_granian.service   web server (ASGI, User=desmo)
+│   │   └── desmo_huey.service      background/cron tasks (User=desmo)
+│   ├── caddy/
+│   │   ├── Caddyfile               stock config + the "import sites/*.caddy" line
+│   │   └── sites/desmo.caddy       the app's TLS site — loopback :443 + /static/*
+│   ├── redis/redis.conf            stock config + the maxmemory/noeviction block
+│   └── profile.d/desmo.sh          login notice: the desmo command (bold yellow)
+├── usr/local/bin/
+│   ├── desmo                      desmo <cmd> = cd /srv/desmo/main && ./run <cmd>
+│   ├── uv, uvx                    system-wide uv (python envs, on every user's PATH)
+│   └── fd                         symlink → fdfind (Debian's binary name)
+├── var/lib/postgresql/            desmo_db + desmo_db_test (role desmo_user) — the
+│                                  databases provisioning creates from the env values
+├── home/desmo                     the less-powerful service user's home (runs the units)
+└── also on PATH: node 22 (NodeSource apt) + the pi CLI (npm -g) — the operator is
+   the default cloud user (ubuntu; debian on Debian), member of group desmo, full sudo
+```
 
 ## Features
 - **Agent-driven development** — a [pi](https://pi.dev)
   TUI
   edits a throwaway `scratch/` copy of the repo; you review, then
   `deployscratch` checks + deploys to `main/` (server auto-reloads). Start it with
-  `./run pi` — on the VM from a multipass shell as the `agent` user
-  (`sudo -iu agent`, same command there). See
+  `./run pi` — on the VM via `desmo pi` from a multipass shell (the
+  `desmo` command = cd to the app dir + `./run`, available to the default
+  cloud user). See
   [Edit → test → deploy workflow](#edit--test--deploy-workflow).
 - **Async tasks + cron (Huey)** — Redis-backed background tasks and scheduled
   jobs via `huey.contrib.djhuey` (reusing the same Redis as the error rate
@@ -80,14 +136,17 @@ cp .env.vm.example .env.vm    # then fill in generated secrets
   and provisioning refuses to build on that value (validated host-side by
   `./testvm provision`, before anything ships). Generate high-entropy
   values with `openssl rand -hex 32`.
-- Database names are fixed (`app_db`/`app_user` from the env values) — one
+- Database names are fixed (`desmo_db`/`desmo_user` from the env values) — one
   app per VM by design.
 
 Then one command builds everything (2G RAM + 2G swap, postgres + redis
-localhost-only, caddy TLS, `/srv/app/main` (a `scratch/` sibling appears
-when you run `./run createscratch` there), systemd units
-`app_granian` + `app_huey` under the **less powerful `app` user** — huey
-always enabled, `HUEY_WORKERS` ≥ 1 enforced at provisioning):
+localhost-only, caddy TLS, `/srv/desmo/main` (a `scratch/` sibling appears
+when you run `desmo createscratch` there), systemd units
+`desmo_granian` + `desmo_huey` under the **less powerful `desmo` user** — huey
+always enabled, `HUEY_WORKERS` ≥ 1 enforced at provisioning). The
+multipass instance is named `desmo`; the operator + agent user is the
+image's default cloud user (`ubuntu`, `debian` on Debian), which already
+has passwordless sudo and gets the `desmo` command on its PATH:
 
 ```bash
 ./testvm provision              # builds and prints access + login steps
@@ -101,39 +160,40 @@ means a click-through warning (the supported mode):
 
   ```bash
   # one-time: let your host key in (provisioning installs no authorized_keys)
-  multipass exec app -- bash -c \
+  multipass exec desmo -- bash -c \
     'mkdir -p -m 700 ~ubuntu/.ssh && cat >> ~ubuntu/.ssh/authorized_keys && chmod 600 ~ubuntu/.ssh/authorized_keys' \
     < ~/.ssh/id_ed25519.pub
-  multipass info app | grep IPv4      # the VM's bridged IP
+  multipass info desmo | grep IPv4      # the VM's bridged IP
 
   # each session: forward host :8000 → the VM's caddy (:443); leave running
   ssh -N -L 8000:localhost:443 ubuntu@<vm-ip>
   ```
 
+  (On a Debian image the ssh user is `debian` — `~debian` / `debian@<vm-ip>`.)
   Host port 8000 collides with the dev runserver — never both at once.
   Login is Google OAuth (localhost is Google's dev redirect exception):
   register `https://localhost:8000/accounts/google/login/callback/` in the
   Google console, then store the credentials on the VM —
 
   ```bash
-  multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
-    runasapp .venv/bin/python manage.py addoauth google <client_id> <secret>
+  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh \
+    runasdesmo .venv/bin/python manage.py addoauth google <client_id> <secret>
   ```
 
   — or issue a one-time link for an existing user (single use, 15-min
   expiry), then `promotetosuperuser <email>` to unlock admin pages:
 
   ```bash
-  multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
-    runasapp .venv/bin/python manage.py makeloginlink <email>
+  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh \
+    runasdesmo .venv/bin/python manage.py makeloginlink <email>
   ```
 
-**Everything else happens on the VM**: `./run createscratch` → `./run
-pi` (from a multipass shell as the `agent` user) edits `scratch/` →
-`./run deployscratch` (check battery + deploy + migrate; on the VM
+**Everything else happens on the VM**: `desmo createscratch` → `desmo pi`
+(from a multipass shell, as the default cloud user) edits `scratch/` →
+`desmo deployscratch` (check battery + deploy + migrate; on the VM
 collectstatic + service restarts fold in automatically). The env on the
 VM is a single file all services share
-(`/etc/credentials/app/.env.vm`, staged from the root `.env.vm`).
+(`/etc/credentials/desmo/.env.vm`, staged from the root `.env.vm`).
 
 Provisioning is **build-or-destroy**: it refuses when the VM exists — to
 apply changes, delete and rebuild.
@@ -477,13 +537,13 @@ under `/static/djangoapp/` so they never reach clients.
 ### Searching captured errors
 
 Backend errors, huey failures, and frontend-reported errors are all captured
-as NDJSON in the journals (`app_granian`, `app_huey`) and can be queried with
+as NDJSON in the journals (`desmo_granian`, `desmo_huey`) and can be queried with
 [miller](https://miller.readthedocs.io) (`mlr`) straight off `journalctl` —
 streaming, no intermediate files. Inside the VM:
 
 ```bash
 # every error for one user — backend AND frontend, both units in one pass
-journalctl -u app_granian.service -u app_huey.service -o cat --since=-1h \
+journalctl -u desmo_granian.service -u desmo_huey.service -o cat --since=-1h \
   | grep '^{' \
   | mlr --jsonl filter '$level=="error" || $source=="client"' \
     then filter '$username=="<username>"' \
@@ -513,8 +573,8 @@ Four tiers:
   gate:
   - deploys the Books test app over the VM's `ourapp/`
   - smokes the live stack over HTTPS on the VM's loopback (login link →
-    session, superuser gates, agent-user readiness)
-  - runs the agent's full scratch cycle as the agent user:
+    session, superuser gates, default-user + `desmo`-command readiness)
+  - runs the agent's full scratch cycle as the default cloud user:
     `createscratch` (with both refusal guards) → marker edit →
     `deployscratch` provably live (marker served after the granian restart) →
     `cleanscratch`

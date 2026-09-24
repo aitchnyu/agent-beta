@@ -1,25 +1,25 @@
 [Unit]
-Description=app granian (ASGI)
+Description=desmo granian (ASGI)
 After=network.target postgresql.service redis-server.service
 
 [Service]
-# The less powerful app user: runs the web app + nothing else. No sudo.
-User=app
-Group=app
-WorkingDirectory=/srv/app/main
+# The less powerful desmo user: runs the web app + nothing else. No sudo.
+User=desmo
+Group=desmo
+WorkingDirectory=/srv/desmo/main
 
 # Pure app server: Caddy terminates TLS and serves /static/* from
 # staticfiles/ (collectstatic). Workers/threads are baked at build time from
 # .env.vm (GRANIAN_*).
-ExecStart=/srv/app/main/.venv/bin/granian --interface asgi --no-ws \
+ExecStart=/srv/desmo/main/.venv/bin/granian --interface asgi --no-ws \
   --host 127.0.0.1 --port 8000 \
   --workers @GRANIAN_WORKERS@ --blocking-threads @GRANIAN_THREADS@ \
   djangoproject.asgi:application
 
 # The single shared env file (root .env.vm staged by provisioning; secrets,
-# REDIS_URL, URL keys). Root-owned, app-group-readable — units read it, the
+# REDIS_URL, URL keys). Root-owned, desmo-group-readable — units read it, the
 # app itself holds all these values at runtime anyway.
-EnvironmentFile=/etc/credentials/app/.env.vm
+EnvironmentFile=/etc/credentials/desmo/.env.vm
 
 Restart=always
 RestartSec=3
@@ -28,7 +28,7 @@ RestartSec=3
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/srv/app
+ReadWritePaths=/srv/desmo
 PrivateTmp=yes
 MemoryMax=256M
 

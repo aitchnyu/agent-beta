@@ -43,12 +43,12 @@ Errors add the structured `exception` (frames outermost → innermost, locals
 redacted):
 
 ```json
-{"event": "Internal Server Error: /", "user_public_id": "01a0a9eb-…", "level": "error", "logger": "django.request", "exception": [{"exc_type": "RuntimeError", "exc_value": "deliberate backend boom for log collection", "frames": [{"filename": "/srv/app/main/ourapp/views/home.py", "lineno": 44, "name": "home_page"}, …]}], …}
+{"event": "Internal Server Error: /", "user_public_id": "01a0a9eb-…", "level": "error", "logger": "django.request", "exception": [{"exc_type": "RuntimeError", "exc_value": "deliberate backend boom for log collection", "frames": [{"filename": "/srv/desmo/main/ourapp/views/home.py", "lineno": 44, "name": "home_page"}, …]}], …}
 ```
 
 ## Example queries
 
-Run inside the VM (`multipass exec app -- sudo bash -c '…'`). `--since` and
+Run inside the VM (`multipass exec desmo -- sudo bash -c '…'`). `--since` and
 `--until` accept absolute local time (`'2026-09-16 17:17:04'`), ISO 8601 with
 timezone (`2026-09-16T17:17:04+05:30`), or relative spans (`-1h`, `-15min`);
 omit `--until` for an open window. Combine units by passing both `-u` flags
@@ -60,7 +60,7 @@ arrays are 1-up — so `$exception[1]` is the first trace and
 ### Backend errors
 
 ```bash
-journalctl -u app_granian.service -o cat --since '…' --until '…' \
+journalctl -u desmo_granian.service -o cat --since '…' --until '…' \
   | grep '^{' \
   | mlr --jsonl filter '$level=="error"' then cut -o -f timestamp,username,event
 ```
@@ -73,7 +73,7 @@ journalctl -u app_granian.service -o cat --since '…' --until '…' \
 ### Huey errors
 
 ```bash
-journalctl -u app_huey.service -o cat --since '…' --until '…' \
+journalctl -u desmo_huey.service -o cat --since '…' --until '…' \
   | grep '^{' \
   | mlr --jsonl filter '$level=="error" || $level=="warning"' then cut -o -f timestamp,level,event
 ```
@@ -89,7 +89,7 @@ Recorded by the backend `/client-errors` handler, so they live in the
 granian journal too:
 
 ```bash
-journalctl -u app_granian.service -o cat --since '…' --until '…' \
+journalctl -u desmo_granian.service -o cat --since '…' --until '…' \
   | grep '^{' \
   | mlr --jsonl filter '$source=="client"' then cut -o -f timestamp,username,client_message,client_filename,client_lineno,client_colno
 ```
@@ -107,7 +107,7 @@ journalctl -u app_granian.service -o cat --since '…' --until '…' \
 Deepest frame of the traceback, both units merged:
 
 ```bash
-journalctl -u app_granian.service -u app_huey.service -o cat --since '…' --until '…' \
+journalctl -u desmo_granian.service -u desmo_huey.service -o cat --since '…' --until '…' \
   | grep '^{' \
   | mlr --jsonl filter 'is_present($exception)' \
     then put '$raise_site = $exception[1]["exc_type"] . " " . $exception[1]["frames"][-1]["filename"] . ":" . string($exception[1]["frames"][-1]["lineno"])' \
@@ -115,14 +115,14 @@ journalctl -u app_granian.service -u app_huey.service -o cat --since '…' --unt
 ```
 
 ```json
-{"raise_site": "RuntimeError /srv/app/main/ourapp/views/home.py:44", "count": 2}
-{"raise_site": "RuntimeError /srv/app/main/ourapp/tasks.py:18", "count": 1}
+{"raise_site": "RuntimeError /srv/desmo/main/ourapp/views/home.py:44", "count": 2}
+{"raise_site": "RuntimeError /srv/desmo/main/ourapp/tasks.py:18", "count": 1}
 ```
 
 ### Frontend errors grouped by crash site
 
 ```bash
-journalctl -u app_granian.service -o cat --since '…' --until '…' \
+journalctl -u desmo_granian.service -o cat --since '…' --until '…' \
   | grep '^{' \
   | mlr --jsonl filter '$source=="client" && !is_null($client_lineno)' \
     then put '$site = sub($client_filename, "^.*/", "") . ":" . string($client_lineno)' \
@@ -138,7 +138,7 @@ journalctl -u app_granian.service -o cat --since '…' --until '…' \
 Rejections carry no line/col, so message is their grouping axis:
 
 ```bash
-journalctl -u app_granian.service -o cat --since '…' --until '…' \
+journalctl -u desmo_granian.service -o cat --since '…' --until '…' \
   | grep '^{' \
   | mlr --jsonl filter '$source=="client"' then count-distinct -f client_message
 ```
@@ -154,7 +154,7 @@ Backend + frontend together (client records are `level=warning`, so the
 filter takes both):
 
 ```bash
-journalctl -u app_granian.service -u app_huey.service -o cat --since '…' --until '…' \
+journalctl -u desmo_granian.service -u desmo_huey.service -o cat --since '…' --until '…' \
   | grep '^{' \
   | mlr --jsonl filter '$level=="error" || $source=="client"' \
     then put '$who = (is_null($username) || is_absent($username)) ? "anonymous" : $username' \
@@ -171,7 +171,7 @@ journalctl -u app_granian.service -u app_huey.service -o cat --since '…' --unt
 Swap the username in the second filter:
 
 ```bash
-journalctl -u app_granian.service -u app_huey.service -o cat --since '…' --until '…' \
+journalctl -u desmo_granian.service -u desmo_huey.service -o cat --since '…' --until '…' \
   | grep '^{' \
   | mlr --jsonl filter '$level=="error" || $source=="client"' \
     then filter '!(is_null($username) || is_absent($username)) && $username=="errors"' \
@@ -191,7 +191,7 @@ No level filter — every record the user produced, error and lower (huey
 records carry no user identity, so only web-request records match):
 
 ```bash
-journalctl -u app_granian.service -u app_huey.service -o cat --since '…' --until '…' \
+journalctl -u desmo_granian.service -u desmo_huey.service -o cat --since '…' --until '…' \
   | grep '^{' \
   | mlr --jsonl filter '$username=="errors"' then cut -o -f timestamp,level,source,event
 ```

@@ -818,7 +818,7 @@ as NDJSON in the journal. When a question is answerable from logs — what
 errors a user encountered, tracing their requests, grouping errors by
 stacktrace or user, decoding a minified frontend stack — query them instead
 of guessing. Verified commands live in **docs/logging.md** (read it first);
-run the queries inside the VM (`multipass exec app -- …`).
+run the queries inside the VM (`multipass exec desmo -- …`).
 ## Background tasks (Huey)
 Huey (Redis-backed) runs background + cron tasks. It's enabled framework-wide via
 `huey.contrib.djhuey` (see `HUEY` in `djangoproject/settings.py`), which
@@ -1108,8 +1108,11 @@ for u in User.objects.all():
 ```
 
 ## Security & data access
-You run in a **terminal** — locally, or on the VM as the `agent` user via
-`multipass shell`; there is no web surface in front of you (the old
+You run in a **terminal** — locally, or on the VM as the default cloud
+user (ubuntu/debian) via `multipass shell` (start the TUI with `desmo pi`
+- aihere ensure we dont mention the `/agent` proxy anywhere in codebase
+— the `desmo` command runs ./run on the app dir from anywhere); there is
+no web surface in front of you (the old
 superuser-only `/agent` proxy went away with the ttyd console). Mind the
 data-exfiltration surface:
 - The read-only tools (`read`/`grep`/`find`/`ls`) and the allowlisted shell

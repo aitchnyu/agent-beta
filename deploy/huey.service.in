@@ -1,19 +1,19 @@
 [Unit]
-Description=app huey consumer
+Description=desmo huey consumer
 After=network.target postgresql.service redis-server.service
 
 [Service]
-# The less powerful app user (same as app_granian).
-User=app
-Group=app
-WorkingDirectory=/srv/app/main
+# The less powerful desmo user (same as desmo_granian).
+User=desmo
+Group=desmo
+WorkingDirectory=/srv/desmo/main
 
 # Worker count baked at build time from .env.vm (HUEY_WORKERS; provisioning
 # refuses anything below 1 — huey is never deployed without workers).
-ExecStart=/srv/app/main/.venv/bin/python manage.py run_huey -w @HUEY_WORKERS@
+ExecStart=/srv/desmo/main/.venv/bin/python manage.py run_huey -w @HUEY_WORKERS@
 
 # The single shared env file (root .env.vm staged by provisioning).
-EnvironmentFile=/etc/credentials/app/.env.vm
+EnvironmentFile=/etc/credentials/desmo/.env.vm
 
 Restart=always
 RestartSec=3
@@ -22,7 +22,7 @@ RestartSec=3
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
-ReadWritePaths=/srv/app
+ReadWritePaths=/srv/desmo
 PrivateTmp=yes
 MemoryMax=128M
 

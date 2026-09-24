@@ -23,7 +23,7 @@ setenv() {
   # Load the environment by shell-sourcing (no python-dotenv): `set -a`
   # exports every assignment; only plain KEY="value" lines + comments (no
   # command substitution). Dev: ./.env; on the VM the single source is the
-  # credentials file the units also read (/etc/credentials/app/.env.vm).
+  # credentials file the units also read (/etc/credentials/desmo/.env.vm).
   if [ -f .env ]; then
     set -a
     . ./.env
@@ -31,13 +31,13 @@ setenv() {
     return 0
   fi
   # ie, we are inside vm
-  if [ -f /etc/credentials/app/.env.vm ]; then
+  if [ -f /etc/credentials/desmo/.env.vm ]; then
     set -a
-    . /etc/credentials/app/.env.vm
+    . /etc/credentials/desmo/.env.vm
     set +a
     return 0
   fi
-  echo "Warning: no .env (dev) or /etc/credentials/app/.env.vm (VM) — relying on ambient environment." >&2
+  echo "Warning: no .env (dev) or /etc/credentials/desmo/.env.vm (VM) — relying on ambient environment." >&2
 }
 
 python() {
@@ -254,12 +254,12 @@ checkframework1() {
 checkframework2() {
   setenv
   echo "=== Rebuild the VM from scratch (destructive) ==="
-  if multipass info app >/dev/null 2>&1; then
+  if multipass info desmo >/dev/null 2>&1; then
     "$_MAIN_DIR/testvm" delete
   fi
   "$_MAIN_DIR/testvm" provision
   echo "=== Run the in-VM gate (testapp overlay + 9 asserts) ==="
-  multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh gate
+  multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh gate
 }
 
 # The scratch/ fast loop: validate the agent's ourapp/ edits without re-running the
@@ -354,9 +354,9 @@ _SCRATCH_DIR="$(dirname "$_MAIN_DIR")/scratch"
 # node_modules hardlink-copied so the bootstrap runs incremental.
 # Hardlink-copy when the OS allows it (dev on the Mac: same owner —
 # instant, zero extra disk); plain copy otherwise. On the VM main/ is
-# app-owned and Linux's protected_hardlinks blocks the agent user from
-# hardlinking files it can only read — bare cp -al dies "Operation not
-# permitted" halfway and leaves a HOLLOW .venv that uv then refuses
+# desmo-owned and Linux's protected_hardlinks blocks the default user
+# from hardlinking files it can only read — bare cp -al dies "Operation
+# not permitted" halfway and leaves a HOLLOW .venv that uv then refuses
 # ("no Python executable"), which cost a session an hour of venv
 # archaeology. The fallback copies fully; uv sync stays incremental.
 _link_or_copy_tree() {
@@ -420,26 +420,27 @@ deployscratch() {
   ( cd "$_SCRATCH_DIR" && _scratch_checks )
 
   echo "Deploying $_SCRATCH_DIR/ → $_MAIN_DIR/ (--delete, excluding .git + .env + generated dirs)…"
-  if [ -f /etc/credentials/app/.env.vm ]; then
-    # VM only: the sync runs under sudo (as non-root agent, rsync -a can't
-    # preserve attrs on app-owned files — exit 23), and scratch's files are
-    # agent-owned. Re-own to app AND re-add group-write afterwards — chown
-    # alone leaves rsync-created 644/755 files without g+w, and the next
-    # build as agent then dies on app-owned dirs (EACCES rmdir .vite, a
-    # real session's playwright wall). Dev on the Mac owns both trees.
+  if [ -f /etc/credentials/desmo/.env.vm ]; then
+    # VM only: the sync runs under sudo (as the non-root default user,
+    # rsync -a can't preserve attrs on desmo-owned files — exit 23), and
+    # scratch's files are default-user-owned. Re-own to desmo AND re-add
+    # group-write afterwards — chown alone leaves rsync-created 644/755
+    # files without g+w, and the next build as the default user then dies
+    # on desmo-owned dirs (EACCES rmdir .vite, a real session's playwright
+    # wall). Dev on the Mac owns both trees.
     sudo rsync -a --delete "${_SCRATCH_EXCLUDES[@]}" --exclude='.git/' --exclude='.env' "$_SCRATCH_DIR/" "$_MAIN_DIR/"
-    sudo chown -R app:app "$_MAIN_DIR"
+    sudo chown -R desmo:desmo "$_MAIN_DIR"
     sudo chmod -R g+w "$_MAIN_DIR"
   else
     rsync -a --delete "${_SCRATCH_EXCLUDES[@]}" --exclude='.git/' --exclude='.env' "$_SCRATCH_DIR/" "$_MAIN_DIR/"
   fi
   ( cd "$_MAIN_DIR" && .venv/bin/python manage.py migrate --noinput )
-  if [ -f /etc/credentials/app/.env.vm ]; then
+  if [ -f /etc/credentials/desmo/.env.vm ]; then
     echo "VM detected: collectstatic + restarting services…"
     ( cd "$_MAIN_DIR" && .venv/bin/python manage.py collectstatic --noinput --clear )
     # Huey's unit always exists on provisioned VMs (HUEY_WORKERS ≥ 1 is
     # enforced at provisioning).
-    sudo systemctl restart app_granian.service app_huey.service
+    sudo systemctl restart desmo_granian.service desmo_huey.service
     # Share-URL base from the configured hostname (first ALLOWED_HOSTS
     # entry) — never a hardcoded one; dev keeps the localhost fallback.
     _SHARE_BASE="https://${ALLOWED_HOSTS%%,*}"
@@ -496,12 +497,56 @@ checkproject() {
   echo "checkproject green."
 }
 
+help() {
+  # Colored in a real terminal, plain when captured (pipes, agent logs) —
+  # same policy as the tool flags at the top of this script.
+  local H C R
+  H=$'\033[1;36m' C=$'\033[1;32m' R=$'\033[0m'
+  [ -t 1 ] || { H=''; C=''; R=''; }
+  cat <<EOF
+${H}Usage:${R} run <command> [args…]        (on the VM: ${C}desmo${R} <command> — same thing)
+
+${H}Development${R}
+  ${C}init${R}                first-time setup: .env, uv sync, playwright, DB + migrate
+  ${C}dev${R}                 runserver + vite + huey in one terminal (Ctrl-C stops all)
+  ${C}runserver${R}           Django dev server only
+  ${C}hueydev${R}             huey consumer only (dev)
+  ${C}pi${R}                  the pi coding-agent TUI (scratch-driven edit → deploy loop)
+
+${H}Checks${R}
+  ${C}lintfix${R}             ruff format + ruff check, eslint (writes)
+  ${C}typecheck${R}           mypy (backend) + vue-tsc (frontend)
+  ${C}test${R} [args…]        Django test suite (args pass through to manage.py test)
+  ${C}coverage${R}            the test suite under coverage
+  ${C}playwrighttest${R} …    Playwright e2e suite
+  ${C}screenshots${R}         regenerate docs/screenshots via Playwright
+  ${C}checkproject${R}        full battery over scratch copies (test app + reference app)
+  ${C}checkframework2${R}     rebuild the test VM from scratch + run the in-VM gate
+
+${H}Scratch (the agent edit loop)${R}
+  ${C}createscratch${R}       copy main/ → scratch/ + tag scratch-baseline
+  ${C}deployscratch${R}       check battery, then deploy scratch/ → main/ (on the VM
+                      also collectstatic + service restarts)
+  ${C}cleanscratch${R}        remove scratch/
+
+${H}Passthrough${R}
+  ${C}djangomanage${R} …      manage.py <…> with the env sourced (e.g. djangomanage migrate)
+EOF
+}
+
+# No arguments → default to help (`desmo` with no args lands here).
+if [ $# -eq 0 ]; then
+  help
+  exit 0
+fi
+
 # Check if function exists and call it with all arguments except $1
 if declare -F "$1" >/dev/null; then
   func_name="$1"
   shift
   "$func_name" "$@"
 else
-  echo "Usage: $0 {func_name}"
+  help
+  echo "Unknown command: $1" >&2
   exit 1
 fi

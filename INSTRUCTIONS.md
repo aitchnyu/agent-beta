@@ -26,61 +26,62 @@ Do not use curl to read urls. Use browser tool call.
 Any multipass command longer than two lines — and every guest-side script,
 period — lives as a NAMED FUNCTION in `deploy/vm.sh` (the guest-side helper
 library with a dispatcher at the bottom). `vm.sh` ships with the repo (the
-seed lands it at `/srv/app/main/deploy/vm.sh`; `./testvm provision` also
+seed lands it at `/srv/desmo/main/deploy/vm.sh`; `./testvm provision` also
 drops an early copy at `/tmp/vm.sh` for steps that run before the seed
-exists) and runs as whatever user invokes it — root, app, or agent.
+exists) and runs as whatever user invokes it — root, desmo, or the default
+cloud user.
 
 **Wrong** — inline `bash -c` string blob (nested `python -c` grows a `\"`
 per level, no editor support):
 ```bash
-multipass exec app -- sudo bash -c \
-  "tar xzf /tmp/app-seed.tgz -C /srv/app/main && chown -R app:app /srv/app/main && find /srv/app/main -exec chmod g+w {} +"
+multipass exec desmo -- sudo bash -c \
+  "tar xzf /tmp/desmo-seed.tgz -C /srv/desmo/main && chown -R desmo:desmo /srv/desmo/main && find /srv/desmo/main -exec chmod g+w {} +"
 ```
 
 **Wrong** — `declare -f` embedding (quoting traps; the body lives far from
 its call site):
 ```bash
 deploy_ourapp() {
-  tar xzf /tmp/testapp-ourapp.tgz -C /srv/app/main
-  chown -R app:app /srv/app/main/ourapp
-  find /srv/app/main/ourapp -exec chmod g+w {} +
+  tar xzf /tmp/testapp-ourapp.tgz -C /srv/desmo/main
+  chown -R desmo:desmo /srv/desmo/main/ourapp
+  find /srv/desmo/main/ourapp -exec chmod g+w {} +
   rm -f /tmp/testapp-ourapp.tgz
 }
-multipass exec app -- sudo bash -c "$(declare -f deploy_ourapp); deploy_ourapp"
+multipass exec desmo -- sudo bash -c "$(declare -f deploy_ourapp); deploy_ourapp"
 ```
 
 **Wrong** — re-typing the env/cwd/PATH dance for every app command:
 ```bash
-multipass exec app -- sudo -u app -H bash -c \
-  'set -a; . /etc/credentials/app/.env.vm; set +a; cd /srv/app/main; .venv/bin/python manage.py makeloginlink <email>'
+multipass exec desmo -- sudo -u desmo -H bash -c \
+  'set -a; . /etc/credentials/desmo/.env.vm; set +a; cd /srv/desmo/main; .venv/bin/python manage.py makeloginlink <email>'
 ```
 
 **Right** — the body lives in `deploy/vm.sh`; call sites are one-liners:
 ```bash
 # deploy/vm.sh gains the function (ordinary shell, lintable, reusable):
 deploy-ourapp() {
-  tar xzf /tmp/testapp-ourapp.tgz -C /srv/app/main
-  chown -R app:app /srv/app/main/ourapp
-  find /srv/app/main/ourapp -exec chmod g+w {} +
+  tar xzf /tmp/testapp-ourapp.tgz -C /srv/desmo/main
+  chown -R desmo:desmo /srv/desmo/main/ourapp
+  find /srv/desmo/main/ourapp -exec chmod g+w {} +
   rm -f /tmp/testapp-ourapp.tgz
 }
 
 # …and every call site becomes:
-multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh deploy-ourapp
+multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh deploy-ourapp
 ```
 
-**Right** — one command as the app user goes through the `runasapp` wrapper
-(env sourced, repo cwd, uv on PATH):
+**Right** — one command as the desmo user goes through the `runasdesmo`
+wrapper (env sourced, repo cwd, uv on PATH):
 ```bash
-multipass exec app -- sudo -u app -H bash /srv/app/main/deploy/vm.sh \
-  runasapp .venv/bin/python manage.py makeloginlink <email>
+multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh \
+  runasdesmo .venv/bin/python manage.py makeloginlink <email>
 ```
 
 **Right** — host-side logic (decisions, arch probing, output parsing)
 stays host-side in `run`/`testvm`; only the guest body moves:
 ```bash
-pw_arch="$(multipass exec app -- dpkg --print-architecture)"   # host decides
-multipass exec app -- sudo bash /tmp/vm.sh playwright-override-env "ubuntu24.04-$pw_arch"
+pw_arch="$(multipass exec desmo -- dpkg --print-architecture)"   # host decides
+multipass exec desmo -- sudo bash /tmp/vm.sh playwright-override-env "ubuntu24.04-$pw_arch"
 ```
 
 Two lines or fewer may stay inline at the call site. Functions run under

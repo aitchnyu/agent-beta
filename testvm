@@ -6,17 +6,17 @@
 #        ./testvm delete
 #
 # provision BUILDS a fresh VM (refuses if the instance exists — delete,
-# then rebuild): /srv/app/{main,scratch}, units app_granian/app_huey,
-# caddy at https://localhost:8000/ (ssh port forward), postgres + redis.
-# ALL config comes from the root .env.vm, validated FAIL-HARD here before
-# anything ships.
+# then rebuild): /srv/desmo/{main,scratch}, units
+# desmo_granian/desmo_huey, caddy at https://localhost:8000/ (ssh port
+# forward), postgres + redis. ALL config comes from the root .env.vm,
+# validated FAIL-HARD here before anything ships.
 #
 # delete is destructive with no backup: the VM's `.git` and database are
 # gone — copy anything you need off first (tar via multipass transfer,
 # pg_dump via multipass exec).
 #
-# Never touches the host's ssh config: use `multipass shell app` or your
-# own alias. Plan + manifest: prompts/20260818-vm-provisioning-multipass.md.
+# Never touches the host's ssh config: use `multipass shell desmo` or
+# your own alias. Plan + manifest: prompts/20260818-vm-provisioning-multipass.md.
 
 # ── The file tree provisioning writes on the VM ──────────────────────────
 # Built LOCALLY in $t/tree (mirroring absolute VM paths), shipped as ONE
@@ -26,31 +26,26 @@
 # mutation (redis, caddy) are FETCHED from the VM after its packages
 # install, then appended to locally. System phases (users, apt, postgres,
 # ufw, swap) stay in deploy/inside-vm.sh. The repo seed + first commit
-# (/srv/app/main) land AFTER the tree.
+# (/srv/desmo/main) land AFTER the tree.
 #
 #   /
 #   └── etc/
-#       ├── credentials/app/
+#       ├── credentials/desmo/
 #       │   └── .env.vm                  shared env — every unit's EnvironmentFile
 #       ├── systemd/system/
-#       │   ├── app_granian.service
-#       │   └── app_huey.service         always (HUEY_WORKERS ≥ 1 enforced)
+#       │   ├── desmo_granian.service
+#       │   └── desmo_huey.service       always (HUEY_WORKERS ≥ 1 enforced)
 #       ├── caddy/
 #       │   ├── Caddyfile                stock + "import sites/*.caddy"
-#       │   └── sites/app.caddy          the app site (names: ALLOWED_HOSTS)
-#       ├── redis/redis.conf             stock + maxmemory block
-#       ├── sudoers.d/agent              agent's full passwordless sudo
-#       └── (see /home/agent below)
-#   /home/agent
-#     └── .bash_profile                  login banner + repo landing
-#                                         (from deploy/agent-login.txt)
-#   /srv/app  (pre-created by provision_vm; group-app-writable)
+#       │   └── sites/desmo.caddy        the app site (names: ALLOWED_HOSTS)
+#       └── redis/redis.conf             stock + maxmemory block
+#   /srv/desmo  (pre-created by provision_vm; group-desmo-writable)
 #     └── main/ contents = the SEED TARBALL (the TRACKED working tree —
 #         git ls-files driven, so the git index is the exclude authority;
 #         deploy/ ships WITH it — guards, tests included)
 #   /
 #   └── tmp/
-#       ├── vm-seed-commit.sh            one-shot: git init + first commit (run as app)
+#       ├── vm-seed-commit.sh            one-shot: git init + first commit (run as desmo)
 #       └── vm-bootstrap.sh              one-shot: uv sync, build, migrate, collectstatic
 #
 # The tree carries CONTENT only — extraction is `tar --no-same-owner`
@@ -64,7 +59,7 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # repo root (main/)
 deploy_dir="$here/deploy"
-t="/tmp/provision-vm-app"
+t="/tmp/provision-vm-desmo"
 
 usage() {
   echo "Usage: $0 {provision|delete}" >&2
@@ -83,7 +78,7 @@ provision() {
   # Pin the umask host-side: tree + seed tarballs carry file/dir modes
   # through extraction, so a stricter dev shell (027/077) would land
   # /etc/redis 700 (redis user can't traverse) and /tmp one-shots 600
-  # (`sudo -u app bash /tmp/…` denied). 022 is the base the inside-vm
+  # (`sudo -u desmo bash /tmp/…` denied). 022 is the base the inside-vm
   # mode pins assume.
   umask 022
   local release="26.04"
@@ -142,8 +137,9 @@ provision() {
     exit 1
   fi
   # ALLOWED_HOSTS is the single source of truth for BOTH the hosts Django
-  # accepts and the caddy site names (rendered into sites/app.caddy below —
-  # a mismatch is impossible by construction, so no app.local-style warning).
+  # accepts and the caddy site names (rendered into sites/desmo.caddy
+  # below — a mismatch is impossible by construction, so no
+  # app.local-style warning).
   local site_hostnames site_names
   site_hostnames="$(envval ALLOWED_HOSTS)"
   if [[ -z "$site_hostnames" ]]; then
@@ -162,36 +158,35 @@ provision() {
   fi
 
   # ── 1. launch the instance (refuse if it exists — build only) ────────────
-  if multipass info app >/dev/null 2>&1; then
-    echo "REFUSING: instance 'app' already exists — provisioning builds only." >&2
+  if multipass info desmo >/dev/null 2>&1; then
+    echo "REFUSING: instance 'desmo' already exists — provisioning builds only." >&2
     echo "  ./testvm delete && ./testvm provision  # to rebuild" >&2
     exit 1
   fi
   # en0 = the primary (bridged) interface on a macOS host — the locked deploy
   # target. On another host OS, substitute its bridged interface name.
-  echo "==> multipass launch app (bridged en0, DHCP, 2G ram, 20G disk, $release)"
-  multipass launch --name app --network en0 --memory 2G --disk 20G "$release"
+  echo "==> multipass launch desmo (bridged en0, DHCP, 2G ram, 20G disk, $release)"
+  multipass launch --name desmo --network en0 --memory 2G --disk 20G "$release"
 
   # ── 2. machine phases inside (users, apt, node, pi, caddy, swap…) ──
-  multipass transfer "$deploy_dir/inside-vm.sh" app:/tmp/inside-vm.sh
-  multipass exec app -- sudo bash /tmp/inside-vm.sh provision_vm
+  multipass transfer "$deploy_dir/inside-vm.sh" desmo:/tmp/inside-vm.sh
+  multipass exec desmo -- sudo bash /tmp/inside-vm.sh provision_vm
   # vm.sh rides along as /tmp/vm.sh: the seed (with its deploy/vm.sh copy)
   # isn't extracted until step 5, and steps before it already need helpers.
-  multipass transfer "$deploy_dir/vm.sh" app:/tmp/vm.sh
+  multipass transfer "$deploy_dir/vm.sh" desmo:/tmp/vm.sh
 
   # ── 3. build the file tree locally (see the tree comment up top) ─────────
   rm -rf "$t"; mkdir -p "$t"
 
   # Stock configs to mutate: fetch them from the freshly installed VM.
-  multipass exec app -- sudo cat /etc/redis/redis.conf > "$t/redis.conf"
-  multipass exec app -- sudo cat /etc/caddy/Caddyfile > "$t/Caddyfile"
+  multipass exec desmo -- sudo cat /etc/redis/redis.conf > "$t/redis.conf"
+  multipass exec desmo -- sudo cat /etc/caddy/Caddyfile > "$t/Caddyfile"
 
   echo "==> build the provisioned tree in $t/tree"
   local tree="$t/tree"
-  mkdir -p "$tree/etc/credentials/app" \
+  mkdir -p "$tree/etc/credentials/desmo" \
     "$tree/etc/systemd/system" \
-    "$tree/etc/caddy/sites" "$tree/etc/redis" "$tree/etc/sudoers.d" \
-    "$tree/home/agent"
+    "$tree/etc/caddy/sites" "$tree/etc/redis"
   render() {
     sed -e "s/@GRANIAN_WORKERS@/$granian_workers/g" \
         -e "s/@GRANIAN_THREADS@/$granian_threads/g" \
@@ -199,34 +194,26 @@ provision() {
         -e "s/@SITE_HOSTNAMES@/$site_names/g" "$1"
   }
 
-  # tree: /etc/credentials/app/.env.vm — content only; root:app + 750/640
-  # are pinned inside (inside-vm.sh, after --no-same-owner extraction).
-  cp "$here/.env.vm" "$tree/etc/credentials/app/.env.vm"
+  # tree: /etc/credentials/desmo/.env.vm — content only; root:desmo +
+  # 750/640 are pinned inside (inside-vm.sh, after --no-same-owner
+  # extraction).
+  cp "$here/.env.vm" "$tree/etc/credentials/desmo/.env.vm"
 
-  # tree: /etc/systemd/system/app_granian.service
-  render "$deploy_dir/granian.service.in" > "$tree/etc/systemd/system/app_granian.service"
-  # tree: /etc/systemd/system/app_huey.service (always — HUEY_WORKERS ≥ 1 is
-  # validated above, huey is never deployed without workers)
-  render "$deploy_dir/huey.service.in" > "$tree/etc/systemd/system/app_huey.service"
+  # tree: /etc/systemd/system/desmo_granian.service
+  render "$deploy_dir/granian.service.in" > "$tree/etc/systemd/system/desmo_granian.service"
+  # tree: /etc/systemd/system/desmo_huey.service (always — HUEY_WORKERS ≥ 1
+  # is validated above, huey is never deployed without workers)
+  render "$deploy_dir/huey.service.in" > "$tree/etc/systemd/system/desmo_huey.service"
 
   # tree: /etc/caddy/Caddyfile — stock + the sites import (one line).
   printf '\nimport sites/*.caddy\n' >> "$t/Caddyfile"
   cp "$t/Caddyfile" "$tree/etc/caddy/Caddyfile"
-  # tree: /etc/caddy/sites/app.caddy
-  render "$deploy_dir/Caddyfile.site.in" > "$tree/etc/caddy/sites/app.caddy"
+  # tree: /etc/caddy/sites/desmo.caddy
+  render "$deploy_dir/Caddyfile.site.in" > "$tree/etc/caddy/sites/desmo.caddy"
 
   # tree: /etc/redis/redis.conf — stock + the maxmemory block.
   cat "$deploy_dir/redis-append.conf" >> "$t/redis.conf"
   cp "$t/redis.conf" "$tree/etc/redis/redis.conf"
-
-  # tree: /etc/sudoers.d/agent — content only; the 0440 mode sudo
-  # requires is pinned inside (inside-vm.sh, with visudo validation).
-  printf 'agent ALL=(ALL) NOPASSWD: ALL\n' > "$tree/etc/sudoers.d/agent"
-
-  # tree: /home/agent/.bash_profile — login banner + repo landing
-  # (content file; agent:agent ownership pinned inside after extraction).
-  cp "$deploy_dir/agent-login.txt" "$tree/home/agent/.bash_profile"
-
 
   # tree: /tmp/vm-seed-commit.sh + /tmp/vm-bootstrap.sh — one-shot scripts
   # this driver invokes below via `bash /tmp/…` (never executed directly,
@@ -244,14 +231,14 @@ provision() {
   # Ship the whole tree as ONE tarball (ownership is fixed inside after
   # extraction — the host can't know VM gids).
   tar czf "$t/tree.tgz" -C "$tree" .
-  multipass transfer "$t/tree.tgz" app:/tmp/tree.tgz
+  multipass transfer "$t/tree.tgz" desmo:/tmp/tree.tgz
 
   # ── 4. app phases inside (extract tree, postgres, enable, caddy) ─────────
-  multipass exec app -- sudo bash /tmp/inside-vm.sh provision_app
+  multipass exec desmo -- sudo bash /tmp/inside-vm.sh provision_app
 
   # ── 5. seed the repo ─────────────────────────────────────────────────────
-  echo "==> seed /srv/app/main (tarball over multipass transfer, from $here)"
-  multipass exec app -- sudo install -d -o app -g app /srv/app/main
+  echo "==> seed /srv/desmo/main (tarball over multipass transfer, from $here)"
+  multipass exec desmo -- sudo install -d -o desmo -g desmo /srv/desmo/main
   # The seed = the TRACKED working tree: `git ls-files` drives tar, so the
   # git index is the single source of truth — gitignored artifacts (.env*,
   # /sessions/ (pi sessions, root-level via sessionDir), staticfiles/, caches…) and untracked clutter (editor state,
@@ -259,22 +246,22 @@ provision() {
   # exclude list can drift (it did: .coverage/static/uploads/.idea all
   # leaked at some point). Tracked-but-deleted files make tar fail
   # loudly — desired. Mode bits come from the filesystem, as before.
-  (cd "$here" && git ls-files -z) | COPYFILE_DISABLE=1 tar czf /tmp/app-seed.tgz -C "$here" --null -T -
-  multipass transfer /tmp/app-seed.tgz app:/tmp/app-seed.tgz
+  (cd "$here" && git ls-files -z) | COPYFILE_DISABLE=1 tar czf /tmp/desmo-seed.tgz -C "$here" --null -T -
+  multipass transfer /tmp/desmo-seed.tgz desmo:/tmp/desmo-seed.tgz
   # Extract + ownership/perms pin — the body lives in deploy/vm.sh
   # (extract-app-seed); call sites stay one-liners (INSTRUCTIONS.md §
   # Multipass helpers in deploy/vm.sh).
-  multipass exec app -- sudo bash /tmp/vm.sh extract-app-seed
+  multipass exec desmo -- sudo bash /tmp/vm.sh extract-app-seed
 
-  # main/ is its OWN repo (the seed ships no .git; the parent /srv/app is
-  # NOT a repo — the agent uses external_directory for scratch/). The
+  # main/ is its OWN repo (the seed ships no .git; the parent /srv/desmo
+  # is NOT a repo — the agent uses external_directory for scratch/). The
   # script makes the first commit marking the provisioned baseline.
-  echo "==> git init + first commit in /srv/app/main"
-  multipass exec app -- sudo -u app -H bash /tmp/vm-seed-commit.sh
+  echo "==> git init + first commit in /srv/desmo/main"
+  multipass exec desmo -- sudo -u desmo -H bash /tmp/vm-seed-commit.sh
 
-  # ── 6. bootstrap the app as app (env via the credentials file) ───────────
+  # ── 6. bootstrap the app as desmo (env via the credentials file) ────────
   echo "==> bootstrap (uv sync, npm build, migrate, collectstatic)"
-  multipass exec app -- sudo -u app -H bash /tmp/vm-bootstrap.sh
+  multipass exec desmo -- sudo -u desmo -H bash /tmp/vm-bootstrap.sh
 
   # ── 6b. playwright: shared browsers + chromium system deps ───────────────
   # The distro is ubuntu 26.04; the arch varies — bodies + per-step
@@ -283,18 +270,18 @@ provision() {
   # credentials env; playwright-deps: the system libs chromium actually
   # dlopens).
   echo "==> playwright browsers (shared cache, cross-platform)"
-  multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh playwright-setup
+  multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh playwright-setup
   echo "==> playwright chromium system deps"
-  multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh playwright-deps
+  multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh playwright-deps
 
   # Provisioning's /tmp leftovers — per-file rationale in deploy/vm.sh
   # (cleanup-provision-tmp).
-  multipass exec app -- sudo bash /srv/app/main/deploy/vm.sh cleanup-provision-tmp
+  multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh cleanup-provision-tmp
 
   echo "==> start services"
   # Huey's unit always ships (HUEY_WORKERS ≥ 1 is validated before render).
-  multipass exec app -- sudo systemctl restart app_granian.service app_huey.service
-  multipass exec app -- sudo systemctl restart caddy
+  multipass exec desmo -- sudo systemctl restart desmo_granian.service desmo_huey.service
+  multipass exec desmo -- sudo systemctl restart caddy
 
   # ── 7. print the access steps ────────────────────────────────────────────
   cat "$deploy_dir/access-steps.txt"
@@ -302,9 +289,9 @@ provision() {
 }
 
 delete() {
-  multipass delete app
+  multipass delete desmo
   multipass purge
-  echo "Deleted VM 'app'. Recreate: ./testvm provision (fresh seed from the local repo)."
+  echo "Deleted VM 'desmo'. Recreate: ./testvm provision (fresh seed from the local repo)."
 }
 
 # Check if function exists and call it with all arguments except $1

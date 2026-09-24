@@ -21,20 +21,20 @@
       "*": "ask",
       "scratch/*": "allow",
       "*/scratch/*": "allow",
-      "/srv/app/scratch/*": "allow"
+      "/srv/desmo/scratch/*": "allow"
     },
     "edit": {
       "*": "ask",
       "scratch/*": "allow",
       "*/scratch/*": "allow",
-      "/srv/app/scratch/*": "allow"
+      "/srv/desmo/scratch/*": "allow"
     },
     "external_directory": {
       "*": "ask",
       "../scratch": "allow",
       "../scratch/*": "allow",
-      "/srv/app/scratch": "allow",
-      "/srv/app/scratch/*": "allow"
+      "/srv/desmo/scratch": "allow",
+      "/srv/desmo/scratch/*": "allow"
     },
     "bash": {
       "*": "ask",
@@ -52,7 +52,7 @@
       "rm -rf ../scratch": "allow",
       "rm ../scratch/*": "allow",
       "rm scratch/*": "allow",
-      "rm /srv/app/scratch/*": "allow",
+      "rm /srv/desmo/scratch/*": "allow",
       "cd scratch *": "allow",
       "cd ../scratch *": "allow",
       "./run djangomanage migrate *": "allow",

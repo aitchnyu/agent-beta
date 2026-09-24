@@ -12,8 +12,8 @@ there was verified against these files. The huey journal here is NDJSON-only
 
 | file | what it is | how it was collected |
 | --- | --- | --- |
-| `granian.ndjson` | the web unit's app records from the exercise window | `journalctl -u app_granian.service -o cat --since …` piped through `grep '^{'` |
-| `huey.ndjson` | the huey unit's records: task Executing → warning → Unhandled exception | same, over `-u app_huey.service` |
+| `granian.ndjson` | the web unit's app records from the exercise window | `journalctl -u desmo_granian.service -o cat --since …` piped through `grep '^{'` |
+| `huey.ndjson` | the huey unit's records: task Executing → warning → Unhandled exception | same, over `-u desmo_huey.service` |
 | `granian.raw.log` / `huey.raw.log` | unfiltered `journalctl -o cat` — includes systemd's own unit-status markers | the `grep` input, before the cut |
 | `client-errors.ndjson` | the `source == "client"` subset — frontend errors as recorded by the backend `/client-errors` handler | `grep '"source": "client"'` over `granian.ndjson` |
 | `maps/main-CjayHrlg.js.map` | sourcemap of the exact build every client stack references | copied from the VM's `djangoapp/static/djangoapp/` before the clean rebuild |

@@ -134,7 +134,7 @@ _SHARED_BROWSER = _SharedBrowser()
 # The FIRST navigation of a run pays the cold-start bill — browser's first
 # real page load, DNS, the live server's first request handling — which can
 # exceed the tight 1s default on slow VMs (observed: the smoke subset's
-# first test failing deterministically on a fresh /srv/app build). The
+# first test failing deterministically on a fresh /srv/desmo build). The
 # first test of the process runs with this allowance (flag held on
 # _SHARED_BROWSER); the per-test reset in setUp restores the tight default
 # for every later test.

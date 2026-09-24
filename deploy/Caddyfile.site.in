@@ -1,18 +1,11 @@
 # The VM's caddy site — rendered HOST-SIDE by ./testvm provision into
-# /etc/caddy/sites/app.caddy (shipped in the tree; the main Caddyfile's
+# /etc/caddy/sites/desmo.caddy (shipped in the tree; the main Caddyfile's
 # "import sites/*.caddy" picks it up).
 #
 # Site names render from ALLOWED_HOSTS in .env.vm (testvm seds
 # @SITE_HOSTNAMES@) — one source of truth: caddy serves exactly the hosts
-# Django accepts. The VM ships "localhost" and is reached ONLY through the
-# ssh port forward (one-time pubkey + each-session command: the README's VM
-# section and deploy/access-steps.txt):
-#   ssh -N -L 8000:localhost:443 ubuntu@<vm-ip>   →  https://localhost:8000/
-# No LAN/mDNS name is announced or served (avahi is gone). TLS via caddy's
-# internal CA: browsers show a click-through warning (the supported mode).
-# Google OAuth works — localhost is Google's dev redirect exception
-# (register https://localhost:8000/accounts/google/login/callback/).
-#
+# Django accepts. 
+
 # Caddy is also the static file server: collectstatic fills main/staticfiles/
 # and hashed bundles get immutable long-cache headers.
 @SITE_HOSTNAMES@ {
@@ -35,7 +28,7 @@
 	handle_path /static/* {
 		@maps path /djangoapp/*.map
 		respond @maps 404
-		root * /srv/app/main/staticfiles
+		root * /srv/desmo/main/staticfiles
 		file_server
 	}
 

@@ -17,7 +17,7 @@ from djangoapp.logging import configure_logging, json_formatter
 # Environment comes from the caller, not python-dotenv: dev processes are
 # launched via ./run (which shell-sources .env: `set -a; . ./.env; set +a`),
 # and on the VM every systemd unit carries
-# EnvironmentFile=/etc/credentials/app/.env.vm (single fixed app).
+# EnvironmentFile=/etc/credentials/desmo/.env.vm (single fixed app).
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
