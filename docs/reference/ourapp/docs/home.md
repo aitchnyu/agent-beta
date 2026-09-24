@@ -10,9 +10,12 @@ framework).
 ## Behaviour
 
 - Anonymous visitor: `is_authenticated=false`, empty `display_name`/`public_id`,
-  plus a Google sign-in link rendered client-side.
+  and a "You are not signed in." note with a generic sign-in link (the
+  provider buttons live on the allauth login page). This example app keeps
+  the page-level sign-in link deliberately; the framework navbar owns the
+  full auth chrome (sign-in dropdown, user menu, logout).
 - Authenticated viewer: their `display_name` and `public_id` (never the integer
-  `pk`), plus a logout form.
+  `pk`). No sign-in link or logout form on the page itself.
 - `fact_of_day`: today's Fact of the Day (one fixed pick per local date, chosen
   by the Huey cron in `tasks/`); `null` when the fact pool is empty.
 - Links to the app's features — each shown only when this viewer can use it

@@ -24,6 +24,7 @@ class NavbarE2e(BasePlaywrightTestCase):
     - test_narrow_viewport_collapses_links_to_menu, at 375px they fold into the Menu dropdown
     - test_user_badge_stays_outside_collapse, the badge button renders in narrow mode too
     - test_navbar_hides_on_scroll_down_and_returns, scrolling down hides the bar; up restores it
+    - test_user_menu_logout_flow, the user menu's logout POSTs allauth and lands signed-out
     """
 
     def setUp(self) -> None:
@@ -107,3 +108,20 @@ class NavbarE2e(BasePlaywrightTestCase):
         expect(page.locator(".layout-navbar")).not_to_have_class(
             re.compile(r"hide-on-scroll-hidden")
         )
+
+    def test_user_menu_logout_flow(self) -> None:
+        """The user menu's Sign out POSTs allauth and lands signed-out.
+
+        The suite's only click-through of the logout round trip: form POST
+        with the CSRF token, allauth redirect to LOGOUT_REDIRECT_URL ("/"),
+        signed-out home.
+        """
+        page = self.page
+        page.goto(f"{self.live_server_url}/")
+        page.wait_for_selector(".layout-user-menu")
+        page.click(".layout-user-menu summary")
+        page.wait_for_selector(".layout-user-menu .layout-menu-panel")
+        page.click(".user-menu-logout")
+        page.wait_for_url(f"{self.live_server_url}/")
+        page.wait_for_selector(".home-status-signed-out")
+        expect(page.locator(".layout-user-menu")).to_have_count(0)

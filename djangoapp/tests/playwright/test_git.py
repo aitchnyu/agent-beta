@@ -130,7 +130,7 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         # -- a11y wiring: expanded by default, toggle names its subtree --
         expect(docs_toggle).to_have_attribute("aria-expanded", "true")
         controls = docs_toggle.get_attribute("aria-controls")
-        assert controls is not None
+        assert controls
         expect(page.locator(f"#{controls}")).to_have_count(1)
 
         # -- fold Docs/ --
@@ -173,8 +173,8 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         # the view rendered before the asserts below.
         page.wait_for_selector("[data-split-diff] .d2h-ins")
         diff = page.locator("[data-split-diff]")
-        expect(diff.locator(".d2h-ins").first).to_be_visible()
-        expect(diff.locator(".d2h-del").first).to_be_visible()
+        expect(diff.locator("[data-sd-side] .d2h-ins").first).to_be_visible()
+        expect(diff.locator("[data-sd-side] .d2h-del").first).to_be_visible()
         expect(diff).to_contain_text("TodoApp/app.py")
         expect(diff).to_contain_text("final")
 
@@ -226,7 +226,7 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         page.wait_for_url(f"**/git/commits/{self.short_b}/TodoApp/endpoints.py")
         page.wait_for_selector("[data-split-diff] .d2h-ins")
         diff = page.locator("[data-split-diff]")
-        expect(diff.locator(".d2h-ins").first).to_be_visible()
+        expect(diff.locator("[data-sd-side] .d2h-ins").first).to_be_visible()
         expect(diff).to_contain_text("ADDED")
 
     def test_commit_navigation(self) -> None:

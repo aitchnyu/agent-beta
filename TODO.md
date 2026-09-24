@@ -1,6 +1,27 @@
-Review N commits
-Readme - desmo is a codename
-Readme - tree of files created/affected
+
+Im seeing
+
+```
+....
+Expanded Security Maintenance for Applications is not enabled.
+
+20 updates can be applied immediately.
+20 of these updates are standard security updates.
+To see these additional updates run: apt list --upgradable
+
+1 additional security update can be applied with ESM Apps.
+Learn more about enabling ESM Apps service at https://ubuntu.com/esm
+
+
+ubuntu@desmo:~$ desmo
+./run: line 501: $1: unbound variable
+```
+
+I want a message saying desmo command is available in machine. Also if no param is there, run the default help fn in ./run.
+
+Readme should mention: desmo is an internal codename
+
+Readme should tree of files created/affected by our provisioning, including the structure of our django project. Against each node - briefly explain each one. This tree should be near top.
 
 CSRF, allow token based requests to pass if not sent by frontend? csrf_guard and new function for make_ninja_api? Document?
 

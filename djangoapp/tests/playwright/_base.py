@@ -253,11 +253,18 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
         A bare token like ``"404"`` would silently excuse ANY unrelated
         error that happens to mention it.
 
+        The message is compiled as a REGEX: escape metacharacters in
+        literal text (``(``, ``?``, ``+``, …) or they raise ``re.error``
+        / silently re-match — e.g. ``re.escape("Uncaught (in promise)")``
+        for chromium's unhandled-rejection prefix.
+
         By default the LAST (most recent) matching entry is popped; pass
         ``all=True`` to pop every matching entry (for when one deliberate
         error lands as several — the handler's log plus the browser's own
-        uncaught-error entry). If nothing matches, the test fails with the
-        sink's full contents. tearDown still fails on any UNPOPPED entry.
+        uncaught-error entry). A GENERIC pattern with ``all=True`` can mask
+        unrelated failures — keep patterns specific. If nothing matches,
+        the test fails with the sink's full contents. tearDown still fails
+        on any UNPOPPED entry.
         """
         # Pump playwright's event queue first: asynchronously-delivered
         # entries (e.g. an unhandledrejection's pageerror) sit queued until

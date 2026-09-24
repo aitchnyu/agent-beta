@@ -61,7 +61,10 @@ class ClientErrorReportingE2e(BasePlaywrightTestCase):
         self.assertIsInstance(body["colno"], int)
         self.assertGreater(body["lineno"], 0)
         self.assertGreater(body["colno"], 0)
-        self.assertIsInstance(body["filename"], str)
+        # Chromium reports filename="" for a throw inside evaluate'd
+        # setTimeout code; the reporter sends ``event.filename || ""`` —
+        # pin exactly those two shapes.
+        self.assertIn(body["filename"], ("", self.page.url))
         # url is the page URL, sent verbatim (nothing sensitive is put in
         # URLs) — the home route has no query, so it equals page.url.
         self.assertEqual(body["url"], page.url)

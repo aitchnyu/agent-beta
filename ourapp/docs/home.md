@@ -11,9 +11,11 @@ The landing page — plus the repo's permanent mockup demo route.
 ## Behaviour
 
 - Anonymous visitor: `is_authenticated=false`, empty `display_name`/`public_id`,
-  plus a Google sign-in link rendered client-side.
+  and a "You are not signed in." note. No auth chrome lives on the page —
+  sign-in dropdown and user menu (with logout) are the framework navbar's.
 - Authenticated viewer: their `display_name` and `public_id` (never the integer
-  `pk`), plus a logout form.
+  `pk`); the page renders no differently from a signed-out view apart from
+  the missing anon note.
 - `/mockup-todos` renders a static todo list mirroring the reference app's
   todos page under the `div.mockup` crosshatch wrapper — the shipped example
   of the mockup convention (`agentconfig/steer.md` § Mockups and diagrams).
