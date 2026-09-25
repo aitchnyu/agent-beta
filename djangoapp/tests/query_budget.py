@@ -1,9 +1,11 @@
 """Query-budget base classes that catch N+1 read regressions in view tests.
 
-A test fails if it runs more SELECT queries than its budget. Only read queries
-(`SELECT` / `WITH ... SELECT`) are counted, so fixture INSERTs and the
-savepoint/transaction overhead that `django.test.TestCase` wraps each test in
-do not inflate the count - the budget reflects the view's actual reads.
+A test fails if it runs more SELECT queries than its budget (an N+1
+regression) OR fewer than 70% of it (an overprovisioned budget that no
+longer catches regressions). Only read queries (`SELECT` / `WITH ...
+SELECT`) are counted, so fixture INSERTs and the savepoint/transaction
+overhead that `django.test.TestCase` wraps each test in do not inflate
+the count - the budget reflects the view's actual reads.
 """
 
 from __future__ import annotations
@@ -28,15 +30,17 @@ def _is_read_query(sql: str) -> bool:
 
 
 class QueryBudgetMixin(TestCase):
-    """Fails a test whose SELECT-query count exceeds `max_select_queries`.
+    """Fails a test whose SELECT-query count falls outside 70%..100% of `max_select_queries`.
 
     Plain-``unittest.TestCase`` cooperative mixin: mix FIRST (before the
     real test base) so ``super().setUp()`` chains down the MRO. The class
-    attribute is the frozen baseline; ``allow_more_queries`` ADDS to it —
-    per-test extras only, and framework shifts re-freeze one line.
+    attribute is the frozen baseline; ``allow_more_queries`` ADDS to it and
+    ``set_max_select_queries`` REPLACES it — per-test extras only, and
+    framework shifts re-freeze one line.
     """
 
     max_select_queries: int = 8
+    min_budget_utilization: float = 0.7
 
     def setUp(self) -> None:
         super().setUp()
@@ -48,6 +52,10 @@ class QueryBudgetMixin(TestCase):
     def allow_more_queries(self, count: int) -> None:
         """Raise this test's SELECT-query budget BY `count` (state why at the call site)."""
         self.max_select_queries += count
+
+    def set_max_select_queries(self, count: int) -> None:
+        """Replace this test's SELECT-query budget with `count` (state why at the call site)."""
+        self.max_select_queries = count
 
     def captured_select_queries(self) -> list[dict[str, str]]:
         return [q for q in self._query_capture.captured_queries if _is_read_query(q["sql"])]
@@ -62,13 +70,18 @@ class QueryBudgetMixin(TestCase):
         self._query_capture.__exit__(None, None, None)
         selects = self.captured_select_queries()
         count = len(selects)
-        if count <= self.max_select_queries:
-            return
-        detail = "\n".join(f"  [{i + 1}] {q['sql'][:200]}" for i, q in enumerate(selects))
-        self.fail(
-            f"{count} SELECT queries exceed budget of {self.max_select_queries} "
-            f"in {self.id()}.\nQueries:\n{detail}",
-        )
+        if count > self.max_select_queries:
+            detail = "\n".join(f"  [{i + 1}] {q['sql'][:200]}" for i, q in enumerate(selects))
+            self.fail(
+                f"{count} SELECT queries exceed budget of {self.max_select_queries} "
+                f"in {self.id()}.\nQueries:\n{detail}",
+            )
+        if count < self.max_select_queries * self.min_budget_utilization:
+            self.fail(
+                f"{count} SELECT queries are below "
+                f"{self.min_budget_utilization:.0%} of budget of {self.max_select_queries} "
+                f"in {self.id()} - the budget is overprovisioned.",
+            )
 
 
 class QueryBudgetTestCase(QueryBudgetMixin, BaseTestCase):

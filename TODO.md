@@ -6,8 +6,6 @@ Test with changing site theme. Generate color schemes. Then try to upgrade to po
 VAPID_PRIVATE_KEY="DANGEROUSLYUNSET" Generate in provision along with db pass?
 Pi's native login
 
-_assert_select_budget - dont overprovision by more than 33%
-
 save_with_logs take sequence number
 
 ```

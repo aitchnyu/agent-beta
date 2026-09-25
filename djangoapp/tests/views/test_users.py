@@ -51,6 +51,7 @@ class UserListViewTests(QueryBudgetInertiaTestCase):
 
     def test_list_anonymous_404(self) -> None:
         """Anonymous request returns 404."""
+        self.set_max_select_queries(1)  # anonymous GET 404: the lone session read
         response = self.client.get("/users/list")
         self.assertEqual(response.status_code, 404)
 
@@ -99,7 +100,7 @@ class UserListViewTests(QueryBudgetInertiaTestCase):
 
     def test_list_select_count_does_not_scale_with_row_count(self) -> None:
         """List SELECT count must not scale with row count (catches per-row N+1)."""
-        self.allow_more_queries(36)  # three list requests; an N+1 would exceed this
+        self.allow_more_queries(31)  # force_login + four list GETs; an N+1 would exceed this
         self.client.force_login(self.superuser)
         # Warm up past the session index's one-time backfill so both measured
         # requests are steady-state (the pin is per-row scaling, not caching).
@@ -127,6 +128,10 @@ class UserSearchViewTests(QueryBudgetTestCase):
     - test_search_item_shape, each item has public_id/username/title and no id key
     """
 
+    # Frozen baseline incl. auth/session overhead + the shared unread count.
+    # +1: login session flush/delete CASCADE-probes PushSubscription.
+    max_select_queries = 12
+
     def setUp(self) -> None:
         self.superuser = User.objects.create_user(
             username="root",
@@ -141,9 +146,11 @@ class UserSearchViewTests(QueryBudgetTestCase):
             first_name="Alice",
             last_name="Smith",
         )
+        super().setUp()
 
     def test_search_anonymous_404(self) -> None:
         """Anonymous request returns 404."""
+        self.set_max_select_queries(1)  # anonymous GET 404: the lone session read
         response = self.client.get("/users/api/search?q=alice")
         self.assertEqual(response.status_code, 404)
 
@@ -235,11 +242,13 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
 
     def test_details_anonymous_ok(self) -> None:
         """Anonymous can view a profile (200)."""
+        self.set_max_select_queries(2)  # anonymous GET: session read + profile fetch
         response = self.client.get(f"/users/id/{self.public_user.public_id}")
         self.assertEqual(response.status_code, 200)
 
     def test_details_public_shows_description(self) -> None:
         """Public profile includes description and username."""
+        self.set_max_select_queries(2)  # anonymous GET: session read + profile fetch
         self.client.get(f"/users/id/{self.public_user.public_id}")
         props = self.props()["props"]
         self.assertEqual(props["description"], "<p>about me</p>")
@@ -249,6 +258,7 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
 
     def test_details_private_hides_extras(self) -> None:
         """Private profile omits description and username, keeps first/last name."""
+        self.set_max_select_queries(2)  # anonymous GET: session read + profile fetch
         self.client.get(f"/users/id/{self.private_user.public_id}")
         props = self.props()["props"]
         self.assertIsNone(props["description"])
@@ -273,6 +283,7 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
 
     def test_details_shared_is_superuser_false(self) -> None:
         """non-superuser/anonymous viewer gets the shared viewer_is_superuser False."""
+        self.set_max_select_queries(2)  # anonymous GET: session read + profile fetch
         self.client.get(f"/users/id/{self.public_user.public_id}")
         self.assertFalse(self.props()["viewer_is_superuser"])
 
@@ -309,6 +320,7 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
 
     def test_details_admin_attrs_hidden_for_anonymous(self) -> None:
         """Anonymous viewer gets no real email (None) and history_count 0."""
+        self.set_max_select_queries(2)  # anonymous GET: session read + profile fetch
         self.client.get(f"/users/id/{self.public_user.public_id}")
         props = self.props()["props"]
         self.assertIsNone(props["email"])
@@ -331,6 +343,7 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
 
     def test_details_missing_404(self) -> None:
         """Unknown public_id returns 404."""
+        self.set_max_select_queries(2)  # anonymous GET 404: session read + target lookup
         response = self.client.get("/users/id/does-not-exist")
         self.assertEqual(response.status_code, 404)
 
@@ -399,6 +412,7 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
 
     def test_edit_anonymous_404(self) -> None:
         """Anonymous GET on the edit form returns 404."""
+        self.set_max_select_queries(1)  # anonymous GET 404: the lone session read
         response = self.client.get(f"/users/edit/{self.target.public_id}")
         self.assertEqual(response.status_code, 404)
 
@@ -532,6 +546,7 @@ class UserHistoryViewTests(QueryBudgetInertiaTestCase):
 
     def test_history_anonymous_404(self) -> None:
         """Anonymous GET returns 404."""
+        self.set_max_select_queries(1)  # anonymous GET 404: the lone session read
         response = self.client.get(f"/users/history/{self.target.public_id}")
         self.assertEqual(response.status_code, 404)
 
