@@ -347,12 +347,12 @@ class ModelScreenshotTests(BaseScreenshotTestCase):
                 author=authors[author_ix],
                 reviewer=self.admin,
             )
-            book.save_with_logs(actor=self.admin)
+            book.save_with_logs(actor=self.admin, expected_row_version=0)
             if featured is None:
                 featured = book
         assert featured is not None
         featured.pages += 8
-        featured.save_with_logs(actor=self.admin)
+        featured.save_with_logs(actor=self.admin, expected_row_version=0)
         self.featured_public_id = featured.public_id
 
     def test_models_list(self) -> None:

@@ -12,7 +12,8 @@ const text = ref(props.todo?.text ?? "")
 
 async function submit() {
   try {
-    await postJSON("/todos/create", { text: text.value })
+    // expected_row_version: 0 — the required value for a create (no prior state to echo).
+    await postJSON("/todos/create", { text: text.value, expected_row_version: 0 })
     text.value = ""
     emit("created")
   } catch (e) {

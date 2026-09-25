@@ -19,7 +19,7 @@ from django.core.management.base import BaseCommand, CommandParser
 from django.db import transaction
 from django.utils.text import slugify
 
-from djangoapp.models import User
+from djangoapp.models import SKIP_ROW_VERSION_CHECK, User
 from ourapp.models import Fact, Topic
 
 # Seed data: topic name -> 20 facts (the slug is derived from the name via
@@ -301,7 +301,10 @@ class Command(BaseCommand):
                 topic = Topic.objects.get(slug=slug)
             except Topic.DoesNotExist:
                 topic = Topic(name=name, slug=slug)
-                topic.save_with_logs(actor=seeder)
+                # The seed is a single writer creating fresh rows
+                topic.save_with_logs(
+                    actor=seeder, expected_row_version=SKIP_ROW_VERSION_CHECK
+                )
             topics[slug] = topic
         return topics
 
@@ -311,6 +314,8 @@ class Command(BaseCommand):
         for slug, topic in topics.items():
             for text in FACTS[topic.name]:
                 fact = Fact(text=text, topic=topic)
-                fact.save_with_logs(actor=seeder)
+                fact.save_with_logs(
+                    actor=seeder, expected_row_version=SKIP_ROW_VERSION_CHECK
+                )
                 count += 1
         return count

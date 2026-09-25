@@ -59,6 +59,10 @@ export const TodoSchema = z.object({
   public_id: z.string(),
   text: z.string(),
   completed: z.boolean(),
+  // Optimistic-lock version: echo it back on the next mutating request as
+  // expected_row_version; a stale number gets a 404 — the row
+  // changed since this read.
+  row_version: z.number().int().nonnegative(),
   owner_public_id: z.string(),
 })
 

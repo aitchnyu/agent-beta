@@ -514,13 +514,29 @@ the referenced row via that row's `get_absolute_url()`.
 `get_absolute_url()`. **Prefer the audit-aware methods over bare
 `.save()`/`objects.create()` so changes are tracked in history** — every write
 through them is logged to `BaseModelUpdateLog`:
-- `instance.save_with_logs(actor=…)` — create or update. On create it stamps
+- `instance.save_with_logs(actor=…, expected_row_version=…)` — create or update. On create it stamps
   `created_by`/`last_updated_by`/`last_updated_at` and writes one `created` log
   (old values empty, new values = the full row). On update it diffs against the
   pre-edit row and writes one `updated` log holding only the changed columns; a
   no-op edit writes no log. Fields only — many-to-many sets are NOT diffed or
   logged (an m2m-only change writes no log row), so keep m2m mutations next to
   a field change or log them explicitly.
+- `expected_row_version=` is the **optimistic lock**:
+  - Pass the row's `row_version` as your code last saw it — 0 to create (rows
+    start there), the current value to update. Every update bumps it by 1.
+  - An exact match is required. Anything else — especially a number from an
+    outdated view of the row, raise `Http404`
+  - To the client, stale state is indistinguishable from the row being gone —
+    the same 404 a missing row already produces, not a 5xx.
+  - Client contract: expose `row_version` in the output schema and require
+    `expected_row_version` on mutating payloads so clients can echo it back
+    (creates send 0).
+  - Single-writer flows that own the row and hold no client-supplied number —
+    cron upserts, management commands — pass the
+    `djangoapp.models.SKIP_ROW_VERSION_CHECK` sentinel to skip the check; the
+    row's `row_version` still increments, so numbers read before a skipped
+    check go stale just the same.
+  - Bare `.save()` (untracked) also skips the increment.
 - `instance.delete_with_logs(actor=…)` — writes a `deleted` log (old/new values
   both empty — a delete only records that the row was removed, not a snapshot)
   then deletes; the log outlives the row.
@@ -536,9 +552,21 @@ the *reason*, not a description of the line (✗ `# test fixture`, ✓
 
 ```python
 # ✓ tracked (production) — create or update writes one log row. To create,
-# build unsaved, then save_with_logs (there is no create_with_logs helper).
+# build unsaved, then save_with_logs (there is no create_with_logs helper);
+# a create always passes expected_row_version=0.
 todo = Todo(text="x", owner=user)
-todo.save_with_logs(actor=user)
+todo.save_with_logs(actor=user, expected_row_version=0)
+
+# ✓ tracked update — echo the row_version your code last read off the row;
+# stale/too-high raises Http404 straight from the model (happy-path caller).
+# This is recommended for concurrent web requests
+todo.completed = True
+todo.save_with_logs(actor=user, expected_row_version=todo.row_version)
+
+# ✓ tracked, no number to echo (cron/command owns the row) — the sentinel
+# skips the check; the row's row_version still increments.
+# Not recommended for concurrent web requests
+row.save_with_logs(actor=None, expected_row_version=SKIP_ROW_VERSION_CHECK)
 
 # ✓ untracked — plain Django; no history. Comment WHY when you choose it.
 Todo.objects.create(text="x", owner=user)  # seed only — the detail view asserts an empty log
@@ -657,11 +685,14 @@ lookup that hides the concrete model from the type checker — don't reach for i
       notification, and delivery never blocks the request (see
       [Notifications](#notifications-framework)).
 - [ ] Mutating writes go through `save_with_logs`/`delete_with_logs` (audited),
-      not bare `.save()`/`.delete()`.
+      not bare `.save()`/`.delete()`; `save_with_logs` gets the row's current
+      `row_version` as `expected_row_version` (0 to create,
+      `SKIP_ROW_VERSION_CHECK` when a single writer owns the row).
 - [ ] Returns a pydantic schema (data) or `InertiaResponse` (page) — never a raw
       dict or the ORM row.
-- [ ] Raises 404 on a missing row or an ownership/permission failure — never
-      renders an empty or broken page.
+- [ ] Raises 404 on a missing row, an ownership/permission failure, or a stale
+      `row_version` (`save_with_logs` raises `Http404` itself) — never renders
+      an empty or broken page.
 - [ ] Sends only `public_id`, never the integer `pk`/`id`.
 
 For every **Inertia page**, all five must hold:
@@ -1110,11 +1141,8 @@ for u in User.objects.all():
 ## Security & data access
 You run in a **terminal** — locally, or on the VM as the default cloud
 user (ubuntu/debian) via `multipass shell` (start the TUI with `desmo pi`
-- aihere ensure we dont mention the `/agent` proxy anywhere in codebase
 — the `desmo` command runs ./run on the app dir from anywhere); there is
-no web surface in front of you (the old
-superuser-only `/agent` proxy went away with the ttyd console). Mind the
-data-exfiltration surface:
+no web surface in front of you. Mind the data-exfiltration surface:
 - The read-only tools (`read`/`grep`/`find`/`ls`) and the allowlisted shell
   inspection commands (`cat`/`grep`/`find`/`ls`…) let you read any file reachable
   from the repo, including `.env` (DB/OAuth/provider secrets). Anything you read

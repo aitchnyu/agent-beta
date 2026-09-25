@@ -195,14 +195,16 @@ class ManageProjectTests(BaseInertiaTestCase):
         self.assertComponentUsed("RowDetail")
         props = self.props()["props"]
 
-        # Builtins (public_id/created_by/created_at/last_updated_at/last_updated_by)
-        # are columns like any other, so they lead before Book's own fields.
+        # Builtins (public_id/created_by/created_at/row_version/last_updated_at/
+        # last_updated_by) are columns like any other, so they lead before
+        # Book's own fields.
         self.assertEqual(
             [c["name"] for c in props["columns"]],
             [
                 "public_id",
                 "created_by",
                 "created_at",
+                "row_version",
                 "last_updated_at",
                 "last_updated_by",
                 "title",

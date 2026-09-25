@@ -1,12 +1,13 @@
 CSRF, allow token based requests to pass if not sent by frontend? csrf_guard and new function for make_ninja_api? Document?
 
+Uploads dir is a single thing too. Sample app for file hosting?
+Accelerate file serving with Caddy - have FileResponse - test with checkframework2
+
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis.
 
 VAPID_PRIVATE_KEY="DANGEROUSLYUNSET" Generate in provision along with db pass?
 Pi's native login
-
-save_with_logs take sequence number
 
 ```
 multipass shell app
@@ -22,8 +23,6 @@ import from git repo tags?
 Run all tests in checkproject and merge coverage from both stages. Improve test coverage
 
 ## Deployment
-Uploads dir is a single thing too. Sample app for file hosting?
-Accelerate file serving with Caddy - have FileResponse - test with checkframework2
 Backup regularly - https://www.pghardstorage.org/examples
 Provision in vm with domain with curl|bash. What all should user provide?
 Readme for end users and devs, Desec dns

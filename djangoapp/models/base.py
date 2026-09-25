@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import typing
 import uuid
-from typing import Any, ClassVar, Literal, cast
+from typing import Any, ClassVar, Final, Literal, cast
 
 from django.conf import settings
 from django.contrib.auth.models import AbstractUser
@@ -12,6 +12,7 @@ from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import TrigramSimilarity
 from django.db import models, transaction
 from django.dispatch import receiver
+from django.http import Http404
 from django.utils import timezone
 from pydantic import BaseModel as PydanticBaseModel
 
@@ -473,14 +474,21 @@ def on_user_logged_in(
 # URL its rows link to, without models importing views.
 MANAGE_MODELS_URL_PREFIX = "/manage/models"
 
+# Sentinel for ``save_with_logs(expected_row_version=…)``: skip the check —
+# single-writer flows that own the row (cron upserts, commands, fixtures).
+# row_version still increments, so numbers read before a skipped check go
+# stale just the same; -1 can never be real (the column starts at 0).
+SKIP_ROW_VERSION_CHECK: Final[int] = -1
+
 
 class BaseModel(models.Model):
     """Abstract base for the concrete models in ourapp/.
 
     Rows are addressed by their ``public_id`` (UUID7 by default; a subclass may
     use friendlier names). Audit fields track who created/last-touched each row;
-    :meth:`save_with_logs`/:meth:`delete_with_logs` write one ``BaseModelUpdateLog``
-    entry per create/update/delete.
+    a ``row_version`` column guards writes with an optimistic lock (exact match
+    required — see :meth:`save_with_logs`); both methods write one
+    ``BaseModelUpdateLog`` entry per create/update/delete.
     """
 
     public_id = models.CharField(
@@ -494,6 +502,11 @@ class BaseModel(models.Model):
         related_name="+",
     )
     created_at = models.DateTimeField(auto_now_add=True)
+    # Optimistic-lock version: 0 on create, +1 per save_with_logs update; a
+    # mismatch raises Http404 (stale state ≈ row gone). Compound name keeps
+    # "sequence"/"version" free for domain fields — base field names are
+    # reserved for every subclass.
+    row_version = models.PositiveBigIntegerField(default=0, editable=False)
     # Set explicitly in save_with_logs (NOT auto_now) so the stamp never drifts
     # from the matching BaseModelUpdateLog.performed_* pair.
     last_updated_at = models.DateTimeField(null=True, blank=True)
@@ -560,7 +573,7 @@ class BaseModel(models.Model):
             # book.author caches → Jesvin (pk 7)
             book.author_id = 42   # assigns the FK COLUMN; the cached
                                   # book.author still points at Jesvin
-            book.save_with_logs(actor=admin)
+            book.save_with_logs(actor=admin, expected_row_version=0)
 
         Snapshotting ``self`` would read the stale cached Jesvin for the
         post-save half, the diff against the (also Jesvin) pre-edit row would
@@ -614,11 +627,18 @@ class BaseModel(models.Model):
             return _log_fk_value(value)
         return _OMIT
 
-    def save_with_logs(self, *, actor: User | None) -> None:
+    def save_with_logs(self, *, actor: User | None, expected_row_version: int) -> None:
         """Persist and write one ``BaseModelUpdateLog`` (``created`` or ``updated``).
 
         ``actor`` is who performed the write (recorded as ``performed_by`` and
-        stamped on ``created_by``/``last_updated_by``)
+        stamped on ``created_by``/``last_updated_by``).
+
+        ``expected_row_version`` is the optimistic lock: the row's
+        ``row_version`` as your code last saw it (0 to create, current to
+        update). Exact match or the save raises ``django.http.Http404``
+        before writing anything — callers stay happy-path. Use
+        ``SKIP_ROW_VERSION_CHECK`` when a single writer owns the row; the
+        version increments on every update either way.
 
         Create: ``old_values={}``, ``new_values`` = full snapshot.
         Update: only **changed** columns appear in old/new_values; a no-op edit
@@ -634,6 +654,12 @@ class BaseModel(models.Model):
         """
         now = timezone.now()
         if self._state.adding:
+            if expected_row_version not in (0, SKIP_ROW_VERSION_CHECK):
+                msg = (
+                    f"creating {type(self).__name__} requires expected_row_version=0,"
+                    f" got {expected_row_version}"
+                )
+                raise Http404(msg)
             self.created_by = actor
             self.last_updated_by = actor
             self.last_updated_at = now
@@ -649,9 +675,26 @@ class BaseModel(models.Model):
                     new_values=self._values_snapshot(),
                 )
             return
-        self.last_updated_by = actor
-        self.last_updated_at = now
         with transaction.atomic():
+            # Lock the row so check-then-increment is atomic against a
+            # concurrent writer: the second save blocks until the first
+            # commits, then compares against the bumped row_version and fails —
+            # two writers can never both match the same number.
+            current = (
+                type(self)
+                .objects.select_for_update()  # type: ignore[attr-defined] # concrete subclass carries objects; abstract BaseModel doesn't
+                .get(pk=self.pk)
+                .row_version
+            )
+            if expected_row_version not in (SKIP_ROW_VERSION_CHECK, current):
+                msg = (
+                    f"{type(self).__name__} pk={self.pk} is at row_version {current},"
+                    f" got {expected_row_version}"
+                )
+                raise Http404(msg)
+            self.row_version = current + 1
+            self.last_updated_by = actor
+            self.last_updated_at = now
             # Pre-edit snapshot read inside the txn so a concurrent edit
             # between read and save can't slip in un-logged — the audit's
             # before/after must match the row state at save time.
@@ -660,13 +703,16 @@ class BaseModel(models.Model):
             new_values = self._values_snapshot()
             diff_old, diff_new = _diff_snapshots(old_values, new_values)
             # last_updated_at/by are always re-stamped above (and recorded
-            # separately as performed_at/performed_by), so drop them from the
-            # diff — otherwise every edit logs timestamp churn and a true no-op
-            # (no data column changed) never skips.
+            # separately as performed_at/performed_by), and row_version bumps
+            # on every update, so drop all three from the diff — otherwise
+            # every edit logs churn and a true no-op (no data column changed)
+            # never skips.
             diff_old.pop("last_updated_at", None)
             diff_new.pop("last_updated_at", None)
             diff_old.pop("last_updated_by", None)
             diff_new.pop("last_updated_by", None)
+            diff_old.pop("row_version", None)
+            diff_new.pop("row_version", None)
             if diff_old:  # no-op edit → no log row
                 BaseModelUpdateLog.objects.create(
                     performed_by=actor,

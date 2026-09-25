@@ -5,10 +5,11 @@ Endpoints (all under ``/todos``, one Inertia page ``ours/TodosPage``):
 - POST /todos/create             — add a todo (audit-logged) → TodoOutSchema
 - POST /todos/{public_id}/toggle — flip completion (audit-logged) → TodoOutSchema
 
-Create writes a todo + its notification in one ``transaction.atomic()``
-block (see ``create_todo`` — the canonical multi-write shape); toggle is
-single-row and needs no extra transaction beyond ``save_with_logs``'s own.
-Data is pk-free (only ``public_id``).
+Both mutating payloads carry ``expected_row_version`` — the row's
+``row_version`` as the client last saw it (creates send 0). On a stale number
+``save_with_logs`` raises ``Http404`` itself, so views stay happy-path.
+Create writes the todo + its notification in one ``transaction.atomic()``
+block; toggle is single-row. Data is pk-free (only ``public_id``).
 """
 
 from __future__ import annotations
@@ -31,13 +32,21 @@ class TodoOutSchema(Schema):
     public_id: str
     text: str
     completed: bool
+    row_version: int
     owner_public_id: str
 
 
 class TodoCreateSchema(Schema):
-    """Create payload (text required)."""
+    """Create payload (text + the required version; a create is always 0)."""
 
     text: str
+    expected_row_version: int
+
+
+class TodoToggleSchema(Schema):
+    """Toggle payload: the todo's row_version as the client last saw it."""
+
+    expected_row_version: int
 
 
 def _todo_out(todo: Todo) -> TodoOutSchema:
@@ -45,6 +54,7 @@ def _todo_out(todo: Todo) -> TodoOutSchema:
         public_id=todo.public_id,
         text=todo.text,
         completed=todo.completed,
+        row_version=todo.row_version,
         owner_public_id=todo.owner.public_id,
     )
 
@@ -83,12 +93,15 @@ def create_todo(request: HttpRequest, payload: TodoCreateSchema) -> TodoOutSchem
     notification push is scheduled by ``record`` itself on ``on_commit``
     — the user is only ever informed AFTER the data is durable.
     ``save_with_logs`` (not ``objects.create``) so the write is
-    audit-logged and stamps ``created_by``/``last_updated_by``.
+    audit-logged and stamps ``created_by``/``last_updated_by``. A nonzero
+    ``expected_row_version`` here raises ``Http404`` out of the model
+    itself — it never matched any state of the row, like any stale view of
+    the data.
     """
     user = user_or_404(request)
     with transaction.atomic():
         todo = Todo(text=payload.text.strip(), owner=user)
-        todo.save_with_logs(actor=user)
+        todo.save_with_logs(actor=user, expected_row_version=payload.expected_row_version)
         Notification.record(
             recipient=user,
             kind="todo.created",
@@ -99,14 +112,19 @@ def create_todo(request: HttpRequest, payload: TodoCreateSchema) -> TodoOutSchem
 
 
 @router.post("/todos/{public_id}/toggle", response=TodoOutSchema)
-def toggle_todo(request: HttpRequest, public_id: str) -> TodoOutSchema:
+def toggle_todo(
+    request: HttpRequest, public_id: str, payload: TodoToggleSchema
+) -> TodoOutSchema:
     """Flip a todo's completion state; return the updated todo.
 
     ``save_with_logs`` writes an ``updated`` revision only when a data column
     changed (``completed`` always flips here) and re-stamps ``last_updated_*``.
+    A stale ``expected_row_version`` (the todo changed since the client
+    read it) makes the model raise ``Http404`` — indistinguishable from a
+    missing row, with no view-side error handling.
     """
     user = user_or_404(request)
     todo = _todo_or_404(public_id, user)
     todo.toggle()
-    todo.save_with_logs(actor=user)
+    todo.save_with_logs(actor=user, expected_row_version=payload.expected_row_version)
     return _todo_out(todo)

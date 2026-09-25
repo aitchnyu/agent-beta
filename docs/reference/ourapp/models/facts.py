@@ -21,7 +21,7 @@ from typing import ClassVar, override
 
 from django.db import models
 
-from djangoapp.models import BaseModel
+from djangoapp.models import SKIP_ROW_VERSION_CHECK, BaseModel
 
 
 class Topic(BaseModel):
@@ -129,7 +129,10 @@ class FactOfTheDay(BaseModel):
         """Pick one random fact and upsert the singleton. None if the pool is empty.
 
         The only mutator. The unique ``singleton`` sentinel enforces "one row" at
-        the DB level. Writes go through ``save_with_logs(actor=None)``.
+        the DB level. Writes go through ``save_with_logs(actor=None,
+        expected_row_version=SKIP_ROW_VERSION_CHECK)`` — the daily cron is the
+        single writer and holds no client-supplied number to echo, so it skips
+        the optimistic-lock check (the row's row_version still increments).
         """
         fact = Fact.objects.random()
         if fact is None:
@@ -139,5 +142,5 @@ class FactOfTheDay(BaseModel):
             row = cls(fact=fact)
         else:
             row.fact = fact
-        row.save_with_logs(actor=None)
+        row.save_with_logs(actor=None, expected_row_version=SKIP_ROW_VERSION_CHECK)
         return row
