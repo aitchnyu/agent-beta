@@ -20,6 +20,11 @@ The operator/agent surface is a shell, not the web — no user hop (the
 default cloud user IS the operator; the `desmo` command runs ./run on the
 app dir from anywhere):
   multipass shell desmo     # then: desmo pi   (the pi TUI; full sudo)
+One-time in the pi TUI (provider auth + startup model live in pi's own
+stores, not the credentials env):
+  /login zai               # credentials → ~/.pi/agent/auth.json
+  /model  … then Ctrl+S    # startup model → ~/.pi/agent/settings.json
+  (one-off override: desmo pi --model <provider/model>)
 Login to the app — Google OAuth works on the VM (localhost is Google's dev
 redirect exception): register
   https://localhost:8000/accounts/google/login/callback/

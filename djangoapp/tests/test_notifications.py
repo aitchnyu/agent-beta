@@ -17,7 +17,6 @@ from djangoapp.models import (
     PushSubscription,
     User,
     UserSessionIndex,
-    is_push_enabled,
     notify_sessions,
     vapid_public_key,
     vapid_subject,
@@ -37,28 +36,6 @@ class _FakeResponse:
 # Deterministic regardless of the local .env: every dispatch test forces a
 # fully-configured VAPID (values are fake — pywebpush itself is mocked).
 PUSH_CONFIGURED = override_settings(VAPID_PRIVATE_KEY="fake-private-key")
-
-
-class PushEnabledTests(BaseTestCase):
-    """``is_push_enabled``: can the server deliver browser pushes at all.
-
-    It means exactly "VAPID_PRIVATE_KEY is configured" — in-app storage,
-    the badge and the list page do NOT depend on it; only Web Push
-    fan-out does. The subject is derived, not configured.
-
-    - test_disabled_when_key_missing, empty private key → False
-    - test_enabled_when_key_set, key set → True
-    """
-
-    def test_disabled_when_key_missing(self) -> None:
-        """Empty private key disables push."""
-        with override_settings(VAPID_PRIVATE_KEY=""):
-            self.assertFalse(is_push_enabled())
-
-    def test_enabled_when_key_set(self) -> None:
-        """Private key set → enabled (no other knob)."""
-        with PUSH_CONFIGURED:
-            self.assertTrue(is_push_enabled())
 
 
 class VapidSubjectTests(BaseTestCase):
@@ -104,7 +81,7 @@ class VapidPublicKeyTests(BaseTestCase):
     the app-side derivation.
 
     - test_derivation_matches_known_curve_point, scalar 1 → the fixed P-256 generator point
-    - test_empty_private_yields_empty_public, disabled VAPID → empty string
+    - test_malformed_private_raises, garbage key → raises (misconfig is loud)
     """
 
     def test_derivation_matches_known_curve_point(self) -> None:
@@ -118,10 +95,13 @@ class VapidPublicKeyTests(BaseTestCase):
                 "BJu_BtrZq1kF4FRxzhbVIiyJwsqjnyYmesB0cSmIX71EG8x_qE3hIKNnVdrzCm9H6MDUvdwVA27So0R9-nodPog",
             )
 
-    def test_empty_private_yields_empty_public(self) -> None:
-        """No private key configured → empty public key (push disabled)."""
-        with override_settings(VAPID_PRIVATE_KEY=""):
-            self.assertEqual(vapid_public_key(), "")
+    def test_malformed_private_raises(self) -> None:
+        """A malformed (hand-edited) key raises — no silent degradation."""
+        with (
+            override_settings(VAPID_PRIVATE_KEY="not-a-real-scalar!!"),
+            self.assertRaises(ValueError),
+        ):
+            vapid_public_key()
 
 
 class NotificationRecordTests(BaseTestCase):
@@ -285,17 +265,6 @@ class PushDispatchTests(BaseTestCase):
         self._subscription("https://push.example/e1")
         with patch("djangoapp.models.notifications.webpush", side_effect=OSError("network")):
             self._notify()  # must not raise
-
-    def test_disabled_vapid_skips_webpush(self) -> None:
-        """Unset VAPID (the dev sentinel default) skips push attempts entirely."""
-        self._subscription("https://push.example/e1")
-        with (
-            override_settings(VAPID_PRIVATE_KEY=""),
-            patch("djangoapp.models.notifications.webpush") as webpush_mock,
-        ):
-            count = notify_sessions(self.user, {"public_id": "x", "kind": "k", "body": "b"})
-            self.assertEqual(count, 0)  # off is off, even with a subscription present
-        webpush_mock.assert_not_called()
 
     @PUSH_CONFIGURED
     def test_no_superuser_email_skips_webpush(self) -> None:

@@ -37,7 +37,7 @@ extract-app-seed() {
 
 # Append the computed platform keys when the pinned playwright doesn't know
 # this OS natively (cross-platform: the host derives and passes the entry,
-# e.g. ubuntu24.04-arm64 — see ./testvm provision step 6b). Idempotent: a
+# e.g. ubuntu24.04-arm64 — see ./testvm provision step 6a). Idempotent: a
 # retry (or a transient native-install failure misread as
 # platform-unknown) must not append duplicate keys — grep before append.
 playwright-override-env() {
@@ -47,7 +47,7 @@ playwright-override-env() {
     || printf 'PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS="1"\n' >> /etc/credentials/desmo/.env.vm
 }
 
-# Cross-platform browser setup: native first, mapped fallback (testvm 6b).
+# Cross-platform browser setup: native first, mapped fallback (testvm 6a).
 playwright-setup() {
   # Native first: on a distro the pinned playwright knows, this is the only
   # path — no override keys, validation passes as-is.
@@ -140,18 +140,19 @@ b.close(); p.stop()
 }
 
 # Assert-5 body: the `desmo pi` preconditions — the desmo wrapper and the
-# pi binary on PATH, and the credentials env (AGENT_MODEL) readable via
-# desmo-group membership.
+# pi binary on PATH, and the credentials env readable via desmo-group
+# membership (probed via the generated SECRET_KEY, which is non-empty on
+# every correctly provisioned VM). The model/auth live in pi's own stores.
 agent-pi-preconditions() {
   command -v desmo >/dev/null
   command -v pi >/dev/null
   . /etc/credentials/desmo/.env.vm 2>/dev/null
-  test -n "${AGENT_MODEL:-}"
+  test -n "${SECRET_KEY:-}"
 }
 
 # The agent's scratch lifecycle in checkframework2
 agent-scratch-create() {
-  # Credentials env → PLAYWRIGHT_BROWSERS_PATH, AGENT_MODEL et al; cwd = main/
+  # Credentials env → PLAYWRIGHT_BROWSERS_PATH et al; cwd = main/
   _vm_env
   # uv lives in /usr/local/bin; sudo's secure_path may not carry it
   export PATH=/usr/local/bin:$PATH
@@ -322,10 +323,10 @@ gate() {
   # ── Assert 5: the operator shells in via multipass as the default
   # cloud user (no sudo -iu hop) and runs `desmo pi`. Preconditions: the
   # desmo wrapper + pi binary on PATH, and the credentials env
-  # (AGENT_MODEL) readable via desmo-group membership.
+  # (SECRET_KEY probes readability) readable via desmo-group membership.
   echo; echo "=== Assert 5: default user can run desmo pi ==="
   gate-as-default-user agent-pi-preconditions \
-    || gate-fail "desmo/pi not on the default user's PATH, or AGENT_MODEL does not resolve (credentials env unreadable)"
+    || gate-fail "desmo/pi not on the default user's PATH, or the credentials env is unreadable"
 
   # ── Assert 6: the agent's scratch ./run playwrighttest needs browsers
   # in the SHARED cache (readable as the default user) and a chromium that

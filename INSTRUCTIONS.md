@@ -4,8 +4,14 @@ Use README.md as basic reference.
 All env config lives in root `.env` (dev) and `.env.vm` (test VM), copied
 from the matched `.env.example` / `.env.vm.example` templates. If you find a
 LEGACY `deploy/env.vm` or `.env_vm` file, RENAME it to root `.env.vm` before
-provisioning. `SECRET_KEY` / `DB_PASSWORD` must never stay `DANGEROUSLYUNSET`
-— generate values with `openssl rand -hex 32`.
+provisioning. The machine secrets are never hand-filled: on the VM,
+`SECRET_KEY` / `DB_PASSWORD` / `VAPID_PRIVATE_KEY` are all generated at
+provision time (write-once, openssl-only — deploy/gen-vapid-b64.sh, run by
+inside-vm.sh provision_app); in dev, `./run init` generates `SECRET_KEY` and
+`VAPID_PRIVATE_KEY`, and `DB_PASSWORD` is the local postgres password. The
+agent's
+provider auth + startup model live in pi's own stores (`/login`, `/model +
+Ctrl+S`), not the env files.
 
 Do not run commands like:
 ```bash

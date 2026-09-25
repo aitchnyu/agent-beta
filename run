@@ -55,13 +55,23 @@ init() {
     read -r response
     if [[ "$response" =~ ^[Yy]$ ]]; then
       cp .env.example .env
-      # Generate a real SECRET_KEY (sessions/password-reset need one);
-      # DB_PASSWORD stays sentinel for the operator (it must match their
-      # local postgres).
-      if command -v openssl >/dev/null 2>&1; then
-        sed -i.bak "s#^SECRET_KEY=.*#SECRET_KEY=\"$(openssl rand -hex 32)\"#" .env && rm -f .env.bak
-      fi
-      echo "Created .env with a generated SECRET_KEY — set DB_PASSWORD (your local postgres password) next."
+      # Generate a real SECRET_KEY (sessions/password-reset need one) and
+      # the VAPID Web Push key — the canonical mint the VM's provision uses
+      # too (deploy/gen-vapid-b64.sh, executed). Both are REQUIRED; DB_PASSWORD
+      # stays empty for the operator (it must match their local postgres).
+      command -v openssl >/dev/null 2>&1 || {
+        echo "REFUSING: openssl not found — required to mint SECRET_KEY + VAPID_PRIVATE_KEY." >&2
+        rm -f .env
+        exit 1
+      }
+      sed -i.bak "s#^SECRET_KEY=.*#SECRET_KEY=\"$(openssl rand -hex 32)\"#" .env && rm -f .env.bak
+      _vapid="$(./deploy/gen-vapid-b64.sh)" || {
+        echo "REFUSING: VAPID key mint failed — not leaving .env half-configured." >&2
+        rm -f .env
+        exit 1
+      }
+      sed -i.bak "s#^VAPID_PRIVATE_KEY=.*#VAPID_PRIVATE_KEY=\"$_vapid\"#" .env && rm -f .env.bak
+      echo "Created .env with generated SECRET_KEY + VAPID_PRIVATE_KEY — set DB_PASSWORD (your local postgres password) next."
     fi
   fi
   setenv
@@ -102,10 +112,11 @@ dev() {
 }
 
 pi() {
-  # The agent: exec the pi TUI with the .env environment (model, the
-  # provider's native auth var, git identity) exported by setenv — dev and
-  # VM alike. Config is project-local and versioned: .pi/settings.json
-  # (model, pinned packages), .pi/extensions/pi-permission-system/config.json
+  # The agent: exec the pi TUI with the .env environment (app env + git
+  # identity) exported by setenv — dev and VM alike; the startup model and
+  # provider auth live in pi's own stores (/model Ctrl+S, /login — see
+  # deploy/access-steps.txt). Config is project-local and versioned:
+  # .pi/settings.json (pinned packages), .pi/extensions/pi-permission-system/config.json
   # (the whole bash/edit/path policy — allow/ask/deny with operator
   # prompts), .pi/extensions/context/ (steer.md injection), and
   # .pi/extensions/notify/ (double BEL — immediate, then 300ms — on
@@ -148,17 +159,7 @@ pi() {
     }
   done
 
-  # (3) Model knob set — pi takes it VERBATIM (provider-qualified, the
-  #     same format as AGENT_MODEL; no splitting, no mapping). Auth rides
-  #     the provider's NATIVE env var (zai reads ZAI_API_KEY — our env
-  #     contract unchanged); pi itself fails loudly when it's missing.
-  if [[ -z "${AGENT_MODEL:-}" ]]; then
-    echo "Refusing to start: AGENT_MODEL is unset/empty — provider-qualified" \
-      "id, e.g. \"zai/glm-5.3\" (pi --list-models; see .env.example)." >&2
-    return 1
-  fi
-
-  # (4) Session behavior:
+  # (3) Session behavior:
   #     - --approve grants project trust DETERMINISTICALLY: without it a
   #       headless/default run silently skips .pi extensions AND packages
   #       (the permission system included) — probed. The launcher owns
@@ -174,7 +175,7 @@ pi() {
   export PI_SKIP_VERSION_CHECK=1
 
   # All checks passed — hand the terminal over to the TUI.
-  command pi --approve --model "$AGENT_MODEL" "$@"
+  command pi --approve "$@"
 }
 
 test() {

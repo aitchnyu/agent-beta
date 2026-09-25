@@ -39,6 +39,10 @@
 #       │   ├── Caddyfile                stock + "import sites/*.caddy"
 #       │   └── sites/desmo.caddy        the app site (names: ALLOWED_HOSTS)
 #       └── redis/redis.conf             stock + maxmemory block
+#   /
+#   └── usr/local/lib/desmo/
+#       └── gen-vapid-b64.sh             the VAPID mint executable (one recipe
+#                                         with run init's repo copy)
 #   /srv/desmo  (pre-created by provision_vm; group-desmo-writable)
 #     └── main/ contents = the SEED TARBALL (the TRACKED working tree —
 #         git ls-files driven, so the git index is the exclude authority;
@@ -94,23 +98,18 @@ provision() {
     exit 1
   fi
 
-  # Root .env.vm is required (secrets + knobs).
+  # Root .env.vm is required (config knobs; the three machine secrets are
+  # generated ON the VM at provision — see the template's header).
   [[ -f "$here/.env.vm" ]] || {
-    echo ".env.vm not found — cp .env.vm.example .env.vm and fill it in first." >&2
+    echo ".env.vm not found — cp .env.vm.example .env.vm first." >&2
     exit 1
   }
 
   # ── fail-hard validation of .env.vm (host-side, before anything ships) ──
-  # ANY value still carrying the DANGEROUSLYUNSET sentinel refuses the
-  # build — scanned generically over every KEY=value line, because the set
-  # of env vars isn't fixed (new keys must inherit the tripwire for free).
-  local sentinel_lines
-  sentinel_lines="$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=.*DANGEROUSLYUNSET' "$here/.env.vm" || true)"
-  if [[ -n "$sentinel_lines" ]]; then
-    echo "REFUSING: these .env.vm values are still DANGEROUSLYUNSET — fill them in (secrets: openssl rand -hex 32):" >&2
-    printf '%s\n' "$sentinel_lines" >&2
-    exit 1
-  fi
+  # Worker knobs, ALLOWED_HOSTS: config that must be real before the build.
+  # (No sentinel scan anymore: SECRET_KEY/DB_PASSWORD/VAPID_PRIVATE_KEY ship
+  # empty and are generated inside the VM by inside-vm.sh provision_app;
+  # provider auth/model live in pi's own stores.)
 
   # Worker knobs (baked into the units at render). No defaults.
   local granian_workers granian_threads huey_workers
@@ -215,6 +214,13 @@ provision() {
   cat "$deploy_dir/redis-append.conf" >> "$t/redis.conf"
   cp "$t/redis.conf" "$tree/etc/redis/redis.conf"
 
+  # tree: /usr/local/lib/desmo/gen-vapid-b64.sh — the canonical VAPID mint
+  # inside-vm.sh executes (the seed/repo doesn't exist yet when provision_app
+  # runs; `run init` executes the repo's deploy/ copy). -m 755: executed,
+  # never sourced.
+  mkdir -p "$tree/usr/local/lib/desmo"
+  install -m 755 "$deploy_dir/gen-vapid-b64.sh" "$tree/usr/local/lib/desmo/gen-vapid-b64.sh"
+
   # tree: /tmp/vm-seed-commit.sh + /tmp/vm-bootstrap.sh — one-shot scripts
   # this driver invokes below via `bash /tmp/…` (never executed directly,
   # so no exec bit needed; mode pinned nowhere on purpose).
@@ -263,7 +269,7 @@ provision() {
   echo "==> bootstrap (uv sync, npm build, migrate, collectstatic)"
   multipass exec desmo -- sudo -u desmo -H bash /tmp/vm-bootstrap.sh
 
-  # ── 6b. playwright: shared browsers + chromium system deps ───────────────
+  # ── 6a. playwright: shared browsers + chromium system deps ───────────────
   # The distro is ubuntu 26.04; the arch varies — bodies + per-step
   # rationale in deploy/vm.sh (playwright-setup: native install first,
   # 26.04-unknown fallback computed per-arch and persisted to the

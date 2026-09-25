@@ -22,7 +22,7 @@ ours lives there):
 │   │   │   ├── models/        User/UserHistory/Notification/LoginKey models
 │   │   │   ├── views/         users, files, git viewer, notifications, client-errors
 │   │   │   ├── management/commands/    createuser, makeloginlink, addoauth,
-│   │   │   │                           promotetosuperuser, hostnames, generatevapid
+│   │   │   │                           promotetosuperuser, hostnames
 │   │   │   ├── templates/ static/      server-rendered shells + built frontend assets
 │   │   ├── ourapp/            YOUR app — the one the template exists for
 │   │   │   ├── views/         your pages (home page ships as the placeholder)
@@ -83,7 +83,7 @@ ours lives there):
   uncommitted working tree. See [Code viewer (superuser)](#code-viewer-superuser).
 - **Notifications** — `/notifications`: every user's badge, list, and browser
   (Web Push) delivery — rows live until deleted; pushes ride the user's live
-  sessions (logout/GC cascade-drops them) via VAPID (see `generatevapid`). See
+  sessions (logout/GC cascade-drops them) via VAPID. See
   [Notifications](#notifications).
 - **Structured logging** — one NDJSON line per record across the backend **and**
   frontend-reported errors (`/client-errors`, rate-limited via Redis), all
@@ -129,13 +129,16 @@ machine; the workstation becomes just a browser + ssh client. All VM config
 lives in one env file — copy the template first:
 
 ```bash
-cp .env.vm.example .env.vm    # then fill in generated secrets
+cp .env.vm.example .env.vm    # config only — no secrets to fill
 ```
 
-- **Secrets**: `SECRET_KEY` and `DB_PASSWORD` ship as `DANGEROUSLYUNSET`
-  and provisioning refuses to build on that value (validated host-side by
-  `./testvm provision`, before anything ships). Generate high-entropy
-  values with `openssl rand -hex 32`.
+- **Secrets are generated on the VM at provision time**: `SECRET_KEY` +
+  `DB_PASSWORD` (openssl) and `VAPID_PRIVATE_KEY` (web push — the P-256
+  scalar minted by `gen-vapid-b64`, no Python) all inside
+  `inside-vm.sh provision_app` — write-once, so an in-place re-provision
+  keeps the values already installed and the database, sessions, and push
+  subscriptions survive. Provider auth + the agent's startup model live in
+  pi's own stores (`/login`, `/model` + Ctrl+S — see `deploy/access-steps.txt`).
 - Database names are fixed (`desmo_db`/`desmo_user` from the env values) — one
   app per VM by design.
 

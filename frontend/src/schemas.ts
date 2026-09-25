@@ -352,7 +352,6 @@ export type NotificationItem = z.infer<typeof NotificationItemSchema>
 export const NotificationsPagePropsSchema = z.object({
   notifications: z.array(NotificationItemSchema),
   unread_count: z.number(),
-  push_enabled: z.boolean(),
   vapid_public_key: z.string(),
   // The active ?kind= filter, echoed for the page's filter chip ("" = all).
   kind: z.string(),

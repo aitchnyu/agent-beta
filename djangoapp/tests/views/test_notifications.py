@@ -78,7 +78,6 @@ class NotificationsPageTests(BaseInertiaTestCase):
         kinds = [n["kind"] for n in page["notifications"]]
         self.assertEqual(kinds, ["k.new", "k.old"])
         self.assertEqual(page["unread_count"], 2)
-        self.assertIn("push_enabled", page)
         self.assertIn("vapid_public_key", page)
         self.assertEqual(
             set(page["notifications"][0].keys()),
@@ -223,14 +222,12 @@ class NotificationActionTests(BaseInertiaTestCase):
         # which would drop a session logged in before it ran.
         self.client.force_login(self.alice)
 
-    @override_settings(VAPID_PRIVATE_KEY="")
     def test_send_test_notification(self) -> None:
         """POST test records a real row and schedules its push on commit.
 
         Delivery is async (a Huey task); deliver_push is mocked — the
-        row + response contract is what this endpoint owns. VAPID is
-        forced OFF to pin that the enqueue is unconditional (the task
-        itself gates on VAPID/subscriptions), whatever the ambient .env.
+        row + response contract is what this endpoint owns (the task
+        itself gates on subscriptions).
         """
         with (
             patch("djangoapp.models.notifications.deliver_push") as schedule_mock,
@@ -415,7 +412,7 @@ class LogoutUnsubscribeTests(BaseInertiaTestCase):
 
 
 class PushSubscriptionEndpointTests(BaseInertiaTestCase):
-    """subscribe/unsubscribe: upsert semantics, VAPID gate, scoping.
+    """subscribe/unsubscribe: upsert semantics, scoping.
 
     - test_subscribe_creates_subscription, POST saves endpoint + keys
     - test_subscribe_resubscribe_rebinds_user, same endpoint under a new user rebinds

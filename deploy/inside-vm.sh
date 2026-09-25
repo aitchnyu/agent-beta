@@ -1,15 +1,19 @@
 #!/bin/bash
 # inside-vm.sh — build script, runs AS ROOT inside a FRESH test VM.
 # Driven by ./testvm provision (never run by hand on the workstation).
-# Build-only: provisioning builds a fresh VM (the driver refuses when the
-# instance exists) — destroy and rebuild to change anything.
+#
+# provision_vm is fresh-only (the driver refuses when the instance exists).
+# provision_app is RE-RUNNABLE by design — production VMs are kept, not
+# deleted: in-place re-provisions extract a new tree but PRESERVE the
+# write-once generated secrets already installed in the credentials env.
 #
 # Split into two functions (the driver runs them SEPARATELY, with the file
 # tree built on the host in between — see the tree comment in testvm):
 #   provision_vm  — machine-level: users, packages, swap, ufw
 #   provision_app — extract the tree tarball (ALL config files arrive in
 #                   it — units, caddy, redis, creds env), fix
-#                   ownership, postgres, enable units
+#                   ownership, generate machine secrets (write-once),
+#                   postgres, enable units
 #
 # Usage: inside-vm.sh {provision_vm|provision_app}
 
@@ -130,6 +134,20 @@ EOF
 provision_app() {
   [[ -f /tmp/tree.tgz ]] || { echo "tree tarball missing: /tmp/tree.tgz (the driver builds + ships it)" >&2; exit 1; }
 
+  # Write-once secret preservation: snapshot the generated values already
+  # installed (an in-place re-provision over a KEPT VM) BEFORE the tree
+  # extract overwrites the file with the host copy. First match wins; a
+  # missing file / empty value just means "generate fresh".
+  local old_secret old_dbpass old_vapid
+  old_secret=""
+  old_dbpass=""
+  old_vapid=""
+  if [[ -f "$creds_env" ]]; then
+    old_secret="$(grep -E '^SECRET_KEY=' "$creds_env" | head -1 | cut -d= -f2- | tr -d '"' || true)"
+    old_dbpass="$(grep -E '^DB_PASSWORD=' "$creds_env" | head -1 | cut -d= -f2- | tr -d '"' || true)"
+    old_vapid="$(grep -E '^VAPID_PRIVATE_KEY=' "$creds_env" | head -1 | cut -d= -f2- | tr -d '"' || true)"
+  fi
+
 # tree: extracted at / —
 #   /
 #   └── etc/
@@ -138,6 +156,8 @@ provision_app() {
 #       ├── systemd/system/desmo_huey.service (always — HUEY_WORKERS ≥ 1 enforced)
 #       ├── caddy/Caddyfile + caddy/sites/desmo.caddy
 #       └── redis/redis.conf
+#   /
+#   └── usr/local/lib/desmo/gen-vapid-b64.sh (the VAPID mint executable)
 #   /
 #   └── tmp/vm-seed-commit.sh + tmp/vm-bootstrap.sh   (one-shots the driver runs later)
 #   (srv/desmo/main/* — including deploy/ — lands via the SEED tarball in
@@ -149,32 +169,68 @@ provision_app() {
   echo "==> [app] extract the provisioned file tree (built host-side; see testvm's tree comment)"
   tar --no-same-owner -C / -xzf /tmp/tree.tgz
 
+  # The VAPID mint — tree-shipped executable, same recipe as run init's
+  # repo copy (deploy/gen-vapid-b64.sh).
+
   chmod 644 /etc/caddy/Caddyfile /etc/caddy/sites/desmo.caddy /etc/redis/redis.conf
 
   # ── file: /etc/credentials/desmo/.env.vm ────────────────────────────────
   # Shared env (every unit's EnvironmentFile). root:desmo 640 — root parses
   # it via EnvironmentFile, desmo-group members (./run as desmo or the
-  # default user) read it directly. The sentinel tripwire + DB identity
-  # checks follow.
+  # default user) read it directly. Machine-secret generation + the DB
+  # identity checks follow.
+  # SECRET_KEY + DB_PASSWORD come from openssl; VAPID_PRIVATE_KEY from
+  # gen-vapid-b64 (P-256 scalar). All three are WRITE-ONCE: an existing
+  # installed value is preserved, never rotated — rotating DB_PASSWORD would
+  # orphan the postgres role, rotating VAPID would kill every browser push
+  # subscription.
+  local new_secret new_dbpass new_vapid
+  if [[ -n "$old_secret" ]]; then
+    new_secret="$old_secret"
+    echo "    keeping VM-generated SECRET_KEY (write-once)"
+  else
+    new_secret="$(openssl rand -hex 32)"
+    echo "    SECRET_KEY generated (write-once)"
+  fi
+  if [[ -n "$old_dbpass" ]]; then
+    new_dbpass="$old_dbpass"
+    echo "    keeping VM-generated DB_PASSWORD (write-once)"
+  else
+    new_dbpass="$(openssl rand -hex 32)"
+    echo "    DB_PASSWORD generated (write-once)"
+  fi
+  if [[ -n "$old_vapid" ]]; then
+    new_vapid="$old_vapid"
+    echo "    keeping VM-generated VAPID_PRIVATE_KEY (write-once)"
+  else
+    new_vapid="$(/usr/local/lib/desmo/gen-vapid-b64.sh)" || exit 1
+    echo "    VAPID_PRIVATE_KEY generated (write-once)"
+  fi
+  # Rewrite the three secret lines in one awk pass. Values ride in the
+  # ENVIRONMENT (not argv — nothing secret visible in /proc/*/cmdline) and
+  # are PRINTED, never regex-replaced: sed's replacement metacharacters
+  # (&, \, the delimiter) cannot corrupt a hand-rotated value, and no
+  # shell quoting can break the line.
+  SECRET_KEY_NEW="$new_secret" \
+  DB_PASSWORD_NEW="$new_dbpass" \
+  VAPID_PRIVATE_KEY_NEW="$new_vapid" \
+    awk '
+      /^SECRET_KEY=/        { print "SECRET_KEY=\"" ENVIRON["SECRET_KEY_NEW"] "\""; next }
+      /^DB_PASSWORD=/       { print "DB_PASSWORD=\"" ENVIRON["DB_PASSWORD_NEW"] "\""; next }
+      /^VAPID_PRIVATE_KEY=/ { print "VAPID_PRIVATE_KEY=\"" ENVIRON["VAPID_PRIVATE_KEY_NEW"] "\""; next }
+      { print }
+    ' "$creds_env" > "$creds_env.awktmp" && mv "$creds_env.awktmp" "$creds_env"
   chown root:desmo "$creds_dir" "$creds_env"
   chmod 750 "$creds_dir"
   chmod 640 "$creds_env"
 
-  # Sentinel tripwire from the landed env — generic scan of every
-  # KEY=value line (the host-side ./testvm check already refused these;
-  # this re-check guards the extraction path itself). The env's key set
-  # isn't fixed, so no key list is assumed.
-  local sentinel_lines
-  sentinel_lines="$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=.*DANGEROUSLYUNSET' "$creds_env" || true)"
-  if [[ -n "$sentinel_lines" ]]; then
-    echo "REFUSING: these env values are still DANGEROUSLYUNSET — fill them in (secrets: openssl rand -hex 32):" >&2
-    printf '%s\n' "$sentinel_lines" >&2
-    exit 1
-  fi
-  # DB identity (fixed single-app convention: desmo_db / desmo_user).
+  # Source + assert: the generated keys must be non-empty by now (guards the
+  # generation/sed path itself), and the DB identity must be present.
   set -a; . "$creds_env"; set +a
+  [[ -n "${SECRET_KEY:-}" ]] || { echo "REFUSING: SECRET_KEY is empty after generation" >&2; exit 1; }
+  [[ -n "${DB_PASSWORD:-}" ]] || { echo "REFUSING: DB_PASSWORD is empty after generation" >&2; exit 1; }
+  [[ -n "${VAPID_PRIVATE_KEY:-}" ]] || { echo "REFUSING: VAPID_PRIVATE_KEY is empty after generation" >&2; exit 1; }
   [[ -n "${DB_NAME:-}" && -n "${DB_USER:-}" ]] || { echo "REFUSING: DB_NAME/DB_USER missing in env" >&2; exit 1; }
-  [[ -n "${DB_PASSWORD:-}" ]] || { echo "REFUSING: DB_PASSWORD is empty — generate with: openssl rand -hex 32" >&2; exit 1; }
 
   # ── file: /etc/redis/redis.conf ───────────────────────────────────────
   # Stock config + the maxmemory/noeviction block (appended host-side).
@@ -199,19 +255,24 @@ provision_app() {
     sleep 1
   done
 
-  # Create the login role and the two databases (app + its _test sibling,
-  # owned by the role) — the VM is always fresh, nothing exists yet.
-  # Values ride as psql variables: %I/%L quote the identifiers/literals
-  # inside the SQL (a quote in the password cannot break or inject) and
-  # never appear in ps argv. \gexec runs each formatted statement.
+  # Role + databases — IDEMPOTENT and CONVERGENT (existing role → the ALTER
+  # realigns its password to the env, a no-op on the preserved write-once
+  # value). %I/%L quote identifiers/literals (no injection); \gexec runs
+  # each formatted statement.
   sudo -u postgres psql -tAq -v ON_ERROR_STOP=1 \
     -v db_user="$DB_USER" -v db_pass="$DB_PASSWORD" \
     -v db_name="$DB_NAME" -v db_test="${DB_NAME}_test" <<'SQL'
 SELECT format('CREATE ROLE %I LOGIN CREATEDB PASSWORD %L', :'db_user', :'db_pass')
+WHERE NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = :'db_user')
+\gexec
+SELECT format('ALTER ROLE %I LOGIN CREATEDB PASSWORD %L', :'db_user', :'db_pass')
+WHERE EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = :'db_user')
 \gexec
 SELECT format('CREATE DATABASE %I OWNER %I', :'db_name', :'db_user')
+WHERE NOT EXISTS (SELECT FROM pg_catalog.pg_database WHERE datname = :'db_name')
 \gexec
 SELECT format('CREATE DATABASE %I OWNER %I', :'db_test', :'db_user')
+WHERE NOT EXISTS (SELECT FROM pg_catalog.pg_database WHERE datname = :'db_test')
 \gexec
 SQL
 
@@ -234,9 +295,13 @@ SQL
   # granian serves /git url after reading both main and scratch repos.
   # Git refuses repos owned by another user ("dubious ownership")
   # Registering both fixed paths in the system gitconfig exempts
-  # them from the ownership check.
-  git config --system safe.directory "$appdir/main"
-  git config --system --add safe.directory "$appdir/scratch"
+  # them from the ownership check. Grep-guarded adds: re-runs must not
+  # duplicate values (--add alone would) nor hit the multi-value overwrite
+  # error a plain set raises on the second pass.
+  git config --system --get-all safe.directory 2>/dev/null | grep -qxF "$appdir/main" \
+    || git config --system --add safe.directory "$appdir/main"
+  git config --system --get-all safe.directory 2>/dev/null | grep -qxF "$appdir/scratch" \
+    || git config --system --add safe.directory "$appdir/scratch"
 
   echo "==> [app] build done (site: localhost — via the ssh forward)"
 }

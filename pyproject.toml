@@ -134,8 +134,8 @@ plugins = ["mypy_django_plugin.main"]
 # unnoticed); packages that legitimately lack stubs are allow-listed here.
 [[tool.mypy.overrides]]
 # pywebpush (and its py_vapid) implement RFC 8291/8292 with no py.typed; the
-# calls are confined to djangoapp/models/notifications.py + the generatevapid
-# command, both of which discard the untyped returns.
+# calls are confined to djangoapp/models/notifications.py, which discards
+# the untyped returns.
 module = ["allauth.*", "pywebpush.*", "py_vapid.*"]
 ignore_missing_imports = true
 

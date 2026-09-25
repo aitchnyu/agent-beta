@@ -55,11 +55,6 @@ _PUSH_TIMEOUT_SECONDS = 10
 _GONE_STATUSES = frozenset({404, 410})
 
 
-def is_push_enabled() -> bool:
-    """Whether Web Push is configured (private key present, no sentinel)."""
-    return bool(settings.VAPID_PRIVATE_KEY)
-
-
 @lru_cache(maxsize=1)
 def vapid_subject() -> str:
     """``mailto:`` of the first superuser with an email (lowest pk).
@@ -88,24 +83,16 @@ def vapid_public_key() -> str:
     inside ``sign()`` but never exposes it — it only buries it in the
     Authorization/Crypto-Key headers — so the app derives it here. Read
     at CALL time (not import) so ``override_settings`` works in tests.
-    Empty private (or a malformed one — logged, never raised) → empty
-    public: push renders disabled instead of 500ing the page.
+    A malformed key RAISES — a corrupted secret is a misconfiguration
+    that must be loud, not silently degraded push.
     """
     private = settings.VAPID_PRIVATE_KEY
-    if not private:
-        return ""
-    try:
-        raw = base64.urlsafe_b64decode(private + "=" * (-len(private) % 4))
-        point = (
-            ec.derive_private_key(int.from_bytes(raw, "big"), ec.SECP256R1())
-            .public_key()
-            .public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
-        )
-    except (ValueError, TypeError) as exc:
-        # Trailing newline inside quotes, a pasted PEM, a bad scalar —
-        # operator paste errors land here; degrade to "disabled", loudly.
-        logger.warning("VAPID_PRIVATE_KEY is malformed; browser push disabled", error=str(exc))
-        return ""
+    raw = base64.urlsafe_b64decode(private + "=" * (-len(private) % 4))
+    point = (
+        ec.derive_private_key(int.from_bytes(raw, "big"), ec.SECP256R1())
+        .public_key()
+        .public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint)
+    )
     return base64.urlsafe_b64encode(point).decode().rstrip("=")
 
 
@@ -276,17 +263,11 @@ def notify_sessions(user: User, payload: dict[str, str]) -> int:
     (store a row + this, on commit).
 
     Returns the subscription count the payload was handed to — 0 when
-    push is off (dev sentinel), no superuser email exists for the VAPID
-    subject, or the user simply has no subscriptions; callers never
-    report delivery that did not happen. Failures NEVER propagate to the
-    caller: a broken push (dead endpoint, network error, VAPID
-    misconfiguration) is logged and skipped — see ``_deliver``.
+    no superuser email exists for the VAPID subject or the user simply
+    has no subscriptions; callers never report delivery that did not
+    happen. Failures NEVER propagate to the caller: a broken push (dead
+    endpoint, network error) is logged and skipped — see ``_deliver``.
     """
-    if not is_push_enabled():
-        # VAPID unset (dev sentinel / misconfigured deploy): rows still
-        # store and show in-app — browser delivery is off, loudly.
-        logger.warning("push skipped (VAPID unset)")
-        return 0
     if not vapid_subject():
         # Key configured but no superuser email to serve as the RFC 8292
         # contact: nothing CAN be delivered — return 0, not the count, so
@@ -304,8 +285,8 @@ def notify_sessions(user: User, payload: dict[str, str]) -> int:
 def _deliver(subscriptions: QuerySet[PushSubscription], payload: str, log_id: str) -> None:
     """Fan a serialized payload out to subscriptions; failures never propagate.
 
-    Runs the fan-out that ``record`` scheduled — pre-gated (VAPID set +
-    subject resolvable; see ``notify_sessions``). A broken push (dead
+    Runs the fan-out that ``record`` scheduled — pre-gated on the VAPID
+    subject being resolvable (see ``notify_sessions``). A broken push (dead
     endpoint, network error, VAPID misconfiguration — or a DB hiccup
     fetching/pruning subscriptions) is logged and skipped. Dead endpoints
     (404/410 per RFC 8030) are pruned so the table self-cleans; every

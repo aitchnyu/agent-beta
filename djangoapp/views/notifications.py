@@ -23,7 +23,6 @@ from djangoapp.models import (
     NotificationItem,
     PushSubscription,
     UserSessionIndex,
-    is_push_enabled,
     vapid_public_key,
 )
 from djangoapp.ninja_api import ApiError, make_ninja_api
@@ -46,8 +45,8 @@ router = Router()
 class NotificationsPageProps(PydanticBaseModel):
     notifications: list[NotificationItem]
     unread_count: int
-    push_enabled: bool
-    # The base64url public half of the VAPID keypair; empty when disabled.
+    # The base64url public half of the VAPID keypair, derived at render —
+    # a malformed key raises (misconfiguration must be loud).
     vapid_public_key: str
     # The active ``?kind=`` filter (echoed back so the page can render its
     # chip); empty string when unfiltered.
@@ -188,7 +187,6 @@ def notifications_page(
     props = NotificationsPageProps(
         notifications=[n.to_item() for n in rows[:PAGE_SIZE]],
         unread_count=Notification.objects.filter(recipient=user, read_at__isnull=True).count(),
-        push_enabled=is_push_enabled(),
         vapid_public_key=vapid_public_key(),
         kind=params.kind,
         has_more=len(rows) > PAGE_SIZE,
@@ -264,8 +262,6 @@ def subscribe(request: HttpRequest, payload: PushSubscriptionSchema) -> Subscrib
     CASCADE-drops exactly this browser's subscription.
     """
     user = user_or_404(request)
-    if not is_push_enabled():
-        raise ApiError(400, "Browser notifications are not available.")
     session_index = _session_index(request, user)
     # Browsers ROTATE endpoints (subscription renewal, permission
     # re-enable) within a live session: this session's index row may

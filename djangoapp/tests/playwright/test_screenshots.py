@@ -118,8 +118,9 @@ class NotificationScreenshotTests(BaseScreenshotTestCase):
     Seeds the plain test user's list with representative rows — varied kinds
     (the free-form bucket the frontend groups by), staggered ages so the
     humanized times differ, and a mix of read/unread — then captures the
-    page's container card (browser-push card included: "unavailable" is the
-    honest no-VAPID dev default, worded without leaking server config).
+    page's container card (browser-push card included: with a configured
+    VAPID the card offers subscribe; the committed shot predates mandatory
+    VAPID and shows the unavailable wording).
 
     - test_notifications_page, /notifications with mixed kinds/ages/read states
     """

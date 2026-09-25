@@ -71,10 +71,7 @@ const pushSupported =
 
 const canEnable = computed(
   () =>
-    p.push_enabled &&
-    pushSupported &&
-    pushPermission.value !== "denied" &&
-    !pushSubscribed.value,
+    pushSupported && pushPermission.value !== "denied" && !pushSubscribed.value,
 )
 
 // The subscription check is async (SW registration round trip); until it
@@ -441,17 +438,14 @@ function clearKindFilter(): void {
       </span>
     </div>
 
-    <!-- Setup / problem states (server-off, unsupported, blocked,
-         not-yet-enabled): the explanatory card. -->
+    <!-- Setup / problem states (unsupported, blocked, not-yet-enabled):
+         the explanatory card. -->
     <div v-else class="notifications-push card mb-3">
       <div class="card-body d-flex align-items-center justify-content-between">
         <div>
           <strong>Browser notifications</strong>
           <div class="text-muted small">
-            <template v-if="!p.push_enabled">
-              Unavailable on this server — in-app notifications still work.
-            </template>
-            <template v-else-if="!pushSupported">
+            <template v-if="!pushSupported">
               This browser does not support Web Push.
             </template>
             <template v-else-if="pushPermission === 'denied'">
