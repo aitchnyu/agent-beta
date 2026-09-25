@@ -143,7 +143,9 @@ def csrf_guard(request: HttpRequest) -> _CsrfPrincipal:
     otherwise exempts its views from ``CsrfViewMiddleware``. Safe methods
     and ``csrf=False`` mounts pass. Returns a truthy sentinel (a None return
     ninja reads as auth failure); an explicit ``auth=`` override replaces
-    this guard entirely.
+    this guard entirely. In a future token-first chain
+    ``[token_auth, csrf_guard]`` it runs second — a request whose token
+    validated never reaches it (see ``make_ninja_api``).
     """
     if request.method not in _SAFE_METHODS and check_csrf(request) is not None:
         # check_csrf runs the real CsrfViewMiddleware logic (token match +
@@ -167,6 +169,38 @@ def make_ninja_api(
     CSRF is ON by default via the API-level ``csrf_guard`` auth (token +
     Origin/Referer on unsafe methods). Pass ``csrf=False`` only for anonymous
     sinks where tokenless POSTs are the point — and say why at the call site.
+
+    # TOKEN BASED AUTH AND make_ninja_api
+
+    Future token-based (non-frontend) requests: once a token authenticator
+    exists, this factory grows a ``token_auth=`` param mounting the chain
+    ``[token_auth, csrf_guard]`` — ninja runs auth callables in order and
+    stops at the first truthy principal, which gives three branches:
+
+    - valid token → authenticated as the token's principal; the CSRF check
+      is skipped. Safe: CSRF is an attack on ambient credentials (cookies a
+      browser attaches to any request), while a header-carried token can't
+      be read or attached by a third-party page — the same session-vs-token
+      split as Django REST Framework.
+    - no token presented (``token_auth`` returns ``None``) → falls through
+      to ``csrf_guard``: frontend/browser requests keep today's behavior.
+    - presented-but-invalid token (``token_auth`` raises ``ApiError(401)``)
+      → 401; never return ``None`` for a bad token, which would downgrade it
+      to a confusing CSRF 403.
+
+    Sketch of the future call site::
+
+        def token_auth(request):
+            # None (no token) | truthy principal (valid) | raise ApiError(401, …)
+            ...
+
+        api = make_ninja_api("manage", router, token_auth=token_auth)
+        # → api.auth == [token_auth, csrf_guard]  (ninja: first truthy wins)
+
+    ``CsrfViewMiddleware`` is not a factor in any branch: ninja marks its
+    views ``csrf_exempt``, so Django's middleware never enforces on these
+    routes — this guard is the enforcement point, and it already runs the
+    middleware's own logic via ``check_csrf``.
     """
     api = NinjaAPI(
         urls_namespace=f"{name}-http",
