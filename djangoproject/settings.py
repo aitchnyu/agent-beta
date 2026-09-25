@@ -58,8 +58,7 @@ INSTALLED_APPS = [
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
-    # Google only; adding a provider changes this line + form-action below
-    # (docs/social-providers.md).
+    # Google only; adding a provider changes this line + form-action below: (docs/social-login.md).
     "allauth.socialaccount.providers.google",
     "djangoapp",
     "ourapp",
@@ -202,6 +201,9 @@ SITE_ID = 1
 
 # Only social login - no local email/password account creation or login.
 SOCIALACCOUNT_ONLY = True
+# Signup gate (djangoapp/adapters.py): the one hook deciding which emails may
+# CREATE an account. Existing users are gated by is_active, not this.
+SOCIALACCOUNT_ADAPTER = "djangoapp.adapters.SocialAccountAdapter"
 ACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = True
@@ -236,7 +238,7 @@ _CSP_COMMON = {
     # Web fonts
     "font-src": [CSP.SELF],
     # Form submissions — Google's authorize domain (the login POST's redirect
-    # chain is form-action-checked); change per provider (docs/social-providers.md).
+    # chain is form-action-checked); change per provider (docs/social-login.md).
     "form-action": [
         CSP.SELF,
         "https://accounts.google.com",

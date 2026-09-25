@@ -241,7 +241,7 @@ class CodeScreenshotTests(GitRepoMixin, BaseScreenshotTestCase):
     - test_git_commit, /git/commits/<short_b> the commit's changed-file list
     - test_git_diff, an uncommitted diff rendered side-by-side (diff2html)
     - test_files_browser, /files/main/ourapp directory listing + breadcrumb
-    - test_file_viewer, /files/main/docs/social-providers.md rendered markdown
+    - test_file_viewer, /files/main/docs/social-login.md rendered markdown
     """
 
     def setUp(self) -> None:
@@ -283,7 +283,7 @@ class CodeScreenshotTests(GitRepoMixin, BaseScreenshotTestCase):
 
     def test_file_viewer(self) -> None:
         """The markdown viewer renders prose + outline; the page is captured."""
-        self.page.goto(f"{self.live_server_url}/files/main/docs/social-providers.md")
+        self.page.goto(f"{self.live_server_url}/files/main/docs/social-login.md")
         self.page.wait_for_selector('[data-files-state="rendered"]')
         self.page.wait_for_selector(".files-markdown")
         # Cropped to the top of the document: the viewer's page repeats the

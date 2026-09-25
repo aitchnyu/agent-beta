@@ -108,8 +108,8 @@ ours lives there):
   one terminal (Ctrl-C stops all); then open
   http://127.0.0.1:8000/ — `ourapp/` is a placeholder landing page, and
   `docs/reference/` holds the copyable example app (facts + todos).
-- **First user** — there is no signup flow: create the row and sign in via a
-  one-time link —
+- **First user** — there is no email/password signup (Google is the only
+   self-serve flow for now): create the row and sign in via a one-time link —
   `./run djangomanage createuser you@example.com --first-name You --last-name Name --superuser`
   then `./run djangomanage makeloginlink you@example.com` (opens
   `/login-for-test/<key>/`, single use; `promotetosuperuser <email>`
@@ -228,13 +228,14 @@ accepts); the test VM skips Google OAuth entirely and logs in via one-time
 
 Other providers: exactly two lines in `djangoproject/settings.py` are
 hardcoded to Google (the `INSTALLED_APPS` provider app and the CSP
-`form-action` domain) — the full recipe is in
-[docs/social-providers.md](docs/social-providers.md).
+`form-action` domain) — the full recipe, plus the signup gate, is in
+[docs/social-login.md](docs/social-login.md).
 
 ## Sign in (one-time login link)
 
-There is no signup flow and (in dev) possibly no Google login yet — sign in
-by issuing a one-time link for an existing user (e.g. one created with
+There is no email/password signup flow (Google login, once configured, is the
+only self-serve one) and (in dev) possibly no Google login yet — sign in by
+issuing a one-time link for an existing user (e.g. one created with
 `createuser`):
 
 ```bash
@@ -433,6 +434,11 @@ audit trail.
 
 A superuser can't clear their own `is_superuser`/`is_active`, so the active
 superuser count can never fall to zero through the UI.
+
+New-account creation is gated by `SocialAccountAdapter.is_open_for_signup`
+(`djangoapp/adapters.py`, default: open) —
+[docs/social-login.md](docs/social-login.md) has the details and example
+allowlist/denylist policies.
 
 ## Notifications
 

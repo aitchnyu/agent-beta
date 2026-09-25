@@ -69,7 +69,7 @@ class AllauthPageTests(BaseTestCase):
         resp = self.client.get("/accounts/login/")
         csp = resp.headers["Content-Security-Policy"]
         # form-action carries the enabled provider's authorize domain (google,
-        # hardcoded in settings.py — see docs/social-providers.md) and no others.
+        # hardcoded in settings.py — see docs/social-login.md) and no others.
         self.assertIn("https://accounts.google.com", csp)
         self.assertNotIn("github.com", csp)
         self.assertNotIn("appleid.apple.com", csp)

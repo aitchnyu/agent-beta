@@ -57,7 +57,7 @@ The provider's button then appears on `/accounts/login/` automatically —
 no template or frontend change, and the generic "Sign in" links keep
 working.
 
-## Notes
+### Notes
 
 - `addoauth` rejects provider ids that are not enabled in `INSTALLED_APPS`
   (allauth's registry only knows installed providers), naming the enabled
@@ -69,3 +69,45 @@ working.
   `https://localhost:8000/accounts/google/login/callback/` there (or use the
   one-time `makeloginlink` flow; see the README's
   [VM (test server)](../README.md#vm-test-server) section).
+
+## Signup gate (allowlist / denylist)
+
+`SOCIALACCOUNT_ADAPTER` points at `djangoapp/adapters.py`, whose
+`SocialAccountAdapter.is_open_for_signup()` is the single hook deciding whether
+a just-authenticated email may **create** an account — return `False` and
+allauth renders its "Sign Up Closed" page. The shipped default returns `True`
+(open signups). The hook never runs for existing users: to lock one out, set
+`is_active = False` (allauth refuses inactive users on login).
+
+Two example policies to drop into `is_open_for_signup` (the email is
+`sociallogin.user.email`):
+
+**Allowlist — invite based** (signup only with an outstanding invite; the
+invite row is consumed on signup):
+
+```python
+def is_open_for_signup(self, request, sociallogin):
+    email = (sociallogin.user.email or "").lower()
+    invite = Invite.objects.filter(email=email, used_at=None).first()
+    if invite is None:
+        return False
+    # consume on signup, not on the gate check itself: auto-signup may still
+    # bail (e.g. duplicate email), leaving the invite valid for a retry
+    sociallogin.state["invite_id"] = invite.id
+    return True
+# then mark used_at in SocialAccountAdapter.save_user() once the User row exists
+```
+
+**Denylist** (block specific emails/domains, everyone else allowed):
+
+```python
+DENY_EMAILS = {"spam@example.com"}
+DENY_DOMAINS = {"@mailinator.com"}
+
+def is_open_for_signup(self, request, sociallogin):
+    email = (sociallogin.user.email or "").lower()
+    return not (email in DENY_EMAILS or email.endswith(tuple(DENY_DOMAINS)))
+```
+
+`djangoapp/tests/test_allauth_signup_gate.py` pins the wiring and the
+default-open behavior; add a case there when you install a real policy.
