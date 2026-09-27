@@ -135,10 +135,11 @@ cp .env.vm.example .env.vm    # config only — no secrets to fill
 - **Secrets are generated on the VM at provision time**: `SECRET_KEY` +
   `DB_PASSWORD` (openssl) and `VAPID_PRIVATE_KEY` (web push — the P-256
   scalar minted by `gen-vapid-b64`, no Python) all inside
-  `inside-vm.sh provision_app` — write-once, so an in-place re-provision
-  keeps the values already installed and the database, sessions, and push
-  subscriptions survive. Provider auth + the agent's startup model live in
-  pi's own stores (`/login`, `/model` + Ctrl+S — see `deploy/access-steps.txt`).
+  `inside-vm.sh provision_app`, which REFUSES if generated secrets are
+  already installed — provisioning is build-only; re-provisioning a kept
+  VM is unsupported (delete to rebuild). Provider auth + the agent's
+  startup model live in pi's own stores (`/login`, `/model` + Ctrl+S — see
+  `deploy/access-steps.txt`).
 - Database names are fixed (`desmo_db`/`desmo_user` from the env values) — one
   app per VM by design.
 

@@ -265,6 +265,20 @@ On the VM as desmo (documented in `deploy/access-steps.txt`):
   "sourced" vs "executed" contradictions, `_deliver`'s stale VAPID-gate
   docstring, pi()'s env claim, testvm's tree/validation comments.
 
+## As-built deltas round 6 (2026-09-26, build-only)
+
+- **In-place re-provisioning ABANDONED** (user call: "overwriting seems
+  dangerous and we aren't testing it"): provision_app now REFUSES before
+  mutating anything when `/etc/credentials/desmo/.env.vm` already holds a
+  non-empty generated secret (a file with all three empty = a half-failed
+  pre-generation run; retry allowed). The write-once snapshot/merge block,
+  the keep-vs-generate branches, and the converging `ALTER ROLE` are
+  deleted — the round-2/round-3 kept-VM idempotency verifications are
+  historical. Provisioning is build-only end to end (testvm refuses
+  existing instances; inside-vm.sh is the belt-and-braces guard for any
+  future driver); a production upgrade path gets designed deliberately
+  when needed.
+
 ## Invariants
 
 - A generated secret exists ONLY in the installed

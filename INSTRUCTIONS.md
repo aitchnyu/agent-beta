@@ -6,8 +6,9 @@ from the matched `.env.example` / `.env.vm.example` templates. If you find a
 LEGACY `deploy/env.vm` or `.env_vm` file, RENAME it to root `.env.vm` before
 provisioning. The machine secrets are never hand-filled: on the VM,
 `SECRET_KEY` / `DB_PASSWORD` / `VAPID_PRIVATE_KEY` are all generated at
-provision time (write-once, openssl-only — deploy/gen-vapid-b64.sh, run by
-inside-vm.sh provision_app); in dev, `./run init` generates `SECRET_KEY` and
+provision time (openssl-only — deploy/gen-vapid-b64.sh, run by
+inside-vm.sh provision_app, which refuses if generated secrets are already
+installed — build-only); in dev, `./run init` generates `SECRET_KEY` and
 `VAPID_PRIVATE_KEY`, and `DB_PASSWORD` is the local postgres password. The
 agent's
 provider auth + startup model live in pi's own stores (`/login`, `/model +

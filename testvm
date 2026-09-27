@@ -152,6 +152,17 @@ provision() {
     echo "REFUSING: ALLOWED_HOSTS must be plain hostnames, comma-separated (got: '$site_hostnames')." >&2
     exit 1
   fi
+  # The three machine-secret keys must ship EMPTY: the VM generates them at
+  # provision (inside-vm.sh) — a value shipped here would be silently
+  # discarded by the mint's rewrite.
+  local prefilled
+  prefilled="$(grep -E '^(SECRET_KEY|DB_PASSWORD|VAPID_PRIVATE_KEY)=".+"' "$here/.env.vm" || true)"
+  if [[ -n "$prefilled" ]]; then
+    echo "REFUSING: .env.vm carries pre-filled machine secrets — the VM generates SECRET_KEY/DB_PASSWORD/VAPID_PRIVATE_KEY itself; empty these lines:" >&2
+    # Key names only — never echo the values back into the terminal.
+    printf '%s\n' "$prefilled" | sed -E 's/=.*/=<non-empty>/' >&2
+    exit 1
+  fi
   if ! grep -qE '^PLAYWRIGHT_BROWSERS_PATH=' "$here/.env.vm"; then
     echo "WARNING: PLAYWRIGHT_BROWSERS_PATH unset in .env.vm — browsers land in per-user caches and the agent's scratch tests won't find them (.env.vm.example documents the key)." >&2
   fi

@@ -1,13 +1,3 @@
-
-  if [[ -f "$creds_env" ]]; then
-    old_secret="$(grep -E '^SECRET_KEY=' "$creds_env" | head -1 | cut -d= -f2- | tr -d '"' || true)"
-    old_dbpass="$(grep -E '^DB_PASSWORD=' "$creds_env" | head -1 | cut -d= -f2- | tr -d '"' || true)"
-    old_vapid="$(grep -E '^VAPID_PRIVATE_KEY=' "$creds_env" | head -1 | cut -d= -f2- | tr -d '"' || true)"
-  fi
----------------
-
-Audit trail - keep track of stuff after deletes?
-
 Reference app has a file download feature. Admin can upload a file, it allows download till a set date (1 week default). Then its not available.
 BaseModel should have .mark_file_field_for_deletion that will delete file after transaction.
 Files must go into media/ in main/ 
@@ -23,6 +13,7 @@ Test serve_file in checkframework2
 Row delete - how to delete files, replace file and remove older
 
 ---------------
+Audit trail - keep track of stuff after deletes?
 
 /dbbackups
 
