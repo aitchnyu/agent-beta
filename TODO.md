@@ -16,6 +16,7 @@ Row delete - how to delete files, replace file and remove older
 Audit trail - keep track of stuff after deletes?
 
 /dbbackups
+Backup regularly - https://www.pghardstorage.org/examples
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 
@@ -39,7 +40,6 @@ import from git repo tags?
 Run all tests in checkproject and merge coverage from both stages. Improve test coverage
 
 ## Deployment
-Backup regularly - https://www.pghardstorage.org/examples
 Provision in vm with domain with curl|bash and have branch/release. What all should user provide?
 Readme for end users and devs. VM, pi /login and /model selection, Desec dns
 
