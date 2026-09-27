@@ -11,8 +11,8 @@
 # Ships with the repo (the seed lands it at /srv/desmo/main/deploy/vm.sh);
 # ./testvm provision also drops an early copy at /tmp/vm.sh for steps that
 # run BEFORE the seed is extracted. Runs as whatever user invokes it —
-# pick the function to match (root: extract/deploy/deps/gate; desmo:
-# runasdesmo, playwright-install; default cloud user: agent-*).
+# pick the function to match (root: extract/deploy/provision-finish/gate;
+# desmo: runasdesmo, playwright-install; default cloud user: agent-*).
 
 set -euo pipefail
 
@@ -36,9 +36,10 @@ extract-app-seed() {
 }
 
 # Append the computed platform keys when the pinned playwright doesn't know
-# this OS natively (cross-platform: the host derives and passes the entry,
-# e.g. ubuntu24.04-arm64 — see ./testvm provision step 6a). Idempotent: a
-# retry (or a transient native-install failure misread as
+# this OS natively (cross-platform: the caller passes the entry, e.g.
+# ubuntu24.04-arm64 — provision-finish derives it guest-side from the dpkg
+# arch; the INSTRUCTIONS.md manual example decides host-side). Idempotent:
+# a retry (or a transient native-install failure misread as
 # platform-unknown) must not append duplicate keys — grep before append.
 playwright-override-env() {
   grep -q '^PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=' /etc/credentials/desmo/.env.vm \
@@ -47,53 +48,56 @@ playwright-override-env() {
     || printf 'PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS="1"\n' >> /etc/credentials/desmo/.env.vm
 }
 
-# Cross-platform browser setup: native first, mapped fallback (testvm 6a).
-playwright-setup() {
+# Provisioning's tail (testvm 6a): shared playwright browsers, chromium's
+# system libs, then /tmp hygiene. Cleanup is last on purpose — it removes
+# the early /tmp/vm.sh copy; this runs the seeded /srv one.
+provision-finish() {
+  echo "==> playwright browsers (shared cache, cross-platform)"
   # Native first: on a distro the pinned playwright knows, this is the only
   # path — no override keys, validation passes as-is.
   if sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh playwright-install; then
-    return 0
+    :
+  else
+    # Native failed → this OS is unknown to playwright (e.g. 26.04 at 1.60).
+    # Map onto the nearest LTS entry for THIS architecture — computed, never
+    # hardcoded, so amd64 hosts work as well as arm64.
+    local arch
+    arch="$(dpkg --print-architecture)"
+    echo "    native platform unknown to playwright — mapping to ubuntu24.04-$arch"
+    # The keys must PERSIST (runtime launches validate too), so append them
+    # to the credentials env — root-writable only; every user sources it
+    # through ./run setenv.
+    playwright-override-env "ubuntu24.04-$arch"
+    # Retry with the mapping now in the environment (validation skipped: the
+    # deps list would be checked against the MAPPED platform's packages).
+    sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh playwright-install
   fi
-  # Native failed → this OS is unknown to playwright (e.g. 26.04 at 1.60).
-  # Map onto the nearest LTS entry for THIS architecture — computed, never
-  # hardcoded, so amd64 hosts work as well as arm64.
-  local arch
-  arch="$(dpkg --print-architecture)"
-  echo "    native platform unknown to playwright — mapping to ubuntu24.04-$arch"
-  # The keys must PERSIST (runtime launches validate too), so append them
-  # to the credentials env — root-writable only; every user sources it
-  # through ./run setenv.
-  playwright-override-env "ubuntu24.04-$arch"
-  # Retry with the mapping now in the environment (validation skipped: the
-  # deps list would be checked against the MAPPED platform's packages).
-  sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh playwright-install
-}
 
-# Provisioning's /tmp leftovers — each embeds secrets or is a spent one-shot:
-# - tree.tgz            embeds the credentials env (sat world-readable — must not survive)
-# - desmo-seed.tgz      the repo snapshot tarball
-# - inside-vm.sh        transferred one-shot (open fds survive unlink — safe mid-run)
-# - vm.sh               transferred early copy; the seeded deploy/vm.sh remains
-# - vm-seed-commit.sh   tree-extracted root one-shot; desmo could never delete it
-# - vm-bootstrap.sh     same (ran as desmo at step 6)
-cleanup-provision-tmp() {
-  rm -f /tmp/tree.tgz /tmp/desmo-seed.tgz /tmp/inside-vm.sh /tmp/vm.sh \
-    /tmp/vm-seed-commit.sh /tmp/vm-bootstrap.sh
-}
-
-# chromium system deps on ubuntu 26.04 (t64 names): playwright's own map,
-# else the minimal launch set (playwright's ubuntu24.04 chromium map verbatim).
-playwright-deps() {
+  # Chromium system deps on ubuntu 26.04 (t64 names): playwright's own map,
+  # else the minimal launch set (playwright's ubuntu24.04 chromium map
+  # verbatim).
+  echo "==> playwright chromium system deps"
   _vm_env
   export DEBIAN_FRONTEND=noninteractive
   if /srv/desmo/main/.venv/bin/python -m playwright install-deps chromium; then
-    return 0
+    :
+  else
+    apt-get install -y libnss3 libnspr4 libdbus-1-3 libdrm2 libgbm1 \
+      libxkbcommon0 libxcomposite1 libxdamage1 libxext6 libxfixes3 \
+      libxrandr2 libx11-6 libx11-xcb1 libxcb1 libpango-1.0-0 libcairo2 \
+      libasound2t64 libatk1.0-0t64 libatk-bridge2.0-0t64 libatspi2.0-0t64 \
+      libcups2t64 libglib2.0-0t64
   fi
-  apt-get install -y libnss3 libnspr4 libdbus-1-3 libdrm2 libgbm1 \
-    libxkbcommon0 libxcomposite1 libxdamage1 libxext6 libxfixes3 \
-    libxrandr2 libx11-6 libx11-xcb1 libxcb1 libpango-1.0-0 libcairo2 \
-    libasound2t64 libatk1.0-0t64 libatk-bridge2.0-0t64 libatspi2.0-0t64 \
-    libcups2t64 libglib2.0-0t64
+
+  # /tmp leftovers — each embeds secrets or is a spent one-shot:
+  # - tree.tgz            embeds the credentials env (sat world-readable — must not survive)
+  # - desmo-seed.tgz      the repo snapshot tarball
+  # - inside-vm.sh        transferred one-shot (open fds survive unlink — safe mid-run)
+  # - vm.sh               transferred early copy; the seeded deploy/vm.sh remains
+  # - vm-seed-commit.sh   tree-extracted root one-shot; desmo could never delete it
+  # - vm-bootstrap.sh     same (ran as desmo at step 6)
+  rm -f /tmp/tree.tgz /tmp/desmo-seed.tgz /tmp/inside-vm.sh /tmp/vm.sh \
+    /tmp/vm-seed-commit.sh /tmp/vm-bootstrap.sh
 }
 
 deploy-ourapp() {

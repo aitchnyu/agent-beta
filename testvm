@@ -280,20 +280,10 @@ provision() {
   echo "==> bootstrap (uv sync, npm build, migrate, collectstatic)"
   multipass exec desmo -- sudo -u desmo -H bash /tmp/vm-bootstrap.sh
 
-  # ── 6a. playwright: shared browsers + chromium system deps ───────────────
+  # ── 6a. provision tail: playwright browsers + deps + /tmp cleanup ────────
   # The distro is ubuntu 26.04; the arch varies — bodies + per-step
-  # rationale in deploy/vm.sh (playwright-setup: native install first,
-  # 26.04-unknown fallback computed per-arch and persisted to the
-  # credentials env; playwright-deps: the system libs chromium actually
-  # dlopens).
-  echo "==> playwright browsers (shared cache, cross-platform)"
-  multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh playwright-setup
-  echo "==> playwright chromium system deps"
-  multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh playwright-deps
-
-  # Provisioning's /tmp leftovers — per-file rationale in deploy/vm.sh
-  # (cleanup-provision-tmp).
-  multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh cleanup-provision-tmp
+  # rationale in deploy/vm.sh (provision-finish).
+  multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh provision-finish
 
   echo "==> start services"
   # Huey's unit always ships (HUEY_WORKERS ≥ 1 is validated before render).

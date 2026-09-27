@@ -25,17 +25,6 @@ Test with changing site theme. Generate color schemes. Then try to upgrade to po
 Home and user icons. Where to get icon set autonomously?
 
 ```
-  echo "==> playwright browsers (shared cache, cross-platform)"
-  multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh playwright-setup
-  echo "==> playwright chromium system deps"
-  multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh playwright-deps
-
-  # Provisioning's /tmp leftovers — per-file rationale in deploy/vm.sh
-  # (cleanup-provision-tmp).
-  multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh cleanup-provision-tmp
-```
-
-```
 multipass shell app
 sudo -u agent -H bash -l
 ```
