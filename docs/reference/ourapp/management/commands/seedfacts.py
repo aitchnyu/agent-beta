@@ -6,7 +6,7 @@ Usage::
 
 Creates the ten topics (cars, science, animals, geography, history, space,
 food, sports, music, technology) and twenty facts each — 200 rows total — via
-``save_with_logs`` so each created row is audit-logged. Idempotent: re-running
+``save_plus`` so each created row is audit-logged. Idempotent: re-running
 clears the existing facts and topics first (``--keep`` skips the clear); that
 clear is a bulk queryset delete, so it leaves no ``deleted`` audit trail.
 """
@@ -289,7 +289,7 @@ class Command(BaseCommand):
 
         Reuses an existing topic by slug under ``--keep`` (the slug is unique),
         so re-seeding appends fresh facts without duplicating topics. A new
-        topic is created **unsaved** and persisted via ``save_with_logs`` so the
+        topic is created **unsaved** and persisted via ``save_plus`` so the
         CREATE branch runs — stamping ``created_by`` and writing a ``created``
         log row. (``get_or_create`` would persist first, forcing the no-op
         UPDATE branch, which skips ``created_by`` and writes no log.)
@@ -302,7 +302,7 @@ class Command(BaseCommand):
             except Topic.DoesNotExist:
                 topic = Topic(name=name, slug=slug)
                 # The seed is a single writer creating fresh rows
-                topic.save_with_logs(
+                topic.save_plus(
                     actor=seeder, expected_row_version=SKIP_ROW_VERSION_CHECK
                 )
             topics[slug] = topic
@@ -314,7 +314,7 @@ class Command(BaseCommand):
         for slug, topic in topics.items():
             for text in FACTS[topic.name]:
                 fact = Fact(text=text, topic=topic)
-                fact.save_with_logs(
+                fact.save_plus(
                     actor=seeder, expected_row_version=SKIP_ROW_VERSION_CHECK
                 )
                 count += 1

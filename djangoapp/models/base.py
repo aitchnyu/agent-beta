@@ -19,6 +19,7 @@ from pydantic import BaseModel as PydanticBaseModel
 from djangoapp.logging import get_logger
 
 if typing.TYPE_CHECKING:
+    from django.core.files.storage import Storage
     from django.http import HttpRequest
 
 logger = get_logger(__name__)
@@ -474,7 +475,7 @@ def on_user_logged_in(
 # URL its rows link to, without models importing views.
 MANAGE_MODELS_URL_PREFIX = "/manage/models"
 
-# Sentinel for ``save_with_logs(expected_row_version=…)``: skip the check —
+# Sentinel for ``save_plus(expected_row_version=…)``: skip the check —
 # single-writer flows that own the row (cron upserts, commands, fixtures).
 # row_version still increments, so numbers read before a skipped check go
 # stale just the same; -1 can never be real (the column starts at 0).
@@ -487,8 +488,14 @@ class BaseModel(models.Model):
     Rows are addressed by their ``public_id`` (UUID7 by default; a subclass may
     use friendlier names). Audit fields track who created/last-touched each row;
     a ``row_version`` column guards writes with an optimistic lock (exact match
-    required — see :meth:`save_with_logs`); both methods write one
+    required — see :meth:`save_plus`); the tracked pair writes one
     ``BaseModelUpdateLog`` entry per create/update/delete.
+
+    FileField cleanup rides the tracked pair: :meth:`save_plus` deletes a
+    replaced/cleared file's bytes after commit, :meth:`delete_plus` removes
+    every file of the row with it. A bare ``.save()``/``.delete()`` (or a
+    direct field overwrite without :meth:`save_plus`) orphans the stored
+    bytes — there is no separate cleanup call to remember or forget.
     """
 
     public_id = models.CharField(
@@ -502,12 +509,12 @@ class BaseModel(models.Model):
         related_name="+",
     )
     created_at = models.DateTimeField(auto_now_add=True)
-    # Optimistic-lock version: 0 on create, +1 per save_with_logs update; a
+    # Optimistic-lock version: 0 on create, +1 per save_plus update; a
     # mismatch raises Http404 (stale state ≈ row gone). Compound name keeps
     # "sequence"/"version" free for domain fields — base field names are
     # reserved for every subclass.
     row_version = models.PositiveBigIntegerField(default=0, editable=False)
-    # Set explicitly in save_with_logs (NOT auto_now) so the stamp never drifts
+    # Set explicitly in save_plus (NOT auto_now) so the stamp never drifts
     # from the matching BaseModelUpdateLog.performed_* pair.
     last_updated_at = models.DateTimeField(null=True, blank=True)
     last_updated_by = models.ForeignKey(
@@ -523,7 +530,7 @@ class BaseModel(models.Model):
 
     # Override on a subclass to log under a stable name regardless of class
     # rename or module path (the default is ``"<module>.<ClassName>"``). The same
-    # value is used on write (save_with_logs/delete_with_logs) and on read (the
+    # value is used on write (save_plus/delete_plus) and on read (the
     # row-detail logs query), so a row's log stream resolves consistently even
     # when the test fixture app's module path differs from prod's.
     log_as_name: ClassVar[str | None] = None
@@ -573,7 +580,7 @@ class BaseModel(models.Model):
             # book.author caches → Jesvin (pk 7)
             book.author_id = 42   # assigns the FK COLUMN; the cached
                                   # book.author still points at Jesvin
-            book.save_with_logs(actor=admin, expected_row_version=0)
+            book.save_plus(actor=admin, expected_row_version=0)
 
         Snapshotting ``self`` would read the stale cached Jesvin for the
         post-save half, the diff against the (also Jesvin) pre-edit row would
@@ -627,8 +634,8 @@ class BaseModel(models.Model):
             return _log_fk_value(value)
         return _OMIT
 
-    def save_with_logs(self, *, actor: User | None, expected_row_version: int) -> None:
-        """Persist and write one ``BaseModelUpdateLog`` (``created`` or ``updated``).
+    def save_plus(self, *, actor: User | None, expected_row_version: int) -> None:
+        """Persist, write one ``BaseModelUpdateLog``, and clean replaced files.
 
         ``actor`` is who performed the write (recorded as ``performed_by`` and
         stamped on ``created_by``/``last_updated_by``).
@@ -645,13 +652,25 @@ class BaseModel(models.Model):
         writes no log row. ``last_updated_at``/``last_updated_by`` are stamped
         here so they match the log's ``performed_*`` exactly. Save + log share
         one transaction (no audit-less writes). It calls ``super().save()`` (not
-        ``self.save()``): this avoids recursing back into ``save_with_logs`` if a
-        subclass overrides ``save()``, so subclass domain side-effects belong in a
-        dedicated method rather than a ``save()`` override. Never call it from a
+        ``self.save()``): this avoids recursing back into ``save_plus`` if a
+        subclass overrides ``save()``, so subclass domain side-effects belong in
+        a dedicated method rather than a ``save()`` override. Never call it from a
         signal receiver (``post_save`` still fires and would re-enter unguarded).
         Both snapshots are read fresh from the DB (post-save), so stale in-memory
         FK caches (e.g. after setting ``fk_id`` directly) can't skew the diff.
+
+        FileFields: every field whose stored name CHANGED from the database's
+        value — reassigned OR cleared to empty — has its old file queued for
+        post-commit deletion (rollback keeps both the edit and the old
+        bytes; a failed save never deletes). Models without FileFields pay
+        nothing extra. The old-value deletions bind the DB snapshot's
+        storage + name (never the live field, which holds the new value)::
+
+            doc.file = new_upload
+            doc.save_plus(actor=user, expected_row_version=doc.row_version)
         """
+        file_fields = self._file_fields()
+        file_names = [f.name for f in file_fields]
         now = timezone.now()
         if self._state.adding:
             if expected_row_version not in (0, SKIP_ROW_VERSION_CHECK):
@@ -679,13 +698,15 @@ class BaseModel(models.Model):
             # Lock the row so check-then-increment is atomic against a
             # concurrent writer: the second save blocks until the first
             # commits, then compares against the bumped row_version and fails —
-            # two writers can never both match the same number.
-            current = (
+            # two writers can never both match the same number. The same
+            # locked read carries the pre-edit file names (one query).
+            locked = (
                 type(self)
                 .objects.select_for_update()  # type: ignore[attr-defined] # concrete subclass carries objects; abstract BaseModel doesn't
+                .values_list("row_version", *file_names)
                 .get(pk=self.pk)
-                .row_version
             )
+            current, old_names = locked[0], locked[1:]
             if expected_row_version not in (SKIP_ROW_VERSION_CHECK, current):
                 msg = (
                     f"{type(self).__name__} pk={self.pk} is at row_version {current},"
@@ -695,6 +716,13 @@ class BaseModel(models.Model):
             self.row_version = current + 1
             self.last_updated_by = actor
             self.last_updated_at = now
+            # Queue post-commit deletion for every replaced/cleared file
+            # BEFORE the save: the pre-edit names came from the locked read.
+            for field, old_name in zip(file_fields, old_names, strict=True):
+                new_value = getattr(self, field.name)
+                new_name = new_value.name if new_value else ""
+                if old_name and old_name != new_name:
+                    _queue_file_deletion(field.storage, old_name)
             # Pre-edit snapshot read inside the txn so a concurrent edit
             # between read and save can't slip in un-logged — the audit's
             # before/after must match the row state at save time.
@@ -724,15 +752,26 @@ class BaseModel(models.Model):
                     new_values=diff_new,
                 )
 
-    def delete_with_logs(self, *, actor: User | None) -> BaseModelUpdateLog:
-        """Delete and write a ``deleted`` log with empty old/new values.
+    def delete_plus(self, *, actor: User | None) -> BaseModelUpdateLog:
+        """Delete, write a ``deleted`` log, and remove every file of the row.
 
         A delete records only that the row was removed (action + model + pk) — no
-        field snapshot is stored; the row is gone, and the log outlives it keyed by
-        model + integer pk.
+        field snapshot is stored; the row is gone, and the log outlives it keyed
+        by model + integer pk. The delete treats the row's FileFields as
+        cleared: every stored file is queued for post-commit deletion inside
+        the same transaction (a rolled-back delete keeps the row and its
+        files together), its storage + name captured on the spot — never the
+        live ``FieldFile``::
+
+            doc.delete_plus(actor=user)
+            # → row + audit log commit, then every file's bytes are deleted
         """
         now = timezone.now()
         with transaction.atomic():
+            for f in self._file_fields():
+                value = getattr(self, f.name)
+                if value:
+                    _queue_file_deletion(value.storage, value.name)
             log = BaseModelUpdateLog.objects.create(
                 performed_by=actor,
                 performed_at=now,
@@ -745,10 +784,28 @@ class BaseModel(models.Model):
             super().delete()
         return log
 
+    @classmethod
+    def _file_fields(cls) -> list[models.FileField]:
+        """Return this model's FileFields (ImageField included via subclassing)."""
+        return [f for f in cls._meta.fields if isinstance(f, models.FileField)]
+
 
 # Sentinel returned by ``_log_field_value`` for columns we can't audit-serialise
 # (FileField, JSONField, ManyToMany, BinaryField, DurationField, UUIDField, ...).
 _OMIT: object = object()
+
+
+def _queue_file_deletion(storage: Storage, name: str) -> None:
+    """Queue a stored file's deletion; it runs when the transaction commits.
+
+    Registers a ``transaction.on_commit`` callback rather than deleting
+    now: a rollback never deletes, and in autocommit (no atomic block) it
+    fires immediately. Function parameters bind per call, so a caller's
+    loop can never late-bind a previous iteration's file. Deleting an
+    already-missing file is a no-op (``FileSystemStorage`` checks
+    existence), so a double queue is harmless.
+    """
+    transaction.on_commit(lambda: storage.delete(name))
 
 
 def user_profile(user: User | None) -> UserProfile | None:

@@ -16,7 +16,7 @@ from djangoapp.tests.views import skip_unless_env
 
 @skip_unless_env("RUN_PROJECT_TESTS")
 class BaseModelUpdateLogTests(BaseTestCase):
-    """``BaseModel.save_with_logs`` / ``delete_with_logs`` against the real Book model.
+    """``BaseModel.save_plus`` / ``delete_plus`` against the real Book model.
 
     Runs only under ``checkproject`` (sets ``RUN_PROJECT_TESTS`` and overlays the
     test app onto ``ourapp/``); self-skips in ``checkframework1`` (the var is unset and
@@ -52,11 +52,11 @@ class BaseModelUpdateLogTests(BaseTestCase):
 
     def setUp(self) -> None:
         super().setUp()
-        # A fresh author + book per test, created via save_with_logs (each emits
+        # A fresh author + book per test, created via save_plus (each emits
         # exactly one 'created' log attributed to the actor; both start at
         # row_version=0).
         self.author = self.Author(name="Ada", bio="", rating="4.50", active=True)
-        self.author.save_with_logs(actor=self.actor, expected_row_version=0)
+        self.author.save_plus(actor=self.actor, expected_row_version=0)
         self.book = self.Book(
             title="Notes",
             description="",
@@ -64,7 +64,7 @@ class BaseModelUpdateLogTests(BaseTestCase):
             author=self.author,
             reviewer=self.actor,
         )
-        self.book.save_with_logs(actor=self.actor, expected_row_version=0)
+        self.book.save_plus(actor=self.actor, expected_row_version=0)
 
     def _logs(self, **filters: object) -> list[BaseModelUpdateLog]:
         qs = BaseModelUpdateLog.objects.filter(
@@ -99,7 +99,7 @@ class BaseModelUpdateLogTests(BaseTestCase):
     def test_update_logs_changed_values(self) -> None:
         """Update writes an 'updated' log whose old/new reflect the changed field."""
         self.book.title = "Updated Notes"
-        self.book.save_with_logs(actor=self.actor, expected_row_version=0)
+        self.book.save_plus(actor=self.actor, expected_row_version=0)
 
         updated = self._logs(action="updated")
         self.assertEqual(len(updated), 1)
@@ -114,14 +114,14 @@ class BaseModelUpdateLogTests(BaseTestCase):
     def test_noop_update_writes_no_log(self) -> None:
         """An update that changes no data column writes no 'updated' log."""
         # last_updated_at/by + row_version change but are excluded from the
-        # diff, so a no-field-change save_with_logs produces no log row.
-        self.book.save_with_logs(actor=self.actor, expected_row_version=0)
+        # diff, so a no-field-change save_plus produces no log row.
+        self.book.save_plus(actor=self.actor, expected_row_version=0)
         self.assertEqual(self._logs(action="updated"), [])
 
     def test_delete_logs_deleted_no_snapshot(self) -> None:
         """Delete writes a 'deleted' log with empty old/new values; the log outlives the row."""
         pk = self.book.pk
-        self.book.delete_with_logs(actor=self.actor)
+        self.book.delete_plus(actor=self.actor)
 
         log = BaseModelUpdateLog.objects.get(
             model=self.Book.log_model_name(), model_pk=pk, action="deleted"
@@ -165,7 +165,7 @@ class BaseModelUpdateLogTests(BaseTestCase):
     def test_performed_by_none(self) -> None:
         """Creating with actor=None records a null actor (no crash)."""
         book = self.Book(title="Anon", author=self.author)
-        book.save_with_logs(actor=None, expected_row_version=0)
+        book.save_plus(actor=None, expected_row_version=0)
         log = BaseModelUpdateLog.objects.filter(
             model=self.Book.log_model_name(), model_pk=book.pk, action="created"
         ).get()
@@ -175,7 +175,7 @@ class BaseModelUpdateLogTests(BaseTestCase):
         """Creating with a nonzero row_version raises Http404; nothing is written."""
         book = self.Book(title="Bad", author=self.author)
         with self.assertRaisesMessage(Http404, "requires expected_row_version=0, got 3"):
-            book.save_with_logs(actor=self.actor, expected_row_version=3)
+            book.save_plus(actor=self.actor, expected_row_version=3)
         # The rollback left no row and no log.
         self.assertFalse(self.Book.objects.filter(title="Bad").exists())
         self.assertEqual(
@@ -187,26 +187,26 @@ class BaseModelUpdateLogTests(BaseTestCase):
         """Each exact-match update bumps the row's row_version by 1."""
         self.assertEqual(self.book.row_version, 0)
         self.book.pages = 201
-        self.book.save_with_logs(actor=self.actor, expected_row_version=0)
+        self.book.save_plus(actor=self.actor, expected_row_version=0)
         self.assertEqual(self.book.row_version, 1)
         # The value the client must echo next is the one now in the DB.
         fresh = self.Book.objects.get(pk=self.book.pk)
         self.assertEqual(fresh.row_version, 1)
         self.book.pages = 202
-        self.book.save_with_logs(actor=self.actor, expected_row_version=1)
+        self.book.save_plus(actor=self.actor, expected_row_version=1)
         self.assertEqual(self.Book.objects.get(pk=self.book.pk).row_version, 2)
 
     def test_update_rejects_stale_row_version(self) -> None:
         """A stale number (row moved on) and a too-high one both raise Http404."""
         self.book.pages = 201
-        self.book.save_with_logs(actor=self.actor, expected_row_version=0)  # row is now at 1
+        self.book.save_plus(actor=self.actor, expected_row_version=0)  # row is now at 1
         # Very early: the caller still holds the pre-update view (0).
         self.book.pages = 202
         with self.assertRaisesMessage(Http404, "is at row_version 1, got 0"):
-            self.book.save_with_logs(actor=self.actor, expected_row_version=0)
+            self.book.save_plus(actor=self.actor, expected_row_version=0)
         # Too high: no state of the row ever had this number.
         with self.assertRaisesMessage(Http404, "is at row_version 1, got 99"):
-            self.book.save_with_logs(actor=self.actor, expected_row_version=99)
+            self.book.save_plus(actor=self.actor, expected_row_version=99)
         # Nothing was written: pages and row_version unchanged in the DB, and
         # the failed attempts wrote no 'updated' log.
         fresh = self.Book.objects.get(pk=self.book.pk)
@@ -217,10 +217,10 @@ class BaseModelUpdateLogTests(BaseTestCase):
     def test_skip_row_version_check_sentinel(self) -> None:
         """SKIP_ROW_VERSION_CHECK bypasses the match; row_version still increments."""
         self.book.pages = 201
-        self.book.save_with_logs(actor=self.actor, expected_row_version=SKIP_ROW_VERSION_CHECK)
+        self.book.save_plus(actor=self.actor, expected_row_version=SKIP_ROW_VERSION_CHECK)
         self.assertEqual(self.Book.objects.get(pk=self.book.pk).row_version, 1)
         # Works regardless of how stale self.book's view is (single-writer
         # flows don't track the number at all).
         self.book.pages = 202
-        self.book.save_with_logs(actor=self.actor, expected_row_version=SKIP_ROW_VERSION_CHECK)
+        self.book.save_plus(actor=self.actor, expected_row_version=SKIP_ROW_VERSION_CHECK)
         self.assertEqual(self.Book.objects.get(pk=self.book.pk).row_version, 2)

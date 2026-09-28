@@ -7,7 +7,7 @@ Endpoints (all under ``/todos``, one Inertia page ``ours/TodosPage``):
 
 Both mutating payloads carry ``expected_row_version`` — the row's
 ``row_version`` as the client last saw it (creates send 0). On a stale number
-``save_with_logs`` raises ``Http404`` itself, so views stay happy-path.
+``save_plus`` raises ``Http404`` itself, so views stay happy-path.
 Create writes the todo + its notification in one ``transaction.atomic()``
 block; toggle is single-row. Data is pk-free (only ``public_id``).
 """
@@ -92,7 +92,7 @@ def create_todo(request: HttpRequest, payload: TodoCreateSchema) -> TodoOutSchem
     must never leave a todo the user wasn't told about), and the
     notification push is scheduled by ``record`` itself on ``on_commit``
     — the user is only ever informed AFTER the data is durable.
-    ``save_with_logs`` (not ``objects.create``) so the write is
+    ``save_plus`` (not ``objects.create``) so the write is
     audit-logged and stamps ``created_by``/``last_updated_by``. A nonzero
     ``expected_row_version`` here raises ``Http404`` out of the model
     itself — it never matched any state of the row, like any stale view of
@@ -101,7 +101,7 @@ def create_todo(request: HttpRequest, payload: TodoCreateSchema) -> TodoOutSchem
     user = user_or_404(request)
     with transaction.atomic():
         todo = Todo(text=payload.text.strip(), owner=user)
-        todo.save_with_logs(actor=user, expected_row_version=payload.expected_row_version)
+        todo.save_plus(actor=user, expected_row_version=payload.expected_row_version)
         Notification.record(
             recipient=user,
             kind="todo.created",
@@ -117,7 +117,7 @@ def toggle_todo(
 ) -> TodoOutSchema:
     """Flip a todo's completion state; return the updated todo.
 
-    ``save_with_logs`` writes an ``updated`` revision only when a data column
+    ``save_plus`` writes an ``updated`` revision only when a data column
     changed (``completed`` always flips here) and re-stamps ``last_updated_*``.
     A stale ``expected_row_version`` (the todo changed since the client
     read it) makes the model raise ``Http404`` — indistinguishable from a
@@ -126,5 +126,5 @@ def toggle_todo(
     user = user_or_404(request)
     todo = _todo_or_404(public_id, user)
     todo.toggle()
-    todo.save_with_logs(actor=user, expected_row_version=payload.expected_row_version)
+    todo.save_plus(actor=user, expected_row_version=payload.expected_row_version)
     return _todo_out(todo)

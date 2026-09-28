@@ -11,7 +11,7 @@ ever runs push-service HTTP inline.
 
 Both models are plain ``models.Model`` with a uuid7 ``public_id`` (the
 ``UserHistory`` pattern), NOT ``BaseModel``: rows are system-generated and
-short-lived client state, and ``save_with_logs`` would double every write
+short-lived client state, and ``save_plus`` would double every write
 with an audit-log entry.
 """
 

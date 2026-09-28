@@ -111,7 +111,7 @@ class TodosViewTests(BaseTestCase):
         resp = self._toggle(public_id, 0)
         self.assertEqual(resp.status_code, 200)
         # The client missed the update above and still holds 0: stale → 404
-        # (save_with_logs raises Http404 itself), and nothing changed (the
+        # (save_plus raises Http404 itself), and nothing changed (the
         # failed save rolled back).
         resp = self._toggle(public_id, 0)
         self.assertEqual(resp.status_code, 404)

@@ -514,7 +514,7 @@ the referenced row via that row's `get_absolute_url()`.
 `get_absolute_url()`. **Prefer the audit-aware methods over bare
 `.save()`/`objects.create()` so changes are tracked in history** — every write
 through them is logged to `BaseModelUpdateLog`:
-- `instance.save_with_logs(actor=…, expected_row_version=…)` — create or update. On create it stamps
+- `instance.save_plus(actor=…, expected_row_version=…)` — create or update. On create it stamps
   `created_by`/`last_updated_by`/`last_updated_at` and writes one `created` log
   (old values empty, new values = the full row). On update it diffs against the
   pre-edit row and writes one `updated` log holding only the changed columns; a
@@ -537,7 +537,7 @@ through them is logged to `BaseModelUpdateLog`:
     row's `row_version` still increments, so numbers read before a skipped
     check go stale just the same.
   - Bare `.save()` (untracked) also skips the increment.
-- `instance.delete_with_logs(actor=…)` — writes a `deleted` log (old/new values
+- `instance.delete_plus(actor=…)` — writes a `deleted` log (old/new values
   both empty — a delete only records that the row was removed, not a snapshot)
   then deletes; the log outlives the row.
 The audit kwarg is `actor=` (named so a model with its own `user` FK column
@@ -552,21 +552,21 @@ the *reason*, not a description of the line (✗ `# test fixture`, ✓
 
 ```python
 # ✓ tracked (production) — create or update writes one log row. To create,
-# build unsaved, then save_with_logs (there is no create_with_logs helper);
+# build unsaved, then save_plus (there is no create_with_logs helper);
 # a create always passes expected_row_version=0.
 todo = Todo(text="x", owner=user)
-todo.save_with_logs(actor=user, expected_row_version=0)
+todo.save_plus(actor=user, expected_row_version=0)
 
 # ✓ tracked update — echo the row_version your code last read off the row;
 # stale/too-high raises Http404 straight from the model (happy-path caller).
 # This is recommended for concurrent web requests
 todo.completed = True
-todo.save_with_logs(actor=user, expected_row_version=todo.row_version)
+todo.save_plus(actor=user, expected_row_version=todo.row_version)
 
 # ✓ tracked, no number to echo (cron/command owns the row) — the sentinel
 # skips the check; the row's row_version still increments.
 # Not recommended for concurrent web requests
-row.save_with_logs(actor=None, expected_row_version=SKIP_ROW_VERSION_CHECK)
+row.save_plus(actor=None, expected_row_version=SKIP_ROW_VERSION_CHECK)
 
 # ✓ untracked — plain Django; no history. Comment WHY when you choose it.
 Todo.objects.create(text="x", owner=user)  # seed only — the detail view asserts an empty log
@@ -676,7 +676,7 @@ lookup that hides the concrete model from the type checker — don't reach for i
       `transaction.atomic()` block (e.g. a create that also writes an audit log,
       or two rows that are meaningless apart). A partial commit leaves the data
       model in an inconsistent state — the transaction makes it all-or-nothing.
-      `BaseModel.save_with_logs` already does this internally; do it yourself
+      `BaseModel.save_plus` already does this internally; do it yourself
       only when a view composes several writes. **Do the same in tasks and
       management commands** — anything that writes more than one row.
 - [ ] **Inform the user only after the data commits**: call
@@ -684,14 +684,14 @@ lookup that hides the concrete model from the type checker — don't reach for i
       scheduled on `on_commit`, so a rollback leaves no row and no
       notification, and delivery never blocks the request (see
       [Notifications](#notifications-framework)).
-- [ ] Mutating writes go through `save_with_logs`/`delete_with_logs` (audited),
-      not bare `.save()`/`.delete()`; `save_with_logs` gets the row's current
+- [ ] Mutating writes go through `save_plus`/`delete_plus` (audited),
+      not bare `.save()`/`.delete()`; `save_plus` gets the row's current
       `row_version` as `expected_row_version` (0 to create,
       `SKIP_ROW_VERSION_CHECK` when a single writer owns the row).
 - [ ] Returns a pydantic schema (data) or `InertiaResponse` (page) — never a raw
       dict or the ORM row.
 - [ ] Raises 404 on a missing row, an ownership/permission failure, or a stale
-      `row_version` (`save_with_logs` raises `Http404` itself) — never renders
+      `row_version` (`save_plus` raises `Http404` itself) — never renders
       an empty or broken page.
 - [ ] Sends only `public_id`, never the integer `pk`/`id`.
 

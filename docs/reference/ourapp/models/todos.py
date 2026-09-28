@@ -44,5 +44,5 @@ class Todo(BaseModel):
         return self.text
 
     def toggle(self) -> None:
-        """Flip completion state (caller persists via ``save_with_logs``)."""
+        """Flip completion state (caller persists via ``save_plus``)."""
         self.completed = not self.completed

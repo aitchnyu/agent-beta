@@ -300,7 +300,7 @@ class ModelScreenshotTests(BaseScreenshotTestCase):
     Only meaningful under the testapp overlay (``checkproject`` sets
     ``RUN_PROJECT_TESTS`` and replaces ``ourapp/`` with the test app's
     ``Author``/``Book`` models — plain ``main/`` has no models to show, so
-    the class self-skips there). Rows are written via ``save_with_logs`` so
+    the class self-skips there). Rows are written via ``save_plus`` so
     the row-detail shot includes a real audit history; the featured book gets
     an update on top of its create so the history shows a diff.
 
@@ -318,7 +318,7 @@ class ModelScreenshotTests(BaseScreenshotTestCase):
         # Like the project tests: resolve the overlaid models lazily (in
         # plain main/ this class is skipped before setUp ever runs). Locally
         # typed type[Any]: get_model returns type[Model], which would fail
-        # the .objects/.save_with_logs accesses below.
+        # the .objects/.save_plus accesses below.
         ourapp = apps.get_app_config("ourapp")
         author_model: type[Any] = ourapp.get_model("Author")
         book_model: type[Any] = ourapp.get_model("Book")
@@ -348,12 +348,12 @@ class ModelScreenshotTests(BaseScreenshotTestCase):
                 author=authors[author_ix],
                 reviewer=self.admin,
             )
-            book.save_with_logs(actor=self.admin, expected_row_version=0)
+            book.save_plus(actor=self.admin, expected_row_version=0)
             if featured is None:
                 featured = book
         assert featured is not None
         featured.pages += 8
-        featured.save_with_logs(actor=self.admin, expected_row_version=0)
+        featured.save_plus(actor=self.admin, expected_row_version=0)
         self.featured_public_id = featured.public_id
 
     def test_models_list(self) -> None:
