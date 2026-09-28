@@ -32,7 +32,25 @@
 		file_server
 	}
 
+	# Uploaded media: the app gates a download, then hands off via the
+	# X-Accel-Redirect header carrying the file's path relative to MEDIA_ROOT
+	# (an internal carrier — it never reaches the client; such a path is not
+	# a route, direct requests fall through to the app and 404).
 	handle {
-		reverse_proxy 127.0.0.1:8000
+		reverse_proxy 127.0.0.1:8000 {
+			@accel header X-Accel-Redirect *
+			handle_response @accel {
+				# {rp.*} is reverse_proxy's response placeholder ({resp.*}
+				# belongs to the separate intercept directive — unset here).
+				rewrite {rp.header.X-Accel-Redirect}
+				root * /srv/desmo/main/media
+				# file_server writes a fresh response — copy the app's
+				# disposition/type so clients still get the original
+				# filename (a selective copy; X-Accel-Redirect never
+				# reaches the client).
+				copy_response_headers Content-Disposition Content-Type
+				file_server
+			}
+		}
 	}
 }

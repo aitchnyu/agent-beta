@@ -71,3 +71,29 @@ export type TodoOut = z.infer<typeof TodoSchema>
 export const TodosPagePropsSchema = z.object({
   todos: TodoSchema.array(),
 })
+
+// ---- Downloads ----
+
+export const DownloadSchema = z.object({
+  public_id: z.string(),
+  // What the uploader called it (what clients see); stored_name is the
+  // storage path (downloads/<name>) — it IS the anonymous download URL.
+  original_name: z.string(),
+  stored_name: z.string(),
+  expires_at: z.string(),
+  is_expired: z.boolean(),
+  // Optimistic-lock echo for replace (deletes carry no version).
+  row_version: z.number().int().nonnegative(),
+})
+
+export type DownloadOut = z.infer<typeof DownloadSchema>
+
+export const DownloadsPagePropsSchema = z.object({
+  downloads: DownloadSchema.array(),
+})
+
+// The framework's shared viewer props (top-level page props) — the app only
+// needs the superuser flag (the downloads manager is superuser-only).
+export const SharedViewerSchema = z.object({
+  viewer_is_superuser: z.boolean(),
+})

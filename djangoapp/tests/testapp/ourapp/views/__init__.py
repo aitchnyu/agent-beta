@@ -9,10 +9,11 @@ component ``ours/<Page>``).
 
 from ninja import NinjaAPI
 
-from ourapp.views import books, home
+from ourapp.views import books, home, media
 
 api = NinjaAPI(urls_namespace="ourapp-http")
 
 # Register every feature's router. Home owns the landing page at ``/``.
 api.add_router("/", home.router)
 api.add_router("/", books.router)
+api.add_router("/", media.router)

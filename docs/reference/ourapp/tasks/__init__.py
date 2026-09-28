@@ -6,6 +6,7 @@ submodules, which registers their decorated tasks. Add a new feature's tasks in
 ``tasks/<feature>.py`` and import them below so djhuey picks them up.
 """
 
+from ourapp.tasks.downloads import delete_expired_downloads
 from ourapp.tasks.facts import choose_fact_of_the_day
 
-__all__ = ["choose_fact_of_the_day"]
+__all__ = ["choose_fact_of_the_day", "delete_expired_downloads"]

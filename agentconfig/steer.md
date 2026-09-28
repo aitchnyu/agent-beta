@@ -621,6 +621,12 @@ Run through every box; the order is the order you build in.
           with a comment)
     - [ ] money is `models.DecimalField(max_digits=…, decimal_places=…)` —
           never `FloatField` (binary-float rounding corrupts sums)
+    - [ ] a `FileField` gets a **unique-enough folder** as its `upload_to`
+          (e.g. `"one_time_downloads"`, not `"files"`): `media/` is shared by every
+          app and feature, filenames stay original, and two features in one
+          folder would interleave same-name files into an indistinguishable
+          pile. One folder per feature; Django picks the filename (see
+          [File uploads](#file-uploads)).
 - [ ] **View module** — add `ourapp/views/<feature>.py` with a `Router`, wire
       **every** API endpoint (pages + data) there, and register it in
       `ourapp/views/__init__.py` via `api.add_router("/", <feature>.router)`.
@@ -786,6 +792,48 @@ Huey task on `transaction.on_commit` — so:
   is about (a project notification links to that project, a comment to
   the comment's hash anchor within it, e.g. `/projects/abc#comment-42`),
   not a generic page. When there is nothing specific to show, omit it.
+
+### File uploads
+Uploaded files (FileField storage) live in `media/` (`MEDIA_ROOT`, repo
+root) — never in the repo, never in git. Three rules own everything:
+
+- **One folder per feature, Django chooses the filename** —
+  `upload_to="downloads"`-style; the storage keeps the original name and
+  adds a random suffix on collision (same-name uploads coexist).
+- **File cleanup rides the tracked pair — there is no separate cleanup
+  call to remember or forget:**
+  ```python
+  # replacing a field's file is just an assignment: save_plus reads the
+  # pre-edit name under lock and deletes the OLD file after the commit
+  # (a rollback keeps both the edit and the old file)
+  doc.file = new_upload
+  doc.save_plus(actor=user, expected_row_version=doc.row_version)
+
+  # removing a row takes its files with it: row + audit log + files
+  doc.delete_plus(actor=user)
+  ```
+  With a bare `.save()`/`.delete()` — or a queryset `.update()` that swaps
+  a file column — the old file stays on disk with nothing pointing at it.
+- **Serving goes through `serve_file`** (`djangoapp.media`), so the app
+  gates every download instead of a proxy serving files blindly:
+  ```python
+  return serve_file(request, doc.file.name, download_name=doc.basename)
+  ```
+  Mount it in YOUR URL pattern with YOUR gating (expiry/ownership) first —
+  there is no global open media route on purpose. How it streams: a Django
+  `FileResponse` for direct requests; behind the reverse proxy (detected
+  per-request via `X-Forwarded-For`) the empty `X-Accel-Redirect` reply
+  hands the bytes to the Caddyfile's interception — briefly.
+- **The files and folders:**
+  - `media/` — the runtime storage root (gitignored; excluded from the
+    scratch rsync like `staticfiles/`)
+  - `djangoapp/media.py` — `serve_file`, the one serving seam
+  - `deploy/Caddyfile.site.in` — the `@accel` response interception that
+    streams from `media/` behind the proxy
+  - the reference app's Downloads feature (`docs/reference/ourapp/` —
+    `models/downloads.py`, `views/downloads.py`, `tasks/downloads.py`,
+    `docs/downloads.md`): admin upload → anonymous download until expiry
+    → daily sweep removes row + files
 
 ### Logging
 **Try to log problems; don't swallow them.** A caught-and-recovered exception

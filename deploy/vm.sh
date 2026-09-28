@@ -207,7 +207,7 @@ agent-scratch-clean() {
 # - overlays the Books test app over the VM's ourapp/
 # - smokes the LIVE stack over HTTPS on loopback (caddy TLS, granian,
 #   postgres, login links) — what only a real deployment shows
-# - three setup phases then nine asserts, one linear body (read it top
+# - three setup phases then ten asserts, one linear body (read it top
 #   to bottom), first failure aborts with FAILED: <what>
 # - the host side checks only gate's exit code; output streams to the
 #   operator
@@ -393,6 +393,32 @@ gate() {
   # scratch/ is gone
   gate-as-default-user agent-scratch-clean \
     || gate-fail "cleanscratch as the default user (scratch/ still present)"
+
+  # ── Assert 10: media serving — upload + serve_file over the live stack
+  # (testapp /media endpoints; the GET rides the X-Accel-Redirect handoff).
+  echo; echo "=== Assert 10: media upload + serve_file ==="
+  printf 'gate-media-bytes' > /tmp/gate-upload.bin
+  
+  # Postcondition 1: the multipart upload stored the file and replied with
+  # its unguessable storage name (ninja's JSON has a space after the colon)
+  media_name=$(curl -k -sS -b "$gate_jar" -F "file=@/tmp/gate-upload.bin" \
+    "$gate_base/media/upload" | sed -n 's/.*"name":[[:space:]]*"\([^"]*\)".*/\1/p') \
+    || gate-fail "media upload request failed"
+  [ -n "$media_name" ] || gate-fail "media upload returned no storage name"
+  # Postcondition 2: the serve URL streams the exact bytes back — an
+  # unintercepted accel response would be an empty body and fail the cmp
+  curl -k -sS -b "$gate_jar" "$gate_base/media/$media_name" -o /tmp/gate-download.bin \
+    || gate-fail "media serve request failed"
+  cmp /tmp/gate-upload.bin /tmp/gate-download.bin \
+    || gate-fail "served media bytes differ from the upload"
+  # Postcondition 3: unknown and traversal names are 404s (never a 500,
+  # never bytes from outside MEDIA_ROOT)
+  gate-assert-eq "$(curl -k -sS -o /dev/null -w '%{http_code}' -b "$gate_jar" "$gate_base/media/not-there.bin")" \
+    404 "unknown media name"
+  gate-assert-eq "$(curl -k -sS -o /dev/null -w '%{http_code}' -b "$gate_jar" --path-as-is \
+    "$gate_base/media/..%2f..%2f..%2fetc%2fpasswd")" \
+    404 "media traversal attempt"
+  rm -f /tmp/gate-upload.bin /tmp/gate-download.bin
 
   rm -f "$gate_jar"
   printf '\ncheckframework2 green.\n'

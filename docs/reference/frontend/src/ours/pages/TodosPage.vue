@@ -31,7 +31,7 @@ async function toggle(todo: TodoOut) {
   toggling.value = todo.public_id
   try {
     // Optimistic-lock echo (the frontend half of the pattern; the backend half
-    // is save_with_logs' expected_row_version): send the row_version this
+    // is save_plus' expected_row_version): send the row_version this
     // list was rendered with — a fresh create sends 0, see TodoForm. If the
     // row changed server-side since this read, the stale number is rejected
     // with a 404 and only the catch below runs; reload() is reached solely on

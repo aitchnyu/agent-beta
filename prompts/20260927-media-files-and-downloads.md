@@ -19,22 +19,42 @@
   ``expires_at`` and 404s immediately; a daily ``db_periodic_task``
   deletes expired rows and their bytes. No lazy on-access deletion.
 - **Downloads are anonymous share links.** Anyone with the URL may fetch a
-  live file; unguessable storage names (UUID-based ``upload_to``) are the
-  boundary. No session required to download.
-- **Always through Django's ``serve_file``.** Caddy only reverse-proxies
-  (as it already does for every non-``/static/`` route) — no
-  ``handle_path`` interception for media, so ``expires_at`` is enforced
-  exactly with no expired-but-unswept window. The old TODO "accelerate
-  file serving with Caddy" stays future work.
+  live file; no session required to download. *(Re-settled 2026-09-28:
+  storage naming is Django's — ``upload_to="downloads"`` with the original
+  filename plus random collision suffixes — so URLs are guessable from
+  filenames and the expiry date, not URL secrecy, is the guard.)*
+- **Serving = FileResponse, Caddy X-Accel-Redirect handoff for proxied
+  requests** *(re-settled 2026-09-28; supersedes the env-knob and
+  redirect variants)*. ``serve_file`` returns Django's ``FileResponse``
+  for direct requests; for requests that arrived through the reverse
+  proxy — detected PER-REQUEST via ``X-Forwarded-For`` (Caddy stamps it
+  on everything it forwards; granian binds 127.0.0.1 so the header has
+  exactly one possible writer; a spoofed XFF only ever yields an empty
+  200, never wrong bytes) — it replies empty-bodied with
+  ``X-Accel-Redirect: /<resolved-relative-path>`` (percent-quoted,
+  built from the post-resolution path so dot-segments/newlines can't ride
+  it). The Caddyfile's ``reverse_proxy`` response interception
+  (``@accel`` + ``handle_response``, stock Caddy v2) rewrites to that
+  path and streams from ``MEDIA_ROOT``. No env knob: the
+  ``MEDIA_ACCEL_PREFIX`` setting and its ``.env`` entries were removed
+  (retires two markers); the handoff path is built purely from
+  the resolved file's location — no prefix constant, no coupling beyond
+  the Caddyfile's root. The gate's byte-compare through caddy proves the
+  whole chain.
 - **``serve_file`` is a per-app-mounted primitive.** No default open
-  ``/media/`` route anywhere — a global anonymous route would bypass the
+  ``/media/`` route in Django — a global anonymous route would bypass the
   date gate for expired-but-unswept files. Apps mount their own pattern
   around it (reference: ``/downloads/…``; testapp: its gate endpoint).
-- **File cleanup is fully explicit.** ``save_with_logs`` /
-  ``delete_with_logs`` stay file-unaware, deliberately. Callers own the
-  lifecycle through two new ``BaseModel`` methods; a forgotten call
-  orphans a file (the documented cost of skipping them, like bare
-  ``.save()`` skipping audit logs).
+- **File cleanup rides the tracked pair** *(re-settled 2026-09-28;
+  supersedes the "fully explicit marks" stance of 2026-09-26)*.
+  ``save_plus``/``delete_plus`` REPLACE ``save_with_logs``/
+  ``delete_with_logs`` outright (precursor commit 8f49c95): every
+  replaced/cleared FileField's old bytes queue for post-commit deletion
+  inside the tracked save (one locked read carries ``row_version`` AND the
+  pre-edit file names); the tracked delete treats the row's files as
+  cleared and removes row + audit log + bytes together. Bare
+  ``.save()``/``.delete()``/``update()``-swapped file columns orphan the
+  bytes — no separate cleanup call exists to remember or forget.
 - **media/ rides neither git nor the scratch rsync** — gitignored +
   ``_SCRATCH_EXCLUDES``, same policy as ``staticfiles/``: runtime data,
   never source; deployscratch can't wipe VM media.
@@ -42,31 +62,38 @@
   ``tasks/downloads.py``.
 - **Gate staging**: extend the testapp (multipart upload + serve) rather
   than placing files out-of-band; the gate proves the full app path.
+- **READMEs**: the reference README lists the Downloads feature; the
+  testapp gains a README (Books / media gate endpoints).
 
 ## Design
 
 ### Settings
 
 - ``MEDIA_ROOT = BASE_DIR / "media"`` (``BASE_DIR`` is ``main/``).
+- ``X-Forwarded-For`` — Caddy-handoff detection, per-request (no setting;
+  the knob was removed 2026-09-28).
 - ``MEDIA_URL`` stays unused for serving (no global route) — storage
   writes only. Create ``media/`` lazily via storage (``FileSystemStorage``
   does) or provision; gitignored either way.
 
 ### BaseModel (``djangoapp/models/base.py``)
 
-- ``mark_file_field_for_deletion(field_name: str)`` — the primitive.
-  ``transaction.on_commit`` → ``field.delete(save=False)``:
-  - rollback → callback never fires (file survives an aborted
-    transaction — the point of the design);
+- ``save_plus(*, actor, expected_row_version)`` — the tracked save:
+  persist + one ``BaseModelUpdateLog`` + replaced-file cleanup. Every
+  FileField whose stored name changed from the DB (reassigned or cleared
+  to empty) queues its old file via ``_queue_file_deletion`` (the
+  ``transaction.on_commit`` primitive):
+  - rollback → callback never fires (the edit AND the old file survive);
   - autocommit (no atomic block) → fires immediately;
-  - missing file → no-op; double mark → harmless.
-- ``mark_all_file_fields_for_deletion()`` — the whole-row method
-  ("remove all files with a row"): discovers ``FileField``s the same way
-  ``_log_fields`` introspects fields for audit logging, marks every
-  non-empty one.
-- Tests drive both with Django's
-  ``captureOnCommitCallbacks(execute=True)`` (TestCase never
-  real-commits) + an overridden tmp ``MEDIA_ROOT``.
+  - missing file → no-op; queued twice → harmless.
+  The locked read fetches ``row_version`` + pre-edit file names in ONE
+  query; models without FileFields pay nothing extra.
+- ``delete_plus(*, actor)`` — the tracked delete: row + ``deleted`` log +
+  every file's bytes, queued the same way inside the delete's atomic
+  block (it "pretends the file fields are cleared").
+- Tests drive the semantics via ``captureOnCommitCallbacks(execute=True)``
+  (TestCase never real-commits) + an overridden tmp ``MEDIA_ROOT`` — the
+  reference app's Download tests carry this coverage.
 
 ### serve_file (framework)
 
@@ -79,21 +106,20 @@
 ### Reference app — Download feature (``docs/reference/ourapp``)
 
 - ``models/downloads.py``: ``Download(BaseModel)`` with
-  ``file = FileField(upload_to=<uuid names>)`` and
+  ``file = FileField(upload_to=_uuid_name)`` storing under this feature's
+  own folder ``media/downloads/<uuid>.<ext>`` and
   ``expires_at`` (default ``now() + 1 week``); classmethod
-  ``delete_expired()`` — per expired row:
-  ``mark_all_file_fields_for_deletion()`` + ``delete_with_logs`` (fat
-  model, thin task).
+  ``delete_expired()`` — per expired row: ``delete_plus(actor=None)``
+  (fat model, thin task).
 - ``views/downloads.py`` (Router):
   - ``GET /downloads`` — superuser-only Inertia page: list + upload form
     (+ per-row replace/delete actions);
   - ``POST /downloads/upload`` — superuser-only multipart create
-    (``save_with_logs``, ``expected_row_version=0``);
-  - replace-file action — **the explicit-replacement illustration**:
-    ``mark_file_field_for_deletion("file")`` on the old value *before*
-    assigning the new one, inside the same transaction;
-  - ``GET /downloads/<name>`` — anonymous: row lookup by storage name →
-    ``expires_at`` gate → ``serve_file``; 404 past expiry.
+    (``save_plus``, ``expected_row_version=SKIP_ROW_VERSION_CHECK``);
+  - replace-file action — **the replacement illustration**: just reassign
+    + ``save_plus`` (old bytes die post-commit; rollback keeps both);
+  - ``GET /downloads/{path:storage_name}`` — anonymous: row lookup by
+    storage name → ``expires_at`` gate → ``serve_file``; 404 past expiry.
 - ``tasks/downloads.py``: daily ``db_periodic_task`` →
   ``Download.delete_expired()`` (FactOfTheDay wrapper pattern; tests via
   the classmethod or ``call_local()``).
@@ -110,8 +136,9 @@
 
 ### Gate (``deploy/vm.sh`` — a 10th assert)
 
-- On the smoke session: upload → 200 + name; GET serve URL → 200, bytes
-  match; bogus name → 404; ``..`` traversal shape → 404.
+- On the smoke session: upload → 200 + name; GET serve URL (the
+  X-Accel-Redirect handoff is transparent — bytes arrive on the SAME url)
+  → bytes match; bogus name → 404; ``..`` traversal shape → 404.
 - Expiry stays unit-side (clock control in the gate isn't worth it).
 
 ### Plumbing
@@ -119,23 +146,34 @@
 - ``.gitignore``: ``media/``.
 - ``run`` ``_SCRATCH_EXCLUDES``: ``--exclude='media/'`` (staticfiles
   policy).
-- ``agentconfig/steer.md``: new **File uploads** section — the three
-  primitives, the explicit-only philosophy (replacement + row deletion
-  are caller-owned), and a pointer to ``docs/reference/`` as the
-  copyable illustration.
-- ``deploy/Caddyfile.site.in``: untouched.
+- ``agentconfig/steer.md``: new **File uploads** section — the tracked-pair
+  cleanup rule, the ``serve_file`` serving rule, and a pointer to
+  ``docs/reference/`` as the copyable illustration.
+- ``deploy/Caddyfile.site.in``: the ``@accel`` + ``handle_response``
+  interception inside the site's ``reverse_proxy`` (stock Caddy v2).
+  Review-corrected mechanics: ``{rp.header.X-Accel-Redirect}`` (the
+  reverse_proxy response placeholder — ``{resp.*}`` belongs to the
+  separate intercept directive and is unset here), ``rewrite`` to the
+  header's path with ``root /srv/desmo/main/media`` mapping it directly
+  (no prefix to strip — the header carries the bare resolved-relative
+  path), and ``copy_response_headers Content-Disposition Content-Type``
+  so the served file keeps the original filename (``file_server`` writes
+  a fresh response otherwise; the selective copy also keeps the marker
+  header from the client). Detection is the request's
+  ``X-Forwarded-For`` — no env knob ships.
 
 ## Checklist
 
-- [ ] Settings: ``MEDIA_ROOT``, gitignore, scratch excludes
-- [ ] ``BaseModel.mark_file_field_for_deletion`` + tests
-- [ ] ``BaseModel.mark_all_file_fields_for_deletion`` + tests
-- [ ] ``serve_file`` + tests (content, 404, traversal)
-- [ ] Reference: ``Download`` model + migration + ``delete_expired()``
-- [ ] Reference: views (page/upload/replace/anonymous serve) + tests
-- [ ] Reference: daily sweep task
-- [ ] Reference: frontend page + zod + playwright test
-- [ ] Reference: docs (design doc, README) 
-- [ ] Testapp: upload + serve endpoints
-- [ ] Gate: assert 10 (upload/serve/404/traversal over HTTPS)
-- [ ] steer.md: File uploads section
+- [x] Settings: ``MEDIA_ROOT`` (+ XFF-based accel detection, no knob), gitignore, scratch excludes
+- [x] Precursor commit 8f49c95: ``save_plus``/``delete_plus`` replace the old pair, all callers migrated
+- [x] ``serve_file`` + tests (content, 404, traversal, X-Accel-Redirect)
+- [x] Reference: ``Download`` model + migration + ``delete_expired()`` + tests
+- [x] Reference: views (page/upload/replace/anonymous serve) + tests
+- [x] Reference: daily sweep task + tests
+- [x] Reference: frontend page + zod + playwright test
+- [x] Reference: docs (design doc, README)
+- [x] Testapp: upload + serve endpoints + README
+- [x] Gate: assert 10 (upload/serve/404/traversal over HTTPS)
+- [x] steer.md: File uploads section
+- [x] Caddyfile @accel interception (XFF detection, no env knobs)
+- [ ] Batteries: ``./run test``, lint, typecheck, reference + gated overlays

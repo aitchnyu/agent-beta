@@ -249,7 +249,7 @@ checkframework1() {
 #   - smokes the LIVE stack over HTTPS on loopback (caddy TLS, granian,
 #     postgres, login links)
 #   - runs the agent's full scratch lifecycle
-#   - three setup phases, nine asserts, first failure aborts
+#   - three setup phases, ten asserts, first failure aborts
 # - NB: the exec's output streams unfiltered — never pipe an exec into
 #   grep -q (early-exit readers wedge the daemon's next exec on this host)
 checkframework2() {
@@ -259,7 +259,7 @@ checkframework2() {
     "$_MAIN_DIR/testvm" delete
   fi
   "$_MAIN_DIR/testvm" provision
-  echo "=== Run the in-VM gate (testapp overlay + 9 asserts) ==="
+  echo "=== Run the in-VM gate (testapp overlay + 10 asserts) ==="
   multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh gate
 }
 
@@ -341,6 +341,7 @@ _SCRATCH_EXCLUDES=(
   --exclude='dist/'
   --exclude='build/'
   --exclude='staticfiles/'   # collectstatic output (VM serving); regenerated, never source
+  --exclude='media/'         # uploads (MEDIA_ROOT); runtime data, never source
   --exclude='.DS_Store'
 )
 

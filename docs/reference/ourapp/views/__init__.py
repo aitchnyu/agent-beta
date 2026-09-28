@@ -9,7 +9,7 @@ component ``ours/<Page>``); data responses are pydantic schemas.
 
 from ninja import NinjaAPI
 
-from ourapp.views import facts, home, todos
+from ourapp.views import downloads, facts, home, todos
 
 api = NinjaAPI(urls_namespace="ourapp-http")
 
@@ -17,3 +17,4 @@ api = NinjaAPI(urls_namespace="ourapp-http")
 api.add_router("/", home.router)
 api.add_router("/", facts.router)
 api.add_router("/", todos.router)
+api.add_router("/", downloads.router)

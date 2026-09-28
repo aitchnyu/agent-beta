@@ -42,3 +42,7 @@ djangoapp/static/*
 # collectstatic output (STATIC_ROOT is repo-relative; seed ships none,
 # the VM builds its own — never commit it)
 staticfiles/
+
+# Uploaded user files (MEDIA_ROOT; FileField storage). Runtime data, never
+# source — gitignored like staticfiles/, excluded from the scratch rsync.
+media/

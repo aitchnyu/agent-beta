@@ -79,6 +79,13 @@ ours lives there):
   [User management](#user-management) and [Google OAuth](#google-oauth-social-login).
 - **File browser** — `/files` to browse and preview the repo filesystem in-app.
   See [Code viewer (superuser)](#code-viewer-superuser).
+- **Uploads + fast downloads** — app files (FileField) store under `media/`;
+  apps serve them through `djangoapp.media.serve_file`, which streams a
+  `FileResponse` in dev and, behind caddy, hands the bytes off via an
+  `X-Accel-Redirect` interception — caddy streams the file straight from
+  disk, so the app process never moves upload bytes. File cleanup rides the
+  tracked pair (`save_plus`/`delete_plus`); the reference app's Downloads
+  feature (`docs/reference/`) is the illustration.
 - **Git viewer** — `/git` to browse commits, view diffs, and inspect the
   uncommitted working tree. See [Code viewer (superuser)](#code-viewer-superuser).
 - **Notifications** — `/notifications`: every user's badge, list, and browser

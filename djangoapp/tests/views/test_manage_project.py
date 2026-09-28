@@ -237,7 +237,7 @@ class ManageProjectTests(BaseInertiaTestCase):
         props = self.props()
         # The callable ran (otherwise the key would be absent). The list is empty
         # because setUpTestData seeds the book via plain objects.create() (not
-        # save_with_logs), so no BaseModelUpdateLog row exists for it.
+        # save_plus), so no BaseModelUpdateLog row exists for it.
         self.assertIn("logs", props)
         self.assertEqual(props["logs"], [])
 

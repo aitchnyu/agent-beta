@@ -111,6 +111,22 @@ export async function postJSON(url: string, data?: unknown): Promise<unknown> {
   }
 }
 
+/**
+ * POST a FormData as multipart (file uploads — bytes cannot ride JSON). The
+ * FormData is passed as the body untouched so fetch sets the multipart
+ * boundary
+ */
+export async function postForm(url: string, form: FormData): Promise<unknown> {
+  try {
+    const response = await api.post(url, { body: form })
+    const type = response.headers.get("content-type") ?? ""
+    if (!type.includes("json")) return undefined
+    return await response.json()
+  } catch (err) {
+    return normalizeError(err)
+  }
+}
+
 export async function deleteJSON(
   url: string,
   data?: unknown,

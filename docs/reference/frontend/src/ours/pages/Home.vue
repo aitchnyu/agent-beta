@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { Link } from "@inertiajs/vue3"
-import { HomePropsSchema } from "../schemas"
+import { Link, usePage } from "@inertiajs/vue3"
+import { HomePropsSchema, SharedViewerSchema } from "../schemas"
 // Side-effect import: the app ships its own styles from ours/style.scss, so the
 // feature is self-contained (no edit to the framework's main.scss).
 import "../style.scss"
@@ -9,6 +9,9 @@ import "../style.scss"
 // Inertia wraps the page data under a `props` key (page.props.props); parse it.
 const props = defineProps<{ props: object }>()
 const p = computed(() => HomePropsSchema.parse(props.props))
+// Shared viewer props sit at the TOP level of page props (middleware); the
+// superuser flag gates the Downloads manager link.
+const isSuperuser = computed(() => SharedViewerSchema.parse(usePage().props).viewer_is_superuser)
 </script>
 
 <template>
@@ -46,6 +49,11 @@ const p = computed(() => HomePropsSchema.parse(props.props))
              viewers see its link — never link a viewer into a page they can't open. -->
         <a v-if="p.is_authenticated" class="home-feature-link" href="/todos">
           Todos
+        </a>
+        <!-- Downloads is the superuser-only upload manager (plain <a> like
+             its siblings — the nav is not SPA-navigated). -->
+        <a v-if="isSuperuser" class="home-feature-link" href="/downloads">
+          Downloads
         </a>
       </nav>
 
