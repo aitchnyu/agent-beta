@@ -88,9 +88,13 @@
   - missing file → no-op; queued twice → harmless.
   The locked read fetches ``row_version`` + pre-edit file names in ONE
   query; models without FileFields pay nothing extra.
-- ``delete_plus(*, actor)`` — the tracked delete: row + ``deleted`` log +
-  every file's bytes, queued the same way inside the delete's atomic
-  block (it "pretends the file fields are cleared").
+- ``delete_plus(*, actor)`` — the tracked delete: row + history purge +
+  ``deleted`` tombstone + every file's bytes (queued the same way inside
+  the delete's atomic block — it "pretends the file fields are cleared").
+  The row's ``created``/``updated`` entries are deleted with it (erasure
+  by design); only the lean tombstone (who/when/model+pk) survives.
+  *(Re-settled 2026-09-29; supersedes the keep-the-history stance of the
+  precursor.)*
 - Tests drive the semantics via ``captureOnCommitCallbacks(execute=True)``
   (TestCase never real-commits) + an overridden tmp ``MEDIA_ROOT`` — the
   reference app's Download tests carry this coverage.

@@ -66,11 +66,12 @@ class Download(BaseModel):
 
     @classmethod
     def delete_expired(cls) -> int:
-        """Sweep every expired row: row + audit log + bytes, post-commit.
+        """Sweep every expired row: row + history purge + file, post-commit.
 
         The daily task's whole body (fat model, thin wrapper): per expired
-        row, ``delete_plus`` — so a swept delete removes the row, its log
-        entry, and its file together or not at all. Returns the count swept.
+        row, ``delete_plus`` — so a swept delete removes the row, its
+        history, and its file together (a lean tombstone remains), or
+        nothing at all. Returns the count swept.
         """
         swept = 0
         for download in cls.objects.filter(expires_at__lte=timezone.now()):

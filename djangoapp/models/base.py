@@ -519,8 +519,8 @@ class BaseModel(models.Model):
     last_updated_at = models.DateTimeField(null=True, blank=True)
     last_updated_by = models.ForeignKey(
         # RESTRICT (repo default) blocks deleting a user who touched a row;
-        # BaseModelUpdateLog.performed_by is SET_NULL instead so the permanent
-        # audit log survives actor deletion even when the row blocks the delete.
+        # BaseModelUpdateLog.performed_by is SET_NULL instead so the deletion
+        # tombstones survive actor deletion even when the row blocks the delete.
         User,
         null=True,
         blank=True,
@@ -753,25 +753,43 @@ class BaseModel(models.Model):
                 )
 
     def delete_plus(self, *, actor: User | None) -> BaseModelUpdateLog:
-        """Delete, write a ``deleted`` log, and remove every file of the row.
+        """Delete, purge the row's history, tombstone it, take its files.
 
-        A delete records only that the row was removed (action + model + pk) — no
-        field snapshot is stored; the row is gone, and the log outlives it keyed
-        by model + integer pk. The delete treats the row's FileFields as
-        cleared: every stored file is queued for post-commit deletion inside
-        the same transaction (a rolled-back delete keeps the row and its
-        files together), its storage + name captured on the spot — never the
-        live ``FieldFile``::
+        Erasure by design: the row's ``created``/``updated`` entries carry
+        its field values, so they are DELETED with the row — only a lean
+        ``deleted`` tombstone survives (who, when, model + pk; no field
+        snapshot). Reconstructing what a deleted row contained is
+        deliberately impossible; accountability for the deletion itself is
+        preserved forever. The delete treats the row's FileFields as
+        cleared: every stored file is queued for post-commit deletion
+        inside the same transaction (a rolled-back delete keeps the row,
+        its history, and its files together), its storage + name captured
+        on the spot — never the live ``FieldFile``::
 
             doc.delete_plus(actor=user)
-            # → row + audit log commit, then every file's bytes are deleted
+            # → row + history purged + tombstone written, then the file
+            #   bytes are deleted after the commit
+
+        The row is LOCKED before the purge: an in-flight ``save_plus``
+        either commits first (its log is purged too) or blocks on the lock
+        and then finds the row gone — a field-value log can never survive
+        between the purge and the row's deletion. Consequence: deleting an
+        already-deleted row raises ``DoesNotExist`` (callers gate on the
+        row existing; deletes don't carry an optimistic lock to go stale).
         """
         now = timezone.now()
         with transaction.atomic():
+            # Lock the row so the purge can't race a concurrent save_plus
+            # (whose log INSERT would otherwise land after the purge and
+            # outlive the row — breaking erasure).
+            type(self).objects.select_for_update().get(pk=self.pk)  # type: ignore[attr-defined] # concrete subclass carries objects; abstract BaseModel doesn't
             for f in self._file_fields():
                 value = getattr(self, f.name)
                 if value:
                     _queue_file_deletion(value.storage, value.name)
+            BaseModelUpdateLog.objects.filter(
+                model=type(self).log_model_name(), model_pk=self.pk
+            ).delete()
             log = BaseModelUpdateLog.objects.create(
                 performed_by=actor,
                 performed_at=now,
@@ -868,7 +886,8 @@ class BaseModelUpdateLog(models.Model):
     """Generic CRUD audit log for ``BaseModel`` rows (one row per create/update/delete).
 
     ``model`` + ``model_pk`` reference the target polymorphically (no
-    ``GenericForeignKey``) so a log survives the target row's deletion.
+    ``GenericForeignKey``), so the ``deleted`` tombstone survives the target
+    row's deletion.
     ``model_pk`` is the integer pk — server-side only; it is never sent to
     clients (the response carries the log's own uuid7 ``id`` instead). FK values
     inside ``old_values``/``new_values`` use the target's ``public_id``.

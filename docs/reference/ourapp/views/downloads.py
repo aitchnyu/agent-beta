@@ -5,8 +5,8 @@ Endpoints (one Inertia page ``ours/DownloadsPage`` + the anonymous serve route):
 - POST /downloads/upload                 — superuser multipart create → DownloadOutSchema
 - POST /downloads/{public_id}/replace    — superuser multipart replace (just reassign
                                             + save_plus — the old file dies post-commit) → DownloadOutSchema
-- POST /downloads/{public_id}/delete     — superuser removal (delete_plus: row + log
-                                            + file) → {"deleted": public_id}
+- POST /downloads/{public_id}/delete     — superuser removal (delete_plus: row +
+                                            history purge + file; lean tombstone) → {"deleted": public_id}
 - GET  /downloads/{path:storage_name}    — ANONYMOUS serve: expiry gate → serve_file
 
 The serve route is the expiry gate: a live row streams via
@@ -157,7 +157,7 @@ def replace_download(
 def delete_download(
     request: HttpRequest, public_id: str
 ) -> DownloadDeletedSchema:
-    """Remove a download — row, audit log, and bytes, one call.
+    """Remove a download — row, history purge, file, and a tombstone.
 
     Deletes carry no optimistic lock (``delete_plus`` takes none — a
     delete is idempotent); a missing row is simply already-gone → 404. The

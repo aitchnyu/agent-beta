@@ -34,7 +34,8 @@ class DownloadsViewTests(BaseTestCase):
     - test_delete_non_superuser_404, non-superuser delete is 404
     - test_replace_deletes_old_file, replace marks old bytes, new survive, version bumps
     - test_replace_stale_version_404, a stale expected_row_version is 404
-    - test_delete_removes_row_and_bytes, delete → row + audit log + bytes gone
+    - test_delete_removes_row_and_bytes, delete → row + history gone, bytes gone
+      (lean tombstone remains)
     - test_serve_anonymous_live_download, anyone with the name downloads the bytes
       under the ORIGINAL filename
     - test_serve_expired_404, past expires_at the same URL is 404
@@ -185,7 +186,7 @@ class DownloadsViewTests(BaseTestCase):
         self.assertTrue(default_storage.exists(old_name))
 
     def test_delete_removes_row_and_bytes(self) -> None:
-        """Delete → JSON body; row, audit log trail, and bytes are gone."""
+        """Delete → JSON body; row, history, and bytes gone (tombstone stays)."""
         created = self._upload().json()
         stored_name = created["stored_name"]
         with self.captureOnCommitCallbacks(execute=True):

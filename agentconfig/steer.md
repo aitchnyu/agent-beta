@@ -537,9 +537,11 @@ through them is logged to `BaseModelUpdateLog`:
     row's `row_version` still increments, so numbers read before a skipped
     check go stale just the same.
   - Bare `.save()` (untracked) also skips the increment.
-- `instance.delete_plus(actor=…)` — writes a `deleted` log (old/new values
-  both empty — a delete only records that the row was removed, not a snapshot)
-  then deletes; the log outlives the row.
+- `instance.delete_plus(actor=…)` — purges the row's `created`/`updated`
+  history (those entries carry its field values — erasure by design), then
+  writes a lean `deleted` tombstone (who, when, model + pk — no field
+  snapshot) and deletes the row. Reconstructing a deleted row's contents is
+  deliberately impossible; the tombstone preserves accountability forever.
 The audit kwarg is `actor=` (named so a model with its own `user` FK column
 keeps that name free for the field). The actor is the request user (see
 `user_or_404`/`maybe_user` below). The logs show on the row's detail page at

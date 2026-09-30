@@ -27,7 +27,8 @@ class BaseModelUpdateLogTests(BaseTestCase):
     - test_create_logs_created_with_full_new_values, create log: old={}, new=all columns
     - test_update_logs_changed_values, update log old/new reflect the changed field
     - test_noop_update_writes_no_log, no-field-change update → no log row
-    - test_delete_logs_deleted_no_snapshot, delete log: old/new both {} (no snapshot)
+    - test_delete_purges_history_tombstones, delete purges created/updated
+      history; only the empty tombstone survives (row gone)
     - test_value_shapes, int→str, FK→{id,url,name}, null passthrough, no pk leak
     - test_log_model_name_resolution, log.model == log_model_name(); log_as_name overrides
     - test_performed_by_none, actor=None recorded as a null actor
@@ -118,18 +119,35 @@ class BaseModelUpdateLogTests(BaseTestCase):
         self.book.save_plus(actor=self.actor, expected_row_version=0)
         self.assertEqual(self._logs(action="updated"), [])
 
-    def test_delete_logs_deleted_no_snapshot(self) -> None:
-        """Delete writes a 'deleted' log with empty old/new values; the log outlives the row."""
+    def test_delete_purges_history_tombstones(self) -> None:
+        """Delete purges the row's created/updated history; only the tombstone stays.
+
+        Erasure by design — field values die with the row; who/when
+        accountability lives forever.
+        """
+        # Give the row a history first: one created + one updated entry.
+        self.book.title = "Updated Notes"
+        self.book.save_plus(actor=self.actor, expected_row_version=0)
         pk = self.book.pk
+        self.assertEqual(len(self._logs(action="created")), 1)
+        self.assertEqual(len(self._logs(action="updated")), 1)
+
         self.book.delete_plus(actor=self.actor)
 
         log = BaseModelUpdateLog.objects.get(
             model=self.Book.log_model_name(), model_pk=pk, action="deleted"
         )
-        # A delete records only that the row was removed — no field snapshot.
+        # The tombstone records only who/when/model+pk — no field snapshot.
         self.assertEqual(log.old_values, {})
         self.assertEqual(log.new_values, {})
-        # The row is gone, but the log (keyed by model + integer pk) survives.
+        # History entries (the field-value-bearing logs) are gone with the
+        # row; reconstructing its contents is deliberately impossible.
+        self.assertEqual(
+            BaseModelUpdateLog.objects.filter(
+                model=self.Book.log_model_name(), model_pk=pk
+            ).count(),
+            1,  # the tombstone alone
+        )
         self.assertFalse(self.Book.objects.filter(pk=pk).exists())
 
     def test_value_shapes(self) -> None:

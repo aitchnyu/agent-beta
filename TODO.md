@@ -1,34 +1,3 @@
-We have 
-.save_with_logs
-.delete
-
-We want to replace with:
-.save_plus - saves logs and does mark_file_field_for_deletion
-.delete_plus - ensures all files are deleted for that row
-
-Readme 
-  save and delete files with _plus methods
-  one time download
-  validation, both in form and json
-  folder within media 
-
--------------
-
-Reference app has a file download feature. Admin can upload a file, it allows download till a set date (1 week default). Then its not available.
-BaseModel should have .mark_file_field_for_deletion that will delete file after transaction.
-Files must go into media/ in main/ 
-Files are served by django in local, by caddy if caddy is detected. Caddy can intercept requests this way. Have a serve_file(request, filename) for this
-
-In reference app docs and steer (files upload section), mention it illustrates:
-    mark_file_field_for_deletion
-    files are in media/
-    serve_file
-
-Test serve_file in checkframework2
-
-Row delete - how to delete files, replace file and remove older
-
----------------
 Audit trail - keep track of stuff after deletes?
 
 /dbbackups
@@ -39,7 +8,7 @@ Admin file uploads - admin can download, both agent and admin can pass files bac
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
 
-Home and user icons. Where to get icon set autonomously?
+Home and user icons. Where to get icon set autonomously? https://lucide.dev/
 
 ```
 multipass shell app
