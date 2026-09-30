@@ -100,6 +100,96 @@ hueydev() {
   djangomanage run_huey "$@"
 }
 
+backupdb() {
+  # Run the nightly backup NOW — the same code the timer's shim and
+  # deployscratch run. pgbackrest refuses root, so everything runs AS
+  # POSTGRES (the repo owner) via sudo; the conf (/etc/pgbackrest/)
+  # carries the stanza. Weekly full + daily diff; a full lands when
+  # none exists yet. Retention (14 fulls) is the conf's. Failures
+  # abort under set -e (unit red).
+  local type=diff
+  if ! sudo -u postgres pgbackrest --stanza=desmo info | grep -q 'full backup'; then
+    type=full
+  elif [ "$(date -u +%u)" -eq 7 ]; then
+    type=full   # Sunday UTC — refresh the diff baseline
+  fi
+  sudo -u postgres pgbackrest --stanza=desmo backup --type="$type"
+}
+
+# True while a pgbackrest backup is in flight — the stanza's own lock
+# report, verified live. `info --output=json` is an array of stanzas;
+# ours (single, desmo) looks like:
+#   [{"name":"desmo",
+#     "status":{"code":0,"message":"ok","lock":{
+#       "backup":{"held":true,"size":41627136,"size-cplt":41615360},
+#       "restore":{"held":false}}}},
+#    …backup sets, archive, repo…]
+# — held is true exactly while a backup runs (sizes = progress).
+# Shared by restoredb (refuse on it) and deployscratch (wait it out).
+_backup_running() {
+  sudo -u postgres pgbackrest --stanza=desmo info --output=json 2>/dev/null \
+    | jq -e '.[0].status.lock.backup.held == true' >/dev/null
+}
+
+restoredb() {
+  # Restore an EXPLICIT snapshot ONTO the live database — whole-app
+  # downtime, explicit request only (docs/backups.md):
+  #   - <set> is MANDATORY: a backup-set label exactly as
+  #     `pgbackrest --stanza=desmo info` prints it (e.g.
+  #     2026-10-02-000010F) — the restore stops at that set's
+  #     consistency point: the snapshot exactly as taken, no WAL
+  #     replay past it, no implicit "latest"
+  #   - the set's existence is verified BEFORE anything stops, so a
+  #     typo costs nothing
+  #   - a backup ALREADY RUNNING is detected (pgbackrest's own lock
+  #     report) and the restore REFUSED — it holds the repo lock.
+  #     Re-run in a minute. The timer itself is left untouched: a
+  #     fire landing mid-restore fails its oneshot harmlessly
+  #     (postgres down / repo lock held) and the next night retries.
+  #   - restore runs AS POSTGRES — ownership right by construction,
+  #     no chown
+  #   - waits until the cluster is OUT of recovery (promoted) — not
+  #     merely accepting connections: a replaying cluster answers
+  #     pg_isready read-only; the bounded wait fails loudly if it
+  #     never promotes
+  local set=${1:-}
+  if [ -z "$set" ]; then
+    echo "Refusing: restoredb needs an explicit snapshot label — restoredb 2026-10-02-000010F (list: sudo -u postgres pgbackrest --stanza=desmo info)." >&2
+    return 1
+  fi
+  if ! sudo -u postgres pgbackrest --stanza=desmo info | grep -q "backup: $set"; then
+    echo "Refusing: no backup set '$set' — list with: sudo -u postgres pgbackrest --stanza=desmo info" >&2
+    return 1
+  fi
+  if _backup_running; then
+    echo "Refusing: a backup is running — let it finish, then re-run restoredb." >&2
+    return 1
+  fi
+  local args=(--stanza=desmo
+    --set="$set"
+    --type=immediate
+    --target-action=promote
+    restore)
+  # Stop the INSTANCES by glob ('postgresql@*'), not just the dummy
+  # postgresql meta unit — a meta stop returns before the propagated
+  # instance shutdown finishes, and pgbackrest would race a live
+  # postmaster.pid. START uses the meta unit alone: its Wants= pulls
+  # every instance, while a start-glob only matches already-loaded
+  # units (the readiness wait below absorbs the propagation lag).
+  sudo systemctl stop desmo_granian.service desmo_huey.service 'postgresql@*' postgresql
+  sudo -u postgres pgbackrest --delta "${args[@]}"
+  sudo systemctl start postgresql desmo_granian.service desmo_huey.service
+  local tries=0
+  until sudo -u postgres psql -Atqc "SELECT NOT pg_is_in_recovery()" 2>/dev/null | grep -qx t; do
+    tries=$((tries + 1))
+    if [ "$tries" -ge 60 ]; then
+      echo "FAILED: postgres not promoted after 60s — restore did not reach consistency." >&2
+      return 1
+    fi
+    sleep 1
+  done
+}
+
 dev() {
   # The whole dev stack in one terminal via `concurrently`: runserver + vite
   # watch + huey (Ctrl-C stops all). The agent runs in its own terminal via
@@ -249,7 +339,7 @@ checkframework1() {
 #   - smokes the LIVE stack over HTTPS on loopback (caddy TLS, granian,
 #     postgres, login links)
 #   - runs the agent's full scratch lifecycle
-#   - three setup phases, ten asserts, first failure aborts
+#   - three setup phases, eleven asserts, first failure aborts
 # - NB: the exec's output streams unfiltered — never pipe an exec into
 #   grep -q (early-exit readers wedge the daemon's next exec on this host)
 checkframework2() {
@@ -259,7 +349,7 @@ checkframework2() {
     "$_MAIN_DIR/testvm" delete
   fi
   "$_MAIN_DIR/testvm" provision
-  echo "=== Run the in-VM gate (testapp overlay + 10 asserts) ==="
+  echo "=== Run the in-VM gate (testapp overlay + 11 asserts) ==="
   multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh gate
 }
 
@@ -342,6 +432,7 @@ _SCRATCH_EXCLUDES=(
   --exclude='build/'
   --exclude='staticfiles/'   # collectstatic output (VM serving); regenerated, never source
   --exclude='media/'         # uploads (MEDIA_ROOT); runtime data, never source
+  --exclude='dbbackups/'     # pgbackrest repo (nightly backups); runtime data, never source
   --exclude='.DS_Store'
 )
 
@@ -413,46 +504,75 @@ createscratch() {
 }
 
 # The ONE command: the full check battery in scratch (nothing deploys
-# red), then rsync → main/ (.git/.env excluded), migrate, and on the VM
-# collectstatic + restart granian/huey so deploys go LIVE. Never commits.
+# red), then rsync → main/ (.git/.env excluded), pre-migration backup,
+# migrate, collectstatic + restart granian/huey so deploys go LIVE.
+# VM ONLY — the scratch loop is the agent's edit cycle and the agent
+# lives in the VM; a dev Mac has none of it (no pgbackrest, no units).
+# Never commits.
 deployscratch() {
   setenv
   _require_main_run deployscratch || return 1
+  if [ ! -f /etc/credentials/desmo/.env.vm ]; then
+    echo "Refusing: deployscratch deploys the VM's main." >&2
+    return 1
+  fi
   [ -d "$_SCRATCH_DIR" ] || { echo "Refusing: $_SCRATCH_DIR not found. Run createscratch first." >&2; return 1; }
+
+  # Refuse the moment a backup is in flight (_backup_running —
+  # pgbackrest's own lock report): the pre-migration backup below
+  # would COALESCE with it (the safety copy silently never runs).
+  if _backup_running; then
+    echo "Refusing: a backup is running — let it finish, then re-run deployscratch." >&2
+    return 1
+  fi
+
   ( cd "$_SCRATCH_DIR" && _scratch_checks )
 
   echo "Deploying $_SCRATCH_DIR/ → $_MAIN_DIR/ (--delete, excluding .git + .env + generated dirs)…"
-  if [ -f /etc/credentials/desmo/.env.vm ]; then
-    # VM only: the sync runs under sudo (as the non-root default user,
-    # rsync -a can't preserve attrs on desmo-owned files — exit 23), and
-    # scratch's files are default-user-owned. Re-own to desmo AND re-add
-    # group-write afterwards — chown alone leaves rsync-created 644/755
-    # files without g+w, and the next build as the default user then dies
-    # on desmo-owned dirs (EACCES rmdir .vite, a real session's playwright
-    # wall). Dev on the Mac owns both trees.
-    sudo rsync -a --delete "${_SCRATCH_EXCLUDES[@]}" --exclude='.git/' --exclude='.env' "$_SCRATCH_DIR/" "$_MAIN_DIR/"
-    sudo chown -R desmo:desmo "$_MAIN_DIR"
-    sudo chmod -R g+w "$_MAIN_DIR"
-  else
-    rsync -a --delete "${_SCRATCH_EXCLUDES[@]}" --exclude='.git/' --exclude='.env' "$_SCRATCH_DIR/" "$_MAIN_DIR/"
-  fi
+  # The sync runs under sudo (as the non-root default user, rsync -a
+  # can't preserve attrs on desmo-owned files — exit 23), and scratch's
+  # files are default-user-owned. Re-own to desmo AND re-add
+  # group-write afterwards — chown alone leaves rsync-created 644/755
+  # files without g+w, and the next build as the default user then dies
+  # on desmo-owned dirs (EACCES rmdir .vite, a real session's playwright
+  # wall).
+  sudo rsync -a --delete "${_SCRATCH_EXCLUDES[@]}" --exclude='.git/' --exclude='.env' "$_SCRATCH_DIR/" "$_MAIN_DIR/"
+  # Own the tree as desmo (scratch's files arrive default-user-owned):
+  #   - main tree: the agent's user edits it (builds, git resets)
+  #   - dbbackups/: PRUNED — stays postgres-owned (pgbackrest runs as
+  #     postgres and refuses root); "-path <dir> -prune" is find's
+  #     skip, cutting the subtree so the -exec beyond -o never fires
+  #     inside it
+  sudo find "$_MAIN_DIR" -path "$_MAIN_DIR/dbbackups" -prune -o -exec chown desmo:desmo {} +
+  # Group-write the tree:
+  #   - main tree: chown alone leaves rsync-created 644/755 files
+  #     without g+w — the next build as the default user then dies on
+  #     desmo-owned dirs (EACCES rmdir .vite, a real session's
+  #     playwright wall)
+  #   - dbbackups/: PRUNED — the repo stays mode 700; g+w would open
+  #     it to the desmo group
+  sudo find "$_MAIN_DIR" -path "$_MAIN_DIR/dbbackups" -prune -o -exec chmod g+w {} +
+  # Pre-migration snapshot through the real unit — the DB state to
+  # restore to if this deploy's migrate goes wrong. Runs BEFORE any
+  # DB-touching step; diff keeps it near-free; output lands in the
+  # unit's journal.
+  sudo systemctl start desmo_pgbackrest.service
   ( cd "$_MAIN_DIR" && .venv/bin/python manage.py migrate --noinput )
-  if [ -f /etc/credentials/desmo/.env.vm ]; then
-    echo "VM detected: collectstatic + restarting services…"
-    ( cd "$_MAIN_DIR" && .venv/bin/python manage.py collectstatic --noinput --clear )
-    # Huey's unit always exists on provisioned VMs (HUEY_WORKERS ≥ 1 is
-    # enforced at provisioning).
-    sudo systemctl restart desmo_granian.service desmo_huey.service
-    # Share-URL base from the configured hostname (first ALLOWED_HOSTS
-    # entry) — never a hardcoded one; dev keeps the localhost fallback.
-    _SHARE_BASE="https://${ALLOWED_HOSTS%%,*}"
-    echo "App is available under hostnames:"
-    ( cd "$_MAIN_DIR" && .venv/bin/python manage.py hostnames )
-  fi
+  echo "collectstatic + restarting services…"
+  ( cd "$_MAIN_DIR" && .venv/bin/python manage.py collectstatic --noinput --clear )
+  # Huey's unit always exists on provisioned VMs (HUEY_WORKERS ≥ 1 is
+  # enforced at provisioning).
+  sudo systemctl daemon-reload
+  sudo systemctl restart desmo_granian.service desmo_huey.service
+  # Share-URL base from the configured hostname (first ALLOWED_HOSTS
+  # entry) — never a hardcoded one.
+  _SHARE_BASE="https://${ALLOWED_HOSTS%%,*}"
+  echo "App is available under hostnames:"
+  ( cd "$_MAIN_DIR" && .venv/bin/python manage.py hostnames )
   echo "Deployed scratch/ → main/ (uncommitted, services live). Commit in main/ when ready."
   echo "Share design artifacts as absolute URLs at the BOTTOM of your message (with the summary):"
-  echo "  docs:  ${_SHARE_BASE:-http://localhost:8000}/files/main/ourapp/docs/<feature>.md"
-  echo "  pages: ${_SHARE_BASE:-http://localhost:8000}/<page-url>"
+  echo "  docs:  ${_SHARE_BASE}/files/main/ourapp/docs/<feature>.md"
+  echo "  pages: ${_SHARE_BASE}/<page-url>"
   echo "Verify each file exists in main/ before sharing the link."
 }
 
@@ -527,9 +647,15 @@ ${H}Checks${R}
 
 ${H}Scratch (the agent edit loop)${R}
   ${C}createscratch${R}       copy main/ → scratch/ + tag scratch-baseline
-  ${C}deployscratch${R}       check battery, then deploy scratch/ → main/ (on the VM
-                      also collectstatic + service restarts)
+  ${C}deployscratch${R}       check battery, then deploy scratch/ → main/ (VM only:
+                       backup, migrate, collectstatic, restart services)
   ${C}cleanscratch${R}        remove scratch/
+
+${H}Backups (pgbackrest — docs/backups.md)${R}
+  ${C}backupdb${R}             run a backup NOW (weekly full + daily diff; the tool's own logs print)
+  ${C}restoredb${R} <set>      restore ONTO the live DB to an EXACT snapshot (whole-app downtime);
+                       <set> = a backup label from: pgbackrest --stanza=desmo info
+  (inspect directly: sudo -u postgres pgbackrest --stanza=desmo info|check)
 
 ${H}Passthrough${R}
   ${C}djangomanage${R} …      manage.py <…> with the env sourced (e.g. djangomanage migrate)

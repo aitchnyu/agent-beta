@@ -34,6 +34,8 @@
 #       │   └── .env.vm                  shared env — every unit's EnvironmentFile
 #       ├── systemd/system/
 #       │   ├── desmo_granian.service
+#       │   ├── desmo_pgbackrest.service   nightly backup oneshot
+#       │   ├── desmo_pgbackrest.timer     fires it 00:00 UTC (Persistent)
 #       │   └── desmo_huey.service       always (HUEY_WORKERS ≥ 1 enforced)
 #       ├── caddy/
 #       │   ├── Caddyfile                stock + "import sites/*.caddy"
@@ -196,12 +198,18 @@ provision() {
   local tree="$t/tree"
   mkdir -p "$tree/etc/credentials/desmo" \
     "$tree/etc/systemd/system" \
-    "$tree/etc/caddy/sites" "$tree/etc/redis"
+    "$tree/etc/caddy/sites" "$tree/etc/redis" "$tree/etc/pgbackrest"
+  # The versioned postgres data dir (Debian paths it per major —
+  # /var/lib/postgresql/<v>/main) resolved from the freshly installed
+  # VM: pgbackrest's conf needs it and it is unknowable host-side.
+  local pg_main
+  pg_main="$(multipass exec desmo -- sh -c 'echo /var/lib/postgresql/*/main')"
   render() {
     sed -e "s/@GRANIAN_WORKERS@/$granian_workers/g" \
         -e "s/@GRANIAN_THREADS@/$granian_threads/g" \
         -e "s/@HUEY_WORKERS@/$huey_workers/g" \
-        -e "s/@SITE_HOSTNAMES@/$site_names/g" "$1"
+        -e "s/@SITE_HOSTNAMES@/$site_names/g" \
+        -e "s|@PG_MAIN@|$pg_main|g" "$1"
   }
 
   # tree: /etc/credentials/desmo/.env.vm — content only; root:desmo +
@@ -214,6 +222,14 @@ provision() {
   # tree: /etc/systemd/system/desmo_huey.service (always — HUEY_WORKERS ≥ 1
   # is validated above, huey is never deployed without workers)
   render "$deploy_dir/huey.service.in" > "$tree/etc/systemd/system/desmo_huey.service"
+  # tree: /etc/systemd/system/desmo_pgbackrest.{service,timer}
+  # (nightly 00:00 UTC backup; the service is a one-line shim into
+  # `./run backupdb` — no markers beyond @PG_MAIN@-free content here)
+  render "$deploy_dir/pgbackrest.service.in" > "$tree/etc/systemd/system/desmo_pgbackrest.service"
+  render "$deploy_dir/pgbackrest.timer.in" > "$tree/etc/systemd/system/desmo_pgbackrest.timer"
+  # tree: /etc/pgbackrest/pgbackrest.conf — stanza `desmo`, plain
+  # unencrypted repo (self-contained dbbackups/), 14-full retention.
+  render "$deploy_dir/pgbackrest.conf.in" > "$tree/etc/pgbackrest/pgbackrest.conf"
 
   # tree: /etc/caddy/Caddyfile — stock + the sites import (one line).
   printf '\nimport sites/*.caddy\n' >> "$t/Caddyfile"

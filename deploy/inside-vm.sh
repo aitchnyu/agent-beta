@@ -60,7 +60,7 @@ EOF
   echo "==> [vm] apt packages"
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
-  apt-get install -y curl rsync git htop ufw ripgrep fd-find miller \
+  apt-get install -y curl rsync git htop ufw ripgrep fd-find miller pgbackrest \
     postgresql postgresql-client redis-server ca-certificates gnupg
   # fd-find: pi auto-downloads fd to ~/.pi/agent/bin on first launch
   # otherwise; Debian names the binary fdfind, pi wants fd.
@@ -133,8 +133,10 @@ provision_app() {
 #       ├── credentials/desmo/.env.vm
 #       ├── systemd/system/desmo_granian.service
 #       ├── systemd/system/desmo_huey.service (always — HUEY_WORKERS ≥ 1 enforced)
+#       ├── systemd/system/desmo_pgbackrest.service + .timer (nightly backup)
 #       ├── caddy/Caddyfile + caddy/sites/desmo.caddy
-#       └── redis/redis.conf
+#       ├── redis/redis.conf
+#       └── pgbackrest/pgbackrest.conf
 #   /
 #   └── usr/local/lib/desmo/gen-vapid-b64.sh (the VAPID mint executable)
 #   /
@@ -227,13 +229,35 @@ SELECT format('CREATE DATABASE %I OWNER %I', :'db_test', :'db_user')
 \gexec
 SQL
 
+  # ── pgbackrest: WAL archiving (PITR + restore consistency) ───────────────
+  # ALTER SYSTEM (not file edits): archive_command hands every WAL
+  # segment to pgbackrest's repo — the same self-contained dbbackups/
+  # folder. archive_mode needs a restart to take effect; restart the
+  # INSTANCE by its resolved name (pg_lsclusters: version + cluster) —
+  # a glob only matches loaded units, and the dummy postgresql meta
+  # unit doesn't re-run instances.
+  sudo -u postgres psql -q -c "ALTER SYSTEM SET archive_mode = 'on'"
+  sudo -u postgres psql -q -c "ALTER SYSTEM SET archive_command = 'pgbackrest --stanza=desmo archive-push %p'"
+  local pg_instance
+  pg_instance="$(pg_lsclusters -h | awk 'NR==1 {print $1 "-" $2}')"
+  systemctl restart "postgresql@${pg_instance}.service"
+  # conf: root:postgres 640 — postgres (the only reader) gets group read.
+  chown root:postgres /etc/pgbackrest/pgbackrest.conf
+  chmod 640 /etc/pgbackrest/pgbackrest.conf
+
   # ── files: /etc/systemd/system/{desmo_granian,desmo_huey}.service ──────────
   # tree-rendered worker knobs; enable only — the driver STARTS them after
-  # the app bootstrap (uv sync/migrate/collectstatic).
+  # the app bootstrap (uv sync/migrate/collectstatic). The backup pair
+  # (service + timer) rides the same tree: the service is a one-line
+  # shim into `./run backupdb` (all backup logic lives in ./run). The
+  # timer is enable --now — enable alone never activates a unit, and
+  # nothing reboots the VM after provisioning (no last-trigger stamp
+  # yet → no Persistent catch-up fire).
   echo "==> [app] systemd units (tree-rendered; enable only — the driver starts them)"
   systemctl daemon-reload
   systemctl enable "desmo_granian.service" >/dev/null
   systemctl enable "desmo_huey.service" >/dev/null
+  systemctl enable --now "desmo_pgbackrest.timer" >/dev/null
 
   # ── files: /etc/caddy/Caddyfile + /etc/caddy/sites/desmo.caddy ──────────
   # import line + site from the tree; reload picks up sites/*.caddy.

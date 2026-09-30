@@ -91,6 +91,57 @@ pw_arch="$(multipass exec desmo -- dpkg --print-architecture)"   # host decides
 multipass exec desmo -- sudo bash /tmp/vm.sh playwright-override-env "ubuntu24.04-$pw_arch"
 ```
 
+**Wrong** — unreadable: three operators deep (`-n`, `||`, a grouped
+`{ …; }`) before you know what happens when it's empty:
+```bash
+[ -n "$release_deb" ] || { echo "REFUSING: no pg-hardstorage .deb in the latest release" >&2; exit 1; }
+```
+
+**Right** — the positive multi-line guard reads top-to-bottom: empty →
+refuse → stop. Applies to every hard-fail check in `run`/`testvm`/
+`deploy/*.sh`:
+```bash
+if [ -z "$release_deb" ]; then
+  echo "REFUSING: no pg-hardstorage .deb in the latest release" >&2
+  exit 1
+fi
+```
+
+**Wrong** — cramming several params onto a continuation line (which flag
+sits where? diffs and reviews read per line):
+```bash
+runasdesmo pg_hardstorage init --yes --deployment desmo \
+  --pg-connection "$dsn" --repo file:///srv/desmo/main/dbbackups
+```
+
+**Right** — if a command must split, one param per line:
+```bash
+runasdesmo pg_hardstorage init --yes \
+  --deployment desmo \
+  --pg-connection "$dsn" \
+  --repo file:///srv/desmo/main/dbbackups
+```
+
+**Wrong** — three statements semicolon-chained on one line: the loop's
+body and bounds hide, and it waits FOREVER if the cluster never comes up:
+```bash
+until sudo -u postgres pg_isready -q; do sleep 1; done
+```
+
+**Right** — the loop wears its shape (indented body) and is bounded: a
+try counter fails loudly after 60s instead of hanging:
+```bash
+local tries=0
+until sudo -u postgres pg_isready -q; do
+  tries=$((tries + 1))
+  if [ "$tries" -ge 60 ]; then
+    echo "FAILED: postgres not ready after 60s" >&2
+    return 1
+  fi
+  sleep 1
+done
+```
+
 Two lines or fewer may stay inline at the call site. Functions run under
 `set -euo pipefail` — the function's exit code is the multipass call's
 exit code, which call sites gate on (`if ! multipass exec … playwright-install; then …`).

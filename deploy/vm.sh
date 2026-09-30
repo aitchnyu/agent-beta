@@ -12,7 +12,8 @@
 # ./testvm provision also drops an early copy at /tmp/vm.sh for steps that
 # run BEFORE the seed is extracted. Runs as whatever user invokes it —
 # pick the function to match (root: extract/deploy/provision-finish/gate;
-# desmo: runasdesmo, playwright-install; default cloud user: agent-*).
+# desmo: runasdesmo, playwright-install;
+# default cloud user: agent-*).
 
 set -euo pipefail
 
@@ -28,11 +29,27 @@ _vm_env() {
 
 extract-app-seed() {
   tar xzf /tmp/desmo-seed.tgz -C /srv/desmo/main
-  chown -R desmo:desmo /srv/desmo/main
-  # Group-write the tree (like the enclosing /srv/desmo 775): the
-  # default cloud user (desmo pi) must be able to edit main/ —
-  # deployscratch's builds, git resets — not just read it.
-  find /srv/desmo/main -exec chmod g+w {} +
+  # Own the tree as desmo:
+  #   - main tree: the agent's user edits it (builds, git resets)
+  #   - dbbackups/: PRUNED — stays postgres-owned (pgbackrest runs as
+  #     postgres and refuses root); "-path <dir> -prune" is find's
+  #     skip, cutting the subtree so the -exec beyond -o never fires
+  #     inside it
+  find /srv/desmo/main -path /srv/desmo/main/dbbackups -prune -o -exec chown desmo:desmo {} +
+  # Group-write the tree (like the enclosing /srv/desmo 775):
+  #   - main tree: chown alone leaves 644/755 files — the next build
+  #     as the default user dies on desmo-owned dirs without g+w
+  #   - dbbackups/: PRUNED — the repo stays mode 700; g+w would open
+  #     it to the desmo group
+  find /srv/desmo/main -path /srv/desmo/main/dbbackups -prune -o -exec chmod g+w {} +
+  # Nightly-backup substrate: dbbackups/ is the self-contained
+  # pgbackrest repo (chunks + WAL archive together — copying the one
+  # folder carries the whole backup), owned by postgres — every
+  # pgbackrest invocation runs as postgres (it refuses root). The
+  # stanza is created once; the conf and archive_command are
+  # provision_app's.
+  install -d -o postgres -g postgres -m 700 /srv/desmo/main/dbbackups
+  sudo -u postgres pgbackrest --stanza=desmo stanza-create
 }
 
 # Append the computed platform keys when the pinned playwright doesn't know
@@ -207,7 +224,7 @@ agent-scratch-clean() {
 # - overlays the Books test app over the VM's ourapp/
 # - smokes the LIVE stack over HTTPS on loopback (caddy TLS, granian,
 #   postgres, login links) — what only a real deployment shows
-# - three setup phases then ten asserts, one linear body (read it top
+# - three setup phases then several asserts, one linear body (read it top
 #   to bottom), first failure aborts with FAILED: <what>
 # - the host side checks only gate's exit code; output streams to the
 #   operator
@@ -233,34 +250,30 @@ _op_user() {
 gate-as-desmo-user() { sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh runasdesmo "$@"; }
 gate-as-default-user() { sudo -u "$(_op_user)" -H bash /srv/desmo/main/deploy/vm.sh "$1"; }
 
-# Fail the gate: clean the smoke jar, say why, exit nonzero.
-gate-fail() {
-  rm -f "$gate_jar"
-  echo "FAILED: $*" >&2
-  exit 1
-}
-
 # A command that MUST refuse: expect a nonzero exit, quietly. NB: the if
 # (not `cmd && fail`) is load-bearing — a failing `&&` list as the last
 # command would make THIS function return nonzero and, under vm.sh's
 # set -e, kill the whole gate on the expected path.
-gate-expect-refusal() { # <description> <command…>
-  local desc=$1
-  shift
+gate-expect-refusal() { # <command…>
   if "$@" >/dev/null 2>&1; then
-    gate-fail "$desc"
+    echo "FAILED: expected refusal, command succeeded: $*" >&2
+    exit 1
   fi
 }
 
 # <got> <want[ want…]> <what> — a single value ("404") or space-separated
-# alternatives ("302 200"). A case-pattern CANNOT take its | alternation
-# from an expanded variable (parse-time construct), hence the loop.
+# alternatives ("302 200"). A case-pattern CANNOT take alternation from
+# an expanded variable (parse-time construct), hence the loop. This is
+# the gate's one fail path: everything else aborts naturally under
+# set -e with the command's own error; value comparisons exit 0 when
+# wrong, so the mismatch must fail explicitly.
 gate-assert-eq() {
   local got=$1 alts=$2 want
   for want in $alts; do
     [ "$want" = "$got" ] && return 0
   done
-  gate-fail "$3 (expected $alts, got $got)"
+  echo "FAILED: $3 (expected $alts, got $got)" >&2
+  exit 1
 }
 
 # The gate itself — one linear body, read top to bottom. Invoked by run's
@@ -274,21 +287,17 @@ gate() {
   # VM's /srv/desmo/main/ourapp — an overlay MERGE (files only in the seeded
   # ourapp/ survive, e.g. its own tests; the tarball has no --delete).
   echo; echo "=== Setup 1/3: deploy the Books test app over the VM's ourapp/ ==="
-  tar -C /srv/desmo/main/djangoapp/tests/testapp -czf /tmp/testapp-ourapp.tgz ourapp \
-    || gate-fail "testapp tar failed"
-  deploy-ourapp || gate-fail "testapp overlay extraction failed"
+  tar -C /srv/desmo/main/djangoapp/tests/testapp -czf /tmp/testapp-ourapp.tgz ourapp
+  deploy-ourapp
 
   # ── Setup 2/3: migrate + the smoke superuser ───────────────────────────
   # framework@example.com ("Framework Smoke"), then restart granian on the
   # overlaid code.
   echo; echo "=== Setup 2/3: migrate, create the smoke superuser ==="
-  gate-as-desmo-user .venv/bin/python manage.py migrate --noinput \
-    || gate-fail "migrate failed"
+  gate-as-desmo-user .venv/bin/python manage.py migrate --noinput
   gate-as-desmo-user .venv/bin/python manage.py createuser framework@example.com \
-    --first-name Framework --last-name Smoke --superuser \
-    || gate-fail "smoke superuser creation failed"
-  systemctl restart desmo_granian.service \
-    || gate-fail "desmo_granian.service restart failed"
+    --first-name Framework --last-name Smoke --superuser
+  systemctl restart desmo_granian.service
 
   # ── Setup 3/3: issue the one-time superuser login link ─────────────────
   # The cookie jar filled by assert 1 carries the session every later
@@ -298,7 +307,7 @@ gate() {
   link=$(gate-as-desmo-user .venv/bin/python manage.py makeloginlink \
     framework@example.com --base-url "$gate_base" \
     | grep -oE "$gate_base/login-for-test/[^ ]+/" | sed -n '1p') || true
-  [ -n "$link" ] || gate-fail "no login link issued"
+  [ -n "$link" ]
 
   # ── Assert 1: 302 (redirect after login; 200 also fine) and a
   # session cookie in the jar.
@@ -320,17 +329,15 @@ gate() {
 
   # ── Assert 4: the home page shows the smoke user's display name.
   echo; echo "=== Assert 4: home shows the smoke user ==="
-  body=$(curl -k -sS -b "$gate_jar" "$gate_base/") \
-    || gate-fail "home fetch failed"
-  grep -q "Framework Smoke" <<<"$body" || gate-fail "home does not show the smoke user"
+  body=$(curl -k -sS -b "$gate_jar" "$gate_base/")
+  grep -q "Framework Smoke" <<<"$body"
 
   # ── Assert 5: the operator shells in via multipass as the default
   # cloud user (no sudo -iu hop) and runs `desmo pi`. Preconditions: the
   # desmo wrapper + pi binary on PATH, and the credentials env
   # (SECRET_KEY probes readability) readable via desmo-group membership.
   echo; echo "=== Assert 5: default user can run desmo pi ==="
-  gate-as-default-user agent-pi-preconditions \
-    || gate-fail "desmo/pi not on the default user's PATH, or the credentials env is unreadable"
+  gate-as-default-user agent-pi-preconditions
 
   # ── Assert 6: the agent's scratch ./run playwrighttest needs browsers
   # in the SHARED cache (readable as the default user) and a chromium that
@@ -338,14 +345,12 @@ gate() {
   echo; echo "=== Assert 6: playwright browsers launch as the default user ==="
   local browsers
   # Postcondition 1: the shared browser cache is nonempty and readable as the default user
-  browsers=$(gate-as-default-user agent-browsers) \
-    || gate-fail "agent-browsers failed"
-  [ -n "$browsers" ] || gate-fail "shared playwright browser cache empty/unreadable as the default user"
+  browsers=$(gate-as-default-user agent-browsers)
+  [ -n "$browsers" ]
   # Postcondition 2: headless chromium actually launches as the default
   # user (exit 0; the wrapper's OK line is operator output, the exit code
   # is the assert)
-  gate-as-default-user agent-playwright-probe \
-    || gate-fail "headless chromium does not launch as the default user (deps or platform env missing)"
+  gate-as-default-user agent-playwright-probe
 
   # ── Assert 7: createscratch as the agent (the default cloud user). The
   # agent's whole edit
@@ -354,14 +359,11 @@ gate() {
   # operator-owned scratch git).
   echo; echo "=== Assert 7: agent createscratch ==="
   # Postcondition 1: deployscratch without scratch/ refuses
-  gate-expect-refusal "deployscratch without scratch/ must refuse" \
-    gate-as-default-user agent-scratch-deploy
+  gate-expect-refusal gate-as-default-user agent-scratch-deploy
   # Postcondition 2: exit 0 means scratch/ exists and scratch-baseline resolves
-  gate-as-default-user agent-scratch-create \
-    || gate-fail "createscratch as the default user (scratch/ or scratch-baseline ref missing)"
+  gate-as-default-user agent-scratch-create
   # Postcondition 3: scratch's OWN ./run refuses (rsync onto itself otherwise)
-  gate-expect-refusal "scratch's own ./run must refuse to deploy" \
-    sudo -u "$(_op_user)" -H bash -c 'cd /srv/desmo/scratch && ./run deployscratch'
+  gate-expect-refusal sudo -u "$(_op_user)" -H bash -c 'cd /srv/desmo/scratch && ./run deployscratch'
 
   # ── Assert 8: deployscratch as the agent (the default cloud user),
   # deploy provably live.
@@ -369,30 +371,25 @@ gate() {
   # VM branch, and the granian restart.
   echo; echo "=== Assert 8: agent deployscratch (marker live on /) ==="
   # Postcondition 1: the header-gated marker is inserted into scratch's home view
-  gate-as-default-user agent-scratch-edit \
-    || gate-fail "marker edit in scratch's home view"
+  gate-as-default-user agent-scratch-edit
   # Postcondition 2: exit 0 means the full battery is green and the rsync landed
-  gate-as-default-user agent-scratch-deploy \
-    || gate-fail "deployscratch as the default user (battery or deploy failed)"
+  gate-as-default-user agent-scratch-deploy
   # Postcondition 3: granian is active after the deploy's restart
   gate-assert-eq "$(systemctl is-active desmo_granian.service)" \
     active "desmo_granian.service after deployscratch"
   # Postcondition 4: / fetches with the X-Scratch-Probe header on the smoke session
   # (retries absorb the restart race)
   body=$(curl -k -sS --retry 10 --retry-delay 2 --retry-connrefused \
-    -b "$gate_jar" -H "X-Scratch-Probe: 1" "$gate_base/") \
-    || gate-fail "home fetch failed after deployscratch"
+    -b "$gate_jar" -H "X-Scratch-Probe: 1" "$gate_base/")
   # Postcondition 5: the marker is in the served page JSON — deploy AND
   # restart proven, not just rsync
-  grep -q "scratch-deploy-live" <<<"$body" \
-    || gate-fail "deploy marker not live on / (restart or deploy broken)"
+  grep -q "scratch-deploy-live" <<<"$body"
 
   # ── Assert 9: the cycle ends clean — scratch/ gone.
   echo; echo "=== Assert 9: agent cleanscratch ==="
   # Postcondition 1: exit 0 means cleanscratch ran as the default user and
   # scratch/ is gone
-  gate-as-default-user agent-scratch-clean \
-    || gate-fail "cleanscratch as the default user (scratch/ still present)"
+  gate-as-default-user agent-scratch-clean
 
   # ── Assert 10: media serving — upload + serve_file over the live stack
   # (testapp /media endpoints; the GET rides the X-Accel-Redirect handoff).
@@ -402,15 +399,12 @@ gate() {
   # Postcondition 1: the multipart upload stored the file and replied with
   # its unguessable storage name (ninja's JSON has a space after the colon)
   media_name=$(curl -k -sS -b "$gate_jar" -F "file=@/tmp/gate-upload.bin" \
-    "$gate_base/media/upload" | sed -n 's/.*"name":[[:space:]]*"\([^"]*\)".*/\1/p') \
-    || gate-fail "media upload request failed"
-  [ -n "$media_name" ] || gate-fail "media upload returned no storage name"
+    "$gate_base/media/upload" | sed -n 's/.*"name":[[:space:]]*"\([^"]*\)".*/\1/p')
+  [ -n "$media_name" ]
   # Postcondition 2: the serve URL streams the exact bytes back — an
   # unintercepted accel response would be an empty body and fail the cmp
-  curl -k -sS -b "$gate_jar" "$gate_base/media/$media_name" -o /tmp/gate-download.bin \
-    || gate-fail "media serve request failed"
-  cmp /tmp/gate-upload.bin /tmp/gate-download.bin \
-    || gate-fail "served media bytes differ from the upload"
+  curl -k -sS -b "$gate_jar" "$gate_base/media/$media_name" -o /tmp/gate-download.bin
+  cmp /tmp/gate-upload.bin /tmp/gate-download.bin
   # Postcondition 3: unknown and traversal names are 404s (never a 500,
   # never bytes from outside MEDIA_ROOT)
   gate-assert-eq "$(curl -k -sS -o /dev/null -w '%{http_code}' -b "$gate_jar" "$gate_base/media/not-there.bin")" \
@@ -419,6 +413,46 @@ gate() {
     "$gate_base/media/..%2f..%2f..%2fetc%2fpasswd")" \
     404 "media traversal attempt"
   rm -f /tmp/gate-upload.bin /tmp/gate-download.bin
+
+  # ── Assert 11: the backup round-trip on the LIVE server — mark, back
+  # up, diverge, restore onto the live cluster, and read the backed-up
+  # marker back through the app (the BackupMarker model). The role
+  # grant, stanza, and WAL archiving are provisioning's; the
+  # midnight-UTC cadence and Persistent catch-up stay untested (a
+  # reboot is too heavy for the gate).
+  echo; echo "=== Assert 11: pgbackrest (mark, backup, restore live, verify) ==="
+  local marker_backed_up restore_set backup_info backup_timers
+  # Setup: a marker goes in, BOTH backup paths run (the agent's verb,
+  # then the timer's shim — each takes its own backup), the NEWEST
+  # set's label is captured, and a SECOND marker diverges the live DB
+  # past that snapshot.
+  marker_backed_up="$(gate-as-desmo-user uv run manage.py backupmarker set)"
+  /srv/desmo/main/run backupdb
+  systemctl start desmo_pgbackrest.service
+  restore_set="$(sudo -u postgres pgbackrest --stanza=desmo info | grep -oE '[0-9]{8}-[0-9]{6}[FD]' | tail -n1)"
+  gate-as-desmo-user uv run manage.py backupmarker set
+
+  # Postcondition 1: both backup paths ran green and the repo lists
+  # the backup sets.
+  gate-assert-eq "$(systemctl show -p Result --value desmo_pgbackrest.service)" \
+    success "desmo_pgbackrest.service result"
+  backup_info="$(sudo -u postgres pgbackrest --stanza=desmo info)"
+  grep -q . <<<"$backup_info"
+
+  # Postcondition 2: the restore rolls the live server back — the
+  # AGENT's verb (./run restoredb '<set>') restores the captured
+  # snapshot EXACTLY (no replay past it), and the restarted app must
+  # serve the BACKED-UP marker (the diverged one post-dates the set ⇒
+  # the restore provably replaced live data).
+  /srv/desmo/main/run restoredb "$restore_set"
+  gate-assert-eq "$(gate-as-desmo-user uv run manage.py backupmarker latest)" \
+    "$marker_backed_up" "live server serves the backed-up marker"
+
+  # Postcondition 3: the schedule is wired — timer enabled, next fire listed.
+  gate-assert-eq "$(systemctl is-enabled desmo_pgbackrest.timer)" \
+    enabled "desmo_pgbackrest.timer enabled"
+  backup_timers="$(systemctl list-timers --no-pager)"
+  grep -q desmo_pgbackrest <<<"$backup_timers"
 
   rm -f "$gate_jar"
   printf '\ncheckframework2 green.\n'

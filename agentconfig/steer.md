@@ -944,6 +944,36 @@ auto-discovers each installed app's `tasks` module. Redis is a **hard dependency
   consumer can run in dev; don't tie it to `DEBUG`, or `./run hueydev` refuses to
   start.)
 
+## Database backups (pgbackrest)
+Backups run themselves (nightly timer + a pre-migration snapshot on
+every deploy) — you never schedule anything. Work inside the VM via
+these, and read
+**docs/backups.md** before any backup work beyond them:
+
+- **Before risky DB work** (migrations-by-hand, bulk deletes), or when
+  asked for a fresh backup: run `./run backupdb`, then quote its output
+  verbatim in a fenced block — that IS the report (the tool's own logs;
+  our services' NDJSON discipline doesn't apply to it).
+- **To see what exists**: `sudo -u postgres pgbackrest --stanza=desmo
+  info` (backup sets, sizes, WAL ranges) and
+  `sudo -u postgres pgbackrest --stanza=desmo check` (consistency) —
+  quote the output when the user asks about backup state.
+- **Restore a snapshot ONLY on explicit user request** — it stops the
+  whole app: `./run restoredb '<set-label>'` — the label exactly as
+  `pgbackrest --stanza=desmo info` prints it (e.g.
+  `2026-10-02-000010F`); the restore stops at that snapshot's
+  consistency point, nothing later. Wait for it to finish; a wrong
+  label is refused before anything stops. Afterwards confirm the app
+  serves the expected data.
+- **Never touch `dbbackups/`** — postgres-owned, mode 700, pruned from
+  every deploy sweep; your chown/chmod/rsync must skip it too, and any
+  copy of it IS a plaintext database (never commit or share it).
+  Never edit `/etc/pgbackrest/` or the ALTER SYSTEM archive settings.
+- **If backups fail** (red `desmo_pgbackrest` unit, failed gate assert
+  11): read `sudo journalctl -u desmo_pgbackrest -o cat`, fix, then
+  prove the fix with `./run backupdb` +
+  `sudo -u postgres pgbackrest --stanza=desmo check`.
+
 ## Writing tests
 - **Unit tests** cover **models and views** in `ourapp/tests/`, one file per
   feature + layer (`test_<feature>_models.py`, `test_<feature>_views.py`,

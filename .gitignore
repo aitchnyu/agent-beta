@@ -46,3 +46,6 @@ staticfiles/
 # Uploaded user files (MEDIA_ROOT; FileField storage). Runtime data, never
 # source — gitignored like staticfiles/, excluded from the scratch rsync.
 media/
+
+# pgbackrest repository (backup sets + WAL archive). Same policy as media/
+dbbackups/

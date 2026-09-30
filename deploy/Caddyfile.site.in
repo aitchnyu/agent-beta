@@ -44,11 +44,14 @@
 				# belongs to the separate intercept directive — unset here).
 				rewrite {rp.header.X-Accel-Redirect}
 				root * /srv/desmo/main/media
-				# file_server writes a fresh response — copy the app's
-				# disposition/type so clients still get the original
-				# filename (a selective copy; X-Accel-Redirect never
-				# reaches the client).
-				copy_response_headers Content-Disposition Content-Type
+			# file_server writes a fresh response — copy the app's
+			# disposition/type so clients still get the original
+			# filename (a selective copy; X-Accel-Redirect never
+			# reaches the client). Fields list inside `include` —
+			# the directive takes no bare field arguments.
+			copy_response_headers {
+				include Content-Disposition Content-Type
+			}
 				file_server
 			}
 		}

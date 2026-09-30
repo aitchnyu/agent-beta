@@ -1,0 +1,9 @@
+[Unit]
+Description=desmo pgbackrest backup (fired by the 00:00 UTC timer)
+After=network.target postgresql.service
+
+[Service]
+# Just the timer's trigger shim — the entire backup (full/diff choice,
+# retention, stanza) lives in `./run backupdb`.
+Type=oneshot
+ExecStart=/srv/desmo/main/run backupdb

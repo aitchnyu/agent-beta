@@ -20,7 +20,7 @@ from djangoapp.media import serve_file
 from djangoapp.views import require_superuser
 
 if TYPE_CHECKING:
-    from django.http import HttpRequest
+    from django.http import FileResponse, HttpRequest, HttpResponse
 
 router = Router()
 
@@ -35,13 +35,14 @@ class MediaOutSchema(Schema):
 def media_upload(request: HttpRequest, file: File[UploadedFile]) -> MediaOutSchema:
     """Store an uploaded file under a fresh uuid name → ``{name}``."""
     require_superuser(request)
-    suffix = f".{file.name.rsplit('.', 1)[-1].lower()}" if "." in file.name else ""
+    original = file.name or ""
+    suffix = f".{original.rsplit('.', 1)[-1].lower()}" if "." in original else ""
     name = default_storage.save(f"{uuid.uuid4().hex}{suffix}", file)
     return MediaOutSchema(name=name)
 
 
 @router.get("/media/{name}", response=None)
-def media_serve(request: HttpRequest, name: str):
+def media_serve(request: HttpRequest, name: str) -> FileResponse | HttpResponse:
     """Stream a stored file back via ``serve_file`` (traversal-safe 404s)."""
     require_superuser(request)
     return serve_file(request, name)

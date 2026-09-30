@@ -1,3 +1,4 @@
+from djangoapp.models.backup_marker import BackupMarker
 from djangoapp.models.base import (
     MANAGE_MODELS_URL_PREFIX,
     SKIP_ROW_VERSION_CHECK,
@@ -30,6 +31,7 @@ from djangoapp.models.notifications import (
 __all__ = [
     "MANAGE_MODELS_URL_PREFIX",
     "SKIP_ROW_VERSION_CHECK",
+    "BackupMarker",
     "BaseModel",
     "BaseModelUpdateLog",
     "BoolChange",

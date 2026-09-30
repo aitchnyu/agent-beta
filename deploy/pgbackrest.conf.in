@@ -1,0 +1,17 @@
+[global]
+repo1-path=/srv/desmo/main/dbbackups
+# Console at info: a SUCCESSFUL backup prints its report to stdout (the
+# unit journal / the agent's fenced quote) — the warn default is
+# silent on success.
+log-level-console=info
+# retention: two months of history — 8 weekly fulls; diffs give fine
+# daily/deploy points for ~2 weeks (fulls count toward the diff
+# limit; a diff always expires with its parent full). WAL archive
+# retention defaults to the full retention — PITR works anywhere in
+# the whole window. Expire runs after every successful backup.
+repo1-retention-full=8
+repo1-retention-diff=14
+log-path=/var/log/postgresql
+
+[desmo]
+pg1-path=@PG_MAIN@

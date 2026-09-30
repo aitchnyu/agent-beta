@@ -1,14 +1,23 @@
-Audit trail - keep track of stuff after deletes?
+backup md file simplification?
 
-/dbbackups
-Backup regularly - https://www.pghardstorage.org/examples
+extract-app-seed
+provision() assumes outside vm?
+Pi 1.0
+
+setenv remove?
+.venv used. `./run python`
+
+Home and user icons. Where to get icon set autonomously? https://lucide.dev/
+How to document system changes when agent modifies system?
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
+Features - file section with git etc
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
+List backups and time travel
 
-Home and user icons. Where to get icon set autonomously? https://lucide.dev/
+Mermaid 12 and use case diagrams with new theme
 
 ```
 multipass shell app
@@ -36,3 +45,4 @@ Model logs should store FK name, link, url and M2M changes too
 Whitelist services for outbound connections
 Redis and db memory usage?
 Group and mute notification groups
+Readonly mode for app?

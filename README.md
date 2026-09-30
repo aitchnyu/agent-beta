@@ -34,6 +34,9 @@ ours lives there):
 │   │   │   │                  the bundle) + your schemas.ts/style.scss
 │   │   ├── agentconfig/       steering documents the pi agent reads
 │   │   ├── .pi/               pi CLI config: permissions allowlist, extensions
+│   │   ├── dbbackups/         pgbackrest repo — plain unencrypted backup sets +
+│   │   │                      WAL archive (nightly; runtime data, gitignored +
+│   │   │                      rsync-excluded like media/)
 │   ├── scratch/               throwaway agent edit copy (createscratch/deployscratch)
 │   └── playwright-browsers/   one shared browser cache for all users
 ├── etc/
@@ -41,6 +44,10 @@ ours lives there):
 │   │                               (root:desmo 640)
 │   ├── systemd/system/
 │   │   ├── desmo_granian.service   web server (ASGI, User=desmo)
+│   │   ├── desmo_pgbackrest.service   nightly DB backup shim (fires
+│   │   │                              `./run backupdb` — the logic lives in ./run)
+│   │   ├── desmo_pgbackrest.timer     fires it 00:00 UTC (Persistent
+│   │   │                                        catch-up after downtime)
 │   │   └── desmo_huey.service      background/cron tasks (User=desmo)
 │   ├── caddy/
 │   │   ├── Caddyfile               stock config + the "import sites/*.caddy" line
@@ -50,6 +57,7 @@ ours lives there):
 ├── usr/local/bin/
 │   ├── desmo                      desmo <cmd> = cd /srv/desmo/main && ./run <cmd>
 │   ├── uv, uvx                    system-wide uv (python envs, on every user's PATH)
+│   ├── pgbackrest                 DB backup tool (apt; plain-file repo)
 │   └── fd                         symlink → fdfind (Debian's binary name)
 ├── var/lib/postgresql/            desmo_db + desmo_db_test (role desmo_user) — the
 │                                  databases provisioning creates from the env values
@@ -71,6 +79,13 @@ ours lives there):
   jobs via `huey.contrib.djhuey` (reusing the same Redis as the error rate
   limiter). Run the consumer with `./run hueydev` (or `./run dev`). The reference
   app ships a daily "Fact of the Day" cron as the example (`docs/reference/`).
+- **Nightly DB backups (same machine)** — automated physical Postgres backups
+  ([pgbackrest](https://pgbackrest.org/), apt-installed) into a plain,
+  unencrypted, self-contained `dbbackups/`
+  **on the same machine as the database** — copying that one folder carries
+  the whole backup; every deploy snapshots too. Running one now, listing,
+  checking, restoring to a point in time — `docs/backups.md` is the source
+  of truth.
 - **Models management** — a superuser UI at `/manage/models` to browse, sort,
   inspect and edit any model's rows, with a per-row audit log
   (create/update/delete diffs). See [Models management (superuser)](#models-management-superuser).

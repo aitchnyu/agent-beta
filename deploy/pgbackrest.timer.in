@@ -1,0 +1,14 @@
+[Unit]
+Description=desmo pgbackrest nightly backup timer (00:00 UTC)
+
+[Timer]
+# Midnight UTC — explicit timezone suffix, so the schedule is fixed
+# regardless of the VM's local timezone setting. Persistent: a fire
+# missed while the VM was down runs on the next boot — no silent holes
+# in the backup chain.
+OnCalendar=*-*-* 00:00:00 UTC
+Persistent=true
+Unit=desmo_pgbackrest.service
+
+[Install]
+WantedBy=timers.target
