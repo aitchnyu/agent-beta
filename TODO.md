@@ -7,6 +7,9 @@ Pi 1.0
 setenv remove?
 .venv used. `./run python`
 
+setenv remove?
+.venv used. `./run python`
+
 Home and user icons. Where to get icon set autonomously? https://lucide.dev/
 How to document system changes when agent modifies system?
 
