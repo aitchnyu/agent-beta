@@ -29,11 +29,15 @@ function fmt(iso: string): string {
 }
 
 function shareUrl(d: DownloadOut): string {
-  return `${window.location.origin}/downloads/${d.stored_name}`
+  return `${window.location.origin}/downloads/${encodeURIComponent(d.stored_name)}`
 }
 
-function reload() {
-  router.reload().catch((e) => showErrorToast(e, "Could not reload downloads"))
+async function reload() {
+  try {
+    await router.reload()
+  } catch (e) {
+    showErrorToast(e, "Could not reload downloads")
+  }
 }
 
 function onReplaceChange() {
@@ -144,7 +148,7 @@ async function copyLink(d: DownloadOut) {
               <a
                 v-if="!d.is_expired"
                 class="btn btn-sm btn-outline-primary"
-                :href="`/downloads/${d.stored_name}`"
+                :href="`/downloads/${encodeURIComponent(d.stored_name)}`"
                 :download="d.original_name"
               >
                 Download

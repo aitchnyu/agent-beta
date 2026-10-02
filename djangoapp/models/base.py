@@ -491,11 +491,19 @@ class BaseModel(models.Model):
     required — see :meth:`save_plus`); the tracked pair writes one
     ``BaseModelUpdateLog`` entry per create/update/delete.
 
-    FileField cleanup rides the tracked pair: :meth:`save_plus` deletes a
-    replaced/cleared file's bytes after commit, :meth:`delete_plus` removes
-    every file of the row with it. A bare ``.save()``/``.delete()`` (or a
-    direct field overwrite without :meth:`save_plus`) orphans the stored
-    bytes — there is no separate cleanup call to remember or forget.
+    FileField cleanup rides the tracked pair — there is no separate cleanup
+    call to remember or forget:
+
+    - :meth:`save_plus` deletes a replaced/cleared file's bytes after the
+      commit (a rollback keeps them).
+    - :meth:`delete_plus` removes every file of the row with it.
+
+    Anything else orphans the stored bytes: a bare ``.save()`` that
+    overwrites a file column, a bare ``.delete()``, a queryset
+    ``.update()``/``.delete()``, or an FK cascade delete — Django's
+    collector never calls :meth:`delete_plus`. If bytes must follow rows
+    removed in bulk, sweep them per-row through :meth:`delete_plus` (the
+    ``Download.delete_expired`` pattern).
     """
 
     public_id = models.CharField(
@@ -776,6 +784,10 @@ class BaseModel(models.Model):
         between the purge and the row's deletion. Consequence: deleting an
         already-deleted row raises ``DoesNotExist`` (callers gate on the
         row existing; deletes don't carry an optimistic lock to go stale).
+
+        Per-row only: a queryset ``.delete()`` or an FK cascade delete
+        (Django's collector) never reaches this method, so rows removed
+        those ways keep their files on disk (see the class docstring).
         """
         now = timezone.now()
         with transaction.atomic():

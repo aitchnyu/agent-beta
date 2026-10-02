@@ -1,11 +1,6 @@
-backup md file simplification?
-
 extract-app-seed
 provision() assumes outside vm?
 Pi 1.0
-
-setenv remove?
-.venv used. `./run python`
 
 setenv remove?
 .venv used. `./run python`
@@ -21,11 +16,6 @@ Test with changing site theme. Generate color schemes. Then try to upgrade to po
 List backups and time travel
 
 Mermaid 12 and use case diagrams with new theme
-
-```
-multipass shell app
-sudo -u agent -H bash -l
-```
 
 Switch to Debian for lower memory usage? Multipass is for Ubuntu. Incus can rewind machines.
 Incus for native port forward

@@ -816,6 +816,10 @@ root) — never in the repo, never in git. Three rules own everything:
   ```
   With a bare `.save()`/`.delete()` — or a queryset `.update()` that swaps
   a file column — the old file stays on disk with nothing pointing at it.
+  Bulk deletes orphan just the same: a queryset `.delete()` and FK cascade
+  deletes (Django's collector) never call `delete_plus`, so sweep such rows
+  per-row through it if their bytes must go (the pattern
+  `Download.delete_expired` uses).
 - **Serving goes through `serve_file`** (`djangoapp.media`), so the app
   gates every download instead of a proxy serving files blindly:
   ```python

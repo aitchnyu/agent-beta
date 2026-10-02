@@ -22,7 +22,8 @@ class ManageProjectTests(BaseInertiaTestCase):
     ``ourapp/`` is empty). Models are fetched via ``apps.get_model`` so the module
     imports safely when collected in checkframework1 (no top-level ``ourapp`` import).
 
-    - test_model_list_lists_testapp_models, /manage/models lists Author + Book
+    - test_model_list_lists_testapp_models, /manage/models lists Author +
+      Book + FileCleanupDoc
     - test_book_list, /manage/models/Book/list columns + both FK cell kinds
     - test_book_list_pagination_and_sort, per_page paging + id/last_updated_at sort
     - test_book_detail, /manage/models/Book/id/<pid> renders RowDetail
@@ -96,11 +97,12 @@ class ManageProjectTests(BaseInertiaTestCase):
         self.client.get("/manage/models")
         self.assertComponentUsed("ModelList")
 
-        # Both test-app models appear, each with its live row count.
+        # Every test-app model appears, each with its live row count.
         models = {m["name"]: m for m in self.props()["props"]["models"]}
-        self.assertEqual(set(models), {"Author", "Book"})
+        self.assertEqual(set(models), {"Author", "Book", "FileCleanupDoc"})
         self.assertEqual(models["Author"]["row_count"], 1)
         self.assertEqual(models["Book"]["row_count"], 1)
+        self.assertEqual(models["FileCleanupDoc"]["row_count"], 0)
 
         # The model list surfaces each class docstring (used as a caption).
         self.assertIn("author of books", models["Author"]["docstring"].lower())

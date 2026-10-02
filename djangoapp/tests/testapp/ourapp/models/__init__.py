@@ -12,5 +12,6 @@ Overlaid onto ``scratch/ourapp/`` by ``checkproject``; not installed in ``main/`
 """
 
 from ourapp.models.books import Author, Book
+from ourapp.models.filecleanup import FileCleanupDoc
 
-__all__ = ["Author", "Book"]
+__all__ = ["Author", "Book", "FileCleanupDoc"]
