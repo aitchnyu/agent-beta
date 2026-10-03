@@ -11,10 +11,20 @@ import { onBeforeUnmount, onMounted, ref } from "vue"
 // ``caret``: render the summary's ▾ (default) or leave the trigger slot
 // as-is — a boxed trigger (e.g. a button-styled span) carries its own
 // caret INSIDE the box, where the ::after one would sit detached outside.
-withDefaults(defineProps<{ align?: "left" | "right"; caret?: boolean }>(), {
-  align: "left",
-  caret: true,
-})
+// ``label``: the summary's accessible name. Icon-only triggers NEED it on
+// the <summary> itself — accname computation ignores aria-labels on
+// generic descendants, so a label on an inner span announces nothing.
+withDefaults(
+  defineProps<{
+    align?: "left" | "right"
+    caret?: boolean
+    label?: string
+  }>(),
+  {
+    align: "left",
+    caret: true,
+  },
+)
 
 const root = ref<HTMLDetailsElement>()
 
@@ -58,6 +68,7 @@ onBeforeUnmount(() => {
     <summary
       class="layout-menu-summary"
       :class="{ 'layout-menu-no-caret': !caret }"
+      :aria-label="label"
     >
       <slot name="trigger" />
     </summary>

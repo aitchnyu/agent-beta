@@ -756,6 +756,27 @@ where possible** — keep the app out of the framework's `pages/`, `components/`
 shared `schemas.ts`, and `styles/` (those hold framework code; the app's own
 schemas/styles live inside `ours/`).
 
+### Icons
+Download from lucide —
+`https://unpkg.com/lucide-static@latest/icons/<name>.svg` (browse names at
+lucide.dev; ISC-licensed, license comment ships in the file) — usually into the
+app's own `frontend/src/ours/icons/`, not the framework's `src/icons/`.
+Keep the file verbatim (stroke width 2 is the look; change only if the
+design asks). In Inertia pages/components render via the framework's
+`LucideIcon.vue` — a CSS mask painted with `currentColor`, so the icon
+follows the text color (no per-theme or per-state variants needed):
+
+```vue
+import LucideIcon from "../../components/LucideIcon.vue"
+import checkIcon from "../icons/check.svg"
+
+<LucideIcon :src="checkIcon" /> Done
+```
+
+Static server-rendered HTML (Django templates outside the Inertia app) can
+download and render the same way without the build step: inline the svg in
+the template and set `stroke="currentColor"` so it themes with the text.
+
 ### Notifications (framework)
 Every user has a notifications feature for free (framework, `djangoapp`):
 the bell + `/notifications` page (rows live until deleted) and Web Push

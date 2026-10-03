@@ -1,10 +1,10 @@
-how to add superuser after logging in?
-
 Pi 1.0
 
-MAINTAIN-CONSISTENCY env-file
+Instant name
 
-Home and user icons. Where to get icon set autonomously? https://lucide.dev/
+Run all tests in checkproject and merge coverage from both stages. Improve test coverage
+
+Branding
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 Features - file section with git etc
@@ -19,11 +19,11 @@ Mermaid 12 and use case diagrams with new theme
 Switch to Debian for lower memory usage? Multipass is for Ubuntu. Incus can rewind machines.
 Incus for native port forward
 Remove the ssh port forward `ssh -N -L 8000:localhost:443 ubuntu@192.168.1.56`
+local-vm setupalogin
+local-vm portforward
 
 apply --3way merges with `./run importtemplate <github-url> <tag>` 
 import from git repo tags?
-
-Run all tests in checkproject and merge coverage from both stages. Improve test coverage
 
 ## Deployment
 Provision in vm with domain with curl|bash and have branch/release. What all should user provide?

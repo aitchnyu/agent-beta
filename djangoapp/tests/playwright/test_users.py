@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from http import HTTPStatus
 
 from playwright.sync_api import expect
@@ -25,9 +26,9 @@ class LoginForTestGateE2eTestCase(BasePlaywrightTestCase):
         """
         self.page.goto(f"{self.live_server_url}/")
         self.page.wait_for_selector(".layout-user-menu")
-        expect(self.page.locator(".layout-user-menu .layout-user-button")).to_contain_text(
-            self.user.username
-        )
+        expect(
+            self.page.locator(".layout-user-menu .layout-user-button")
+        ).to_have_attribute("aria-label", re.compile(self.user.display_name))
 
 
 class UserEditE2eTestCase(BasePlaywrightTestCase):
@@ -226,9 +227,9 @@ class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):
         with self.anon_page() as anon:
             anon.goto(url)
             anon.wait_for_selector(".layout-user-menu")
-            expect(anon.locator(".layout-user-menu .layout-user-button")).to_contain_text(
-                "Link Target"
-            )
+            expect(
+                anon.locator(".layout-user-menu .layout-user-button")
+            ).to_have_attribute("aria-label", re.compile(self.target.display_name))
 
     def test_logout_everywhere_ends_session(self) -> None:
         """The admin button kills a session redeemed in a second browser."""

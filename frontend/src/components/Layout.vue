@@ -4,6 +4,9 @@ import { Link, usePage } from "@inertiajs/vue3"
 import { SharedPropsSchema } from "../schemas"
 import HideOnScroll from "./HideOnScroll.vue"
 import UserMenu from "./UserMenu.vue"
+import LucideIcon from "./LucideIcon.vue"
+import houseIcon from "../icons/house.svg"
+import logInIcon from "../icons/log-in.svg"
 
 // The signed-in viewer's profile + superuser flag are Inertia shared props,
 // injected for every page by SharedPropsMiddleware (not threaded per-view).
@@ -71,7 +74,9 @@ onBeforeUnmount(() => {
 <template>
   <div>
     <HideOnScroll class="layout-navbar">
-      <Link class="nav-link" href="/">Home</Link>
+      <Link class="nav-link" href="/" aria-label="Home"
+        ><LucideIcon :src="houseIcon"
+      /></Link>
       <template v-if="!navCompact">
         <Link
           v-for="link in navLinks"
@@ -105,7 +110,7 @@ onBeforeUnmount(() => {
         class="layout-signin ms-auto"
       >
         <summary class="btn btn-sm btn-outline-primary layout-menu-summary">
-          Sign in
+          <LucideIcon :src="logInIcon" /> Sign in
         </summary>
         <div class="layout-menu-panel layout-signin-menu">
           <a
@@ -122,7 +127,7 @@ onBeforeUnmount(() => {
         class="btn btn-sm btn-outline-primary ms-auto"
         href="/accounts/login/"
       >
-        Sign in
+        <LucideIcon :src="logInIcon" /> Sign in
       </a>
     </HideOnScroll>
     <slot />

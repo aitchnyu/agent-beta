@@ -12,6 +12,29 @@ body {
   color: #1a1a1a;
 }
 
+// Icon spans (LucideIcon.vue): the svg file is the mask shape, painted with
+// currentColor — icons follow the surrounding text color (link/button
+// state colors included) with no per-context variants.
+.lucide-icon {
+  display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  flex: none;
+  vertical-align: -0.15em;
+  margin-right: 0.35rem;
+  background-color: currentColor;
+  mask-image: var(--lucide-src);
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+}
+
+// The user button's flex gap (0.4rem) already spaces the leading icon —
+// suppress the default margin so it isn't doubled there.
+.layout-user-button .lucide-icon {
+  margin-right: 0;
+}
+
 // Hide-on-scroll (HideOnScroll.vue): the sticky/hide mechanics for any
 // wrapped bar. Scrolling down translates the element fully out of view
 // (padding + border included); scrolling up restores it. A transform never
@@ -138,6 +161,18 @@ body {
 // (UserMenu.vue).
 .layout-user-menu {
   position: relative;
+}
+
+// The icon-only trigger: no outline-button chrome — icon, badge, and caret
+// sit in one flex row with breathing room.
+.layout-user-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.3rem;
+  border: none;
+  background: none;
+  cursor: pointer;
 }
 
 .layout-user-menu summary {

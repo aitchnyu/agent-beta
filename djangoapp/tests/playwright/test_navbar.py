@@ -59,11 +59,11 @@ class NavbarE2e(BasePlaywrightTestCase):
         page.evaluate("() => { document.body.style.minHeight = '3000px' }")
 
     def test_home_link_present(self) -> None:
-        """Home is the first nav link, before the superuser links."""
+        """Home is the first nav link (icon-only), before the superuser links."""
         page = self.page
         page.goto(f"{self.live_server_url}/")
         first = page.locator(".layout-navbar .nav-link").first
-        expect(first).to_have_text("Home")
+        expect(first).to_have_attribute("aria-label", "Home")
         expect(first).to_have_attribute("href", "/")
 
     def test_wide_viewport_shows_flat_links(self) -> None:

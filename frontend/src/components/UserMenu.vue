@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The navbar's signed-in user menu. Owns:
-// - the button: username + unread badge (shared prop ``unread_notifications``)
-// - the dropdown: Profile / Notifications / Logout links
+// - the button: user icon + unread badge (shared prop ``unread_notifications``)
+// - the dropdown: the named profile link / Notifications / Logout
 // - badge refresh between visits: SW postMessage, window event,
 //   visibilitychange → partial reload of just that prop
 // - push SW registration + the one-shot post-login subscription rebind
@@ -11,6 +11,9 @@ import { getCsrfToken } from "../utils/csrf"
 import { SharedPropsSchema } from "../schemas"
 import type { User } from "../schemas"
 import DropdownMenu from "./DropdownMenu.vue"
+import LucideIcon from "./LucideIcon.vue"
+import circleUserIcon from "../icons/circle-user.svg"
+import logOutIcon from "../icons/log-out.svg"
 import { registerPushSW, rebindAfterLogin } from "../utils/push"
 
 defineProps<{
@@ -89,14 +92,15 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <!-- The badge is part of the username button (always shown, 0 included,
-       red when unread work waits, muted at zero) -->
-  <DropdownMenu align="right" class="layout-user-menu" :caret="false">
+  <DropdownMenu
+    align="right"
+    class="layout-user-menu"
+    :caret="false"
+    :label="`${user.title} — account menu, ${unreadCount} unread notifications`"
+  >
     <template #trigger>
-      <span class="btn btn-sm btn-outline-primary layout-user-button">
-        <!-- No aria-label: the accessible name is the content — username
-             plus the badge count, which is the point of the button. -->
-        {{ user.title }}
+      <span class="layout-user-button">
+        <LucideIcon :src="circleUserIcon" />
         <span
           class="badge notifications-badge"
           :class="unreadCount > 0 ? 'text-bg-danger' : 'text-bg-secondary'"
@@ -110,7 +114,7 @@ onBeforeUnmount(() => {
     <Link
       :href="`/users/id/${user.public_id}`"
       class="layout-menu-link user-menu-profile"
-      >Profile</Link
+      >{{ user.title }}'s profile</Link
     >
     <Link href="/notifications" class="layout-menu-link user-menu-notifications"
       >Notifications</Link
@@ -122,7 +126,7 @@ onBeforeUnmount(() => {
     >
       <input type="hidden" name="csrfmiddlewaretoken" :value="csrfToken" />
       <button class="layout-menu-link user-menu-logout" type="submit">
-        Logout
+        <LucideIcon :src="logOutIcon" /> Logout
       </button>
     </form>
   </DropdownMenu>
