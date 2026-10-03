@@ -1,5 +1,5 @@
 [project]
-name = "instant"
+name = "desmo"
 version = "0.1.0"
 description = "A Django single-app template with an agent-driven edit/deploy loop"
 requires-python = ">=3.14"

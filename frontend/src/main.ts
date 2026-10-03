@@ -85,7 +85,7 @@ createInertiaApp({
     xsrfCookieName: "csrftoken",
     xsrfHeaderName: "X-CSRFToken",
   },
-  title: (title) => `Instant - ${title}`,
+  title: (title) => title,
   // Default layout: every page renders inside Layout.vue (navbar + slot); reads shared props via usePage()
   layout: () => Layout,
   resolve: (name) => {

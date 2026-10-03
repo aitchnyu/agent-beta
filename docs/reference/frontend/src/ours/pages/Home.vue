@@ -16,8 +16,6 @@ const isSuperuser = computed(() => SharedViewerSchema.parse(usePage().props).vie
 
 <template>
     <div class="home-container">
-      <h1>Instant</h1>
-
       <!-- Today's Fact of the Day: one fixed pick per local date (Huey cron). -->
       <section v-if="p.fact_of_day" class="home-fact-of-day">
         <h2>Fact of the Day</h2>

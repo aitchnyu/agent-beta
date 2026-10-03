@@ -1,5 +1,3 @@
-# Instant
-
 A Django **single-app template**: clone it, build your app in `ourapp/`, and drive
 changes through an agent that edits a throwaway. **desmo** — the VM/instance,
 service user, and `desmo` command name — is a codename for this deployment.

@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue"
+import { Link } from "@inertiajs/vue3"
 // Framework layout sits at frontend/src/components/Layout.vue; from
 // src/ours/pages/ that is two levels up to src/ then into components/.
 import PageTitle from "../../components/PageTitle.vue"
+import { fileUrl } from "../../utils/files"
 import { HomePropsSchema } from "../schemas"
 // Side-effect import: the app ships its own styles from ours/style.scss, so the
 // feature is self-contained (no edit to the framework's main.scss).
@@ -16,11 +18,18 @@ const p = computed(() => HomePropsSchema.parse(props.props))
 <template>
   <PageTitle />
   <div class="home-container">
-    <h1>Instant</h1>
     <p class="home-placeholder-note text-muted">
       This is a placeholder app, not a finished product — add your features
-      under <code>ourapp/</code> and <code>frontend/src/ours/</code> (see
-      <code>docs/reference/</code> for a complete example).
+      under
+      <Link :href="fileUrl('main/ourapp')"><code>ourapp/</code></Link> and
+      <Link :href="fileUrl('main/frontend/src/ours')"
+        ><code>frontend/src/ours/</code></Link
+      >
+      (see
+      <Link :href="fileUrl('main/docs/reference')"
+        ><code>docs/reference/</code></Link
+      >
+      for a complete example).
     </p>
     <p v-if="!p.is_authenticated" class="home-status home-status-signed-out">
       You are not signed in.

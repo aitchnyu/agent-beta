@@ -332,7 +332,7 @@ VAPID_PRIVATE_KEY = os.environ["VAPID_PRIVATE_KEY"]
 # `utc: False` so crontab times are local TIME_ZONE.
 HUEY = {
     "huey_class": "huey.RedisHuey",
-    "name": "instant",
+    "name": "desmo",
     "results": False,
     "store_none": False,
     "immediate": False,

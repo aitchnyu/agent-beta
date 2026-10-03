@@ -37,7 +37,7 @@ if typing.TYPE_CHECKING:
 # Error (e.g. a Vue render error caught and logged by the app) reports its
 # stack/message instead of Playwright's opaque "JSHandle@object". Without this a
 # failing render surfaces as a useless string and the test author has to debug
-# blind (see the Instant.html transcript).
+# blind.
 _STRINGIFY_CONSOLE_ERROR = """
 (() => {
   const orig = console.error.bind(console);
