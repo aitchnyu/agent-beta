@@ -941,8 +941,7 @@ auto-discovers each installed app's `tasks` module. Redis is a **hard dependency
     from huey.contrib.djhuey import db_task
 
     @db_task()
-    def my_one_off() -> None:
-        ...  # one-line call to a model classmethod — logic lives on the model
+    def my_one_off() -> None: ...  # one-line call to a model classmethod — logic lives on the model
     ```
     Enqueue by calling the task (`my_one_off()` returns at once); in tests run it
     inline with `my_one_off.call_local()`.

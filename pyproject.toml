@@ -20,7 +20,7 @@ dependencies = [
     "redis>=5.0",
     "types-python-dateutil>=2.9.0.20260124",
     "django-stubs[compatible-mypy]>=6.1.0,<6.2",
-    "mypy>=2.3.1,<2.4",
+    "mypy>=2.3.1,<2.5",
     "django-stubs-ext>=6.1.0,<6.2",
 ]
 
@@ -52,6 +52,7 @@ exclude = [
   "djangoapp/static",
   "docs/reference",
   "djangoapp/tests/testapp",
+  "prompts",  # historical planning docs — never reformatted (not even by ruff upgrades)
 ]
 target-version = "py314"
 line-length = 100
@@ -60,6 +61,7 @@ line-length = 100
 select = ["ALL"]
 ignore = [
     "COM812",  # Trailing comma missing (conflicts with formatter)
+    "CPY001",  # missing-copyright-notice (ruff 0.16 rule; no copyright headers in this repo)
     "D100",  # undocumented-public-module
     "D101",  # undocumented-public-class
     "D102",  # undocumented-public-method

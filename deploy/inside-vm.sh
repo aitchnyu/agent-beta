@@ -71,7 +71,7 @@ creds_dir="/etc/credentials/desmo"
 creds_env="$creds_dir/.env.vm"
 # pi CLI version for the npm -g install (lockstep with dev's
 # npm install -g @earendil-works/pi-coding-agent).
-_PI_NPM_VERSION="0.85.0"
+_PI_NPM_VERSION="1.0.0"
 
 # KEY="value" from an env-format file (first match wins; missing → empty —
 # the `|| true` keeps set -e/pipefail from aborting BEFORE the friendly
@@ -226,8 +226,8 @@ EOF
   ln -sf /usr/bin/fdfind /usr/local/bin/fd
   # miller (mlr): journal error-log queries per docs/logging.md.
 
-  echo "    node 22 (NodeSource; apt's node is too old for vite/rolldown — the frontend build needs it)"
-  curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+  echo "    node 24 LTS (NodeSource; apt's node is too old for vite/rolldown — the frontend build needs it)"
+  curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
   apt-get install -y nodejs
 
   # the operator's agent, run via `desmo pi`; npm global (arch-agnostic).

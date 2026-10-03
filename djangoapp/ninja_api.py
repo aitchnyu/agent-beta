@@ -110,7 +110,13 @@ def register_api_error_handlers(api: NinjaAPI) -> None:
         # structured traceback); method/path come from LoggingContextMiddleware,
         # but echo them + the error type so the record is self-describing even
         # outside a request log.
-        logger.exception(
+        #
+        # LOG004 (`.exception()` outside a lexical except) is a false positive:
+        # ninja calls this handler from inside its own `except` block, so
+        # sys.exc_info() is live here and .exception() records the real
+        # traceback. Ruff's suggested .error() would drop exc_info and log the
+        # 500 with no stack at all.
+        logger.exception(  # noqa: LOG004
             "unhandled exception",
             method=request.method,
             path=request.path,

@@ -18,7 +18,7 @@
 //   { public_id, kind, body, url }
 
 self.addEventListener("push", (event) => {
-  let data = {}
+  let data
   try {
     data = event.data ? event.data.json() : {}
   } catch {

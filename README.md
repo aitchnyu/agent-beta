@@ -529,11 +529,11 @@ f-string) so each line stays `jq`-filterable:
 from djangoapp.logging import get_logger
 
 logger = get_logger(__name__)
-logger.warning("files fetch failed", path=path, error=str(exc))   # recovered problem
+logger.warning("files fetch failed", path=path, error=str(exc))  # recovered problem
 try:
     risky()
 except Exception:
-    logger.exception("unhandled", method=request.method)         # structured traceback
+    logger.exception("unhandled", method=request.method)  # structured traceback
 ```
 
 `LoggingContextMiddleware` binds `method`, `path`, `user_public_id`, `username`

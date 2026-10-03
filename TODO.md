@@ -1,10 +1,9 @@
-Pi 1.0
-
 Instant name
 
 Run all tests in checkproject and merge coverage from both stages. Improve test coverage
 
 Branding
+Permission for .env files?
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 Features - file section with git etc

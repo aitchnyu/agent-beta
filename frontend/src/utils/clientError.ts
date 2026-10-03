@@ -155,9 +155,7 @@ export function reportVueError(err: unknown, info?: string): void {
 function currentPublicId(): string | null {
   try {
     const user = (usePage().props as Record<string, unknown>).user as
-      | { public_id?: string }
-      | null
-      | undefined
+      { public_id?: string } | null | undefined
     return user?.public_id ?? null
   } catch {
     return null
