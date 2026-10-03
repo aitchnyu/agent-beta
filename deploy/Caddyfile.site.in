@@ -1,10 +1,7 @@
-# The VM's caddy site — rendered HOST-SIDE by ./testvm provision into
-# /etc/caddy/sites/desmo.caddy (shipped in the tree; the main Caddyfile's
-# "import sites/*.caddy" picks it up).
+# The VM's caddy site — rendered into /etc/caddy/sites/desmo.caddy
+# (the main Caddyfile's "import sites/*.caddy" picks it up).
 #
-# Site names render from ALLOWED_HOSTS in .env.vm (testvm seds
-# @SITE_HOSTNAMES@) — one source of truth: caddy serves exactly the hosts
-# Django accepts. 
+# @SITE_HOSTNAMES@ render from ALLOWED_HOSTS in the credentials env.
 
 # Caddy is also the static file server: collectstatic fills main/staticfiles/
 # and hashed bundles get immutable long-cache headers.

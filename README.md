@@ -6,59 +6,64 @@ service user, and `desmo` command name — is a codename for this deployment.
 
 ## Layout — what the VM (and provisioning) creates
 
-One tree, rooted at `/` of the test VM — `/srv/desmo/main` is this repo (the
-seed `./testvm provision` ships from your dev machine), shown expanded;
-single-leaf paths are collapsed (`etc/redis/redis.conf` — nothing else of
-ours lives there):
+One tree, rooted at `/` of the test VM — everything provisioning
+creates/touches. `/srv/desmo/main` is this repo (the seed `./local-vm
+provision` ships from your dev machine). The phase-by-phase version (who
+creates what, when) lives in `deploy/inside-vm.sh`'s header.
 
 ```text
-/                              the test VM — everything ./testvm provision creates/touches
-├── srv/desmo/
-│   ├── main/                  THIS REPO, seeded from the tracked tree (own git repo)
-│   │   ├── run                command dispatcher (`./run <cmd>` or `desmo <cmd>`)
-│   │   │                      (`./run help` lists all; no args also prints help)
-│   │   ├── djangoproject/     project config, not app logic
-│   │   ├── djangoapp/         the reusable framework app (ships with the template)
-│   │   │   ├── models/        User/UserHistory/Notification/LoginKey models
-│   │   │   ├── views/         users, files, git viewer, notifications, client-errors
-│   │   │   ├── management/commands/    createuser, makeloginlink, addoauth,
-│   │   │   │                           promotetosuperuser, hostnames
-│   │   │   ├── templates/ static/      server-rendered shells + built frontend assets
-│   │   ├── ourapp/            YOUR app — the one the template exists for
-│   │   │   ├── views/         your pages (home page ships as the placeholder)
-│   │   │   ├── tasks.py       your huey tasks (one file per feature)
-│   │   │   └── urls.py apps.py migrations/ tests/ docs/
-│   │   ├── frontend/          Vue 3 + Inertia SPA (vite build → djangoapp/static)
-│   │   │   ├── src/main.ts    entry: Inertia + router + push service wiring
-│   │   │   ├── src/ours/      YOUR pages (ours/pages/**/*.vue auto-globbed into
-│   │   │   │                  the bundle) + your schemas.ts/style.scss
-│   │   ├── agentconfig/       steering documents the pi agent reads
-│   │   ├── .pi/               pi CLI config: permissions allowlist, extensions
-│   │   ├── dbbackups/         pgbackrest repo — plain unencrypted backup sets +
-│   │   │                      WAL archive (nightly; runtime data, gitignored +
-│   │   │                      rsync-excluded like media/)
-│   ├── scratch/               throwaway agent edit copy (createscratch/deployscratch)
-│   └── playwright-browsers/   one shared browser cache for all users
+/                              the test VM — everything provisioning creates/touches
 ├── etc/
 │   ├── credentials/desmo/.env.vm   THE env file — every unit + ./run source it
-│   │                               (root:desmo 640)
+│   │                               (the tracked deploy/template.env + minted
+│   │                               secrets; root:desmo 640)
 │   ├── systemd/system/
-│   │   ├── desmo_granian.service   web server (ASGI, User=desmo)
+│   │   ├── desmo_granian.service   web server (ASGI via uv, User=desmo)
+│   │   ├── desmo_huey.service      background/cron tasks (User=desmo)
 │   │   ├── desmo_pgbackrest.service   nightly DB backup shim (fires
-│   │   │                              `./run backupdb` — the logic lives in ./run)
-│   │   ├── desmo_pgbackrest.timer     fires it 00:00 UTC (Persistent
-│   │   │                                        catch-up after downtime)
-│   │   └── desmo_huey.service      background/cron tasks (User=desmo)
+│   │   │                                `./run backupdb` — the logic lives in ./run)
+│   │   └── desmo_pgbackrest.timer     fires it 00:00 UTC (Persistent
+│   │                                    catch-up after downtime)
+│   ├── pgbackrest/pgbackrest.conf  stanza `desmo` → the dbbackups/ repo
 │   ├── caddy/
 │   │   ├── Caddyfile               stock config + the "import sites/*.caddy" line
 │   │   └── sites/desmo.caddy       the app's TLS site — loopback :443 + /static/*
 │   ├── redis/redis.conf            stock config + the maxmemory/noeviction block
+│   ├── sysctl.d/99-swap.conf       swappiness (with /swapfile + the fstab line)
 │   └── profile.d/desmo.sh          login notice: the desmo command (bold yellow)
 ├── usr/local/bin/
 │   ├── desmo                      desmo <cmd> = cd /srv/desmo/main && ./run <cmd>
 │   ├── uv, uvx                    system-wide uv (python envs, on every user's PATH)
 │   ├── pgbackrest                 DB backup tool (apt; plain-file repo)
 │   └── fd                         symlink → fdfind (Debian's binary name)
+├── srv/desmo/
+│   ├── main/                      THIS REPO, seeded from the tracked tree (own git
+│   │   │                          repo; first commit = provisioned baseline)
+│   │   ├── run                    command dispatcher (`./run <cmd>` or `desmo <cmd>`)
+│   │   │                          (`./run help` lists all; no args also prints help)
+│   │   ├── djangoproject/         project config, not app logic
+│   │   ├── djangoapp/             the reusable framework app (ships with the template)
+│   │   │   ├── models/            User/UserHistory/Notification/LoginKey models
+│   │   │   ├── views/             users, files, git viewer, notifications, client-errors
+│   │   │   ├── management/commands/    createuser, makeloginlink, addoauth,
+│   │   │   │                           promotetosuperuser, hostnames
+│   │   │   └── templates/ static/      server-rendered shells + built frontend assets
+│   │   ├── ourapp/                YOUR app — the one the template exists for
+│   │   │   ├── views/             your pages (home page ships as the placeholder)
+│   │   │   ├── tasks.py           your huey tasks (one file per feature)
+│   │   │   └── urls.py apps.py migrations/ tests/ docs/
+│   │   ├── frontend/              Vue 3 + Inertia SPA (vite build → djangoapp/static)
+│   │   │   ├── src/main.ts        entry: Inertia + router + push service wiring
+│   │   │   └── src/ours/          YOUR pages (ours/pages/**/*.vue auto-globbed into
+│   │   │                          the bundle) + your schemas.ts/style.scss
+│   │   ├── agentconfig/           steering documents the pi agent reads
+│   │   ├── .pi/                   pi CLI config: permissions allowlist, extensions
+│   │   ├── deploy/                guest-side scripts (gate.sh, inside-vm.sh, …)
+│   │   └── dbbackups/             pgbackrest repo — plain unencrypted backup sets +
+│   │                              WAL archive (nightly; runtime data, gitignored +
+│   │                              rsync-excluded like media/)
+│   ├── scratch/                   throwaway agent edit copy (createscratch/deployscratch)
+│   └── playwright-browsers/       one shared browser cache for all users
 ├── var/lib/postgresql/            desmo_db + desmo_db_test (role desmo_user) — the
 │                                  databases provisioning creates from the env values
 ├── home/desmo                     the less-powerful service user's home (runs the units)
@@ -147,17 +152,16 @@ ours lives there):
 ## VM (test server)
 
 The whole loop can run on a Linux VM (multipass) instead of your local
-machine; the workstation becomes just a browser + ssh client. All VM config
-lives in one env file — copy the template first:
-
-```bash
-cp .env.vm.example .env.vm    # config only — no secrets to fill
-```
+machine; the workstation becomes just a browser + ssh client. This is the
+LOCAL test VM and nothing more — no domain, no published release; the
+end-user deployment path is future work. There is nothing to configure: all
+VM config is the tracked static template `deploy/template.env` (zero
+operator inputs — editing it is a repo edit).
 
 - **Secrets are generated on the VM at provision time**: `SECRET_KEY` +
   `DB_PASSWORD` (openssl) and `VAPID_PRIVATE_KEY` (web push — the P-256
   scalar minted by `gen-vapid-b64`, no Python) all inside
-  `inside-vm.sh provision_app`, which REFUSES if generated secrets are
+  `inside-vm.sh provision`, which REFUSES if generated secrets are
   already installed — provisioning is build-only; re-provisioning a kept
   VM is unsupported (delete to rebuild). Provider auth + the agent's
   startup model live in pi's own stores (`/login`, `/model` + Ctrl+S — see
@@ -175,7 +179,7 @@ image's default cloud user (`ubuntu`, `debian` on Debian), which already
 has passwordless sudo and gets the `desmo` command on its PATH:
 
 ```bash
-./testvm provision              # builds and prints access + login steps
+./local-vm provision   # builds and prints access + login steps
 ```
 
 One hostname, one port, reached through an ssh forward — the tunnel is the
@@ -202,16 +206,16 @@ means a click-through warning (the supported mode):
   Google console, then store the credentials on the VM —
 
   ```bash
-  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh \
-    runasdesmo .venv/bin/python manage.py addoauth google <client_id> <secret>
+  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/local-vm \
+    runasdesmo ./run djangomanage addoauth google <client_id> <secret>
   ```
 
   — or issue a one-time link for an existing user (single use, 15-min
   expiry), then `promotetosuperuser <email>` to unlock admin pages:
 
   ```bash
-  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh \
-    runasdesmo .venv/bin/python manage.py makeloginlink <email>
+  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/local-vm \
+    runasdesmo ./run djangomanage makeloginlink <email>
   ```
 
 **Everything else happens on the VM**: `desmo createscratch` → `desmo pi`
@@ -219,13 +223,14 @@ means a click-through warning (the supported mode):
 `desmo deployscratch` (check battery + deploy + migrate; on the VM
 collectstatic + service restarts fold in automatically). The env on the
 VM is a single file all services share
-(`/etc/credentials/desmo/.env.vm`, staged from the root `.env.vm`).
+(`/etc/credentials/desmo/.env.vm`, staged from the tracked
+`deploy/template.env` + the minted machine secrets).
 
 Provisioning is **build-or-destroy**: it refuses when the VM exists — to
 apply changes, delete and rebuild.
 
 ```bash
-./testvm delete                 # multipass delete+purge — destructive, no backup step
+./local-vm delete      # multipass delete+purge — destructive, no backup step
 ```
 
 The VM's `.git` is its own history — copy anything you need off it
@@ -499,8 +504,10 @@ User/management commands (via the passthrough):
 `makeloginlink <email>` (one-time login URL),
 `promotetosuperuser <email>`, `addoauth <provider> <client_id> <secret>`.
 
-Test-VM lifecycle via the `testvm` script: `./testvm provision [--release …]`,
-`./testvm delete`.
+Test-VM lifecycle via `local-vm` (root):
+`./local-vm provision [--release …]`, `./local-vm delete`; the seeded copy
+also carries the guest-side admin surface (`runasdesmo` — the login/oauth/
+superuser commands above).
 
 
 ## Logging
@@ -599,8 +606,9 @@ Four tiers:
 - **`checkframework1`** — the full gate, run in `main/`. ruff + mypy + the whole backend
   suite + frontend lint/type-check + Playwright.
 - **`checkframework2`** — the deployment gate (destructive: the previous VM is
-  deleted). The host rebuilds the test VM from scratch (`./testvm`), then runs
-  the in-VM gate (`deploy/vm.sh gate`, dispatched like the other guest-side
+  deleted). The host rebuilds the test VM from scratch
+  (`./local-vm provision`), then runs
+  the in-VM gate (`deploy/gate.sh gate`, dispatched like the other guest-side
   helpers) over one multipass exec — the gate's exit code is the verdict. The
   gate:
   - deploys the Books test app over the VM's `ourapp/`

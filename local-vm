@@ -1,0 +1,143 @@
+#!/bin/bash
+# local-vm — the LOCAL test VM's single interface, dual-role by path:
+#
+# HOST side (this checkout, your machine):
+#   ./local-vm provision [--release 26.04|24.04]
+#   ./local-vm delete
+# Deploys the LOCAL test VM (multipass instance "desmo") and NOTHING ELSE.
+# No domain, no published branch/release, no production path — the end-user
+# deployment (curl|bash + a real hostname + a release tag) is future work
+# (TODO § Deployment). The WHOLE provision runs INSIDE the VM:
+# deploy/inside-vm.sh provision, one exec, phase-banner'd; this driver is
+# pure transport — launch, ship the two-file payload, exec, print the
+# access steps. All config is the tracked deploy/template.env (zero
+# operator inputs); the three machine secrets are minted inside.
+#
+# GUEST side (the seeded copy at /srv/desmo/main/local-vm):
+#   multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/local-vm \
+#     runasdesmo <cmd…>
+# `runasdesmo` — the one sanctioned way to run one command as the desmo
+# service user (env sourced, repo cwd, uv on PATH): the login/oauth/
+# superuser admin commands in README § VM and deploy/access-steps.txt.
+#
+# provision BUILDS a fresh VM (refuses if the instance exists — delete,
+# then rebuild): /srv/desmo/{main,scratch}, units
+# desmo_granian/desmo_huey, caddy at https://localhost:8000/ (ssh port
+# forward), postgres + redis.
+#
+# delete is destructive with no backup: the VM's `.git` and database are
+# gone — copy anything you need off first (tar via multipass transfer,
+# pg_dump via multipass exec).
+#
+# Never touches the host's ssh config: use `multipass shell desmo` or
+# your own alias. Plan + manifest: prompts/20260818-vm-provisioning-multipass.md.
+
+# ── The payload ────────────────────────────────────────────────────────────
+# Exactly TWO files ship: this repo's deploy/inside-vm.sh (the provisioner)
+# and the seed tarball of the TRACKED working tree. The single manifest —
+# what each payload file is, and the fs-tree diagram of everything
+# provisioning creates/touches — lives in deploy/inside-vm.sh's header; no
+# payload list is maintained here (one list, next to the code).
+
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # repo root (main/)
+deploy_dir="$here/deploy"
+
+usage() {
+  echo "Usage: $0 {provision|delete}" >&2
+  [[ -n "${1:-}" ]] && echo "  $1" >&2
+  exit 1
+}
+
+provision() {
+  # Pin the umask host-side: the seed tarball carries file/dir modes
+  # through extraction, so a stricter dev shell (027/077) would land repo
+  # dirs 750 and lock the default cloud user out of main/. 022 is the base
+  # the guest's mode pins assume.
+  umask 022
+  local release="26.04"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --release) release="$2"; shift 2 ;;
+      *) usage "unknown flag: $1" ;;
+    esac
+  done
+
+  if ! command -v multipass >/dev/null 2>&1; then
+    echo "multipass not found — install it first (https://multipass.run)" >&2
+    exit 1
+  fi
+
+  # The seed tarball ships only TRACKED files (git ls-files driven) — an
+  # untracked template would abort guest-side (inside-vm.sh phase 0) only
+  # AFTER the VM is already up, leaving a half-built instance. Guard here.
+  (cd "$here" && git ls-files --error-unmatch deploy/template.env) >/dev/null 2>&1 || {
+    echo "REFUSING: deploy/template.env is not tracked — git add it first (the seed ships only tracked files)." >&2
+    exit 1
+  }
+
+  # ── 1. launch the instance (refuse if it exists — build only) ────────────
+  if multipass info desmo >/dev/null 2>&1; then
+    echo "REFUSING: instance 'desmo' already exists — provisioning builds only." >&2
+    echo "  ./local-vm delete && ./local-vm provision  # to rebuild" >&2
+    exit 1
+  fi
+  # en0 = the primary (bridged) interface on a macOS host — the locked deploy
+  # target. On another host OS, substitute its bridged interface name.
+  echo "==> multipass launch desmo (bridged en0, DHCP, 2G ram, 20G disk, $release)"
+  multipass launch --name desmo --network en0 --memory 2G --disk 20G "$release"
+
+  # ── 2. ship the payload: the provisioner + the seed — two files ──────────
+  multipass transfer "$deploy_dir/inside-vm.sh" desmo:/tmp/inside-vm.sh
+  echo "==> seed tarball (tracked working tree, from $here)"
+  # The seed = the TRACKED working tree: `git ls-files` drives tar, so the
+  # git index is the single source of truth — gitignored artifacts (.env*,
+  # /sessions/ (pi sessions, root-level via sessionDir), staticfiles/, caches…) and untracked clutter (editor state,
+  # AppleDouble junk, empty dirs) can never ship, and no hand-maintained
+  # exclude list can drift (it did: .coverage/static/uploads/.idea all
+  # leaked at some point). Tracked-but-deleted files make tar fail
+  # loudly — desired. Mode bits come from the filesystem, as before.
+  (cd "$here" && git ls-files -z) | COPYFILE_DISABLE=1 tar czf /tmp/desmo-seed.tgz -C "$here" --null -T -
+  multipass transfer /tmp/desmo-seed.tgz desmo:/tmp/desmo-seed.tgz
+
+  # ── 3. provision INSIDE — one exec, everything else is guest-side ────────
+  # provision runs the whole build linearly (guards + template checks,
+  # machine, seed, secrets, config render, postgres, units, first commit,
+  # bootstrap, playwright, start); output streams back, its exit code is
+  # the verdict.
+  multipass exec desmo -- sudo bash /tmp/inside-vm.sh provision
+
+  # ── 4. print the access steps ────────────────────────────────────────────
+  cat "$deploy_dir/access-steps.txt"
+  rm -f /tmp/desmo-seed.tgz
+}
+
+delete() {
+  multipass delete desmo
+  multipass purge
+  echo "Deleted VM 'desmo'. Recreate: ./local-vm provision (fresh seed from the local repo)."
+}
+
+# ── guest side (invoked inside the VM via multipass exec) ─────────────────
+# Self-contained: no sourcing of other scripts — the seeded copy at
+# /srv/desmo/main/local-vm is the whole runtime.
+runasdesmo() { # <command…> — one command as the desmo service user
+  set -a
+  . /etc/credentials/desmo/.env.vm
+  set +a
+  cd /srv/desmo/main
+  export PATH=/usr/local/bin:$PATH
+  "$@"
+}
+
+# Check if function exists and call it with all arguments except $1
+cmd="${1:-}"
+if [[ -n "$cmd" ]] && declare -F "$cmd" >/dev/null; then
+  shift
+  "$cmd" "$@"
+else
+  usage
+fi
+
+# MAINTAIN-CONSISTENCY vm-payload — the payload contract lives in deploy/inside-vm.sh

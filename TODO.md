@@ -1,12 +1,10 @@
-extract-app-seed
-provision() assumes outside vm?
+how to add superuser after logging in?
+
 Pi 1.0
 
-setenv remove?
-.venv used. `./run python`
+MAINTAIN-CONSISTENCY env-file
 
 Home and user icons. Where to get icon set autonomously? https://lucide.dev/
-How to document system changes when agent modifies system?
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 Features - file section with git etc
@@ -14,6 +12,7 @@ Features - file section with git etc
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
 List backups and time travel
+How to document system changes when agent modifies system?
 
 Mermaid 12 and use case diagrams with new theme
 

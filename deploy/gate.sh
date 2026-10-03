@@ -1,23 +1,31 @@
 #!/bin/bash
-# vm.sh — shared GUEST-side helpers for multipass commands (run INSIDE the
-# VM by `run`/`testvm` call sites and by hand). Convention (INSTRUCTIONS.md
-# § "Multipass helpers in deploy/vm.sh"): any multipass command longer than
-# two lines lives HERE as a named function — call sites stay one-liners, no
-# `bash -c` string blobs, no `declare -f` embedding.
+# gate.sh — the deployment gate: checkframework2's in-VM acceptance battery,
+# wholesale. TESTING ONLY — no operator surface lives here (that's local-vm's
+# runasdesmo; INSTRUCTIONS.md § "Guest-side scripts"). Runs INSIDE the VM:
 #
-#   multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh <fn> [args]
-#   multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh runasdesmo <cmd…>
+#   multipass exec desmo -- sudo bash /srv/desmo/main/deploy/gate.sh gate
 #
-# Ships with the repo (the seed lands it at /srv/desmo/main/deploy/vm.sh);
-# ./testvm provision also drops an early copy at /tmp/vm.sh for steps that
-# run BEFORE the seed is extracted. Runs as whatever user invokes it —
-# pick the function to match (root: extract/deploy/provision-finish/gate;
-# desmo: runasdesmo, playwright-install;
-# default cloud user: agent-*).
+# Called by exactly one thing: run's checkframework2 (one exec; the host
+# side checks only gate's exit code, output streams to the operator).
+# Ships with the repo (the seed lands it at /srv/desmo/main/deploy/gate.sh).
+#
+# `gate` — one linear body, read top to bottom:
+# - runs as ROOT, after the host (run's checkframework2) provisioned the
+#   VM fresh
+# - overlays the Books test app over the VM's ourapp/
+# - smokes the LIVE stack over HTTPS on loopback (caddy TLS, granian,
+#   postgres, login links) — what only a real deployment shows
+# - three setup phases then several asserts, first failure aborts with
+#   FAILED: <what>
+#
+# The argless agent-* wrappers below are gate assert bodies dispatched via
+# gate-as-default-user (they run as the default cloud user, not desmo).
 
 set -euo pipefail
 
-# Shared env for user functions: credentials env exported + repo as cwd.
+# The gate's internal env shim for its agent-* assert bodies: credentials
+# env exported + repo as cwd. (The OPERATOR's run-as-desmo surface is
+# local-vm's runasdesmo — this file keeps its own plumbing.)
 _vm_env() {
   set -a
   . /etc/credentials/desmo/.env.vm
@@ -27,96 +35,6 @@ _vm_env() {
 
 # ── root ──────────────────────────────────────────────────────────────────
 
-extract-app-seed() {
-  tar xzf /tmp/desmo-seed.tgz -C /srv/desmo/main
-  # Own the tree as desmo:
-  #   - main tree: the agent's user edits it (builds, git resets)
-  #   - dbbackups/: PRUNED — stays postgres-owned (pgbackrest runs as
-  #     postgres and refuses root); "-path <dir> -prune" is find's
-  #     skip, cutting the subtree so the -exec beyond -o never fires
-  #     inside it
-  find /srv/desmo/main -path /srv/desmo/main/dbbackups -prune -o -exec chown desmo:desmo {} +
-  # Group-write the tree (like the enclosing /srv/desmo 775):
-  #   - main tree: chown alone leaves 644/755 files — the next build
-  #     as the default user dies on desmo-owned dirs without g+w
-  #   - dbbackups/: PRUNED — the repo stays mode 700; g+w would open
-  #     it to the desmo group
-  find /srv/desmo/main -path /srv/desmo/main/dbbackups -prune -o -exec chmod g+w {} +
-  # Nightly-backup substrate: dbbackups/ is the self-contained
-  # pgbackrest repo (chunks + WAL archive together — copying the one
-  # folder carries the whole backup), owned by postgres — every
-  # pgbackrest invocation runs as postgres (it refuses root). The
-  # stanza is created once; the conf and archive_command are
-  # provision_app's.
-  install -d -o postgres -g postgres -m 700 /srv/desmo/main/dbbackups
-  sudo -u postgres pgbackrest --stanza=desmo stanza-create
-}
-
-# Append the computed platform keys when the pinned playwright doesn't know
-# this OS natively (cross-platform: the caller passes the entry, e.g.
-# ubuntu24.04-arm64 — provision-finish derives it guest-side from the dpkg
-# arch; the INSTRUCTIONS.md manual example decides host-side). Idempotent:
-# a retry (or a transient native-install failure misread as
-# platform-unknown) must not append duplicate keys — grep before append.
-playwright-override-env() {
-  grep -q '^PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=' /etc/credentials/desmo/.env.vm \
-    || printf 'PLAYWRIGHT_HOST_PLATFORM_OVERRIDE="%s"\n' "$1" >> /etc/credentials/desmo/.env.vm
-  grep -q '^PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=' /etc/credentials/desmo/.env.vm \
-    || printf 'PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS="1"\n' >> /etc/credentials/desmo/.env.vm
-}
-
-# Provisioning's tail (testvm 6a): shared playwright browsers, chromium's
-# system libs, then /tmp hygiene. Cleanup is last on purpose — it removes
-# the early /tmp/vm.sh copy; this runs the seeded /srv one.
-provision-finish() {
-  echo "==> playwright browsers (shared cache, cross-platform)"
-  # Native first: on a distro the pinned playwright knows, this is the only
-  # path — no override keys, validation passes as-is.
-  if sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh playwright-install; then
-    :
-  else
-    # Native failed → this OS is unknown to playwright (e.g. 26.04 at 1.60).
-    # Map onto the nearest LTS entry for THIS architecture — computed, never
-    # hardcoded, so amd64 hosts work as well as arm64.
-    local arch
-    arch="$(dpkg --print-architecture)"
-    echo "    native platform unknown to playwright — mapping to ubuntu24.04-$arch"
-    # The keys must PERSIST (runtime launches validate too), so append them
-    # to the credentials env — root-writable only; every user sources it
-    # through ./run setenv.
-    playwright-override-env "ubuntu24.04-$arch"
-    # Retry with the mapping now in the environment (validation skipped: the
-    # deps list would be checked against the MAPPED platform's packages).
-    sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh playwright-install
-  fi
-
-  # Chromium system deps on ubuntu 26.04 (t64 names): playwright's own map,
-  # else the minimal launch set (playwright's ubuntu24.04 chromium map
-  # verbatim).
-  echo "==> playwright chromium system deps"
-  _vm_env
-  export DEBIAN_FRONTEND=noninteractive
-  if /srv/desmo/main/.venv/bin/python -m playwright install-deps chromium; then
-    :
-  else
-    apt-get install -y libnss3 libnspr4 libdbus-1-3 libdrm2 libgbm1 \
-      libxkbcommon0 libxcomposite1 libxdamage1 libxext6 libxfixes3 \
-      libxrandr2 libx11-6 libx11-xcb1 libxcb1 libpango-1.0-0 libcairo2 \
-      libasound2t64 libatk1.0-0t64 libatk-bridge2.0-0t64 libatspi2.0-0t64 \
-      libcups2t64 libglib2.0-0t64
-  fi
-
-  # /tmp leftovers — each embeds secrets or is a spent one-shot:
-  # - tree.tgz            embeds the credentials env (sat world-readable — must not survive)
-  # - desmo-seed.tgz      the repo snapshot tarball
-  # - inside-vm.sh        transferred one-shot (open fds survive unlink — safe mid-run)
-  # - vm.sh               transferred early copy; the seeded deploy/vm.sh remains
-  # - vm-seed-commit.sh   tree-extracted root one-shot; desmo could never delete it
-  # - vm-bootstrap.sh     same (ran as desmo at step 6)
-  rm -f /tmp/tree.tgz /tmp/desmo-seed.tgz /tmp/inside-vm.sh /tmp/vm.sh \
-    /tmp/vm-seed-commit.sh /tmp/vm-bootstrap.sh
-}
-
 deploy-ourapp() {
   tar xzf /tmp/testapp-ourapp.tgz -C /srv/desmo/main
   chown -R desmo:desmo /srv/desmo/main/ourapp
@@ -125,20 +43,8 @@ deploy-ourapp() {
 }
 
 # ── desmo user ────────────────────────────────────────────────────────────
-
-# runasdesmo <command…> — env sourced, repo cwd, uv on PATH; the one
-# sanctioned way to run one command as the desmo user.
-runasdesmo() {
-  _vm_env
-  export PATH=/usr/local/bin:$PATH
-  "$@"
-}
-
-playwright-install() {
-  _vm_env
-  export PATH=/usr/local/bin:$PATH
-  uv run playwright install chromium --only-shell
-}
+# (the operator's run-as-desmo surface is local-vm's runasdesmo; the gate
+# reaches it through the gate-as-desmo-user shim below)
 
 # ── default cloud user (ubuntu/debian — the pi agent's user) ──────────────
 
@@ -151,7 +57,7 @@ agent-browsers() {
 # (the user the pi CLI runs as) — platform-agnostic by construction.
 agent-playwright-probe() {
   _vm_env
-  timeout 10 .venv/bin/python -c '
+  timeout 10 uv run --no-sync python -c '
 from playwright.sync_api import sync_playwright
 p = sync_playwright().start()
 b = p.chromium.launch(headless=True)
@@ -243,12 +149,13 @@ _op_user() {
   return 1
 }
 
-# Same sudo shims every external caller of this file uses — vm.sh is a
-# dispatcher, not a sourceable library, and runasdesmo/agent-* assume the
+# Same sudo shims every external caller of this file uses — gate.sh is a
+# dispatcher, not a sourceable library, and the agent-* wrappers assume the
 # target user already. gate-as-default-user forwards exactly one argument:
-# every agent-* wrapper is argless.
-gate-as-desmo-user() { sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh runasdesmo "$@"; }
-gate-as-default-user() { sudo -u "$(_op_user)" -H bash /srv/desmo/main/deploy/vm.sh "$1"; }
+# every agent-* wrapper is argless. The desmo shim routes through local-vm's
+# runasdesmo — the ONE sanctioned surface, same as the operator's docs.
+gate-as-desmo-user() { sudo -u desmo -H bash /srv/desmo/main/local-vm runasdesmo "$@"; }
+gate-as-default-user() { sudo -u "$(_op_user)" -H bash /srv/desmo/main/deploy/gate.sh "$1"; }
 
 # A command that MUST refuse: expect a nonzero exit, quietly. NB: the if
 # (not `cmd && fail`) is load-bearing — a failing `&&` list as the last
@@ -294,8 +201,8 @@ gate() {
   # framework@example.com ("Framework Smoke"), then restart granian on the
   # overlaid code.
   echo; echo "=== Setup 2/3: migrate, create the smoke superuser ==="
-  gate-as-desmo-user .venv/bin/python manage.py migrate --noinput
-  gate-as-desmo-user .venv/bin/python manage.py createuser framework@example.com \
+  gate-as-desmo-user uv run --no-sync python manage.py migrate --noinput
+  gate-as-desmo-user uv run --no-sync python manage.py createuser framework@example.com \
     --first-name Framework --last-name Smoke --superuser
   systemctl restart desmo_granian.service
 
@@ -304,7 +211,7 @@ gate() {
   # authed assert rides on (it survives the deployscratch restart —
   # sessions are DB-backed).
   echo; echo "=== Setup 3/3: issue the one-time superuser login link ==="
-  link=$(gate-as-desmo-user .venv/bin/python manage.py makeloginlink \
+  link=$(gate-as-desmo-user uv run --no-sync python manage.py makeloginlink \
     framework@example.com --base-url "$gate_base" \
     | grep -oE "$gate_base/login-for-test/[^ ]+/" | sed -n '1p') || true
   [ -n "$link" ]
@@ -429,7 +336,11 @@ gate() {
   marker_backed_up="$(gate-as-desmo-user uv run manage.py backupmarker set)"
   /srv/desmo/main/run backupdb
   systemctl start desmo_pgbackrest.service
-  restore_set="$(sudo -u postgres pgbackrest --stanza=desmo info | grep -oE '[0-9]{8}-[0-9]{6}[FD]' | tail -n1)"
+  # The newest set's label — diff labels are COMPOUND (fullF_diffD): the
+  # optional group keeps the whole label together; a bare [FD] fragment
+  # capture would fail restoredb's exact "backup: <set>" existence match.
+  restore_set="$(sudo -u postgres pgbackrest --stanza=desmo info \
+    | grep -oE '[0-9]{8}-[0-9]{6}F(_[0-9]{8}-[0-9]{6}D)?' | tail -n1)"
   gate-as-desmo-user uv run manage.py backupmarker set
 
   # Postcondition 1: both backup paths ran green and the repo lists

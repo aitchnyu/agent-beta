@@ -29,12 +29,12 @@ Login to the app — Google OAuth works on the VM (localhost is Google's dev
 redirect exception): register
   https://localhost:8000/accounts/google/login/callback/
 in the Google console, then:
-  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh \
-    runasdesmo .venv/bin/python manage.py addoauth google <client_id> <secret>
+  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/local-vm \
+    runasdesmo ./run djangomanage addoauth google <client_id> <secret>
 Or issue a one-time link (the user row must already exist, e.g. via a
 restored DB or Django shell):
-  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh \
-    runasdesmo .venv/bin/python manage.py makeloginlink <email>
+  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/local-vm \
+    runasdesmo ./run djangomanage makeloginlink <email>
 Promote to superuser:
-  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh \
-    runasdesmo .venv/bin/python manage.py promotetosuperuser <email>
+  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/local-vm \
+    runasdesmo ./run djangomanage promotetosuperuser <email>

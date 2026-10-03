@@ -8,17 +8,19 @@ User=desmo
 Group=desmo
 WorkingDirectory=/srv/desmo/main
 
-# Pure app server: Caddy terminates TLS and serves /static/* from
-# staticfiles/ (collectstatic). Workers/threads are baked at build time from
-# .env.vm (GRANIAN_*).
-ExecStart=/srv/desmo/main/.venv/bin/granian --interface asgi --no-ws \
+# Pure app server: caddy does TLS + /static/*; worker/threads baked at
+# build time. uv --no-sync just execs the venv's script; UV_NO_CACHE
+# because ProtectHome blocks uv's cache dir.
+Environment=UV_NO_CACHE=1
+ExecStart=/usr/local/bin/uv run --no-sync granian --interface asgi --no-ws \
   --host 127.0.0.1 --port 8000 \
   --workers @GRANIAN_WORKERS@ --blocking-threads @GRANIAN_THREADS@ \
   djangoproject.asgi:application
 
-# The single shared env file (root .env.vm staged by provisioning; secrets,
-# REDIS_URL, URL keys). Root-owned, desmo-group-readable — units read it, the
-# app itself holds all these values at runtime anyway.
+# The single shared env file (the tracked deploy/template.env staged by
+# provisioning + minted secrets; REDIS_URL, URL keys). Root-owned,
+# desmo-group-readable — units read it, the app itself holds all these
+# values at runtime anyway.
 EnvironmentFile=/etc/credentials/desmo/.env.vm
 
 Restart=always

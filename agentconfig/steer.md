@@ -180,8 +180,8 @@ cd ../scratch && ./run lintfix && ./run test ourapp.tests.test_chores \
 # GOOD — cd, then plain git
 cd ../scratch && git diff
 
-# GOOD — python -c on its own lines inside the quotes
-.venv/bin/python -c '
+# GOOD — python -c on its own lines inside the quotes (./run, never .venv/bin/python)
+./run python -c '
 from djangoapp.models import User
 print(User.objects.count())
 '
@@ -1125,7 +1125,7 @@ export NAME=VALUE                    # pair with && and an allowed command (see 
 ```
 
 No multipass form is allowlisted — every multipass command is blocked. VM
-checks are the OPERATOR's (`./testvm`, `./run checkframework2`) — not
+checks are the OPERATOR's (`./local-vm`, `./run checkframework2`) — not
 agent commands, and checkframework2 destructively rebuilds the VM; never
 invoke either.
 
@@ -1204,7 +1204,7 @@ Don't bury shell payloads in nested one-liner quotes. Wrong (one opaque
 `ssh` blob — blocked, and a human can't read what's being proposed):
 
 ```bash
-ssh app1 'cd /srv/app1/main && .venv/bin/python manage.py shell -c "from djangoapp.models import User; [print(u.pk, u.username, u.email) for u in User.objects.all()]"'
+ssh app1 'cd /srv/app1/main && ./run djangomanage shell -c "from djangoapp.models import User; [print(u.pk, u.username, u.email) for u in User.objects.all()]"'
 ```
 
 Right (this still blocks — `ssh` isn't allowlisted — but the continuation
@@ -1214,7 +1214,7 @@ stay at column 0):
 ```bash
 ssh app1 '
   cd /srv/app1/main &&
-  .venv/bin/python manage.py shell -c "
+  ./run djangomanage shell -c "
 from djangoapp.models import User
 for u in User.objects.all():
     print(u.pk, u.username, u.email)

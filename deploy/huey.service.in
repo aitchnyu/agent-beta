@@ -8,11 +8,14 @@ User=desmo
 Group=desmo
 WorkingDirectory=/srv/desmo/main
 
-# Worker count baked at build time from .env.vm (HUEY_WORKERS; provisioning
-# refuses anything below 1 — huey is never deployed without workers).
-ExecStart=/srv/desmo/main/.venv/bin/python manage.py run_huey -w @HUEY_WORKERS@
+# Worker count baked at build time from deploy/template.env (HUEY_WORKERS).
+# uv --no-sync execs the venv python; UV_NO_CACHE — ProtectHome blocks the
+# cache dir.
+Environment=UV_NO_CACHE=1
+ExecStart=/usr/local/bin/uv run --no-sync python manage.py run_huey -w @HUEY_WORKERS@
 
-# The single shared env file (root .env.vm staged by provisioning).
+# The single shared env file (the tracked deploy/template.env staged by
+# provisioning).
 EnvironmentFile=/etc/credentials/desmo/.env.vm
 
 Restart=always

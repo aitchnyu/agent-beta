@@ -330,8 +330,8 @@ checkframework1() {
 }
 
 # The deployment gate (destructive — the old VM's git + database are gone):
-# - rebuild the test VM from scratch (`./testvm delete` + `provision`)
-# - run the in-VM gate — deploy/vm.sh's `gate`, dispatched like every other
+# - rebuild the test VM from scratch (`./local-vm delete` + `provision`)
+# - run the in-VM gate — deploy/gate.sh's `gate`, dispatched like every other
 #   guest-side helper — over ONE multipass exec; its exit code is the verdict.
 #   The gate:
 #   - overlays the Books test app (djangoapp/tests/testapp) over the VM's
@@ -346,11 +346,11 @@ checkframework2() {
   setenv
   echo "=== Rebuild the VM from scratch (destructive) ==="
   if multipass info desmo >/dev/null 2>&1; then
-    "$_MAIN_DIR/testvm" delete
+    "$_MAIN_DIR/local-vm" delete
   fi
-  "$_MAIN_DIR/testvm" provision
+  "$_MAIN_DIR/local-vm" provision
   echo "=== Run the in-VM gate (testapp overlay + 11 asserts) ==="
-  multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh gate
+  multipass exec desmo -- sudo bash /srv/desmo/main/deploy/gate.sh gate
 }
 
 # The scratch/ fast loop: validate the agent's ourapp/ edits without re-running the
@@ -557,9 +557,9 @@ deployscratch() {
   # DB-touching step; diff keeps it near-free; output lands in the
   # unit's journal.
   sudo systemctl start desmo_pgbackrest.service
-  ( cd "$_MAIN_DIR" && .venv/bin/python manage.py migrate --noinput )
+  ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py migrate --noinput )
   echo "collectstatic + restarting services…"
-  ( cd "$_MAIN_DIR" && .venv/bin/python manage.py collectstatic --noinput --clear )
+  ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py collectstatic --noinput --clear )
   # Huey's unit always exists on provisioned VMs (HUEY_WORKERS ≥ 1 is
   # enforced at provisioning).
   sudo systemctl daemon-reload
@@ -568,7 +568,7 @@ deployscratch() {
   # entry) — never a hardcoded one.
   _SHARE_BASE="https://${ALLOWED_HOSTS%%,*}"
   echo "App is available under hostnames:"
-  ( cd "$_MAIN_DIR" && .venv/bin/python manage.py hostnames )
+  ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py hostnames )
   echo "Deployed scratch/ → main/ (uncommitted, services live). Commit in main/ when ready."
   echo "Share design artifacts as absolute URLs at the BOTTOM of your message (with the summary):"
   echo "  docs:  ${_SHARE_BASE}/files/main/ourapp/docs/<feature>.md"

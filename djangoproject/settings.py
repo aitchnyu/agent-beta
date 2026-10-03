@@ -320,7 +320,7 @@ LOGGING = {
 }
 
 # Web Push VAPID identity: the base64url P-256 scalar — as necessary as
-# DB_PASSWORD. provision_app (VM) and ./run init (dev) both mint it with
+# DB_PASSWORD. inside-vm.sh provision (VM) and ./run init (dev) both mint it with
 # deploy/gen-vapid-b64.sh and refuse to proceed when the mint fails; the
 # subject and public half derive at call time (djangoapp.models.notifications).
 VAPID_PRIVATE_KEY = os.environ["VAPID_PRIVATE_KEY"]

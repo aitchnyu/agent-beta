@@ -14,8 +14,7 @@
       ".env": "ask",
       "*.env": "ask",
       "*.env.*": "ask",
-      "*.env.example": "allow",
-      "*.env.vm.example": "allow"
+      "*.env.example": "allow"
     },
     "write": {
       "*": "ask",

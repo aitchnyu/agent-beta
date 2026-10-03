@@ -3,8 +3,8 @@
 # the base64url P-256 scalar settings/pywebpush consume (the public half is
 # derived at call time — djangoapp.models.notifications.vapid_public_key).
 # Called by BOTH provisioners: `run init` (repo copy) and inside-vm.sh
-# provision_app (tree copy at /usr/local/lib/desmo/). Fails loudly —
-# callers must refuse to proceed.
+# provision (seeded repo copy). Fails loudly — callers must refuse to
+# proceed.
 set -euo pipefail
 
 pem="$(mktemp)"

@@ -1,5 +1,6 @@
 .venv
-# Filled env files (from .env.example / .env.vm.example); never commit secrets.
+# Filled env files (from .env.example); never commit secrets.
+# (.env.vm is legacy — VM config is the tracked deploy/template.env.)
 .env
 .env.vm
 *.pyc

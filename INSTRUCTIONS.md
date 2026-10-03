@@ -1,18 +1,28 @@
 Use README.md as basic reference.
 
 ## Environment files
-All env config lives in root `.env` (dev) and `.env.vm` (test VM), copied
-from the matched `.env.example` / `.env.vm.example` templates. If you find a
-LEGACY `deploy/env.vm` or `.env_vm` file, RENAME it to root `.env.vm` before
-provisioning. The machine secrets are never hand-filled: on the VM,
+Dev env config lives in root `.env` (gitignored), copied from `.env.example`.
+The test VM has NO operator env file: its whole config is the tracked static
+`deploy/template.env`, which `inside-vm.sh provision` validates, installs
+to `/etc/credentials/desmo/.env.vm`, and extends with the three minted
+machine secrets. The machine secrets are never hand-filled: on the VM,
 `SECRET_KEY` / `DB_PASSWORD` / `VAPID_PRIVATE_KEY` are all generated at
 provision time (openssl-only — deploy/gen-vapid-b64.sh, run by
-inside-vm.sh provision_app, which refuses if generated secrets are already
+inside-vm.sh provision, which refuses if generated secrets are already
 installed — build-only); in dev, `./run init` generates `SECRET_KEY` and
 `VAPID_PRIVATE_KEY`, and `DB_PASSWORD` is the local postgres password. The
 agent's
 provider auth + startup model live in pi's own stores (`/login`, `/model +
 Ctrl+S`), not the env files.
+
+## MAINTAIN-CONSISTENCY markers
+
+Some files must be edited together — a key added to one must land in its
+twin, a list in one must match another's. Every such file carries a
+`MAINTAIN-CONSISTENCY <group>` comment near its end (JSON files carry it as
+a fake key). Before finishing a change that touches a marked file, grep the
+repo for its group marker (`rg 'MAINTAIN-CONSISTENCY <group>'`) and make
+every twin edit in the same change.
 
 Do not run commands like:
 ```bash
@@ -29,14 +39,19 @@ Try not to generate multiline bash commands. My agent thinks each line is a comm
 Do not run `rm` or `ls` in bash. Use the tool calls.
 Do not use curl to read urls. Use browser tool call.
 
-## Multipass helpers in `deploy/vm.sh`
-Any multipass command longer than two lines — and every guest-side script,
-period — lives as a NAMED FUNCTION in `deploy/vm.sh` (the guest-side helper
-library with a dispatcher at the bottom). `vm.sh` ships with the repo (the
-seed lands it at `/srv/desmo/main/deploy/vm.sh`; `./testvm provision` also
-drops an early copy at `/tmp/vm.sh` for steps that run before the seed
-exists) and runs as whatever user invokes it — root, desmo, or the default
-cloud user.
+## Guest-side scripts
+Any multipass command longer than two lines lives as a NAMED FUNCTION in a
+guest-side script with a dispatcher at the bottom — call sites stay
+one-liners, no `bash -c` string blobs, no `declare -f` embedding. Where a
+function lives depends on its role:
+- `local-vm` (repo root) — the local test VM's interface: the HOST driver
+  (`./local-vm provision|delete`) and the guest-side admin surface
+  (`runasdesmo`; the seed lands the file at `/srv/desmo/main/local-vm`).
+- `deploy/gate.sh` — the testing battery only (checkframework2's in-VM
+  gate; dispatched as `… deploy/gate.sh gate`).
+- `deploy/inside-vm.sh` and `deploy/install-playwright.sh` — whole-script
+  exceptions: the provisioner `./local-vm provision` execs once, and the
+  encapsulated playwright install it dispatches to.
 
 **Wrong** — inline `bash -c` string blob (nested `python -c` grows a `\"`
 per level, no editor support):
@@ -60,12 +75,13 @@ multipass exec desmo -- sudo bash -c "$(declare -f deploy_ourapp); deploy_ourapp
 **Wrong** — re-typing the env/cwd/PATH dance for every app command:
 ```bash
 multipass exec desmo -- sudo -u desmo -H bash -c \
-  'set -a; . /etc/credentials/desmo/.env.vm; set +a; cd /srv/desmo/main; .venv/bin/python manage.py makeloginlink <email>'
+  'set -a; . /etc/credentials/desmo/.env.vm; set +a; cd /srv/desmo/main; ./run djangomanage makeloginlink <email>'
 ```
 
-**Right** — the body lives in `deploy/vm.sh`; call sites are one-liners:
+**Right** — the body lives in the matched guest-side script; call sites are
+one-liners:
 ```bash
-# deploy/vm.sh gains the function (ordinary shell, lintable, reusable):
+# deploy/gate.sh gains the function (ordinary shell, lintable, reusable):
 deploy-ourapp() {
   tar xzf /tmp/testapp-ourapp.tgz -C /srv/desmo/main
   chown -R desmo:desmo /srv/desmo/main/ourapp
@@ -74,21 +90,22 @@ deploy-ourapp() {
 }
 
 # …and every call site becomes:
-multipass exec desmo -- sudo bash /srv/desmo/main/deploy/vm.sh deploy-ourapp
+multipass exec desmo -- sudo bash /srv/desmo/main/deploy/gate.sh deploy-ourapp
 ```
 
-**Right** — one command as the desmo user goes through the `runasdesmo`
-wrapper (env sourced, repo cwd, uv on PATH):
+**Right** — one command as the desmo user goes through `local-vm`'s
+`runasdesmo` wrapper (env sourced, repo cwd, uv on PATH):
 ```bash
-multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/deploy/vm.sh \
-  runasdesmo .venv/bin/python manage.py makeloginlink <email>
+multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/local-vm \
+  runasdesmo ./run djangomanage makeloginlink <email>
 ```
 
-**Right** — host-side logic (decisions, arch probing, output parsing)
-stays host-side in `run`/`testvm`; only the guest body moves:
+**Right** — a whole guest-side job (decisions included) lives in one
+script; the host call site is a one-liner with zero host-side probing:
 ```bash
-pw_arch="$(multipass exec desmo -- dpkg --print-architecture)"   # host decides
-multipass exec desmo -- sudo bash /tmp/vm.sh playwright-override-env "ubuntu24.04-$pw_arch"
+# deploy/install-playwright.sh owns the platform table (refuses unknown
+# OSes), the override keys, browsers, system deps, and a launch check:
+multipass exec desmo -- sudo bash /srv/desmo/main/deploy/install-playwright.sh
 ```
 
 **Wrong** — unreadable: three operators deep (`-n`, `||`, a grouped
@@ -98,8 +115,8 @@ multipass exec desmo -- sudo bash /tmp/vm.sh playwright-override-env "ubuntu24.0
 ```
 
 **Right** — the positive multi-line guard reads top-to-bottom: empty →
-refuse → stop. Applies to every hard-fail check in `run`/`testvm`/
-`deploy/*.sh`:
+refuse → stop. Applies to every hard-fail check in `run`/
+`local-vm`/`deploy/*.sh`:
 ```bash
 if [ -z "$release_deb" ]; then
   echo "REFUSING: no pg-hardstorage .deb in the latest release" >&2
@@ -144,7 +161,7 @@ done
 
 Two lines or fewer may stay inline at the call site. Functions run under
 `set -euo pipefail` — the function's exit code is the multipass call's
-exit code, which call sites gate on (`if ! multipass exec … playwright-install; then …`).
+exit code, which call sites gate on (`if ! multipass exec desmo -- … agent-browsers; then …`).
 
 ## aihere
 If I mention `aihere`, grep for `aihere` in whole codebase except `.idea`, copy all of them into some todo list. They may not be comments — a marker can sit on any line of any file (code, strings, docs); treat the line it's on (plus its surroundings) as the instruction. The comments are instructions to modify the codebase. If you have lines with aihere in context and I mention aihere again, look at the new instances. Never remove the comments before addressing them. If you are not implementing them, write them down in existing md file.
@@ -160,7 +177,7 @@ Before you mark something as complete in your todo, ensure the checklist items a
 
 When I ask you act, add checklist items into your todo before implementing.
 
-Do dont add `aihere` to headings or citations. 
+Don't add `aihere` to headings or citations. 
 You have created examples like `#### Phase 22: Code Refactoring (aihere items)` and `- [x] Add `_modelname()` method to  [aihere-modelname-method] [djangoapp/models.py:197-213]`
 In both places `aihere` is just adding noise.
 
