@@ -23,6 +23,7 @@ from django.test import tag
 from djangoapp.models import User
 from djangoapp.tests._base import BaseInertiaTestCase
 from djangoapp.tests._git_fixtures import GitRepoMixin
+from djangoapp.views import git_data
 
 
 class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _base.BaseInertiaTestCase
@@ -50,6 +51,9 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     test_commit_files_root — root commit shows all files as added
     test_commit_files_deleted — deleted file shows status=deleted
     test_commit_files_unknown — unknown commit → 404
+    test_commit_files_non_hex — non-hex commit id → 404 (guard runs before git)
+    test_diff_commit_non_hex_is_none — diff_commit's own non-hex guard → None
+    test_diff_commit_unknown_sha_is_none — diff_commit's own unknown-sha lookup → None
     test_commit_file_diff — file diff in a commit shows the change
     test_commit_file_diff_root — a root commit's diff goes against the empty tree (all adds)
     test_commit_file_diff_deleted — diff of a deleted file shows the deletion
@@ -307,3 +311,18 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
             props = self.props()["props"]
             self.assertEqual(props["commits"], [])
             self.assertEqual(props["pagination"]["total_count"], 0)
+
+    def test_commit_files_non_hex(self) -> None:
+        """A non-hex commit id → 404 (validated in git_data before any git call)."""
+        self.assertEqual(
+            self.client.get("/git/commits/not-a-sha").status_code,
+            HTTPStatus.NOT_FOUND,
+        )
+
+    def test_diff_commit_non_hex_is_none(self) -> None:
+        """diff_commit's own non-hex guard returns None (defensive second check)."""
+        self.assertIsNone(git_data.diff_commit("not-a-sha", "TodoApp/app.py"))
+
+    def test_diff_commit_unknown_sha_is_none(self) -> None:
+        """diff_commit's own unknown-sha lookup returns None (repo.commit raises)."""
+        self.assertIsNone(git_data.diff_commit("deadbeef", "TodoApp/app.py"))

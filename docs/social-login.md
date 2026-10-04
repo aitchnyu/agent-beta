@@ -11,7 +11,7 @@ any enabled provider, and the allauth templates never name a provider.
 1. **`djangoproject/settings.py` — `INSTALLED_APPS`**, the provider app:
 
    ```python
-   "allauth.socialaccount.providers.google",
+   ("allauth.socialaccount.providers.google",)
    ```
 
 2. **`djangoproject/settings.py` — the `form-action` entry in `_CSP_COMMON`**,
@@ -95,6 +95,8 @@ def is_open_for_signup(self, request, sociallogin):
     # bail (e.g. duplicate email), leaving the invite valid for a retry
     sociallogin.state["invite_id"] = invite.id
     return True
+
+
 # then mark used_at in SocialAccountAdapter.save_user() once the User row exists
 ```
 
@@ -103,6 +105,7 @@ def is_open_for_signup(self, request, sociallogin):
 ```python
 DENY_EMAILS = {"spam@example.com"}
 DENY_DOMAINS = {"@mailinator.com"}
+
 
 def is_open_for_signup(self, request, sociallogin):
     email = (sociallogin.user.email or "").lower()

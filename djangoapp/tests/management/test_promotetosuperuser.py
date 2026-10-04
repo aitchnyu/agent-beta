@@ -18,6 +18,7 @@ class PromoteToSuperuserCommandTests(BaseTestCase):
     - test_promotion_records_history, promotion writes an edited UserHistory row
     - test_email_match_is_case_insensitive, different-case email still matches
     - test_unknown_email_raises, no match -> CommandError
+    - test_duplicate_email_raises, ambiguous match -> CommandError (email is not unique)
     - test_already_superuser_is_noop, already-superuser reports nothing-to-do
     """
 
@@ -52,6 +53,13 @@ class PromoteToSuperuserCommandTests(BaseTestCase):
         """No match -> CommandError."""
         with self.assertRaises(CommandError):
             call_command("promotetosuperuser", "nobody@example.com", stdout=StringIO())
+
+    def test_duplicate_email_raises(self) -> None:
+        """Two users sharing the email -> CommandError (refuse rather than guess)."""
+        User.objects.create_user(username="alice", password="x", email="shared@example.com")
+        User.objects.create_user(username="bob", password="x", email="shared@example.com")
+        with self.assertRaises(CommandError):
+            call_command("promotetosuperuser", "shared@example.com", stdout=StringIO())
 
     def test_already_superuser_is_noop(self) -> None:
         """Already-superuser reports nothing-to-do without error or history."""

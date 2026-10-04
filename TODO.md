@@ -1,9 +1,20 @@
-Instant name
-
 Run all tests in checkproject and merge coverage from both stages. Improve test coverage
+99.5% coverage after finding major violators
+
+_SCRATCH_EXCLUDES and other excludes?
+50 errors per hour
+
+Command to create just a blank vm
+curl|bash command that runs the script and installs everything, can choose branch/release
+Second section of readme:
+  install on vm
+  create a blank vm, run command
+  provision a full vm
+  run test suites
 
 Branding
-Permission for .env files?
+
+Provision in vm with domain with curl|bash and have branch/release. What all should user provide?
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 Features - file section with git etc
@@ -25,7 +36,6 @@ apply --3way merges with `./run importtemplate <github-url> <tag>`
 import from git repo tags?
 
 ## Deployment
-Provision in vm with domain with curl|bash and have branch/release. What all should user provide?
 Readme for end users and devs. VM, pi /login and /model selection, Desec dns
 
 ## Future
@@ -37,3 +47,4 @@ Whitelist services for outbound connections
 Redis and db memory usage?
 Group and mute notification groups
 Readonly mode for app?
+Mutation tests?

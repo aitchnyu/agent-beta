@@ -17,8 +17,8 @@ if TYPE_CHECKING:
 class ManageProjectTests(BaseInertiaTestCase):
     """Real models-management coverage against the test app's models.
 
-    Runs only under ``checkproject`` (sets ``RUN_PROJECT_TESTS`` and overlays the
-    test app onto ``ourapp/``); self-skips in ``checkframework1`` (the var is unset and
+    Runs only in checkframework1's project stage (sets ``RUN_PROJECT_TESTS`` and
+    overlays the test app onto ``ourapp/``); self-skips elsewhere (the var is unset and
     ``ourapp/`` is empty). Models are fetched via ``apps.get_model`` so the module
     imports safely when collected in checkframework1 (no top-level ``ourapp`` import).
 

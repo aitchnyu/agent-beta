@@ -343,8 +343,8 @@ def handle_console(msg: ConsoleMessage) -> None:
         }
     )
 
-page.on("console", handle_console)
 
+page.on("console", handle_console)
 ```
 
 ### Finally

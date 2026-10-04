@@ -21,8 +21,13 @@ djangoapp/static/*
 .mypy_cache/
 .ruff_cache/
 
-# coverage tool generates this
+# coverage tool generates this (.coverage.* = --parallel-mode fragments,
+# .coverage-stage/ = fragments staged from the gate's scratch cycles,
+# htmlcov/ = the merged html report from checkframework1)
 .coverage
+.coverage.*
+.coverage-stage/
+htmlcov/
 
 # TypeScript incremental compilation cache
 *.tsbuildinfo

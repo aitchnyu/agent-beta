@@ -8,7 +8,7 @@ URL-safe ``public_id``, audit fields, ``get_absolute_url()``, and the
 model defined here appears in the superuser models-management UI at
 ``/manage/models``.
 
-Overlaid onto ``scratch/ourapp/`` by ``checkproject``; not installed in ``main/``.
+Overlaid onto ``scratch/ourapp/`` by checkframework1's project stage; not installed in ``main/``.
 """
 
 from ourapp.models.books import Author, Book

@@ -6,7 +6,7 @@ from io import StringIO
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.test import Client, tag
+from django.test import Client, override_settings, tag
 from django.utils import timezone
 
 from djangoapp.models import LoginKey, User
@@ -89,6 +89,7 @@ class MakeLoginLinkCommandTests(BaseTestCase):
     - test_duplicate_email_errors, ambiguous email raises CommandError
     - test_case_variant_email_matches, lookup is iexact
     - test_minutes_must_be_positive, 0/negative --minutes refuses
+    - test_default_base_url_honors_debug, no --base-url under DEBUG derives the runserver origin
     """
 
     def setUp(self) -> None:
@@ -152,3 +153,10 @@ class MakeLoginLinkCommandTests(BaseTestCase):
         for bad in (0, -5):
             with self.assertRaises(CommandError):
                 call_command("makeloginlink", self.user.email, minutes=bad, stdout=StringIO())
+
+    def test_default_base_url_honors_debug(self) -> None:
+        """No --base-url under DEBUG derives the runserver origin, not ALLOWED_HOSTS."""
+        out = StringIO()
+        with override_settings(DEBUG=True):
+            call_command("makeloginlink", self.user.email, stdout=out)
+        self.assertIn("http://127.0.0.1:8000/login-for-test/", out.getvalue())

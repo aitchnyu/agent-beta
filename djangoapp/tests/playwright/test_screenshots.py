@@ -235,7 +235,7 @@ class CodeScreenshotTests(GitRepoMixin, BaseScreenshotTestCase):
     main with 3 commits + uncommitted changes, a scratch sibling) exactly like
     the git e2e suite; ``/files`` browses the REAL repo tree (its root is the
     project parent, so ``main/…`` paths resolve both in main/ and in
-    checkproject's scratch copy).
+    the gate's scratch copy).
 
     - test_git_uncommitted, /git/uncommitted/ both worktrees' folder trees
     - test_git_commits, /git/commits the fixture's 3-commit list
@@ -297,7 +297,7 @@ class CodeScreenshotTests(GitRepoMixin, BaseScreenshotTestCase):
 class ModelScreenshotTests(BaseScreenshotTestCase):
     """Models-management shots (docs/screenshots/{models,model-rows,row-detail}.png).
 
-    Only meaningful under the testapp overlay (``checkproject`` sets
+    Only meaningful under the testapp overlay (the gate's project stage sets
     ``RUN_PROJECT_TESTS`` and replaces ``ourapp/`` with the test app's
     ``Author``/``Book`` models — plain ``main/`` has no models to show, so
     the class self-skips there). Rows are written via ``save_plus`` so
@@ -386,7 +386,7 @@ class MockupScreenshotTests(BaseScreenshotTestCase):
     """The mockup demo shots (docs/screenshots/{mockup-todos,todos-final}.png).
 
     Inverse gate of the models shots: /mockup-todos lives in main's ourapp/,
-    which the checkproject overlay deletes (rsync --delete), so the shots run
+    which the testapp overlay deletes (rsync --delete), so the shots run
     only in a plain-main pass.
 
     - test_mockup_todos, /mockup-todos static todo list under the crosshatch

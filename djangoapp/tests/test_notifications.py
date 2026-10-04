@@ -301,3 +301,46 @@ class PushSubscriptionModelTests(BaseTestCase):
         user.delete()
         self.assertFalse(PushSubscription.objects.exists())
         self.assertFalse(Notification.objects.exists())
+
+
+class DispatchEdgeTests(BaseTestCase):
+    """``notify_sessions`` edge paths.
+
+    - test_no_subscriptions_returns_zero, subject configured + no subscriptions → 0, no webpush
+    - test_fanout_crash_is_contained, a crash while iterating never propagates
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        # vapid_subject's lru_cache outlives test data — start cold so the
+        # dispatch-gated paths below see THIS class's superuser fixture.
+        vapid_subject.cache_clear()
+        User.objects.create_user(
+            username="root", password="pw", email="root@example.com", is_superuser=True
+        )
+        self.user = User.objects.create_user(username="alice", password="pw")
+
+    @PUSH_CONFIGURED
+    def test_no_subscriptions_returns_zero(self) -> None:
+        """Subject configured + a user with no subscriptions → 0, nothing sent."""
+        # Pin the branch: this is the zero-subscription exit, not the
+        # no-VAPID-subject one (both return 0).
+        self.assertEqual(vapid_subject(), "mailto:root@example.com")
+        with patch("djangoapp.models.notifications.webpush") as webpush_mock:
+            count = notify_sessions(self.user, {"public_id": "x", "kind": "k", "body": "b"})
+        self.assertEqual(count, 0)
+        webpush_mock.assert_not_called()
+
+    @PUSH_CONFIGURED
+    def test_fanout_crash_is_contained(self) -> None:
+        """A crash while iterating subscriptions is logged, never raised."""
+        # The reverse descriptor forbids instance-level patching, so swap the
+        # related manager's queryset source: Manager.all() returns
+        # get_queryset() itself, so that mock is the "queryset" — its count
+        # reports one subscription and its iterator blows up mid-fan-out.
+        manager_class = type(self.user.push_subscriptions)
+        with patch.object(manager_class, "get_queryset") as gq:
+            gq.return_value.count.return_value = 1
+            gq.return_value.iterator.side_effect = RuntimeError("db down")
+            count = notify_sessions(self.user, {"kind": "k", "body": "b"})
+        self.assertEqual(count, 1)  # reported as attempted; the crash was contained

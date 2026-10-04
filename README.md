@@ -493,7 +493,7 @@ fan-out as its own task — push-service HTTP never runs inline in a request.
 App/dev via the `run` script: `init`, `runserver`, `dev`,
 `pi`, `test`,
 `typecheck`, `lintfix`, `playwrighttest`, `screenshots`, `checkframework1`,
-`checkframework2`, `checkproject`, `createscratch`, `deployscratch`, `cleanscratch`,
+`checkframework2`, `createscratch`, `deployscratch`, `cleanscratch`,
 `hueydev` (background consumer alone), `coverage`,
 plus `djangomanage`/`python` passthroughs (e.g.
 `./run djangomanage makemigrations`, `./run python manage.py …`).
@@ -594,15 +594,21 @@ in `docs/errors/` — is in [docs/logging.md](docs/logging.md).
 
 ## Testing
 
-Four tiers:
+Three tiers:
 
-- **`deployscratch`** — the ONE command, run from `main/` once per edit batch: ruff +
-  mypy (whole codebase), `ourapp`'s own tests only, and the frontend
-  lint/type-check/build. Skips the framework suite and Playwright (those run in
-  `main/`) — unless the edit touches framework files (outside `ourapp/` +
-  `frontend/src/ours/`), which adds the tagged `scratch-test-subset` smoke tests.
+- **`deployscratch`** — the ONE command, run from `main/` once per edit batch:
+  - ruff + mypy over the whole codebase, `ourapp`'s own tests only, and the
+    frontend lint/type-check/build
+  - skips the framework suite and Playwright (those run in `main/`) — unless
+    the edit touches framework files (outside `ourapp/` + `frontend/src/ours/`),
+    which adds the tagged `scratch-test-subset` smoke tests
 - **`checkframework1`** — the full gate, run in `main/`. ruff + mypy + the whole backend
-  suite + frontend lint/type-check + Playwright.
+  suite + frontend lint/type-check + Playwright, then two scratch-overlay cycles —
+  the **project tier** (test app + `RUN_PROJECT_TESTS=1`: real models/git/files, under
+  coverage) and the **reference tier** (`docs/reference/` + its own tests, validated for
+  its own sake — not measured). Stages 1-3 run under coverage and merge into one
+  `report -m` + `htmlcov/` — the testapp scratch's `djangoapp/` folds onto main's via
+  `[tool.coverage.paths]`; the overlay `ourapp/` is exercised but never measured.
 - **`checkframework2`** — the deployment gate (destructive: the previous VM is
   deleted). The host rebuilds the test VM from scratch
   (`./local-vm provision`), then runs
@@ -616,11 +622,6 @@ Four tiers:
     `createscratch` (with both refusal guards) → marker edit →
     `deployscratch` provably live (marker served after the granian restart) →
     `cleanscratch`
-- **`checkproject`** — overlay validation against a real app. Two `createscratch`
-  cycles:
-  1. Overlays the **test app** (`djangoapp/tests/testapp/`) → runs the full suite
-     with `RUN_PROJECT_TESTS=1` (project tests un-skipped: real models/git/files).
-  2. Overlays the **reference app** (`docs/reference/`) → runs its own tests.
 
 The **test app** (`djangoapp/tests/testapp/`) is a fixture: a complete `ourapp/`
 with models exercising every field kind + both FK types, plus an `ours/` page. The
@@ -629,7 +630,7 @@ shipping its own tests. Both are excluded from ruff/mypy (they're only valid whe
 overlaid onto `ourapp/`).
 
 The README's committed screenshots ([docs/screenshots/](docs/screenshots/)) come
-from a fifth, `screenshots`-tagged Playwright pass that self-gates on the
+from a fourth, `screenshots`-tagged Playwright pass that self-gates on the
 `GENERATE_SCREENSHOTS` env var: `./run test` never collects it (it carries the
 `playwright` tag), `./run playwrighttest` collects it as skips, and `./run
 screenshots` (which sets the var) runs it. The models-management shots need the

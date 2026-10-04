@@ -940,6 +940,7 @@ auto-discovers each installed app's `tasks` module. Redis is a **hard dependency
     ```python
     from huey.contrib.djhuey import db_task
 
+
     @db_task()
     def my_one_off() -> None: ...  # one-line call to a model classmethod — logic lives on the model
     ```
@@ -949,6 +950,7 @@ auto-discovers each installed app's `tasks` module. Redis is a **hard dependency
     ```python
     from huey import crontab
     from huey.contrib.djhuey import db_periodic_task
+
 
     @db_periodic_task(crontab(hour=0, minute=0))
     def choose_fact_of_the_day() -> None:
@@ -1112,7 +1114,7 @@ export form for readability:
 ```bash
 # PREFER — export, then the bare command: both chain sections are clean
 export COPYFILE_DISABLE=1 && ./run test accounts
-export RUN_PROJECT_TESTS=1 && ./run checkproject
+export GENERATE_SCREENSHOTS=1 && ./run screenshots
 ```
 
 The allowlisted commands (defined in the `bash` map of
@@ -1122,7 +1124,7 @@ The allowlisted commands (defined in the `bash` map of
 ./run createscratch                  # fresh ../scratch/ from main/
 ./run deployscratch                  # check battery + deploy ../scratch/ → main/ (live; no commit)
 ./run cleanscratch                   # remove the scratch tree — PREFER over rm -rf
-./run checkproject                   # full validation incl. project tests; before promoting a framework change
+./run checkframework1               # full gate: lint + 4 test stages + merged coverage; before promoting a framework change
 ./run typecheck                      # …and ./run lintfix
 ./run test …                         # any args
 ./run playwrighttest …
@@ -1160,9 +1162,9 @@ in chat immediately via [Stage messages](#stage-messages). The REAL
 feature's deploys (stage 4) stay gated conversationally: only after the
 T3 "approved" choice.
 
-`./run checkframework1` (the **full gate**: framework backend suite + Playwright) is
-deliberately NOT in that list — it's a human-run, `main/`-only check; the agent
-uses `./run deployscratch` from `main/`.
+`./run checkframework1` (the **full gate**: lint + types + the four test tiers
+under one merged coverage report) is deliberately NOT in that list — it's a
+human-run, `main/`-only check; the agent uses `./run deployscratch` from `main/`.
 
 ### Debugging build / serve issues
 When a page 404s client-side ("Inertia page not found: … — rebuild the

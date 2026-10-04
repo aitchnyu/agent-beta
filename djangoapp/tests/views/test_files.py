@@ -40,6 +40,8 @@ class FilesViewTests(BaseInertiaTestCase):
     - test_raw_serves_image_inline_with_content_type, /files/raw → inline, image Content-Type
     - test_raw_responses_sandboxed, every /files/raw response → Content-Security-Policy: sandbox
     - test_raw_non_image_404 / test_raw_traversal_404, raw is <img>-only (non-image/escape → 404)
+    - test_download_missing_file_404, confined-but-missing path → 404 (never 500)
+    - test_image_file_preview, an image preview returns kind=image (no text inlined)
     - test_hostile_paths_404, traversal matrix (encoded/mixed/backslash/NUL forms) —
       PathWrapper confinement is the server-side boundary for any client-generated URL
     - test_code_file_is_text_kind, .py classified as text (not markdown)
@@ -203,6 +205,26 @@ class FilesViewTests(BaseInertiaTestCase):
         self.assertEqual(
             self.client.get("/files/raw/../etc/passwd").status_code, HTTPStatus.NOT_FOUND
         )
+
+    def test_download_missing_file_404(self) -> None:
+        """A confined-but-missing path on /files/download → 404 (never a 500)."""
+        self.client.force_login(self.superuser)
+        self.assertEqual(
+            self.client.get("/files/download/main/ourapp/nope.txt").status_code,
+            HTTPStatus.NOT_FOUND,
+        )
+
+    def test_image_file_preview(self) -> None:
+        """An image file preview returns kind=image (bytes go via /files/raw)."""
+        self.client.force_login(self.superuser)
+        with (
+            tempfile.TemporaryDirectory() as d,
+            patch.object(files_view, "_REPO_ROOT", Path(d).resolve()),
+        ):
+            (Path(d) / "pic.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+            self.client.get("/files/pic.png")
+            self.assertComponentUsed("FileViewer")
+            self.assertEqual(self.props()["props"]["kind"], "image")
 
     def test_hostile_paths_404(self) -> None:
         """Whatever the client generates, the server confines it to the repo.

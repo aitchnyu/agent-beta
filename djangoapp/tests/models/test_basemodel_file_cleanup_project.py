@@ -19,8 +19,8 @@ from djangoapp.tests.views import skip_unless_env
 class BaseModelFileCleanupTests(BaseTestCase):
     """FileField cleanup riding ``BaseModel.save_plus``/``delete_plus``.
 
-    Runs only under ``checkproject`` (sets ``RUN_PROJECT_TESTS`` and overlays the
-    test app onto ``ourapp/``); self-skips in ``checkframework1``. The test
+    Runs only in checkframework1's project stage (sets ``RUN_PROJECT_TESTS`` and
+    overlays the test app onto ``ourapp/``); self-skips elsewhere. The test
     app's ``FileCleanupDoc`` carries two FileFields, so these tests pin the cleanup
     contract at the framework level, independent of any feature app:
 

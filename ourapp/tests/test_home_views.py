@@ -83,3 +83,31 @@ class HomeViewTests(BaseInertiaTestCase):
         self.assertEqual(page["public_id"], user.public_id)
         self.assertNotIn("id", page)
         self.assertNotIn("pk", page)
+
+
+class MockupTodosTests(BaseInertiaTestCase):
+    """The permanent mockup demo route: superuser-only, no data plumbing.
+
+    - test_superuser_sees_mockup, superuser GET /mockup-todos renders ours/MockupTodos, empty props
+    - test_anonymous_gets_404, anyone else never learns the page exists (404, not 403)
+    - test_non_superuser_gets_404, a logged-in regular user gets 404 too
+    """
+
+    def test_superuser_sees_mockup(self) -> None:
+        """Superuser sees the demo component with no props (nothing fetched)."""
+        root = User.objects.create_user(username="root", password="pw", is_superuser=True)
+        self.inertia.force_login(root)
+        self.inertia.get("/mockup-todos")
+        self.assertComponentUsed("ours/MockupTodos")
+        self.assertEqual(self.props()["props"], {})
+
+    def test_anonymous_gets_404(self) -> None:
+        """Anonymous never learns the page exists (404, not 403)."""
+        response = self.client.get("/mockup-todos")
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+
+    def test_non_superuser_gets_404(self) -> None:
+        """A logged-in regular user gets 404 too — the page stays superuser-only."""
+        user = User.objects.create_user(username="alice", password="pw")
+        self.client.force_login(user)
+        self.assertEqual(self.client.get("/mockup-todos").status_code, HTTPStatus.NOT_FOUND)

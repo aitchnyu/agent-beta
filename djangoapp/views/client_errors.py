@@ -34,11 +34,13 @@ logger = get_logger("client")
 # the local redis; redis-py connects lazily, so constructing at import is safe.
 _REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
 _redis_client: redis.Redis = redis.Redis.from_url(_REDIS_URL, decode_responses=True)
-# Max reports per identity per window. ``0`` disables the limit. Default 30/min.
-try:
-    _RATE_LIMIT = int(os.environ.get("CLIENT_ERROR_RATE_LIMIT", "30"))
-except ValueError:
-    _RATE_LIMIT = 30
+# Max reports per identity per window. Mandatory — no silent default: the
+# anonymous, CSRF-exempt sink's only abuse bound must be present, a valid
+# int, and above 0 (mirrors settings' SESSION_IDLE_DAYS contract).
+_RATE_LIMIT = int(os.environ["CLIENT_ERROR_RATE_LIMIT"])
+if _RATE_LIMIT <= 0:
+    msg = "CLIENT_ERROR_RATE_LIMIT must be an integer above 0"
+    raise ValueError(msg)
 _WINDOW_SECS = 60
 # Parse cap (pydantic) vs. log cap. The model accepts more than we keep, so the
 # view's truncation is meaningful: a client can send up to _MAX_STACK_INPUT, but
@@ -98,8 +100,6 @@ def _rate_limited(key: str) -> bool:
     Raises ``RedisError`` if redis is unreachable — the caller lets it propagate
     to the global exception handler (fail closed: 500, report not accepted).
     """
-    if _RATE_LIMIT <= 0:
-        return False
     bucket = f"client-errors:{key}"
     pipe = _redis_client.pipeline()
     pipe.incr(bucket)

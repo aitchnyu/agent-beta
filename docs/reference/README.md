@@ -115,4 +115,4 @@ deploy; commit is a separate step). See `agentconfig/steer.md` and
 its "Checklist — adding or changing a feature".
 
 These files are illustrative and excluded from ruff/mypy/eslint — they are not
-installed or run as-is (they are overlaid onto `ourapp/` by `checkproject`).
+installed or run as-is (they are overlaid onto `ourapp/` by `checkframework1`).

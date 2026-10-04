@@ -44,7 +44,7 @@
       "./run createscratch": "allow",
       "./run deployscratch": "allow",
       "./run cleanscratch": "allow",
-      "./run checkproject": "allow",
+      "./run checkframework1": "allow",
       "./run typecheck": "allow",
       "./run lintfix": "allow",
       "npm run build": "allow",

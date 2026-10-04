@@ -151,3 +151,19 @@ disallow_untyped_calls = false
 
 [tool.django-stubs]
 django_settings_module = "djangoproject.settings"
+
+# The screenshots suite self-skips in every measured run (GENERATE_SCREENSHOTS
+# is only set by `./run screenshots`).
+[tool.coverage.run]
+omit = ["djangoapp/tests/playwright/test_screenshots.py"]
+
+[tool.coverage.report]
+omit = ["djangoapp/tests/playwright/test_screenshots.py"]
+precision = 2
+
+# djangoapp: main/ + the gate's testapp scratch fold onto one prefix at
+# combine time. ourapp: main/ only — overlays are fixture code at the same
+# scratch paths, never measured.
+[tool.coverage.paths]
+djangoapp = ["djangoapp", "*/main/djangoapp", "*/scratch/djangoapp"]
+ourapp = ["ourapp", "*/main/ourapp"]

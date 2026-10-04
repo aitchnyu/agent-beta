@@ -10,9 +10,18 @@ branches and the negotiation guard.
 from __future__ import annotations
 
 from http import HTTPStatus
+from typing import TYPE_CHECKING
+
+from django.core.exceptions import PermissionDenied
+from ninja import NinjaAPI
+from ninja.testing import TestClient
 
 from djangoapp.models import User
-from djangoapp.tests._base import BaseInertiaTestCase
+from djangoapp.ninja_api import register_api_error_handlers
+from djangoapp.tests._base import BaseInertiaTestCase, BaseTestCase
+
+if TYPE_CHECKING:
+    from django.http import HttpRequest, HttpResponse
 
 _BROWSER_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
 
@@ -63,3 +72,29 @@ class NinjaErrorHtmlTests(BaseInertiaTestCase):
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
         self.assertEqual(response.headers["Content-Type"], "application/json; charset=utf-8")
         self.assertIn("detail", response.json())
+
+
+class NinjaPermissionDeniedTests(BaseTestCase):
+    """A PermissionDenied from any ninja API → the friendly fixed 403 JSON.
+
+    No app endpoint raises PermissionDenied today — this pins the handler's
+    contract (status kept, fixed leak-free body) on a scratch API, so a view
+    that starts raising it later gets the documented shape for free.
+
+    - test_permission_denied_gets_friendly_403, 403 + the fixed friendly detail
+    """
+
+    def test_permission_denied_gets_friendly_403(self) -> None:
+        """The handler answers 403 with the fixed permission-denied text."""
+        api = NinjaAPI(urls_namespace="perm-denied-tests", auth=None)
+        register_api_error_handlers(api)
+
+        @api.get("/boom", response=None)
+        def _raise_denied(request: HttpRequest) -> HttpResponse:  # noqa: ARG001
+            raise PermissionDenied
+
+        response = TestClient(api).get("/boom")
+        self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
+        # The literal text, not the private constant — a regression in the
+        # message itself must fail this test, not mirror it.
+        self.assertEqual(response.json(), {"detail": "You don't have permission to do that."})
