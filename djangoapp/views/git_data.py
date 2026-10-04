@@ -92,8 +92,8 @@ def worktree_root(name: str) -> Path:
         return root
     if name == "scratch":
         return root.parent / "scratch"
-    msg = f"unknown worktree: {name}"
-    raise ValueError(msg)
+    msg = f"unknown worktree: {name}"  # pragma: no cover -- callers validate first
+    raise ValueError(msg)  # pragma: no cover
 
 
 def worktree_exists(name: str) -> bool:
@@ -123,7 +123,7 @@ def _diff_path(diff: git.Diff) -> str:
     # A Diff always carries at least one side's path (added → b_path, deleted →
     # a_path). Explicit raise (not assert) so the guard survives `python -O`.
     path = diff.b_path or diff.a_path
-    if path is None:
+    if path is None:  # pragma: no cover -- unreachable by Git's own contract (comment above)
         msg = "git Diff has neither a_path nor b_path"
         raise RuntimeError(msg)
     return path

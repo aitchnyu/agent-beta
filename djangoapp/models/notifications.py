@@ -149,7 +149,7 @@ class Notification(models.Model):
         # across page loads.
         ordering: ClassVar[list[str]] = ["-created_at", "-pk"]
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover -- tail-log rendering only
         """One-line tail-log/traceback rendering."""
         return f"{self.kind} → {self.recipient} @ {self.created_at:%Y-%m-%d %H:%M}"
 
@@ -237,7 +237,7 @@ class PushSubscription(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover -- tail-log rendering only
         """One-line tail-log/traceback rendering (host only, never keys)."""
         host = self.endpoint.split("/")[2] if "://" in self.endpoint else self.endpoint
         return f"{self.user} @ {host}"

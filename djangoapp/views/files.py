@@ -205,7 +205,7 @@ class _RelPathConverter:
     def to_python(self, value: str) -> str:
         return value
 
-    def to_url(self, value: str) -> str:
+    def to_url(self, value: str) -> str:  # pragma: no cover -- only reverse() calls this
         return value
 
 

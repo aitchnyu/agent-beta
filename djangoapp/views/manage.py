@@ -266,7 +266,7 @@ def _cell_value(kind: FieldKind, instance: models.Model, field_name: str) -> obj
         return _fk_value(cast("BaseModel | None", getattr(instance, field_name)))
     # Exhaustiveness: if a new FieldKind member is ever added without a
     # branch above, mypy flags this line as reachable again.
-    assert_never(kind)
+    assert_never(kind)  # pragma: no cover -- unreachable by construction
 
 
 def _row_item(

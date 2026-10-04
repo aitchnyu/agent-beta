@@ -439,7 +439,7 @@ class UserSessionIndex(models.Model):
     class Meta:
         indexes: ClassVar[list[models.Index]] = [models.Index(fields=["user", "expire_date"])]
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover -- admin/debug rendering only
         """Shown in admin/debug output as ``user @ session_key``."""
         return f"{self.user} @ {self.session_id}"
 
@@ -546,7 +546,7 @@ class BaseModel(models.Model):
     class Meta:
         abstract = True
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover -- abstract default; overridden per model
         """Override per-model for a friendlier label."""
         return self.public_id
 

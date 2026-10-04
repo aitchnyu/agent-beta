@@ -12,7 +12,8 @@ def backfill_physical_name(apps: Any, schema_editor: Any) -> None:
     """
     ApplicationTable = apps.get_model("djangoapp", "ApplicationTable")
     stamp = int(time.time())
-    for table in ApplicationTable.objects.all():
+    # The backfill never finds rows in a test/fresh DB (pre-prod migration).
+    for table in ApplicationTable.objects.all():  # pragma: no cover
         table.physical_name = f"{table.name}{stamp}{table.pk}"
         table.save(update_fields=["physical_name"])
 

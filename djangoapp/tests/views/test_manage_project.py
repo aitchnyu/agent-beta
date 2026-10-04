@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import TYPE_CHECKING, Any, ClassVar, cast
 
 from django.apps import apps
@@ -23,10 +23,15 @@ class ManageProjectTests(BaseInertiaTestCase):
     imports safely when collected in checkframework1 (no top-level ``ourapp`` import).
 
     - test_model_list_lists_testapp_models, /manage/models lists Author +
-      Book + FileCleanupDoc
+      Book + FileCleanupDoc + Shelf
     - test_book_list, /manage/models/Book/list columns + both FK cell kinds
     - test_book_list_pagination_and_sort, per_page paging + id/last_updated_at sort
+    - test_per_page_invalid_422, a per_page outside {25,50,100} → 422
     - test_book_detail, /manage/models/Book/id/<pid> renders RowDetail
+    - test_book_detail_unknown_id_404, an unknown public_id → 404
+    - test_non_basemodel_model_detail_404, a plain (non-BaseModel) model has no detail page
+    - test_shelf_fk_and_scalar_column_kinds, plain-model FK unlinked; float/date as char
+    - test_book_detail_logs_after_save_plus, a save_plus edit feeds the lazy logs partial
     - test_author_list_renders, /manage/models/Author/list renders rows
     """
 
@@ -34,6 +39,7 @@ class ManageProjectTests(BaseInertiaTestCase):
     # so they can't be imported at module load — the class is skipped there).
     Author: ClassVar[type[Any]]
     Book: ClassVar[type[Any]]
+    Shelf: ClassVar[type[Any]]
 
     superuser: ClassVar[User]
     author: ClassVar[Any]
@@ -48,6 +54,7 @@ class ManageProjectTests(BaseInertiaTestCase):
         book_model: type[Any] = ourapp.get_model("Book")
         cls.Author = author_model
         cls.Book = book_model
+        cls.Shelf = ourapp.get_model("Shelf")
         cls.superuser = User.objects.create_user(username="admin", is_superuser=True, is_staff=True)
         cls.author = cls.Author.objects.create(
             name="Ada", bio="Mathematician", rating="4.50", active=True
@@ -99,10 +106,11 @@ class ManageProjectTests(BaseInertiaTestCase):
 
         # Every test-app model appears, each with its live row count.
         models = {m["name"]: m for m in self.props()["props"]["models"]}
-        self.assertEqual(set(models), {"Author", "Book", "FileCleanupDoc"})
+        self.assertEqual(set(models), {"Author", "Book", "FileCleanupDoc", "Shelf"})
         self.assertEqual(models["Author"]["row_count"], 1)
         self.assertEqual(models["Book"]["row_count"], 1)
         self.assertEqual(models["FileCleanupDoc"]["row_count"], 0)
+        self.assertEqual(models["Shelf"]["row_count"], 0)
 
         # The model list surfaces each class docstring (used as a caption).
         self.assertIn("author of books", models["Author"]["docstring"].lower())
@@ -183,6 +191,11 @@ class ManageProjectTests(BaseInertiaTestCase):
         newest_edited = self._rows_props("Book", "sort=-last_updated_at")["rows"][0]
         self.assertEqual(newest_edited["values"]["title"], "Bulk 00")
 
+    def test_per_page_invalid_422(self) -> None:
+        """A per_page outside {25, 50, 100} is rejected by the props validator (422)."""
+        response = self.client.get("/manage/models/Book/list?per_page=7")
+        self.assertEqual(response.status_code, 422)
+
     # --- detail view (Book) ------------------------------------------------
 
     def test_book_detail(self) -> None:
@@ -212,8 +225,11 @@ class ManageProjectTests(BaseInertiaTestCase):
                 "title",
                 "description",
                 "pages",
+                "weight",
+                "released",
                 "published",
                 "author",
+                "shelf",
                 "reviewer",
             ],
         )
@@ -242,6 +258,61 @@ class ManageProjectTests(BaseInertiaTestCase):
         # save_plus), so no BaseModelUpdateLog row exists for it.
         self.assertIn("logs", props)
         self.assertEqual(props["logs"], [])
+
+    def test_book_detail_logs_after_save_plus(self) -> None:
+        """A save_plus edit feeds the lazy logs partial with a serialised entry."""
+        self.book.title = "Edited Notes"
+        self.book.save_plus(actor=self.superuser, expected_row_version=self.book.row_version)
+
+        self.inertia.get(
+            f"/manage/models/Book/id/{self.book.public_id}",
+            HTTP_X_INERTIA_PARTIAL_DATA="logs",
+            HTTP_X_INERTIA_PARTIAL_COMPONENT="RowDetail",
+        )
+        logs = self.props()["logs"]
+        self.assertEqual(len(logs), 1)
+        # to_entry_item shape: pk-free, action + actor + the field diff.
+        self.assertEqual(logs[0]["action"], "updated")
+        self.assertEqual(logs[0]["old_values"].get("title"), "Notes")
+        self.assertEqual(logs[0]["new_values"].get("title"), "Edited Notes")
+
+    def test_book_detail_unknown_id_404(self) -> None:
+        """An unknown-but-well-formed public_id → 404, never a 500."""
+        response = self.client.get("/manage/models/Book/id/ffffffff-ffff-7fff-8fff-ffffffffffff")
+        self.assertEqual(response.status_code, 404)
+
+    def test_non_basemodel_model_detail_404(self) -> None:
+        """A plain (non-BaseModel) model has no detail page — 404 by design."""
+        response = self.client.get("/manage/models/Shelf/id/whatever")
+        self.assertEqual(response.status_code, 404)
+
+    def test_shelf_fk_and_scalar_column_kinds(self) -> None:
+        """Plain-model FK renders unlinked (None); float/date fall through to char."""
+        shelf = self.Shelf.objects.create(code="A1")
+        self.Book.objects.create(
+            title="On a shelf",
+            description="",
+            pages=1,
+            weight=0.75,
+            released=date(2026, 1, 1),
+            author=self.author,
+            shelf=shelf,
+            reviewer=self.superuser,
+        )
+        props = self._rows_props("Book")
+        row = next(r for r in props["rows"] if r["values"]["title"] == "On a shelf")
+
+        # Unmapped scalars (float, date) degrade to the char kind…
+        col_types = {c["name"]: c["type"] for c in props["columns"]}
+        self.assertEqual(col_types["weight"], "char")
+        self.assertEqual(col_types["released"], "char")
+        # …their values coerced to JSON-safe strings (date is not one natively).
+        self.assertEqual(row["values"]["weight"], 0.75)
+        self.assertEqual(row["values"]["released"], "2026-01-01")
+
+        # FK to a plain model: no management URL, renders as unset — and no
+        # str() is called on it, so no pk can leak.
+        self.assertIsNone(row["values"]["shelf"])
 
     # --- list view (Author) ------------------------------------------------
 

@@ -222,6 +222,16 @@ all fixed together with the second aihere sweep.
   gained the logged-in-non-superuser 404 test its docstring claimed;
   steer.md's gate parenthetical mentions all four tiers.
 
+## Coverage ratchet (2026-10-04)
+
+Fresh measurement on the current tree: **TOTAL 99.78%** (5497 stmts,
+12 missed: playwright-harness internals ×10, ``files.py:221`` +
+``views/notifications.py:246`` defensive branches — their pragmas were
+reverted out with other edits between runs, so they count as real misses).
+The gate now enforces it: ``coverage report -m --fail-under=99.78``
+exits nonzero below the floor → ``set -e`` fails the gate. Raise the
+number when coverage improves; never lower it.
+
 ## Checklist
 
 - [x] ``run``: two-stage coverage + merge in ``checkframework1``; help line

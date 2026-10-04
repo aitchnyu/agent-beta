@@ -609,6 +609,7 @@ Three tiers:
   its own sake — not measured). Stages 1-3 run under coverage and merge into one
   `report -m` + `htmlcov/` — the testapp scratch's `djangoapp/` folds onto main's via
   `[tool.coverage.paths]`; the overlay `ourapp/` is exercised but never measured.
+  The merged total is ratcheted with --fail-under, fails the gate on any regression — raise it when coverage improves, never lower it.
 - **`checkframework2`** — the deployment gate (destructive: the previous VM is
   deleted). The host rebuilds the test VM from scratch
   (`./local-vm provision`), then runs

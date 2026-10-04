@@ -1,4 +1,7 @@
+from types import SimpleNamespace
+
 from djangoapp.models import User, UserHistory, UserSnapshot
+from djangoapp.models.base import _OMIT, _log_fk_value
 from djangoapp.tests._base import BaseTestCase
 
 
@@ -96,7 +99,9 @@ class UserHistoryModelTests(BaseTestCase):
     - test_update_leaves_username_and_public_id_unchanged, identity fields are immutable
     - test_difference_only_includes_changed_fields, snapshot diff omits unchanged fields
     - test_update_noop_skips_history, a no-op update records no history row
+    - test_update_is_active_change_recorded, an is_active flip lands in the diff
     - test_record_created_snapshots_all_fields, created entry captures every field
+    - test_record_deleted_writes_tombstone, record_deleted writes an empty tombstone
     """
 
     def setUp(self) -> None:
@@ -181,6 +186,30 @@ class UserHistoryModelTests(BaseTestCase):
         )
         self.assertEqual(UserHistory.objects.filter(target_user=self.user).count(), 0)
 
+    def test_update_is_active_change_recorded(self) -> None:
+        """Flipping is_active lands in the diff as a bool change."""
+        self.user.update(
+            first_name=self.user.first_name,
+            last_name=self.user.last_name,
+            email=self.user.email,
+            description=self.user.description,
+            has_public_profile=self.user.has_public_profile,
+            is_active=False,
+            is_staff=self.user.is_staff,
+            is_superuser=self.user.is_superuser,
+            user=self.actor,
+        )
+        changes = UserHistory.objects.get(target_user=self.user)._changes
+        self.assertEqual(changes["is_active"], {"old": True, "new": False})
+
+    def test_record_deleted_writes_tombstone(self) -> None:
+        """record_deleted writes an empty-changes tombstone with the public_id copy."""
+        UserHistory.record_deleted(self.user, self.actor)
+        entry = UserHistory.objects.get(target_user=self.user, action="deleted")
+        self.assertEqual(entry.user_id, self.actor.pk)
+        self.assertEqual(entry.target_user_public_id_copy, self.user.public_id)
+        self.assertEqual(entry._changes, {})
+
     def test_record_created_snapshots_all_fields(self) -> None:
         """record_created captures every editable field as new (old==new)."""
         snapshot = UserSnapshot(
@@ -198,4 +227,34 @@ class UserHistoryModelTests(BaseTestCase):
         self.assertEqual(entry._changes["has_public_profile"], {"old": False, "new": False})
         self.assertEqual(
             entry._changes["email"], {"old": "old@example.com", "new": "old@example.com"}
+        )
+
+
+class LogHelpersTests(BaseTestCase):
+    """``_log_fk_value`` degradation rules (plain stubs — no overlay needed).
+
+    - test_fk_without_public_id_omits, a target with no public_id omits (no pk leak)
+    - test_fk_url_failure_blanks, a get_absolute_url crash blanks the url, never a 500
+    """
+
+    def test_fk_without_public_id_omits(self) -> None:
+        """A related object without a public_id omits from the log value."""
+        self.assertEqual(_log_fk_value(SimpleNamespace()), _OMIT)
+
+    def test_fk_url_failure_blanks(self) -> None:
+        """A crashing get_absolute_url yields a blank url — contained, not fatal."""
+
+        class _BrokenUrl:
+            public_id = "pk-free-id"
+
+            def get_absolute_url(self) -> str:
+                msg = "no url for you"
+                raise RuntimeError(msg)
+
+            def __str__(self) -> str:
+                return "Broken"
+
+        self.assertEqual(
+            _log_fk_value(_BrokenUrl()),
+            {"id": "pk-free-id", "url": "", "name": "Broken"},
         )

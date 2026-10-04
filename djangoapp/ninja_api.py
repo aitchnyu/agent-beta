@@ -135,7 +135,7 @@ class _CsrfPrincipal:
     identity checks later; the repr makes log/debug output self-describing.
     """
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover -- debug nicety, no behaviour
         return "<csrf-guard-passed>"
 
 

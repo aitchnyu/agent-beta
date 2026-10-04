@@ -391,7 +391,9 @@ checkframework1() {
   uv run coverage combine . "$_MAIN_DIR/.coverage-stage"
   # The staged fragments are folded into .coverage now — drop the staging dir.
   rm -rf "$_MAIN_DIR/.coverage-stage"
-  uv run coverage report -m
+  # Ratchet: the merged report must hold the measured floor (2026-10-04: 99.78%).
+  # Raise when coverage improves; never lower it to make a regression pass.
+  uv run coverage report -m --fail-under=99.78
   uv run coverage html
   echo "Coverage report: htmlcov/index.html"
 }

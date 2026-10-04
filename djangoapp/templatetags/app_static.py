@@ -146,7 +146,7 @@ def _load_manifest(rel_name: str) -> Manifest | None:
         return None
     try:
         mtime = Path(path).stat().st_mtime
-    except OSError:
+    except OSError:  # pragma: no cover -- stat raced with a rebuild; treat as absent
         return None
     cached = _manifest_cache.get(path)
     if cached and cached[0] == mtime:

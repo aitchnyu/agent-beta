@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Any, ClassVar
 
 from django.apps import apps
@@ -30,6 +31,8 @@ class BaseModelUpdateLogTests(BaseTestCase):
     - test_delete_purges_history_tombstones, delete purges created/updated
       history; only the empty tombstone survives (row gone)
     - test_value_shapes, int→str, FK→{id,url,name}, null passthrough, no pk leak
+    - test_scalar_and_none_edits_logged, float/date/decimal-None edits log
+      stringified old/new; plain-model FK omits from the snapshot
     - test_log_model_name_resolution, log.model == log_model_name(); log_as_name overrides
     - test_performed_by_none, actor=None recorded as a null actor
 
@@ -42,6 +45,8 @@ class BaseModelUpdateLogTests(BaseTestCase):
 
     Book: ClassVar[type[Any]]
     Author: ClassVar[type[Any]]
+    Shelf: ClassVar[type[Any]]
+    shelf: ClassVar[Any]
     actor: ClassVar[User]
 
     @classmethod
@@ -49,20 +54,28 @@ class BaseModelUpdateLogTests(BaseTestCase):
         ourapp = apps.get_app_config("ourapp")
         cls.Book = ourapp.get_model("Book")
         cls.Author = ourapp.get_model("Author")
+        shelf_model: type[Any] = ourapp.get_model("Shelf")
+        cls.Shelf = shelf_model
+        cls.shelf = shelf_model.objects.create(code="A1")
         cls.actor = User.objects.create_user(username="actor", is_superuser=True, is_staff=True)
+        cls.shelf = cls.Shelf.objects.create(code="A1")
 
     def setUp(self) -> None:
         super().setUp()
         # A fresh author + book per test, created via save_plus (each emits
         # exactly one 'created' log attributed to the actor; both start at
-        # row_version=0).
+        # row_version=0). The book carries every scalar kind incl. a
+        # plain-model FK (shelf) so the snapshot omits it.
         self.author = self.Author(name="Ada", bio="", rating="4.50", active=True)
         self.author.save_plus(actor=self.actor, expected_row_version=0)
         self.book = self.Book(
             title="Notes",
             description="",
             pages=200,
+            weight=1.25,
+            released=date(2026, 1, 1),
             author=self.author,
+            shelf=self.shelf,
             reviewer=self.actor,
         )
         self.book.save_plus(actor=self.actor, expected_row_version=0)
@@ -91,10 +104,14 @@ class BaseModelUpdateLogTests(BaseTestCase):
             "row_version",
             "title",
             "pages",
+            "weight",
+            "released",
             "author",
             "reviewer",
         ):
             self.assertIn(key, log.new_values, key)
+        # The plain-model FK (no public_id) omits from the snapshot entirely.
+        self.assertNotIn("shelf", log.new_values)
         self.assertEqual(log.performed_by, self.actor)
 
     def test_update_logs_changed_values(self) -> None:
@@ -111,6 +128,27 @@ class BaseModelUpdateLogTests(BaseTestCase):
         # would drown out the real change, like last_updated_at).
         self.assertNotIn("row_version", log.old_values)
         self.assertNotIn("row_version", log.new_values)
+
+    def test_scalar_and_none_edits_logged(self) -> None:
+        """Float/date edits log stringified old/new; a Decimal→None edit logs null."""
+        self.book.weight = 2.5
+        self.book.released = None
+        self.book.save_plus(actor=self.actor, expected_row_version=0)
+
+        self.author.rating = None
+        self.author.save_plus(actor=self.actor, expected_row_version=0)
+
+        book_log = self._logs(action="updated").pop()
+        self.assertEqual(book_log.old_values["weight"], "1.25")
+        self.assertEqual(book_log.new_values["weight"], "2.5")
+        self.assertEqual(book_log.old_values["released"], "2026-01-01")
+        self.assertIsNone(book_log.new_values["released"])
+
+        author_log = BaseModelUpdateLog.objects.filter(
+            model=self.Author.log_model_name(), model_pk=self.author.pk, action="updated"
+        ).get()
+        self.assertEqual(author_log.old_values["rating"], "4.5")
+        self.assertIsNone(author_log.new_values["rating"])
 
     def test_noop_update_writes_no_log(self) -> None:
         """An update that changes no data column writes no 'updated' log."""

@@ -38,7 +38,9 @@ _redis_client: redis.Redis = redis.Redis.from_url(_REDIS_URL, decode_responses=T
 # anonymous, CSRF-exempt sink's only abuse bound must be present, a valid
 # int, and above 0 (mirrors settings' SESSION_IDLE_DAYS contract).
 _RATE_LIMIT = int(os.environ["CLIENT_ERROR_RATE_LIMIT"])
-if _RATE_LIMIT <= 0:
+if (
+    _RATE_LIMIT <= 0
+):  # pragma: no cover -- import-time contract guard; only a fresh process can hit it
     msg = "CLIENT_ERROR_RATE_LIMIT must be an integer above 0"
     raise ValueError(msg)
 _WINDOW_SECS = 60
