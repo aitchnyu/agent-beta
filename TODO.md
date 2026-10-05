@@ -1,8 +1,3 @@
-Lets assume we dont change the permission stuff while running it
-
-.env$|^djangoapp/static/ - special case?
-_SCRATCH_EXCLUDES and other excludes?
-
 50 errors per hour
 
 Command to create just a blank vm

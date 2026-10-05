@@ -11,12 +11,14 @@ and only re-runs its own CSRF check for cookie-auth endpoints; this one declares
 no ``auth``, so anonymous POSTs and the ``navigator.sendBeacon`` fallback
 (pagehide, no X-CSRFTOKEN header) land without a csrftoken cookie. That's
 acceptable because the endpoint is stateless (log-only) — the only abuse vector
-is log spam, bounded by the Redis per-identity rate limit.
+is log spam, bounded by the Redis rate limit: an hourly budget per
+authenticated user, with all anonymous reporters sharing one bucket.
 """
 
 from __future__ import annotations
 
 import os
+from typing import TYPE_CHECKING
 
 import redis
 from django.http import HttpRequest, HttpResponse
@@ -24,9 +26,11 @@ from ninja import Router
 from pydantic import BaseModel, ConfigDict, Field
 
 from djangoapp.logging import get_logger
-from djangoapp.models import User
 from djangoapp.ninja_api import make_ninja_api
 from djangoapp.shortcuts import maybe_user
+
+if TYPE_CHECKING:
+    from djangoapp.models import User
 
 logger = get_logger("client")
 
@@ -34,16 +38,17 @@ logger = get_logger("client")
 # the local redis; redis-py connects lazily, so constructing at import is safe.
 _REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
 _redis_client: redis.Redis = redis.Redis.from_url(_REDIS_URL, decode_responses=True)
-# Max reports per identity per window. Mandatory — no silent default: the
-# anonymous, CSRF-exempt sink's only abuse bound must be present, a valid
-# int, and above 0 (mirrors settings' SESSION_IDLE_DAYS contract).
+# Max reports per hour per authenticated user; all anonymous reporters
+# share ONE bucket combined. Mandatory — no silent default: the anonymous,
+# CSRF-exempt sink's only abuse bound must be present, a valid int, and
+# above 0 (mirrors settings' SESSION_IDLE_DAYS contract).
 _RATE_LIMIT = int(os.environ["CLIENT_ERROR_RATE_LIMIT"])
 if (
     _RATE_LIMIT <= 0
 ):  # pragma: no cover -- import-time contract guard; only a fresh process can hit it
     msg = "CLIENT_ERROR_RATE_LIMIT must be an integer above 0"
     raise ValueError(msg)
-_WINDOW_SECS = 60
+_WINDOW_SECS = 3600
 # Parse cap (pydantic) vs. log cap. The model accepts more than we keep, so the
 # view's truncation is meaningful: a client can send up to _MAX_STACK_INPUT, but
 # only _MAX_STACK_CHARS reaches the log line. The frontend caps to this too
@@ -82,27 +87,18 @@ class ClientErrorBody(BaseModel):
 client_errors_router = Router()
 
 
-def _identity_key(user: object, request: HttpRequest) -> str:
-    """Build the rate-limit key: per-user when authenticated, else per IP.
+def _rate_limited(user: User | None) -> bool:
+    """Return True when the reporter's hourly budget is exhausted.
 
-    Uses ``REMOTE_ADDR`` (set by the server/proxy, not forgeable by the client)
-    rather than the leftmost ``X-Forwarded-For`` — a client can spoof that header
-    per request to evade the limit. Behind a proxy that overwrites REMOTE_ADDR
-    with the real client this is correct; behind a naive proxy all anon traffic
-    shares one bucket, which is the safer failure mode.
-    """
-    if isinstance(user, User):
-        return f"user:{user.pk}"
-    return f"ip:{request.META.get('REMOTE_ADDR') or 'unknown'}"
-
-
-def _rate_limited(key: str) -> bool:
-    """Return True when ``key`` exceeded its per-window budget.
+    Two bucket shapes: one per authenticated user (``client-errors:user:<pk>``)
+    and a single shared bucket for every anonymous reporter
+    (``client-errors:anon``) — anon budget is collective, not per IP, so a
+    spoofed/spoofing crowd can't buy fresh budget per request.
 
     Raises ``RedisError`` if redis is unreachable — the caller lets it propagate
     to the global exception handler (fail closed: 500, report not accepted).
     """
-    bucket = f"client-errors:{key}"
+    bucket = "client-errors:anon" if user is None else f"client-errors:user:{user.pk}"
     pipe = _redis_client.pipeline()
     pipe.incr(bucket)
     pipe.expire(bucket, _WINDOW_SECS, nx=True)
@@ -113,7 +109,7 @@ def _rate_limited(key: str) -> bool:
 @client_errors_router.post("/client-errors", response={204: None, 429: None})
 def submit(request: HttpRequest, body: ClientErrorBody) -> HttpResponse:
     user = maybe_user(request)
-    if _rate_limited(_identity_key(user, request)):
+    if _rate_limited(user):
         return HttpResponse(status=429)
     logger.warning(
         "client error",
@@ -140,6 +136,6 @@ def submit(request: HttpRequest, body: ClientErrorBody) -> HttpResponse:
 
 # Mount at the project root so the route is POST /client-errors.
 # csrf=False: tokenless anonymous POSTs (sendBeacon on pagehide) are the
-# point of this sink — no csrf_guard — and the Redis per-identity rate limit
+# point of this sink — no csrf_guard — and the Redis rate limit
 # bounds the abuse vector to log spam.
 client_errors_api = make_ninja_api("clienterrors", client_errors_router, prefix="", csrf=False)

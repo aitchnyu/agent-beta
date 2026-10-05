@@ -555,9 +555,10 @@ reporter's `public_id`; the backend re-derives the authoritative identity from
 `request.user` (never the body) and accepts anonymous reports (`user=null`). A
 `navigator.sendBeacon` fallback fires on `pagehide` only while a POST is in
 flight, so an error caught right before navigation isn't lost (and isn't re-sent
-once delivered). Redis is a hard dependency for the per-identity rate limit:
-`REDIS_URL` (required) + `CLIENT_ERROR_RATE_LIMIT` (optional, commented in
-`.env.example`; default 30 per 60s) drive it, and if redis is unreachable
+once delivered). Redis is a hard dependency for the rate limit (an hourly
+budget per authenticated user; all anonymous reporters share one bucket):
+`REDIS_URL` (required) + `CLIENT_ERROR_RATE_LIMIT` (required, a valid int
+above 0; 50 per hour in `.env.example`) drive it, and if redis is unreachable
 the endpoint **fails
 closed** (500 — the redis error propagates to the global handler) rather than
 accepting an unbounded stream.

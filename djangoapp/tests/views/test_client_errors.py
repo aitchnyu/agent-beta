@@ -71,7 +71,8 @@ class ClientErrorViewTests(BaseTestCase):
     - test_authed_report_logs_client_error, authed POST → 204; source=client + row/col + user
     - test_anon_report_accepted, anonymous POST → 204 with user None
     - test_tokenless_post_accepted_under_strict_csrf, opt-out holds even with CSRF enforcement on
-    - test_rate_limit_returns_429_over_budget, over cap → 429 (real redis)
+    - test_rate_limit_returns_429_over_budget, over cap → 429 (real redis);
+      per-user buckets (bob gets his own), all anon reporters share one
     - test_redis_failure_fails_closed, dead redis → 500 (fail closed)
     - test_client_body_cannot_forge_log_fields, stray keys → 422 (extra=forbid)
     - test_stack_truncated_to_cap, over-cap stack truncated before logging
@@ -132,7 +133,12 @@ class ClientErrorViewTests(BaseTestCase):
         self.assertTrue(any(r.get("event") == "client error" for r in _ndjson(buf)))
 
     def test_rate_limit_returns_429_over_budget(self) -> None:
-        """Over the per-identity cap, the (N+1)th report is 429 (real redis)."""
+        """Over the cap the (N+1)th report is 429 — per user, anon shared.
+
+        alice and bob each get their own bucket (bob is NOT 429'd by alice's
+        spend); anonymous reporters all draw from one shared bucket, so a
+        second anon client finds it already spent.
+        """
         test_redis = redis.Redis.from_url(_TEST_REDIS_URL, decode_responses=True)
         test_redis.flushdb()
         original = client_errors._redis_client
@@ -141,18 +147,43 @@ class ClientErrorViewTests(BaseTestCase):
         client_errors._RATE_LIMIT = 2
         try:
             self.client.force_login(User.objects.create_user(username="alice", password="x"))
-            statuses = [
+            alice_statuses = [
                 self.client.post(
                     "/client-errors", data=_payload(), content_type="application/json"
                 ).status_code
-                for _ in range(4)
+                for _ in range(3)
             ]
+            # bob's bucket is fresh — alice's spend doesn't touch it.
+            self.client.force_login(User.objects.create_user(username="bob", password="x"))
+            bob_statuses = [
+                self.client.post(
+                    "/client-errors", data=_payload(), content_type="application/json"
+                ).status_code
+                for _ in range(3)
+            ]
+            # Anonymous: budget is ONE shared bucket across all anon reporters.
+            self.client.logout()
+            anon_statuses = [
+                self.client.post(
+                    "/client-errors", data=_payload(), content_type="application/json"
+                ).status_code
+                for _ in range(3)
+            ]
+            # A second, fresh anon client still finds the shared bucket spent.
+            second_anon = Client()
+            second_anon_status = second_anon.post(
+                "/client-errors", data=_payload(), content_type="application/json"
+            ).status_code
         finally:
             client_errors._redis_client = original
             client_errors._RATE_LIMIT = original_limit
             test_redis.flushdb()
-        # 2 within budget → 204, then 429.
-        self.assertEqual(statuses, [204, 204, 429, 429])
+        # Per user: 204, 204, then 429. Anon: shared → 204, 204, 429, and the
+        # second anon client gets 429 immediately.
+        self.assertEqual(alice_statuses, [204, 204, 429])
+        self.assertEqual(bob_statuses, [204, 204, 429])
+        self.assertEqual(anon_statuses, [204, 204, 429])
+        self.assertEqual(second_anon_status, 429)
 
     def test_redis_failure_fails_closed(self) -> None:
         """A dead-redis endpoint → 500 (fail closed; report not accepted).
