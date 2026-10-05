@@ -477,38 +477,42 @@ lintfix() {
   npm run lint:fix
 }
 
-# Shared rsync excludes — DIRECTIONAL: `.git` rides createscratch (scratch
-# shares main's history) but deployscratch re-excludes it (+ `.env`) so
-# main's repo and env stay untouched. djangoapp/static/ (the built bundle)
-# is deliberately carried deploy-ward: the fresh build ships with the deploy.
-_SCRATCH_EXCLUDES=(
-  --exclude='.kilo/'
-  --exclude='/sessions/'
-  --exclude='.pi/npm/'
-  # The permission extension self-edits its config for grant bookkeeping;
-  # that state must not ride createscratch/deployscratch (it spuriously
-  # tripped the framework-file smoke trigger and time-traveled stale
-  # policy between trees). Plain rsync --delete never removes excluded
-  # files on the receiver, so main's tracked copy stays authoritative.
-  --exclude='.pi/extensions/pi-permission-system/'
-  # Coverage artifacts: fragments/report belong to the tree that measured
-  # them — never round-trip them through scratch (the gate stages its own).
-  --exclude='.coverage*'
-  --exclude='.coverage-stage/'
-  --exclude='htmlcov/'
-  --exclude='scratch/'
-  --exclude='node_modules/'
-  --exclude='.venv/'
-  --exclude='__pycache__/'
-  --exclude='.mypy_cache/'
-  --exclude='.ruff_cache/'
-  --exclude='dist/'
-  --exclude='build/'
-  --exclude='staticfiles/'   # collectstatic output (VM serving); regenerated, never source
-  --exclude='media/'         # uploads (MEDIA_ROOT); runtime data, never source
-  --exclude='dbbackups/'     # pgbackrest repo (nightly backups); runtime data, never source
-  --exclude='.DS_Store'
-)
+# The scratch rsyncs' exclude set, derived from .gitignore at call time:
+# keeping a new junk/artifact/runtime dir out of the scratch loop is a
+# .gitignore-only change. (The permission ledger rides like any tracked
+# file — the policy is never edited mid-run.)
+scratch_excluded_files() { # scratch_excluded_files <egrep -v filter> <dir>...
+  # <filter> drops the directional carries from the listing:
+  #   djangoapp/static/  always — the built bundle rides both ways
+  #                      (.gitignore says the opposite: don't commit it)
+  #   ^\.env$            createscratch-ward — the deploy re-excludes it
+  local filter=$1
+  shift
+  local d tmp
+  tmp=$(mktemp)
+  # BOTH trees, not just the sender: plain --delete never removes excluded
+  # files on the receiver, so main-only runtime data (media/, dbbackups/,
+  # staticfiles/) survives the deploy only if MAIN's listing carries the
+  # exclude — scratch never contains those dirs to list them.
+  # (--directory also sweeps in fully-untracked dirs whose contents are
+  # all ignored — djangoapp/apps/, docs/apps/ — intended: generated
+  # output, never source.)
+  for d in "$@"; do
+    # Command-substitution subshells don't inherit errexit, so a git
+    # failure must RETURN out of the function — else the caller's set -e
+    # never fires and the rsync proceeds with an empty exclude list.
+    git -C "$d" ls-files --others --ignored --exclude-standard --directory >>"$tmp" \
+      || { rm -f "$tmp"; echo "REFUSING: git ls-files failed in $d — no rsync without excludes." >&2; return 1; }
+  done
+  # Drop lines rsync would misparse (rule prefixes "- ", "+ ", "! ",
+  # comments "; "/"#", glob metachars * ? [): a hostile ignored name must
+  # ride as harmless junk, never silently exclude an unrelated tracked
+  # file. (`|| true`: a fresh clone has nothing gitignored yet — an
+  # empty exclude list is correct there.)
+  { grep -Ev "$filter" "$tmp" || true; } \
+    | grep -vE '^[-+!;#] |[*?[]' >"$tmp.f" && mv "$tmp.f" "$tmp"
+  printf '%s' "$tmp"
+}
 
 # main/ is this script's dir; scratch/ is its sibling (both under parent/).
 # Resolved once at load time so createscratch/deployscratch stay free of path
@@ -535,7 +539,13 @@ _link_or_copy_tree() {
 
 create_new_scratch() {
   rm -rf "$_SCRATCH_DIR"
-  rsync -a "${_SCRATCH_EXCLUDES[@]}" "$_MAIN_DIR/" "$_SCRATCH_DIR/"
+  # Sender-only excludes (no --delete here; the receiver was just wiped).
+  # The filter keeps .env and the built bundle riding to scratch — the
+  # deploy re-excludes .env.
+  local excluded_files
+  excluded_files=$(scratch_excluded_files '^\.env$|^djangoapp/static/' "$_MAIN_DIR")
+  rsync -a --exclude-from="$excluded_files" "$_MAIN_DIR/" "$_SCRATCH_DIR/"
+  rm -f "$excluded_files"
   git -C "$_SCRATCH_DIR" tag -f scratch-baseline HEAD >/dev/null
   # npm install rewrites package-lock format-normalized — it reads as a
   # diff vs the baseline, tripping the framework-file watch. Restore from
@@ -578,7 +588,7 @@ createscratch() {
 }
 
 # The ONE command: the full check battery in scratch (nothing deploys
-# red), then rsync → main/ (.git/.env excluded), pre-migration backup,
+# red), then rsync → main/ (.git + gitignored dirs excluded), pre-migration backup,
 # migrate, collectstatic + restart granian/huey so deploys go LIVE.
 # VM ONLY — the scratch loop is the agent's edit cycle and the agent
 # lives in the VM; a dev Mac has none of it (no pgbackrest, no units).
@@ -602,7 +612,7 @@ deployscratch() {
 
   ( cd "$_SCRATCH_DIR" && _scratch_checks )
 
-  echo "Deploying $_SCRATCH_DIR/ → $_MAIN_DIR/ (--delete, excluding .git + .env + generated dirs)…"
+  echo "Deploying $_SCRATCH_DIR/ → $_MAIN_DIR/ (--delete, excluding .git + gitignored/runtime dirs)…"
   # The sync runs under sudo (as the non-root default user, rsync -a
   # can't preserve attrs on desmo-owned files — exit 23), and scratch's
   # files are default-user-owned. Re-own to desmo AND re-add
@@ -610,7 +620,14 @@ deployscratch() {
   # files without g+w, and the next build as the default user then dies
   # on desmo-owned dirs (EACCES rmdir .vite, a real session's playwright
   # wall).
-  sudo rsync -a --delete "${_SCRATCH_EXCLUDES[@]}" --exclude='.git/' --exclude='.env' "$_SCRATCH_DIR/" "$_MAIN_DIR/"
+  # On top of the derived excludes: `.git` never rides a deploy (scratch
+  # only borrowed main's history — git never lists it, so no rule in the
+  # derived set covers it).
+  local excluded_files
+  excluded_files=$(scratch_excluded_files '^djangoapp/static/' "$_SCRATCH_DIR" "$_MAIN_DIR")
+  sudo rsync -a --delete --exclude='.git/' \
+    --exclude-from="$excluded_files" "$_SCRATCH_DIR/" "$_MAIN_DIR/"
+  rm -f "$excluded_files"
   # Own the tree as desmo (scratch's files arrive default-user-owned):
   #   - main tree: the agent's user edits it (builds, git resets)
   #   - dbbackups/: PRUNED — stays postgres-owned (pgbackrest runs as

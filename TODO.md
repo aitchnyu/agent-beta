@@ -1,7 +1,8 @@
-Run all tests in checkproject and merge coverage from both stages. Improve test coverage
-99.5% coverage after finding major violators
+Lets assume we dont change the permission stuff while running it
 
+.env$|^djangoapp/static/ - special case?
 _SCRATCH_EXCLUDES and other excludes?
+
 50 errors per hour
 
 Command to create just a blank vm
@@ -11,10 +12,9 @@ Second section of readme:
   create a blank vm, run command
   provision a full vm
   run test suites
+Provision in vm with domain with curl|bash and have branch/release. What all should user provide?
 
 Branding
-
-Provision in vm with domain with curl|bash and have branch/release. What all should user provide?
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 Features - file section with git etc

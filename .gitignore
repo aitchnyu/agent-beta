@@ -31,8 +31,8 @@ htmlcov/
 
 # TypeScript incremental compilation cache
 *.tsbuildinfo
-# kilo stuff
-.kilo/package-lock.json
+# kilo: tool state
+.kilo/
 
 # Playwright MCP (browser tooling) artifacts: snapshots, console logs
 .playwright-mcp/
