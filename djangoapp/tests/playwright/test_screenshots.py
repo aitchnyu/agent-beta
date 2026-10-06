@@ -36,7 +36,7 @@ from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 from djangoapp.tests.views import skip_unless_env
 
 if TYPE_CHECKING:
-    from playwright.sync_api import ViewportSize
+    from playwright.sync_api import FloatRect, ViewportSize
 
 # PNGs are committed artifacts of the repo, not test scratch: they live under
 # docs/ next to the README that references them (BASE_DIR = repo root).
@@ -64,10 +64,19 @@ class BaseScreenshotTestCase(BasePlaywrightTestCase):
     shared page is resized to the README viewport for the test and restored
     afterwards (the page outlives the class).
 
-    - _shot, element screenshot of a page's main content container
+    - _capture_page, element screenshot of a page's main content container
     - _shot_below_navbar, clip screenshot of everything under the app navbar
       (for the fragment-rooted git/files pages that have no container div)
+
+    Both bake in a 1px rounded light-gray frame (#d0d7de) 4px inside the
+    captured rect (_draw_frame) — element shots capture a ring of page
+    background around the card (FRAME_MARGIN_PX) so the line never crosses
+    the card's content.
     """
+
+    # Width of that page-background ring. The body's own padding (≥8px)
+    # always leaves room for it, so expanding the clip needs no clamping.
+    FRAME_MARGIN_PX = 6
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -80,11 +89,57 @@ class BaseScreenshotTestCase(BasePlaywrightTestCase):
         self.page.set_viewport_size(_SCREENSHOT_VIEWPORT)
         self.addCleanup(lambda: self.page.set_viewport_size(default_viewport))
 
-    def _shot(self, name: str, selector: str) -> None:
-        """Screenshot the page's main content container → ``<name>.png``."""
-        locator = self.page.locator(selector)
-        locator.wait_for(state="visible")
-        locator.screenshot(path=str(_SCREENSHOT_DIR / f"{name}.png"))
+    def _draw_frame(self, x: float, y: float, width: float, height: float) -> None:
+        """Draw the frame div 4px inside the given page rect.
+
+        Integer-snapped so rounding can't shave its border; id-stamped so a
+        stale frame from a previous shot on the same page is replaced.
+        """
+        self.page.evaluate(
+            """(r) => {
+                document.getElementById("readme-frame")?.remove();
+                const frame = document.createElement("div");
+                frame.id = "readme-frame";
+                frame.style.cssText = [
+                    "position:absolute",
+                    `left:${r.x}px`, `top:${r.y}px`,
+                    `width:${r.w}px`, `height:${r.h}px`,
+                    "border:1px solid #d0d7de",
+                    "border-radius:6px",
+                    "pointer-events:none",
+                ].join(";");
+                document.body.appendChild(frame);
+            }""",
+            {
+                "x": round(x) + 4,
+                "y": round(y) + 4,
+                "w": round(width) - 8,
+                "h": round(height) - 8,
+            },
+        )
+
+    def _capture_page(self, name: str, selector: str) -> None:
+        """Capture the element plus its frame margin, framed → ``<name>.png``.
+
+        full_page + clip, not locator.screenshot: beyond-viewport element
+        captures composite sticky elements over the clip's top, which ate the
+        frame on the taller-than-viewport shots.
+        """
+        box = self.page.locator(selector).bounding_box()
+        assert box is not None
+        margin = 2 * self.FRAME_MARGIN_PX
+        rect: FloatRect = {
+            "x": box["x"] - self.FRAME_MARGIN_PX,
+            "y": box["y"] - self.FRAME_MARGIN_PX,
+            "width": box["width"] + margin,
+            "height": box["height"] + margin,
+        }
+        self._draw_frame(**rect)
+        self.page.screenshot(
+            path=str(_SCREENSHOT_DIR / f"{name}.png"),
+            full_page=True,
+            clip=rect,
+        )
 
     def _shot_below_navbar(self, name: str, max_height: float | None = None) -> None:
         """Clip-screenshot everything under ``.layout-navbar`` → ``<name>.png``.
@@ -105,6 +160,7 @@ class BaseScreenshotTestCase(BasePlaywrightTestCase):
         height = body["y"] + body["height"] - top
         if max_height is not None:
             height = min(height, max_height)
+        self._draw_frame(0.0, top, body["width"], height)
         self.page.screenshot(
             path=str(_SCREENSHOT_DIR / f"{name}.png"),
             full_page=True,
@@ -152,7 +208,7 @@ class NotificationScreenshotTests(BaseScreenshotTestCase):
             )
         self.page.goto(f"{self.live_server_url}/notifications")
         self.page.wait_for_selector(".notification-item")
-        self._shot("notifications", ".notifications-page")
+        self._capture_page("notifications", ".notifications-page")
 
 
 class UserScreenshotTests(BaseScreenshotTestCase):
@@ -218,14 +274,14 @@ class UserScreenshotTests(BaseScreenshotTestCase):
         """/users/list renders the roster; the container card is captured."""
         self.page.goto(f"{self.live_server_url}/users/list")
         self.page.wait_for_selector(".users-table")
-        self._shot("users", ".users-page")
+        self._capture_page("users", ".users-page")
 
     def test_user_detail(self) -> None:
         """The featured profile renders with the admin panel + rich text."""
         self.page.goto(f"{self.live_server_url}/users/id/{self.featured.public_id}")
         self.page.wait_for_selector(".user-details-attrs")
         self.page.wait_for_selector(".rich-text-display")
-        self._shot("user-detail", ".user-details-page")
+        self._capture_page("user-detail", ".user-details-page")
 
 
 class CodeScreenshotTests(GitRepoMixin, BaseScreenshotTestCase):
@@ -360,13 +416,33 @@ class ModelScreenshotTests(BaseScreenshotTestCase):
         """/manage/models lists the test app's models; the card is captured."""
         self.page.goto(f"{self.live_server_url}/manage/models")
         self.page.wait_for_selector(".manage-modellist-page")
-        self._shot("models", ".manage-modellist-page")
+        self._capture_page("models", ".manage-modellist-page")
 
     def test_model_rows(self) -> None:
         """The Book row list's columns + FK cells are captured."""
         self.page.goto(f"{self.live_server_url}/manage/models/Book/list")
         self.page.wait_for_selector(".manage-modelrows-page")
-        self._shot("model-rows", ".manage-modelrows-page")
+        # The Book table is wider than the page container (on screen it is
+        # cut at the card's edge), so resize the container to the table's
+        # natural width before capturing — every column makes the shot.
+        # maxWidth must go too (Bootstrap's .container caps .width), and the
+        # natural width must be measured UNCONSTRAINED: give the table a huge
+        # canvas, read its no-wrap preferred width, then fit the container to
+        # exactly that (widening once by scrollWidth just re-squeezes cells).
+        self.page.evaluate(
+            """(pageSelector) => {
+                const page = document.querySelector(pageSelector);
+                const table = page.querySelector("table");
+                page.style.maxWidth = "none";
+                page.style.width = "5000px";
+                table.style.width = "auto";
+                const natural = Math.ceil(table.getBoundingClientRect().width);
+                page.style.width = `${natural}px`;
+                table.style.width = "";
+            }""",
+            ".manage-modelrows-page",
+        )
+        self._capture_page("model-rows", ".manage-modelrows-page")
 
     def test_row_detail(self) -> None:
         """The featured book's detail renders (audit history loaded)."""
@@ -375,7 +451,7 @@ class ModelScreenshotTests(BaseScreenshotTestCase):
         # logs are a deferred Inertia prop landing via partial reload — wait
         # for a rendered entry so the history section isn't caught "Loading".
         self.page.wait_for_selector(".update-log-entry")
-        self._shot("row-detail", ".manage-rowdetail-page")
+        self._capture_page("row-detail", ".manage-rowdetail-page")
 
 
 @skipIf(
@@ -406,7 +482,7 @@ class MockupScreenshotTests(BaseScreenshotTestCase):
         """/mockup-todos renders the todo mockup; the card is captured."""
         self.page.goto(f"{self.live_server_url}/mockup-todos")
         self.page.wait_for_selector(".ours-mockup-todos.mockup")
-        self._shot("mockup-todos", ".ours-mockup-todos")
+        self._capture_page("mockup-todos", ".ours-mockup-todos")
 
     def test_todos_final(self) -> None:
         """/mockup-todos?final drops the crosshatch wrapper; captured as-is."""
@@ -416,7 +492,7 @@ class MockupScreenshotTests(BaseScreenshotTestCase):
         # The hatch rides the .mockup class (its ::before) — its absence is
         # the point of this variant.
         self.assertNotIn("mockup", (root.get_attribute("class") or "").split())
-        self._shot("todos-final", ".ours-mockup-todos")
+        self._capture_page("todos-final", ".ours-mockup-todos")
 
     def test_mockup_hidden_from_anonymous(self) -> None:
         """An anonymous viewer of the mockup route gets a 404 (the gate holds)."""

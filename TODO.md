@@ -1,4 +1,4 @@
-desmo user shouldnt have readonly access to its files
+desmo user shouldnt have rw access to its files
 
 gate() is dangerous
 
@@ -7,8 +7,6 @@ TUI for config
 Readme for end users and devs. VM, pi /login and /model selection
 
 Branding
-
-Add borders for images in readme?
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 Features - file section with git etc
