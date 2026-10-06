@@ -403,7 +403,7 @@ checkframework1() {
 # - run the in-VM gate — deploy/gate.sh's `gate`, dispatched like every other
 #   guest-side helper — over ONE multipass exec; its exit code is the verdict.
 #   The gate:
-#   - overlays the Books test app (djangoapp/tests/testapp) over the VM's
+#   - replaces the VM's `ourapp/` with the Books test app (djangoapp/tests/testapp)
 #     ourapp/
 #   - smokes the LIVE stack over HTTPS on loopback (caddy TLS, granian,
 #     postgres, login links)
@@ -659,6 +659,7 @@ deployscratch() {
   # the link base (the same rule makeloginlink uses); it keeps scheme and
   # port, so nothing is prefixed here.
   _SHARE_BASE="${BASE_URLS%%,*}"   # first origin of the comma list
+  _SHARE_BASE="${_SHARE_BASE// /}" # tolerate spaces around the commas
   _SHARE_BASE="${_SHARE_BASE%/}"   # drop a trailing slash — the links below add their own
   echo "App is available under:"
   ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py baseurls )

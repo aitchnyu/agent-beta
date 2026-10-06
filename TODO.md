@@ -1,15 +1,21 @@
-50 errors per hour
+inline th _render s
+@TLS_DIRECTIVE@ - use sed like a template engine
 
-Command to create just a blank vm
-curl|bash command that runs the script and installs everything, can choose branch/release
-Second section of readme:
-  install on vm
-  create a blank vm, run command
-  provision a full vm
-  run test suites
-Provision in vm with domain with curl|bash and have branch/release. What all should user provide?
+desmo user shouldnt have readonly access to its files
+
+gate() is dangerous
+
+provision-full should use provision-blank and invoke the script to curl|bash 
+
+`Quick start` heading
+
+TUI for config
+
+Readme for end users and devs. VM, pi /login and /model selection
 
 Branding
+
+Add borders for images in readme?
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 Features - file section with git etc
@@ -30,8 +36,7 @@ local-vm portforward
 apply --3way merges with `./run importtemplate <github-url> <tag>` 
 import from git repo tags?
 
-## Deployment
-Readme for end users and devs. VM, pi /login and /model selection, Desec dns
+Desec dns docs
 
 ## Future
 Have a sequence generator for tables

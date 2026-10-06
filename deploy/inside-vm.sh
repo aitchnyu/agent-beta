@@ -1,26 +1,32 @@
 #!/bin/bash
 # inside-vm.sh — the WHOLE provisioner: runs AS ROOT inside a FRESH test VM
-# (instance "desmo"), driven by ONE exec from ./local-vm (never by
-# hand). Build-only: the driver refuses an existing instance, and phase 0
-# refuses a VM that already holds generated secrets. One linear function,
-# phase-banner'd — read it top to bottom.
+# (instance "desmo"), driven by ONE exec from ONE manufacturer (never by
+# hand): deploy/install.sh, the curl|bash entry that seeds from a
+# published git ref and exports BASE_URL. ./local-vm provision-full runs
+# that same installer for you. Build-only: the driver refuses an existing
+# instance, and phase 0 refuses a VM that already holds generated
+# secrets. One linear function, phase-banner'd — read it top to bottom.
 #
-# Payload — THE manifest: the driver ships exactly TWO files (the phase-10
-# rm list below must match this block; local-vm points here and
-# keeps no list of its own):
+# Payload — THE manifest: install.sh ships exactly TWO files (the phase-10
+# rm list below must match this block; no entry keeps a list of
+# its own):
 #   /tmp/inside-vm.sh    this script
 #   /tmp/desmo-seed.tgz  the tracked working tree → /srv/desmo/main (phase 2);
 #                        its deploy/ carries the static env template, the
 #                        render templates, and the gate.sh testing battery
 #
-# All config is the TRACKED deploy/template.env — zero operator inputs.
-# Phase 0 validates it straight out of the tarball (before any mutation),
-# phase 3 installs it as the credentials env and mints the three machine
-# secrets into it.
+# All config is the TRACKED deploy/template.env — zero operator inputs:
+# - BASE_URL (exported by deploy/install.sh, the curl|bash entry)
+#   overrides the template's BASE_URLS value — plain env-over-file,
+#   honored in phases 0 (validation + derivation), 1 (ufw), 3 (installed
+#   env), and 4 (the caddy site's TLS).
+# - Phase 0 validates the template straight out of the tarball (before
+#   any mutation); phase 3 installs it as the credentials env and mints
+#   the three machine secrets into it.
 #
 # ── The fs this provision creates/touches (phase in parens) ────────────────
 #   /                             users: desmo + the default cloud user joins
-#   │                             group desmo (1); ufw 22/tcp only (1)
+#   │                             group desmo (1); ufw 22 + 80/443 (1)
 #   ├── etc/
 #   │   ├── credentials/desmo/    750 root:desmo (3)
 #   │   │   └── .env.vm           640 root:desmo — the template + minted
@@ -84,7 +90,7 @@ provision() {
   # ── Phase 0/11: guards — payload, template values, VM freshness ────────
   echo "==> [0/11] guards"
   if [ ! -f /tmp/desmo-seed.tgz ]; then
-    echo "REFUSING: /tmp/desmo-seed.tgz missing (the driver builds + ships it)." >&2
+    echo "REFUSING: /tmp/desmo-seed.tgz missing (deploy/install.sh builds + ships it — directly or via ./local-vm provision-full)." >&2
     exit 1
   fi
   # Probe the static template straight out of the tarball — no extraction,
@@ -100,7 +106,7 @@ provision() {
   # template is tracked and reviewed; there is no operator input), so these
   # guard drift, not typos. Worker knobs are baked into the units at render
   # (digits only — a `/` or `&` would corrupt the sed).
-  local granian_workers granian_threads huey_workers site_hostnames site_names
+  local granian_workers granian_threads huey_workers site_hostname tls_directive base_url
   granian_workers="$(_envval GRANIAN_WORKERS "$template")"
   granian_threads="$(_envval GRANIAN_THREADS "$template")"
   huey_workers="$(_envval HUEY_WORKERS "$template")"
@@ -121,19 +127,35 @@ provision() {
     echo "REFUSING: HUEY_WORKERS must be at least 1 in deploy/template.env (got: $huey_workers)." >&2
     exit 1
   fi
-  # ALLOWED_HOSTS is the single source of truth for BOTH the hosts Django
-  # accepts and the caddy site names — derived ONCE here; phase 4 renders
-  # from these vars (no second derivation anywhere).
-  site_hostnames="$(_envval ALLOWED_HOSTS "$template")"
-  if [ -z "$site_hostnames" ]; then
-    echo "REFUSING: ALLOWED_HOSTS must be set in deploy/template.env (Django hosts + caddy site names)." >&2
+  # BASE_URLS — the origin(s) behind ALLOWED_HOSTS, the CSRF origins,
+  # the caddy site name, and link defaults; derived ONCE here, phase 3
+  # installs it and phase 4 renders from these vars. An exported BASE_URL
+  # (the curl|bash entry's operator input, always exported — possibly
+  # empty) overrides the template's value; empty → the tracked template.
+  base_url="$BASE_URL"
+  if [ -z "$base_url" ]; then
+    base_url="$(_envval BASE_URLS "$template")"
+  fi
+  if [ -z "$base_url" ]; then
+    echo "REFUSING: BASE_URLS must be set in deploy/template.env (the app's origin)." >&2
     exit 1
   fi
-  site_names="$(printf '%s' "$site_hostnames" | tr ',' ' ' | tr -s ' ' | sed -e 's/^ //' -e 's/ $//' -e 's/ /, /g')"
-  if [[ ! "$site_names" =~ ^[A-Za-z0-9._*-]+(, [A-Za-z0-9._*-]+)*$ ]]; then
-    echo "REFUSING: ALLOWED_HOSTS must be plain hostnames, comma-separated (got: '$site_hostnames')." >&2
+  if [[ ! "$base_url" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?/?$ ]]; then
+    echo "REFUSING: BASE_URL must be ONE https origin, https://host[:port] (got: '$base_url')." >&2
     exit 1
   fi
+  # The hostname part of the origin (scheme + port stripped) — what
+  # Django's ALLOWED_HOSTS and the caddy site name consume. Loopback vs
+  # public is decided per site by matching it directly (phases 1, 4, 11).
+  site_hostname="${base_url#*://}"       # strip the scheme
+  site_hostname="${site_hostname%%/*}"   # strip any trailing path
+  site_hostname="${site_hostname%%:*}"   # strip the port
+  # The TLS mode renders like any knob: loopback keeps the internal CA;
+  # a public hostname renders the directive empty → caddy's automatic ACME.
+  case "$site_hostname" in
+    localhost|127.*|::1) tls_directive="tls internal" ;;
+    *)                   tls_directive="" ;;
+  esac
   # The three machine-secret keys must ship as their @NAME@ placeholders —
   # the mint fills exactly those tokens; anything else (empty included)
   # would ship verbatim, so refuse with the offending lines named.
@@ -162,7 +184,7 @@ provision() {
   # convergent (phase 1's useradd/swap and phase 5's config appends are
   # guarded; extracts and renders overwrite in place). A POST-mint failure
   # leaves secrets installed: this refusal then routes you to
-  # ./local-vm delete && ./local-vm provision.
+  # ./local-vm delete && ./local-vm provision-full.
   if [ -f "$creds_env" ] && (
     . "$creds_env"
     [ -n "${SECRET_KEY:-}" ] || [ -n "${DB_PASSWORD:-}" ] || [ -n "${VAPID_PRIVATE_KEY:-}" ]
@@ -266,12 +288,14 @@ EOF
   echo "    redis (stock; phase 5 appends the maxmemory block)"
   systemctl enable --now redis-server >/dev/null
 
-  echo "    ufw (ssh only — the app rides the tunnel's loopback hop)"
+  echo "    ufw (ssh + 80/443)"
   # 22 = multipass's own channel + the tunnel ride (installs no
-  # authorized_keys — README's one-time pubkey step). The forward targets
-  # the VM's loopback :443, so 80/443 stay closed to the LAN: localhost
-  # only, nothing announced.
+  # authorized_keys — README's one-time pubkey step). The web ports open
+  # regardless of loopback vs public — the local VM is reachable on the
+  # LAN at its bridged IP, prod serves the world.
   ufw allow OpenSSH >/dev/null 2>&1 || ufw allow 22/tcp >/dev/null
+  ufw allow 80/tcp >/dev/null
+  ufw allow 443/tcp >/dev/null
   ufw --force enable >/dev/null
 
   # ── Phase 2/11: seed — extract /srv/desmo/main from the tarball ────────
@@ -306,6 +330,17 @@ EOF
   # birth (root:desmo 640, no umask window); the mint below fills its three
   # @NAME@ placeholders.
   install -o root -g desmo -m 640 "$template" "$creds_env"
+
+  # BASE_URL env override: the operator's origin replaces the template's
+  # BASE_URLS line in the INSTALLED env (Django + every unit
+  # source this file, not the template). Runs BEFORE the mint —
+  # sed -i swaps the inode (root:root 644 under the pinned umask), but
+  # the mint re-pins the final file root:desmo 640 via its .new install;
+  # at sed time no secret exists in the file yet.
+  if [ -n "$BASE_URL" ]; then
+    echo "    BASE_URLS = $base_url (env override)"
+    sed -i "s|^BASE_URLS=.*|BASE_URLS=\"$base_url\"|" "$creds_env"
+  fi
 
   # The three machine secrets, minted exactly once (phase 0 enforced the
   # @NAME@ placeholders, so the tokens await fill here).
@@ -375,12 +410,13 @@ EOF
   pg_main="$(echo /var/lib/postgresql/*/main)"
 
   # The render — defined at its only phase of use; closes over the phase-0
-  # knobs/site names + the pg_main above.
+  # knobs/site hostnames + the pg_main above.
   _render() { # <template-path>
     sed -e "s/@GRANIAN_WORKERS@/$granian_workers/g" \
         -e "s/@GRANIAN_THREADS@/$granian_threads/g" \
         -e "s/@HUEY_WORKERS@/$huey_workers/g" \
-        -e "s/@SITE_HOSTNAMES@/$site_names/g" \
+        -e "s/@TLS_DIRECTIVE@/$tls_directive/g" \
+        -e "s/@SITE_HOSTNAMES@/$site_hostname/g" \
         -e "s|@PG_MAIN@|$pg_main|g" "$1"
   }
 
@@ -403,7 +439,8 @@ EOF
   chown root:postgres /etc/pgbackrest/pgbackrest.conf
   chmod 640 /etc/pgbackrest/pgbackrest.conf
 
-  # The app site — caddy picks it up via the phase-5 import line.
+  # The app site — caddy picks it up via the phase-5 import line. The TLS
+  # mode rides the @TLS_DIRECTIVE@ render knob (phase 0 derived it).
   install -d -m 755 /etc/caddy/sites
   _render "$seed_deploy/Caddyfile.site.in" > /etc/caddy/sites/desmo.caddy
   chmod 644 /etc/caddy/sites/desmo.caddy
@@ -519,7 +556,10 @@ SQL
   systemctl restart desmo_granian.service desmo_huey.service
   systemctl restart caddy
 
-  echo "==> provision done (site: localhost — via the ssh forward)"
+  case "$site_hostname" in
+    localhost|127.*|::1) echo "==> provision done (site: localhost — via the ssh forward)" ;;
+    *) echo "==> provision done (site: $base_url — public, ACME TLS)" ;;
+  esac
 }
 
 # ── desmo subcommands (self-dispatched by phases 8/9) ─────────────────────
@@ -565,4 +605,6 @@ case "${1:-}" in
 esac
 
 # MAINTAIN-CONSISTENCY vm-payload — the payload manifest (header) + the
-# phase-10 rm list must match what deploy-local-vm.sh actually transfers
+# phase-10 rm list must match what ships the payload: deploy/install.sh
+# (published git ref) builds + execs exactly these two files;
+# local-vm's two inline curl-line derivations both read its repo_url.

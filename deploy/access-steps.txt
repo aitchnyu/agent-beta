@@ -1,8 +1,10 @@
 
 Built the VM.
 
-The app is reached ONLY through the ssh port forward (no LAN name is
-announced or served). One-time: let your host key in (provisioning installs
+The app answers on the VM's https://localhost — via the ssh port forward
+(host https://localhost:8000), or directly on the LAN at
+https://<bridged-ip> (self-signed; ports 80/443 are open). One-time: let
+your host key in (provisioning installs
 no authorized_keys), then find the VM's bridged IP:
   multipass exec desmo -- bash -c 'mkdir -p -m 700 ~ubuntu/.ssh && cat >> ~ubuntu/.ssh/authorized_keys && chmod 600 ~ubuntu/.ssh/authorized_keys' < ~/.ssh/id_ed25519.pub
   multipass info desmo | grep IPv4
@@ -28,13 +30,11 @@ stores, not the credentials env):
 Login to the app — Google OAuth works on the VM (localhost is Google's dev
 redirect exception): register
   https://localhost:8000/accounts/google/login/callback/
-in the Google console, then:
-  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/local-vm \
-    runasdesmo ./run djangomanage addoauth google <client_id> <secret>
-Or issue a one-time link (the user row must already exist, e.g. via a
-restored DB or Django shell):
-  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/local-vm \
-    runasdesmo ./run djangomanage makeloginlink <email>
+in the Google console, then (DB-only commands — plain `desmo`, the env
+comes with it):
+  multipass exec desmo -- desmo djangomanage addoauth google <client_id> <secret>
+Or issue a one-time link (create the user row first if none exists —
+`desmo djangomanage createuser <email> …`, or a restored DB):
+  multipass exec desmo -- desmo djangomanage makeloginlink <email>
 Promote to superuser:
-  multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/local-vm \
-    runasdesmo ./run djangomanage promotetosuperuser <email>
+  multipass exec desmo -- desmo djangomanage promotetosuperuser <email>

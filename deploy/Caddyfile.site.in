@@ -1,13 +1,14 @@
 # The VM's caddy site — rendered into /etc/caddy/sites/desmo.caddy
 # (the main Caddyfile's "import sites/*.caddy" picks it up).
 #
-# @SITE_HOSTNAMES@ render from ALLOWED_HOSTS in the credentials env.
+# @SITE_HOSTNAMES@ renders from the BASE_URLS origin's hostname.
+# @TLS_DIRECTIVE@ renders per origin: loopback keeps `tls internal` (the
+# self-signed CA); a public hostname renders empty → caddy's automatic ACME.
 
 # Caddy is also the static file server: collectstatic fills main/staticfiles/
 # and hashed bundles get immutable long-cache headers.
 @SITE_HOSTNAMES@ {
-	tls internal
-
+	@TLS_DIRECTIVE@
 	# Compress text assets on the wire: the JS chunks are the bulk of first
 	# load (mermaid ~600 KB gzipped of 2.4 MB raw) and Django's static handler
 	# serves everything uncompressed — encode here cuts every cold cache ~4x.

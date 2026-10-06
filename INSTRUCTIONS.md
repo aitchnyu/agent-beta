@@ -39,58 +39,54 @@ Try not to generate multiline bash commands. My agent thinks each line is a comm
 Do not run `rm` or `ls` in bash. Use the tool calls.
 Do not use curl to read urls. Use browser tool call.
 
-## Guest-side scripts
-Any multipass command longer than two lines lives as a NAMED FUNCTION in a
-guest-side script with a dispatcher at the bottom — call sites stay
-one-liners, no `bash -c` string blobs, no `declare -f` embedding. Where a
+## In-VM scripts
+Any command that runs inside a VM — multipass-exec'd from the host or
+curl|bash'd by the operator — longer than two lines lives as a NAMED
+FUNCTION in a script with a dispatcher at the bottom; call sites stay
+one-liners. The banned forms (inline `bash -c` string blobs, `declare -f`
+embedding — the "Wrong" examples below) were eradicated in the VM
+provisioning refactor; the rule stays as the regression guard. Where a
 function lives depends on its role:
 - `local-vm` (repo root) — the local test VM's interface: the HOST driver
-  (`./local-vm provision|delete`) and the guest-side admin surface
+  (`./local-vm provision-full|provision-blank|delete`) and the guest-side admin surface
   (`runasdesmo`; the seed lands the file at `/srv/desmo/main/local-vm`).
+- `deploy/install.sh` — the production entry: curl|bash'd as root inside a
+  fresh VM; builds the payload from a published git ref and execs the
+  provisioner. Owns the repo identity (`repo_url`).
 - `deploy/gate.sh` — the testing battery only (checkframework2's in-VM
   gate; dispatched as `… deploy/gate.sh gate`).
 - `deploy/inside-vm.sh` and `deploy/install-playwright.sh` — whole-script
-  exceptions: the provisioner `./local-vm provision` execs once, and the
-  encapsulated playwright install it dispatches to.
+  exceptions: inside-vm.sh is the provisioner, exec'd once by whichever
+  entry ships its payload (the MAINTAIN-CONSISTENCY vm-payload notes own
+  the entry contract); and install-playwright.sh is the encapsulated
+  install it dispatches to.
 
 **Wrong** — inline `bash -c` string blob (nested `python -c` grows a `\"`
 per level, no editor support):
 ```bash
 multipass exec desmo -- sudo bash -c \
-  "tar xzf /tmp/desmo-seed.tgz -C /srv/desmo/main && chown -R desmo:desmo /srv/desmo/main && find /srv/desmo/main -exec chmod g+w {} +"
+  "systemctl is-active desmo_granian.service desmo_huey.service && curl -fsSk -o /dev/null https://localhost/ && journalctl -u desmo_huey.service -n 5"
 ```
 
-**Wrong** — `declare -f` embedding (quoting traps; the body lives far from
-its call site):
+**Right** — the body lives in the matched guest-side script; call sites are
+one-liners:
 ```bash
-deploy_ourapp() {
-  tar xzf /tmp/testapp-ourapp.tgz -C /srv/desmo/main
-  chown -R desmo:desmo /srv/desmo/main/ourapp
-  find /srv/desmo/main/ourapp -exec chmod g+w {} +
-  rm -f /tmp/testapp-ourapp.tgz
+# deploy/gate.sh — a repo edit lands the function there (ordinary shell,
+# lintable, reusable; fake-smoke-app is illustrative):
+fake-smoke-app() {
+  systemctl is-active desmo_granian.service desmo_huey.service
+  curl -fsSk -o /dev/null https://localhost/
+  journalctl -u desmo_huey.service -n 5
 }
-multipass exec desmo -- sudo bash -c "$(declare -f deploy_ourapp); deploy_ourapp"
+
+# …and every call site becomes:
+multipass exec desmo -- sudo bash /srv/desmo/main/deploy/gate.sh fake-smoke-app
 ```
 
 **Wrong** — re-typing the env/cwd/PATH dance for every app command:
 ```bash
 multipass exec desmo -- sudo -u desmo -H bash -c \
   'set -a; . /etc/credentials/desmo/.env.vm; set +a; cd /srv/desmo/main; ./run djangomanage makeloginlink <email>'
-```
-
-**Right** — the body lives in the matched guest-side script; call sites are
-one-liners:
-```bash
-# deploy/gate.sh gains the function (ordinary shell, lintable, reusable):
-deploy-ourapp() {
-  tar xzf /tmp/testapp-ourapp.tgz -C /srv/desmo/main
-  chown -R desmo:desmo /srv/desmo/main/ourapp
-  find /srv/desmo/main/ourapp -exec chmod g+w {} +
-  rm -f /tmp/testapp-ourapp.tgz
-}
-
-# …and every call site becomes:
-multipass exec desmo -- sudo bash /srv/desmo/main/deploy/gate.sh deploy-ourapp
 ```
 
 **Right** — one command as the desmo user goes through `local-vm`'s

@@ -1,7 +1,7 @@
 #!/bin/bash
 # gate.sh — the deployment gate: checkframework2's in-VM acceptance battery,
 # wholesale. TESTING ONLY — no operator surface lives here (that's local-vm's
-# runasdesmo; INSTRUCTIONS.md § "Guest-side scripts"). Runs INSIDE the VM:
+# runasdesmo; INSTRUCTIONS.md § "In-VM scripts"). Runs INSIDE the VM:
 #
 #   multipass exec desmo -- sudo bash /srv/desmo/main/deploy/gate.sh gate
 #
@@ -31,15 +31,6 @@ _vm_env() {
   . /etc/credentials/desmo/.env.vm
   set +a
   cd /srv/desmo/main
-}
-
-# ── root ──────────────────────────────────────────────────────────────────
-
-deploy-ourapp() {
-  tar xzf /tmp/testapp-ourapp.tgz -C /srv/desmo/main
-  chown -R desmo:desmo /srv/desmo/main/ourapp
-  find /srv/desmo/main/ourapp -exec chmod g+w {} +
-  rm -f /tmp/testapp-ourapp.tgz
 }
 
 # ── desmo user ────────────────────────────────────────────────────────────
@@ -96,7 +87,9 @@ agent-scratch-create() {
 
 # Insert the deployscratch liveness marker into scratch's home view —
 # header-gated (exact-props tests never see it), inside ourapp/ (framework
-# watch quiet, battery-clean), grep-guarded (rerun no-ops). The sed:
+# watch quiet, battery-clean), grep-guarded (rerun no-ops). FIRST return
+# only (the 0,/re/ range): the view also ends with the mockup route's
+# return, and `props` exists only in home's scope. The sed:
 #   before:  ...  return InertiaResponse(...)
 #   after:   ...  if request.headers.get("X-Scratch-Probe"):
 #                 props["scratch_marker"] = "scratch-deploy-live"
@@ -105,7 +98,7 @@ agent-scratch-edit() {
   _vm_env
   local home=/srv/desmo/scratch/ourapp/views/home.py
   grep -q scratch_marker "$home" \
-    || sed -i 's/^    return InertiaResponse/    if request.headers.get("X-Scratch-Probe"):\n        props["scratch_marker"] = "scratch-deploy-live"\n    return InertiaResponse/' "$home"
+    || sed -i '0,/^    return InertiaResponse/s/^    return InertiaResponse/    if request.headers.get("X-Scratch-Probe"):\n        props["scratch_marker"] = "scratch-deploy-live"\n    return InertiaResponse/' "$home"
   echo "agent scratch edit OK"
 }
 
@@ -189,13 +182,17 @@ gate-assert-eq() {
 gate() {
   local link body
 
-  # ── Setup 1/3: overlay the test app ────────────────────────────────────
-  # Tar the testapp's ourapp/ from the seeded tree, extract it over the
-  # VM's /srv/desmo/main/ourapp — an overlay MERGE (files only in the seeded
-  # ourapp/ survive, e.g. its own tests; the tarball has no --delete).
+  # ── Setup 1/3: replace the app with the test app ───────────────────────
+  # Wholesale replace — same semantics as the host tiers' overlay_app
+  # (rsync --delete): the seeded ourapp/ (code AND tests) goes, the
+  # testapp lands in its place, nothing of the template's app survives.
+  # The VM gate tests the live stack against the Books app; the
+  # template's own tests run host-side in checkframework1.
   echo; echo "=== Setup 1/3: deploy the Books test app over the VM's ourapp/ ==="
-  tar -C /srv/desmo/main/djangoapp/tests/testapp -czf /tmp/testapp-ourapp.tgz ourapp
-  deploy-ourapp
+  rm -rf /srv/desmo/main/ourapp
+  cp -a /srv/desmo/main/djangoapp/tests/testapp/ourapp /srv/desmo/main/ourapp
+  chown -R desmo:desmo /srv/desmo/main/ourapp
+  find /srv/desmo/main/ourapp -exec chmod g+w {} +
 
   # ── Setup 2/3: migrate + the smoke superuser ───────────────────────────
   # framework@example.com ("Framework Smoke"), then restart granian on the
@@ -209,12 +206,15 @@ gate() {
   # ── Setup 3/3: issue the one-time superuser login link ─────────────────
   # The cookie jar filled by assert 1 carries the session every later
   # authed assert rides on (it survives the deployscratch restart —
-  # sessions are DB-backed).
+  # sessions are DB-backed). The printed link's origin is BASE_URLS[0]
+  # (the tunnel origin) — in-VM asserts want the :443 base, so the grep
+  # lifts just the PATH.
   echo; echo "=== Setup 3/3: issue the one-time superuser login link ==="
-  link=$(gate-as-desmo-user uv run --no-sync python manage.py makeloginlink \
-    framework@example.com --base-url "$gate_base" \
-    | grep -oE "$gate_base/login-for-test/[^ ]+/" | sed -n '1p') || true
-  [ -n "$link" ]
+  login_path="$(gate-as-desmo-user uv run --no-sync python manage.py makeloginlink \
+    framework@example.com \
+    | grep -oE '/login-for-test/[^ ]+/' | sed -n '1p')" || true
+  [ -n "$login_path" ]
+  link="$gate_base$login_path"
 
   # ── Assert 1: 302 (redirect after login; 200 also fine) and a
   # session cookie in the jar.
