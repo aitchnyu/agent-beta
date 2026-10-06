@@ -5,10 +5,6 @@ desmo user shouldnt have readonly access to its files
 
 gate() is dangerous
 
-provision-full should use provision-blank and invoke the script to curl|bash 
-
-`Quick start` heading
-
 TUI for config
 
 Readme for end users and devs. VM, pi /login and /model selection

@@ -40,12 +40,35 @@ https://your.domain/login-for-test/<key>/
 
 Open the printed link in a browser — it signs you in once, then expires.
 
-## Local VM
+## Local Development
 
-Developers can try it on a local VM.
+On a local multipass VM (instance `desmo`, bridged, 2G ram / 20G disk) or
+on your machine.
 
-The same thing on a local multipass VM (instance `desmo`, bridged, 2G
-ram / 20G disk), two ways:
+### Install in local vm, everything included
+
+This is the preferred method.
+
+`provision-blank` + the installer, run for you — the VM is built from
+**published `main`** (push first, then gate), loopback like the blank flow:
+
+```console
+$ ./local-vm provision-full
+
+...
+...
+==> multipass launch desmo (bridged en0, DHCP, 2G ram, 20G disk, 26.04) — blank
+Launched: desmo
+....
+
+Installed (loopback-only — local test mode, no --base-url given). The app
+answers on the VM's https://localhost behind the ssh port forward;
+access steps: deploy/access-steps.txt (README § Local VM).
+
+Built the VM.
+…access steps: the one-time pubkey line, the VM's bridged IP, the
+ssh -N -L 8000:localhost:443 forward, browse https://localhost:8000/ …
+```
 
 ### Install in blank local vm
 
@@ -58,17 +81,35 @@ multipass shell desmo
 curl -fsSL https://raw.githubusercontent.com/aitchnyu/agent-beta/main/deploy/install.sh | sudo bash -s
 ```
 
-### Install in local vm, everything included
-
-`provision-blank` + the installer, run for you — the VM is built from
-**published `main`** (push first, then gate), loopback like the blank flow:
-
-```bash
-./local-vm provision-full   # builds and prints access + login steps
-```
-
 Everything else — access via the ssh forward, secrets, the scratch edit
 loop — is the [VM (test server)](#vm-test-server) section below.
+
+### Run locally
+
+This is for running the local test suite without provisioning a machine.
+
+Steps to get the test suite working on your machine:
+
+1. Prerequisites:
+   - Python 3.14+ with [`uv`](https://docs.astral.sh/uv/)
+   - Node.js + npm
+   - PostgreSQL
+   - Redis
+2. `./run init` — copies `.env.example` → `.env`, generates `SECRET_KEY`,
+   creates + migrates the database, and builds the frontend; set
+   `DB_PASSWORD` to your local postgres afterwards.
+3. `./run test` — the suite runs (against the test database).
+
+If you want to look around:
+
+- `./run dev` serves http://127.0.0.1:8000/ — `ourapp/` is a placeholder
+  landing page; `docs/reference/` holds the copyable example app.
+- Sign in without email/password: create a row + a one-time link —
+  `./run djangomanage createuser you@example.com … --superuser`, then
+  `./run djangomanage makeloginlink you@example.com`.
+- Google login: `./run djangomanage addoauth google <client_id> <secret>`.
+- Agent: point it at `INSTRUCTIONS.md` (the operating manual); start it
+  with `./run pi`.
 
 ## Features
 - **Agent-driven development** — a [pi](https://pi.dev)
@@ -121,32 +162,6 @@ loop — is the [VM (test server)](#vm-test-server) section below.
   a crosshatch overlay let you review a UI before it's built
   (the convention lives in `agentconfig/steer.md`; `/mockup-todos` ships as the
   permanent demo — see [Edit → test → deploy workflow](#edit--test--deploy-workflow)).
-
-## Quick start
-- **Prerequisites** — Python 3.14+ with [`uv`](https://docs.astral.sh/uv/),
-  Node.js + npm, PostgreSQL, and Redis run the app;
-  [pi](https://pi.dev) runs the agent
-  (`npm install -g --ignore-scripts @earendil-works/pi-coding-agent`).
-- **Environment** — `./run init` copies `.env.example` → `.env`, generates
-  `SECRET_KEY`, creates + migrates the database, and builds the frontend;
-  set `DB_PASSWORD` to your local postgres afterwards.
-- **Run** — `./run dev` starts runserver + vite + huey in
-  one terminal (Ctrl-C stops all); then open
-  http://127.0.0.1:8000/ — `ourapp/` is a placeholder landing page, and
-  `docs/reference/` holds the copyable example app (facts + todos).
-- **First user** — there is no email/password signup (Google is the only
-   self-serve flow for now): create the row and sign in via a one-time link —
-  `./run djangomanage createuser you@example.com --first-name You --last-name Name --superuser`
-  then `./run djangomanage makeloginlink you@example.com` (opens
-  `/login-for-test/<key>/`, single use; `promotetosuperuser <email>`
-  promotes an existing user later).
-- **Google login** (dev) — register OAuth credentials and store them with
-  `./run djangomanage addoauth google <client_id> <secret>`.
-- **Agent** — point your AI agent at this repo and have it read
-  `INSTRUCTIONS.md` (the operating manual: workflows, conventions,
-  command allowlist); start it with `./run pi`.
-- **Test VM instead** — the whole loop can run on a Linux VM (multipass):
-  see [VM (test server)](#vm-test-server).
 
 ## VM (test server)
 
