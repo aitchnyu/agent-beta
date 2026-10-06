@@ -1,7 +1,3 @@
-desmo user shouldnt have rw access to its files
-
-gate() is dangerous
-
 TUI for config
 
 Readme for end users and devs. VM, pi /login and /model selection
@@ -26,6 +22,8 @@ local-vm portforward
 
 apply --3way merges with `./run importtemplate <github-url> <tag>` 
 import from git repo tags?
+
+desmo user shouldnt have rw access to its files
 
 Desec dns docs
 

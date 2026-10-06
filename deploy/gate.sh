@@ -12,6 +12,9 @@
 # `gate` — one linear body, read top to bottom:
 # - runs as ROOT, after the host (run's checkframework2) provisioned the
 #   VM fresh
+# - refuses to run on a prod VM (refuse-if-prod): a non-loopback BASE_URLS
+#   means prod data — the battery destroys what it touches, so it aborts
+#   before anything mutates
 # - overlays the Books test app over the VM's ourapp/
 # - smokes the LIVE stack over HTTPS on loopback (caddy TLS, granian,
 #   postgres, login links) — what only a real deployment shows
@@ -176,11 +179,49 @@ gate-assert-eq() {
   exit 1
 }
 
+# The gate's step 0: refuse to run on a prod VM.
+# - why: the battery destroys what it touches — the testapp overlay wipes
+#   ourapp/, the smoke superuser lands in the DB, assert 11 RESTORES the
+#   live cluster to a backup set. Fine on the throwaway checkframework2
+#   VM; catastrophic on a prod install holding real data.
+# - the role truth is the installed BASE_URLS: provisioning writes the
+#   operator's --base-url there — public origin ⇒ prod, the template's
+#   loopback default ⇒ test
+# - sed the value out rather than source the whole credentials file
+# - default-deny: ANY non-loopback origin, a missing BASE_URLS, or a line
+#   that doesn't parse — all refuse
+refuse-if-prod() {
+  local base_urls origin host
+  base_urls="$(sed -n 's|^BASE_URLS="\([^"]*\)"$|\1|p' /etc/credentials/desmo/.env.vm)"
+  [ -n "$base_urls" ] || {
+    echo "REFUSING: BASE_URLS missing or unparseable in /etc/credentials/desmo/.env.vm — the gate only runs on loopback test VMs." >&2
+    exit 1
+  }
+  # BASE_URLS is a comma list (template.env); whitespace-tolerant too.
+  for origin in ${base_urls//,/ }; do
+    host="${origin#https://}"; host="${host%%[:/]*}"
+    case "$host" in
+      localhost|127.0.0.1) ;;
+      *)
+        echo "REFUSING: BASE_URLS origin '$origin' is not loopback — this looks like a prod VM; the gate is a destructive test battery (testapp overlay, smoke superuser, live-DB restore)." >&2
+        exit 1
+        ;;
+    esac
+  done
+}
+
 # The gate itself — one linear body, read top to bottom. Invoked by run's
 # checkframework2 over ONE multipass exec; its exit code is the verdict.
 # Local vars needed across steps (the login link, the page bodies).
+# Step 0 is the prod refusal (refuse-if-prod): a non-loopback BASE_URLS
+# aborts the gate before anything mutates.
 gate() {
   local link body
+
+  # ── Step 0: never on a prod VM ──────────────────────────────────────────
+  # The battery destroys what it touches: testapp overlay over ourapp/,
+  # smoke superuser in the DB, assert 11's live-DB restore.
+  refuse-if-prod
 
   # ── Setup 1/3: replace the app with the test app ───────────────────────
   # Wholesale replace — same semantics as the host tiers' overlay_app

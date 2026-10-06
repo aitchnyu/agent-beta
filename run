@@ -405,6 +405,8 @@ checkframework1() {
 #   The gate:
 #   - replaces the VM's `ourapp/` with the Books test app (djangoapp/tests/testapp)
 #     ourapp/
+#   - refuses non-loopback installs first (BASE_URLS from the VM's
+#     installed .env.vm — prod origins abort before anything mutates)
 #   - smokes the LIVE stack over HTTPS on loopback (caddy TLS, granian,
 #     postgres, login links)
 #   - runs the agent's full scratch lifecycle

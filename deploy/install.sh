@@ -24,7 +24,8 @@
 # After the provision's phases: basic self-tests (units active + one
 # HTTPS smoke on the site root) + the access steps. The
 # full in-VM battery stays a local-test follow-up (deploy/gate.sh gate —
-# TESTING ONLY, loopback installs).
+# which itself refuses non-loopback installs: a --base-url VM never runs
+# it).
 #
 # PIPE-SAFETY: the entire body below is ONE { … } compound command.
 # `bash -s` fed from a pipe reads the script LAZILY — any child that

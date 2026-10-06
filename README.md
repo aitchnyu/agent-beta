@@ -704,6 +704,9 @@ Three tiers:
   the in-VM gate (`deploy/gate.sh gate`, dispatched like the other guest-side
   helpers) over one multipass exec — the gate's exit code is the verdict. The
   gate:
+  - refuses any non-loopback install first (the VM's installed `BASE_URLS`:
+    a public origin means real data — the battery's testapp overlay, smoke
+    superuser, and live-DB restore never touch such a VM)
   - replaces the VM's `ourapp/` with the Books test app
   - smokes the live stack over HTTPS on the VM's loopback (login link →
     session, superuser gates, default-user + `desmo`-command readiness)
