@@ -399,7 +399,7 @@ checkframework1() {
 }
 
 # The deployment gate (destructive — the old VM's git + database are gone):
-# - rebuild the test VM from scratch (`./local-vm delete` + `provision`)
+# - rebuild the test VM from scratch (`./local-vm delete` + `provision-full`)
 # - run the in-VM gate — deploy/gate.sh's `gate`, dispatched like every other
 #   guest-side helper — over ONE multipass exec; its exit code is the verdict.
 #   The gate:
@@ -417,7 +417,7 @@ checkframework2() {
   if multipass info desmo >/dev/null 2>&1; then
     "$_MAIN_DIR/local-vm" delete
   fi
-  "$_MAIN_DIR/local-vm" provision
+  "$_MAIN_DIR/local-vm" provision-full
   echo "=== Run the in-VM gate (testapp overlay + 11 asserts) ==="
   multipass exec desmo -- sudo bash /srv/desmo/main/deploy/gate.sh gate
 }
@@ -655,11 +655,13 @@ deployscratch() {
   # enforced at provisioning).
   sudo systemctl daemon-reload
   sudo systemctl restart desmo_granian.service desmo_huey.service
-  # Share-URL base from the configured hostname (first ALLOWED_HOSTS
-  # entry) — never a hardcoded one.
-  _SHARE_BASE="https://${ALLOWED_HOSTS%%,*}"
-  echo "App is available under hostnames:"
-  ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py hostnames )
+  # Share-URL base — never a hardcoded one. The FIRST BASE_URLS entry is
+  # the link base (the same rule makeloginlink uses); it keeps scheme and
+  # port, so nothing is prefixed here.
+  _SHARE_BASE="${BASE_URLS%%,*}"   # first origin of the comma list
+  _SHARE_BASE="${_SHARE_BASE%/}"   # drop a trailing slash — the links below add their own
+  echo "App is available under:"
+  ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py baseurls )
   echo "Deployed scratch/ → main/ (uncommitted, services live). Commit in main/ when ready."
   echo "Share design artifacts as absolute URLs at the BOTTOM of your message (with the summary):"
   echo "  docs:  ${_SHARE_BASE}/files/main/ourapp/docs/<feature>.md"

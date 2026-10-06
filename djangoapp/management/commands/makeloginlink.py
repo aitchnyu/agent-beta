@@ -32,17 +32,10 @@ class Command(BaseCommand):
             default=15,
             help="Link lifetime in minutes (default 15).",
         )
-        parser.add_argument(
-            "--base-url",
-            type=str,
-            default=None,
-            help="Origin to prefix the path with (default: derived from DEBUG/ALLOWED_HOSTS).",
-        )
 
     def handle(self, **options: Any) -> None:  # noqa: ANN401 # Django passes **options as untyped command flags
         email: str = options["email"]
         minutes: int = options["minutes"]
-        base_url: str | None = options["base_url"]
         # 0/negative would issue an already-dead link and print it as success.
         if minutes <= 0:
             msg = f"--minutes must be > 0 (got {minutes})."
@@ -58,15 +51,9 @@ class Command(BaseCommand):
             raise CommandError(msg)
         user = matches.get()
         key, _expires_at = LoginKey.issue(user, minutes=minutes)
-        # Outside DEBUG the app is always behind the HTTPS proxy at its first
-        # allowed host; in dev the runserver port is the only reachable origin.
-        if base_url is None:
-            base_url = (
-                "http://127.0.0.1:8000"
-                if settings.DEBUG
-                else f"https://{settings.ALLOWED_HOSTS[0]}"
-            )
-        url = f"{base_url}/login-for-test/{key}/"
+        # The FIRST configured origin (settings.BASE_URLS) is the base —
+        # never an assumed scheme/host/port.
+        url = f"{settings.BASE_URLS[0]}/login-for-test/{key}/"
         self.stdout.write(
             self.style.SUCCESS(
                 f"One-time login for '{user.username}' (valid {minutes} min, single use):\n{url}"

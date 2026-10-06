@@ -57,7 +57,7 @@
       "./run djangomanage migrate *": "allow",
       "./run djangomanage makemigrations *": "allow",
       "./run djangomanage findstatic *": "allow",
-      "./run djangomanage hostnames *": "allow",
+      "./run djangomanage baseurls *": "allow",
       "./run test *": "allow",
       "./run playwrighttest *": "allow",
       "git diff *": "allow",

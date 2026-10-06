@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 import os
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from django.utils.csp import CSP
 
@@ -38,8 +39,15 @@ if not DEBUG and SECRET_KEY == "fake":  # noqa: S105
 # Configured once at import so it's ready before the first log call.
 configure_logging()
 
-# Convert comma-separated string to list
-ALLOWED_HOSTS = [host.strip() for host in os.environ["ALLOWED_HOSTS"].split(",") if host.strip()]
+# Every origin the app answers at (comma list, scheme required) — the
+# single source for ALLOWED_HOSTS, CSRF origins, and link defaults.
+BASE_URLS = [url.strip().rstrip("/") for url in os.environ["BASE_URLS"].split(",") if url.strip()]
+
+# Hosts Django answers on — the origins' hostname part, port-less.
+ALLOWED_HOSTS = [urlsplit(url).hostname for url in BASE_URLS]
+
+# Exact origins for the CSRF Origin/Referer match (scheme + port).
+CSRF_TRUSTED_ORIGINS = list(BASE_URLS)
 
 
 # Application definition
@@ -170,15 +178,6 @@ STATIC_ROOT = Path(os.environ["STATIC_ROOT"])
 # (gitignored, excluded from the scratch rsync); served per-app via
 # djangoapp.media.serve_file, never a global /media/ route.
 MEDIA_ROOT = BASE_DIR / "media"
-
-# Origins trusted for secure POSTs, DERIVED from ALLOWED_HOSTS (no env knob):
-# the app is always reached over HTTPS at its allowed hosts — behind caddy on
-# the VM (https://localhost:8000 behind caddy), plain runserver in dev (where the
-# https://localhost origins are simply unused). ALLOWED_HOSTS validates the
-# Host header; this gates the CSRF Origin/Referer match, which needs scheme.
-# Behind the proxy this is belt-and-braces: Django also accepts an Origin that
-# matches the request's own scheme+host (incl. non-standard ports).
-CSRF_TRUSTED_ORIGINS = [f"https://{host}" for host in ALLOWED_HOSTS]
 
 # Two layers make Django see https behind caddy: djangoproject/asgi.py wraps
 # the app with granian's proxy-header handler (peer-checked, the primary

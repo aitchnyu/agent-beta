@@ -83,13 +83,12 @@ class MakeLoginLinkCommandTests(BaseTestCase):
     printed URL — including the failure guards shared with promotetosuperuser.
 
     - test_prints_working_one_time_url, printed URL logs the user in once
-    - test_printed_url_honors_base_url, --base-url prefixes the printed path
+    - test_printed_url_uses_the_first_origin, the link carries BASE_URLS[0]
     - test_redeem_rotates_session_key, login() cycles the session
     - test_missing_email_errors, unknown email raises CommandError
     - test_duplicate_email_errors, ambiguous email raises CommandError
     - test_case_variant_email_matches, lookup is iexact
     - test_minutes_must_be_positive, 0/negative --minutes refuses
-    - test_default_base_url_honors_debug, no --base-url under DEBUG derives the runserver origin
     """
 
     def setUp(self) -> None:
@@ -98,7 +97,7 @@ class MakeLoginLinkCommandTests(BaseTestCase):
     def test_prints_working_one_time_url(self) -> None:
         """The URL in stdout authenticates the session once, then 404s."""
         out = StringIO()
-        call_command("makeloginlink", self.user.email, base_url="https://vm.example", stdout=out)
+        call_command("makeloginlink", self.user.email, stdout=out)
         match = _KEY_URL_RE.search(out.getvalue())
         assert match is not None  # test-side invariant: the command always prints the URL
         path = match.group(1)
@@ -111,21 +110,18 @@ class MakeLoginLinkCommandTests(BaseTestCase):
         # it in), which the view refuses instead of 404ing.
         self.assertEqual(Client().get(path).status_code, 404)
 
-    def test_printed_url_honors_base_url(self) -> None:
-        """--base-url prefixes the printed path.
-
-        A regression that drops it would silently fall back to
-        ALLOWED_HOSTS[0].
-        """
+    def test_printed_url_uses_the_first_origin(self) -> None:
+        """The printed link carries the first BASE_URLS origin — never an assumed one."""
         out = StringIO()
-        call_command("makeloginlink", self.user.email, base_url="https://vm.example", stdout=out)
+        with override_settings(BASE_URLS=["https://vm.example", "https://other.example"]):
+            call_command("makeloginlink", self.user.email, stdout=out)
         self.assertIn("https://vm.example/login-for-test/", out.getvalue())
 
     def test_redeem_rotates_session_key(self) -> None:
         """login() cycles the session key (fixation-safe)."""
         pre_key = self.client.session.session_key
         out = StringIO()
-        call_command("makeloginlink", self.user.email, base_url="https://vm.example", stdout=out)
+        call_command("makeloginlink", self.user.email, stdout=out)
         match = _KEY_URL_RE.search(out.getvalue())
         assert match is not None
         self.client.get(match.group(1))
@@ -145,7 +141,7 @@ class MakeLoginLinkCommandTests(BaseTestCase):
     def test_case_variant_email_matches(self) -> None:
         """The email lookup is case-insensitive."""
         out = StringIO()
-        call_command("makeloginlink", "CMD@example.com", base_url="https://vm.example", stdout=out)
+        call_command("makeloginlink", "CMD@example.com", stdout=out)
         self.assertIn("/login-for-test/", out.getvalue())
 
     def test_minutes_must_be_positive(self) -> None:
@@ -153,10 +149,3 @@ class MakeLoginLinkCommandTests(BaseTestCase):
         for bad in (0, -5):
             with self.assertRaises(CommandError):
                 call_command("makeloginlink", self.user.email, minutes=bad, stdout=StringIO())
-
-    def test_default_base_url_honors_debug(self) -> None:
-        """No --base-url under DEBUG derives the runserver origin, not ALLOWED_HOSTS."""
-        out = StringIO()
-        with override_settings(DEBUG=True):
-            call_command("makeloginlink", self.user.email, stdout=out)
-        self.assertIn("http://127.0.0.1:8000/login-for-test/", out.getvalue())

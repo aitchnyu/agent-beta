@@ -251,9 +251,9 @@ deploys while the battery is red. The tail: rsync `../scratch/` → `main/`
 with `--delete` (`.git` and `.env` excluded — main's repo and env are never
 overwritten), `migrate`, and on the VM collectstatic + restart
 granian/huey — **deployed routes are live immediately**. The tail ends by
-printing `App is available under hostnames:` + the `hostnames` command's
-output (`ALLOWED_HOSTS`, comma-separated) — you never need to derive or
-print hostnames yourself after a deploy. Does **not**
+printing `App is available under:` + the `baseurls` command's output
+(the deployed origins — `BASE_URLS`, comma-separated) — you never
+need to derive or print origins yourself after a deploy. Does **not**
 commit; commits in `main/` stay the human's.
 
 **Never deploy over uncommitted work you can't account for.** The deploy
@@ -414,15 +414,11 @@ and their `ask` decisions are FORWARDED to the operator's TUI — in headless
 runs (no UI anywhere) asks are denied, so keep subagent tasks allowlist-clean.
 
 ### Linking (absolute URLs, markdown only)
-The TUI hyperlinks **absolute** URLs — relative paths and HTML `<a>` anchors
-are NOT clickable in chat. Always link as markdown
-`[label](<absolute-url>)`. **Base URL (`<base>`)**: run
-`./run djangomanage hostnames` (allowlisted; prints
-`<hostname1,hostname2,…>`) and use `https://<first hostname>` — never
-assume a hostname, and never read the env file for it. Do NOT try to
-access the site yourself (e.g. https://localhost:8000): you have no browser
-session with the required user, and the hostname may not be that — build
-links from the command's output only. Placement of links in the message:
+Only absolute URLs are clickable in chat — link as markdown
+`[label](<absolute-url>)`. Base URL: `./run djangomanage baseurls`
+(allowlisted) prints the deployed origins; use the first verbatim —
+never assume one or read the env file. Do not access the site yourself
+(you have no authenticated browser session). Placement:
 [Message structure](#message-structure-the-single-rule).
 
 - **Files** — superuser-only viewer rooted at the parent of `main/`: the URL
@@ -1128,8 +1124,8 @@ The allowlisted commands (defined in the `bash` map of
 ./run typecheck                      # …and ./run lintfix
 ./run test …                         # any args
 ./run playwrighttest …
-./run djangomanage makemigrations …  # … / migrate / findstatic / hostnames
-                                      # (findstatic, hostnames are read-only)
+./run djangomanage makemigrations …  # … / migrate / findstatic / baseurls
+                                      # (findstatic, baseurls are read-only)
 npm run build                        # from frontend/
 cd ../scratch                        # …then git status / git diff … / git log … / git show …
 git status …                         # any args, like git diff / log / show / blame / grep /
