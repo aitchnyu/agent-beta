@@ -1,6 +1,3 @@
-inline th _render s
-@TLS_DIRECTIVE@ - use sed like a template engine
-
 desmo user shouldnt have readonly access to its files
 
 gate() is dangerous

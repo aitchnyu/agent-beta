@@ -409,40 +409,37 @@ EOF
   local pg_main
   pg_main="$(echo /var/lib/postgresql/*/main)"
 
-  # The render — defined at its only phase of use; closes over the phase-0
-  # knobs/site hostnames + the pg_main above.
-  _render() { # <template-path>
-    sed -e "s/@GRANIAN_WORKERS@/$granian_workers/g" \
-        -e "s/@GRANIAN_THREADS@/$granian_threads/g" \
-        -e "s/@HUEY_WORKERS@/$huey_workers/g" \
-        -e "s/@TLS_DIRECTIVE@/$tls_directive/g" \
-        -e "s/@SITE_HOSTNAMES@/$site_hostname/g" \
-        -e "s|@PG_MAIN@|$pg_main|g" "$1"
-  }
-
-  # systemd units (worker knobs + site names rendered in). 644, root:root —
-  # pinned explicit, same modes the old tree extraction landed.
-  _render "$seed_deploy/granian.service.in" > /etc/systemd/system/desmo_granian.service
-  _render "$seed_deploy/huey.service.in" > /etc/systemd/system/desmo_huey.service
-  _render "$seed_deploy/pgbackrest.service.in" > /etc/systemd/system/desmo_pgbackrest.service
-  _render "$seed_deploy/pgbackrest.timer.in" > /etc/systemd/system/desmo_pgbackrest.timer
-  chmod 644 /etc/systemd/system/desmo_granian.service \
-    /etc/systemd/system/desmo_huey.service \
-    /etc/systemd/system/desmo_pgbackrest.service \
+  sed -e "s/@GRANIAN_WORKERS@/$granian_workers/g" \
+      -e "s/@GRANIAN_THREADS@/$granian_threads/g" \
+      "$seed_deploy/granian.service.in" \
+      > /etc/systemd/system/desmo_granian.service
+  sed -e "s/@HUEY_WORKERS@/$huey_workers/g" \
+      "$seed_deploy/huey.service.in" \
+      > /etc/systemd/system/desmo_huey.service
+  install -m 644 "$seed_deploy/pgbackrest.service.in" \
+    /etc/systemd/system/desmo_pgbackrest.service
+  install -m 644 "$seed_deploy/pgbackrest.timer.in" \
     /etc/systemd/system/desmo_pgbackrest.timer
+  chmod 644 /etc/systemd/system/desmo_granian.service \
+    /etc/systemd/system/desmo_huey.service
 
   # pgbackrest.conf — stanza `desmo`, plain unencrypted repo (self-contained
   # dbbackups/), 14-full retention. root:postgres 640 — postgres (the only
   # reader) gets group read.
   install -d -m 755 /etc/pgbackrest
-  _render "$seed_deploy/pgbackrest.conf.in" > /etc/pgbackrest/pgbackrest.conf
+  sed -e "s|@PG_MAIN@|$pg_main|g" \
+      "$seed_deploy/pgbackrest.conf.in" \
+      > /etc/pgbackrest/pgbackrest.conf
   chown root:postgres /etc/pgbackrest/pgbackrest.conf
   chmod 640 /etc/pgbackrest/pgbackrest.conf
 
   # The app site — caddy picks it up via the phase-5 import line. The TLS
-  # mode rides the @TLS_DIRECTIVE@ render knob (phase 0 derived it).
+  # mode rides the @TLS_DIRECTIVE@ knob (phase 0 derived it).
   install -d -m 755 /etc/caddy/sites
-  _render "$seed_deploy/Caddyfile.site.in" > /etc/caddy/sites/desmo.caddy
+  sed -e "s/@SITE_HOSTNAMES@/$site_hostname/g" \
+      -e "s/@TLS_DIRECTIVE@/$tls_directive/g" \
+      "$seed_deploy/Caddyfile.site.in" \
+      > /etc/caddy/sites/desmo.caddy
   chmod 644 /etc/caddy/sites/desmo.caddy
 
   # ── Phase 5/11: stock configs — mutate the live ones in place ──────────
@@ -494,7 +491,8 @@ SQL
   # (not file edits). archive_mode needs an instance restart — resolved by
   # name (pg_lsclusters): the postgresql meta unit doesn't re-run instances.
   sudo -u postgres psql -q -c "ALTER SYSTEM SET archive_mode = 'on'"
-  sudo -u postgres psql -q -c "ALTER SYSTEM SET archive_command = 'pgbackrest --stanza=desmo archive-push %p'"
+  sudo -u postgres psql -q \
+    -c "ALTER SYSTEM SET archive_command = 'pgbackrest --stanza=desmo archive-push %p'"
   local pg_instance
   pg_instance="$(pg_lsclusters -h | awk 'NR==1 {print $1 "-" $2}')"
   systemctl restart "postgresql@${pg_instance}.service"
