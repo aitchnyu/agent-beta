@@ -218,23 +218,15 @@ provision() {
   # commit marker = GIT_COMMITTER_NAME env (creds file); a global git
   # identity would OVERRIDE env vars — so none is ever set here.
 
-  # `desmo <cmd…>` == cd /srv/desmo/main && ./run <cmd…>; env sourcing
-  # stays in ./run's setenv. /usr/local/bin is on every user's PATH.
-  cat > /usr/local/bin/desmo <<'EOF'
-#!/bin/sh
-# desmo — run the deployed repo's ./run from anywhere: `desmo pi` is the
-# same as cd /srv/desmo/main && ./run pi.
-cd /srv/desmo/main || { echo "no /srv/desmo/main (provision the VM first)" >&2; exit 1; }
-exec ./run "$@"
-EOF
-  chmod 755 /usr/local/bin/desmo
+  # `desmo <cmd…>` == cd /srv/desmo/main && ./run <cmd…>; the wrapper
+  # ships as deploy/desmo.sh — phase 2 installs it on PATH.
 
   # Login-shell notice (every user); /etc/profile.d runs for every login shell.
   cat > /etc/profile.d/desmo.sh <<'EOF'
 # desmo notice — login shells (bold yellow)
 printf '\n\033[1;33m%s\033[0m\n\033[1;33m%s\033[0m\n\n' \
-  "The desmo command is available on this machine: 'desmo <cmd>' runs ./run" \
-  "on /srv/desmo/main from anywhere (e.g. 'desmo pi'; commands: 'desmo help')."
+  "The desmo command is available on this machine: 
+   (e.g. 'desmo pi'; commands: 'desmo help')."
 EOF
   chmod 644 /etc/profile.d/desmo.sh
 
@@ -322,6 +314,10 @@ EOF
   # stanza is created in phase 6 (needs the phase-4 conf + live pg);
   # the conf and archive_command are phase 4/6's.
   install -d -o postgres -g postgres -m 700 "$maindir/dbbackups"
+
+  # The wrapper: deploy/desmo.sh — PATH install after the seed exists.
+  install -o root -g root -m 755 \
+    "$maindir/deploy/desmo.sh" /usr/local/bin/desmo
 
   # ── Phase 3/11: credentials env — install + mint the machine secrets ───
   echo "==> [3/11] credentials env + machine secrets"

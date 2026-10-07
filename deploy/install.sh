@@ -131,52 +131,30 @@ probe_host="${probe_host%%/*}"          # strip any trailing path
 probe_host="${probe_host%%:*}"          # strip the port
 url="https://$probe_host/"
 case "$probe_host" in
-  localhost|127.*|::1) probe() { curl -fsSk -o /dev/null "$url"; } ;;   # -k: the internal-CA cert
-  *)                   probe() { curl -fsS -o /dev/null "$url"; } ;;
+  # -m 2: a hung connect must not blow the 1s×10 retry budget.
+  localhost|127.*|::1) probe() { curl -m 2 -fsSk -o /dev/null "$url"; } ;;   # -k: the internal-CA cert
+  *)                   probe() { curl -m 2 -fsS -o /dev/null "$url"; } ;;
 esac
-# One attempt — but granian (Type=simple) needs a beat after phase 11's
-# restart before the first request answers; without the settle, the probe
-# races the app boot and fails healthy installs.
-sleep 3
-if ! probe; then
-  echo "FAILED: HTTPS smoke on $url." >&2
-  case "$probe_host" in
-    localhost|127.*|::1) ;;
-    *)
-      echo "  The install itself is complete — if ACME issuance is still in" >&2
-      echo "  flight (caddy retries for hours; check journalctl -u caddy)," >&2
-      echo "  re-probe later: curl -fsS -o /dev/null '$url'" >&2
-      ;;
-  esac
-  exit 1
-fi
+
+# Retry liveness check every 1s up to 10s
+attempt=1
+until probe; do
+  if [ "$attempt" -ge 10 ]; then
+    echo "FAILED: HTTPS smoke on $url ($attempt attempts)." >&2
+    case "$probe_host" in
+      localhost|127.*|::1) ;;
+      *)
+        echo "  The install itself is complete — if ACME issuance is still in" >&2
+        echo "  flight (caddy retries for hours; check journalctl -u caddy)," >&2
+        echo "  re-probe later: curl -fsS -o /dev/null '$url'" >&2
+        ;;
+    esac
+    exit 1
+  fi
+  sleep 1
+  attempt=$((attempt + 1))
+done
 echo "    HTTPS smoke ok ($url)"
 
-# ── access steps + cleanup ──────────────────────────────────────────────────
-case "$probe_host" in
-  localhost|127.*|::1)
-    cat <<'EOF'
-
-Installed (loopback-only — local test mode, no --base-url given). The app
-answers on the VM's https://localhost behind the ssh port forward;
-access steps: deploy/access-steps.txt (README § Local VM).
-EOF
-    ;;
-  *)
-    cat <<EOF
-
-Installed.
-
-Site (public, ACME TLS):
-  $base_url
-First login (no email/password signup — create the row + a one-time link;
-DB-only commands, so plain `desmo` — ./run sources the credentials env):
-  desmo djangomanage createuser you@example.com --first-name You --last-name Name --superuser
-  desmo djangomanage makeloginlink you@example.com
-Operator surface — a shell, not the web:
-  desmo pi          # the pi TUI (README § VM)
-EOF
-    ;;
-esac
 rm -rf "$clone_dir"
 }

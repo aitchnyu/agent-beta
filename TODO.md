@@ -1,18 +1,18 @@
-TUI for config
-
-Readme for end users and devs. VM, pi /login and /model selection
-
-Branding
-
-Admin file uploads - admin can download, both agent and admin can pass files back and forth
-Features - file section with git etc
-
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
 List backups and time travel
 How to document system changes when agent modifies system?
 
 Mermaid 12 and use case diagrams with new theme
+Frame features and diagrams around data and its modification
+Frame use case with role/permission and data shape
+
+TUI for config, vapid script
+
+Branding
+
+Admin file uploads - admin can download, both agent and admin can pass files back and forth
+Features - file section with git etc
 
 Switch to Debian for lower memory usage? Multipass is for Ubuntu. Incus can rewind machines.
 Incus for native port forward

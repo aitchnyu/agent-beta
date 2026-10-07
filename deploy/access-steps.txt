@@ -1,40 +1,11 @@
+Built the VM. The app answers on the VM's https://localhost — via the
+ssh port forward (host https://localhost:8000). Details: README § VM.
 
-Built the VM.
-
-The app answers on the VM's https://localhost — via the ssh port forward
-(host https://localhost:8000), or directly on the LAN at
-https://<bridged-ip> (self-signed; ports 80/443 are open). One-time: let
-your host key in (provisioning installs
-no authorized_keys), then find the VM's bridged IP:
+One-time — let your host key in, then note the VM's bridged IP:
   multipass exec desmo -- bash -c 'mkdir -p -m 700 ~ubuntu/.ssh && cat >> ~ubuntu/.ssh/authorized_keys && chmod 600 ~ubuntu/.ssh/authorized_keys' < ~/.ssh/id_ed25519.pub
   multipass info desmo | grep IPv4
-(On a Debian image the ssh user is debian — use ~debian / debian@<vm-ip>.)
-Each session (leave it running; host port 8000 collides with the dev
-runserver — never both):
-  ssh -N -L 8000:localhost:443 ubuntu@<vm-ip>
-Browse:
-  https://localhost:8000/
-Browsers warn about caddy's self-signed certificate (internal CA, not in
-your trust store) — click through; accepting the warning is the supported
-mode.
 
-The operator/agent surface is a shell, not the web — no user hop (the
-default cloud user IS the operator; the `desmo` command runs ./run on the
-app dir from anywhere):
-  multipass shell desmo     # then: desmo pi   (the pi TUI; full sudo)
-One-time in the pi TUI (provider auth + startup model live in pi's own
-stores, not the credentials env):
-  /login zai               # credentials → ~/.pi/agent/auth.json
-  /model  … then Ctrl+S    # startup model → ~/.pi/agent/settings.json
-  (one-off override: desmo pi --model <provider/model>)
-Login to the app — Google OAuth works on the VM (localhost is Google's dev
-redirect exception): register
-  https://localhost:8000/accounts/google/login/callback/
-in the Google console, then (DB-only commands — plain `desmo`, the env
-comes with it):
-  multipass exec desmo -- desmo djangomanage addoauth google <client_id> <secret>
-Or issue a one-time link (create the user row first if none exists —
-`desmo djangomanage createuser <email> …`, or a restored DB):
-  multipass exec desmo -- desmo djangomanage makeloginlink <email>
-Promote to superuser:
-  multipass exec desmo -- desmo djangomanage promotetosuperuser <email>
+Each session (leave the forward running; host :8000 collides with the
+dev runserver — never both):
+  ssh -N -L 8000:localhost:443 ubuntu@<vm-ip>    # browse https://localhost:8000/
+  multipass shell desmo    # then: desmo pi — one-time /login zai + /model + /thinking (README § Pi setup)

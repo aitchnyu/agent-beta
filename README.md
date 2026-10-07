@@ -4,22 +4,21 @@ service user, and `desmo` command name — is a codename for this deployment.
 
 ## Install on your VM (production)
 
+DNS for your domain must already point at the VM.
+You must get SSH into the machine.
+
 One curl|bash command turns a fresh VM you administer — any cloud
 Ubuntu 24.04/26.04 (or Debian) instance you can ssh into — into a running
-deployment of a published ref of this repo. DNS for your domain must
-already point at the VM. Ssh in and run:
+deployment of a published ref of this repo. Ssh in and run:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/aitchnyu/agent-beta/main/deploy/install.sh \
   | sudo bash -s -- --base-url https://your.domain
 ```
 
-- **`--base-url`** — the public origin, `https://host[:port]` (one origin
-  per install — settings' `BASE_URLS` list takes more, manually): caddy
-  serves ACME TLS, and Django's `ALLOWED_HOSTS` + CSRF origins + link
-  defaults derive from it. Omitted → loopback-only (the local test mode
+- **`--base-url`** — the public origin, `https://host[:port]` . Omitted → loopback-only (the local test mode
   below).
-- **`--release <tag>` / `--branch <name>`** — what gets installed; the
+- **`--release <tag>` / `--branch <name>`** — tag/branch; the
   default is the latest published tag (`main` when none exist).
 
 The installer runs the full provision (`deploy/inside-vm.sh`, all phases)
@@ -39,6 +38,10 @@ https://your.domain/login-for-test/<key>/
 ```
 
 Open the printed link in a browser — it signs you in once, then expires.
+
+The agent surface is the `desmo pi` TUI (run as the user you ssh in as).
+It ships with no provider configured — the one-time auth + model setup is
+[Pi setup](#pi-setup-provider-auth--model-one-time).
 
 ## Local Development
 
@@ -61,28 +64,42 @@ $ ./local-vm provision-full
 Launched: desmo
 ....
 
-Installed (loopback-only — local test mode, no --base-url given). The app
-answers on the VM's https://localhost behind the ssh port forward;
-access steps: deploy/access-steps.txt (README § Local VM).
+    HTTPS smoke ok (https://localhost/)
 
 Built the VM.
 …access steps: the one-time pubkey line, the VM's bridged IP, the
 ssh -N -L 8000:localhost:443 forward, browse https://localhost:8000/ …
 ```
 
+The VM ships with the agent unconfigured — before the first `desmo pi`,
+do the one-time provider auth + model setup:
+[Pi setup](#pi-setup-provider-auth--model-one-time).
+
 ### Install in blank local vm
 
 Blank + install from the repo — the dress rehearsal of the
 production path minus the domain (loopback-only):
 
+Create a VM and enter its shell:
+
 ```bash
 ./local-vm provision-blank
 multipass shell desmo
+```
+
+Install the system:
+```bash
 curl -fsSL https://raw.githubusercontent.com/aitchnyu/agent-beta/main/deploy/install.sh | sudo bash -s
 ```
 
+The VM ships with the agent unconfigured — before the first `desmo pi`,
+do the one-time provider auth + model setup:
+[Pi setup](#pi-setup-provider-auth--model-one-time).
+
 Everything else — access via the ssh forward, secrets, the scratch edit
-loop — is the [VM (test server)](#vm-test-server) section below.
+loop, and the one-time [pi setup](#pi-setup-provider-auth--model-one-time)
+(provider auth + model) — is the
+[VM (test server)](#vm-test-server) section below.
 
 ### Run locally
 
@@ -181,8 +198,8 @@ operator inputs — editing it is a repo edit).
   `inside-vm.sh provision`, which REFUSES if generated secrets are
   already installed — provisioning is build-only; re-provisioning a kept
   VM is unsupported (delete to rebuild). Provider auth + the agent's
-  startup model live in pi's own stores (`/login`, `/model` + Ctrl+S — see
-  `deploy/access-steps.txt`).
+  startup model live in pi's own stores (`/login`, `/model` + Ctrl+S —
+  see [Pi setup](#pi-setup-provider-auth--model-one-time)).
 - Database names are fixed (`desmo_db`/`desmo_user` from the env values) — one
   app per VM by design.
 
@@ -236,7 +253,9 @@ means a click-through warning (the supported mode):
 **Everything else happens on the VM**: `desmo createscratch` → `desmo pi`
 (from a multipass shell, as the default cloud user) edits `scratch/` →
 `desmo deployscratch` (check battery + deploy + migrate; on the VM
-collectstatic + service restarts fold in automatically). The env on the
+collectstatic + service restarts fold in automatically). Before the first
+`desmo pi`, do the one-time provider auth + model setup —
+[Pi setup](#pi-setup-provider-auth--model-one-time). The env on the
 VM is a single file all services share
 (`/etc/credentials/desmo/.env.vm`, staged from the tracked
 `deploy/template.env` + the minted machine secrets).
@@ -252,6 +271,52 @@ The VM's `.git` is its own history — copy anything you need off it
 (tar via `multipass transfer`, `pg_dump` via `multipass exec`) before
 deleting. Plan + full manifest of
 everything provisioning touches: `prompts/20260818-vm-provisioning-multipass.md`.
+
+## Pi setup: provider auth + model (one-time)
+
+Run `desmo pi` from terminal. Freshly provisioned, the TUI is
+unconfigured — extensions load, but the warning "No models available…"
+and a footer reading `unknown` mean no provider is set up yet:
+
+![pi at first start — no provider configured](docs/screenshots/pi/pi-start.png)
+
+One-time setup:
+
+1. **Get an API key** from a supported provider — Z.AI is the first
+   provider this template supports. In the
+   [Z.AI console](https://z.ai/manage-apikey/apikey-list) → **API Keys**
+   → **Add API Key**. The key is shown in full only once — copy it
+   immediately.
+
+   ![Z.AI API keys console — Add API Key](docs/screenshots/pi/zai-api-keys.png)
+
+2. **Use API key to authenticate**: `/login zai` → paste the key:
+
+   ![pi /login zai — provider filtered, API key saved](docs/screenshots/pi/pi-login.png)
+
+   pi confirms: Saved API key for Z.AI. `Credentials saved to
+   /home/ubuntu/.pi/agent/auth.json` (per user; never in the repo or
+   the env).
+
+3. **Select Model**: type `/model` and type to filter — `fla` finds
+   **glm-5.3-flash** — then **Ctrl+S** on it saves it as the default
+   model for new sessions:
+
+   ![pi /model — typing fla filters to glm-5.3-flash](docs/screenshots/pi/pi-model.png)
+
+4. **Thinking level**: `/thinking` opens the picker for the current
+   model → **high** → **Ctrl+S** sets it as the startup default. On
+   Z.AI the recommendation is **glm-5.3-flash** at **high**; Shift+Tab
+   cycles thinking levels in-session, and a one-off override rides
+   `desmo pi --model <provider/model>`.
+
+   ![pi /thinking — selecting high](docs/screenshots/pi/pi-thinking-select.png)
+
+5. **Confirm**: pi prints "Default thinking level: high" and the footer
+   line (bottom edge) reads `glm-5.3-flash • high` — the whole setup
+   done:
+
+   ![pi configured — Default thinking level: high, footer glm-5.3-flash • high](docs/screenshots/pi/pi-thinking.png)
 
 ## Google OAuth (social login)
 

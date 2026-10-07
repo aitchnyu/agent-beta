@@ -81,10 +81,9 @@ provision-blank() {
 
   cat <<EOF
 Blank VM 'desmo' is up. Get in and run the installer (provisions from a
-published ref; --base-url is optional — without it the VM serves loopback
-only, like provision-full):
+published ref — the VM serves loopback only, like provision-full):
   multipass shell desmo
-  curl -fsSL https://raw.githubusercontent.com/${raw_path}/main/deploy/install.sh | sudo bash -s -- --base-url https://<your-domain>
+  curl -fsSL https://raw.githubusercontent.com/${raw_path}/main/deploy/install.sh | sudo bash -s
 EOF
 }
 
