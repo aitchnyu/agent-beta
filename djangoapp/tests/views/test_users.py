@@ -623,7 +623,7 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
         self.peon = User.objects.create_user(username="peon", password="pass")
         super().setUp()
 
-    def _issue(self, ttl: int = 15) -> dict[str, str]:
+    def _issue(self, ttl: int = 60) -> dict[str, str]:
         self.client.force_login(self.superuser)
         response = self.client.post(
             f"/users/api/{self.target.public_id}/loginlink",
@@ -650,7 +650,7 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
         self.client.force_login(self.superuser)
         response = self.client.post(
             f"/users/api/{self.target.public_id}/loginlink",
-            {"ttl_minutes": 15},
+            {"ttl_minutes": 60},
             content_type="application/json",
             headers={"x-forwarded-proto": "https"},
         )
@@ -704,13 +704,13 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
         path = f"/users/api/{self.target.public_id}/loginlink"
 
         # Without the header (a smuggled cross-site form): 403.
-        denied = strict_client.post(path, {"ttl_minutes": 15}, content_type="application/json")
+        denied = strict_client.post(path, {"ttl_minutes": 60}, content_type="application/json")
         self.assertEqual(denied.status_code, 403)
 
         # With it (what the app's ky layer always sends): 200.
         ok = strict_client.post(
             path,
-            {"ttl_minutes": 15},
+            {"ttl_minutes": 60},
             content_type="application/json",
             headers={"x-csrftoken": token},
         )
@@ -730,7 +730,7 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
         self.client.force_login(self.peon)
         response = self.client.post(
             f"/users/api/{self.superuser.public_id}/loginlink",
-            {"ttl_minutes": 15},
+            {"ttl_minutes": 60},
             content_type="application/json",
         )
         self.assertEqual(response.status_code, 404)
@@ -771,12 +771,14 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
         self.assertEqual(response.status_code, 404)
 
     def test_loginlink_invalid_ttl_rejected(self) -> None:
-        """A ttl outside the allowlist is a 422."""
+        """A ttl outside the allowlist is a 422 — including the retired 15."""
+        self.allow_more_queries(2)  # the second 422 POST repeats auth/session overhead
         self.client.force_login(self.superuser)
-        response = self.client.post(
-            f"/users/api/{self.target.public_id}/loginlink",
-            {"ttl_minutes": 7},
-            content_type="application/json",
-        )
-        self.assertEqual(response.status_code, 422)
+        for bad in (7, 15):
+            response = self.client.post(
+                f"/users/api/{self.target.public_id}/loginlink",
+                {"ttl_minutes": bad},
+                content_type="application/json",
+            )
+            self.assertEqual(response.status_code, 422)
         self.assertFalse(UserHistory.objects.filter(action="login_link").exists())

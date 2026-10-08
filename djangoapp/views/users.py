@@ -154,7 +154,7 @@ class MessageResponse(PydanticBaseModel):
 class LoginLinkRequest(PydanticBaseModel):
     """Issue payload; the allowlist is the UI's TTL select (minutes)."""
 
-    ttl_minutes: Literal[15, 60, 480, 1440] = 15
+    ttl_minutes: Literal[60, 480, 1440] = 60
 
 
 class LoginLinkResponse(PydanticBaseModel):

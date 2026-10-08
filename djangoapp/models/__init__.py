@@ -18,7 +18,7 @@ from djangoapp.models.base import (
     generate_uuid7_id,
     user_profile,
 )
-from djangoapp.models.login_key import LoginKey
+from djangoapp.models.login_key import LOGIN_LINK_MIN_MINUTES, LoginKey
 from djangoapp.models.notifications import (
     Notification,
     NotificationItem,
@@ -29,6 +29,7 @@ from djangoapp.models.notifications import (
 )
 
 __all__ = [
+    "LOGIN_LINK_MIN_MINUTES",
     "MANAGE_MODELS_URL_PREFIX",
     "SKIP_ROW_VERSION_CHECK",
     "BackupMarker",

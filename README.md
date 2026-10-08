@@ -33,7 +33,7 @@ $ desmo djangomanage createuser you@example.com --first-name You --last-name Nam
 Created user 'you' (you@example.com) + superuser/staff. Sign in via: manage.py makeloginlink you@example.com
 
 $ desmo djangomanage makeloginlink you@example.com
-One-time login for 'you' (valid 15 min, single use):
+One-time login for 'you' (valid 60 min, single use):
 https://your.domain/login-for-test/<key>/
 ```
 
@@ -354,9 +354,9 @@ issuing a one-time link for an existing user (e.g. one created with
 ```
 
 Open the printed `/login-for-test/<key>/` URL once — single use,
-15-minute expiry (`--minutes N` to change), and only the SHA-256 of the key
-is stored. Superusers can also issue the same link from a user's details
-page (`/users/id/<public_id>` → "Login link"), with 15 m / 1 h / 8 h / 24 h
+60-minute expiry (`--minutes N` to extend, 60 minimum), and only the SHA-256
+of the key is stored. Superusers can also issue the same link from a user's
+details page (`/users/id/<public_id>` → "Login link"), with 1 h / 8 h / 24 h
 TTLs and a copy button.
 
 Session lifetime is **sliding**: a session expires `SESSION_IDLE_DAYS`

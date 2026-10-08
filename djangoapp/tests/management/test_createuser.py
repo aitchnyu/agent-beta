@@ -10,6 +10,8 @@ from djangoapp.tests._base import BaseTestCase
 class CreateUserCommandTests(BaseTestCase):
     """``createuser`` makes the user row (no signup flow exists).
 
+    setUp seeds the mandatory first superuser; later users may be plain.
+
     - test_creates_user_with_names, email + names land on the row
     - test_superuser_flag_grants_and_audits, --superuser sets flags via
       User.update (UserHistory "edited" entry)
@@ -17,7 +19,14 @@ class CreateUserCommandTests(BaseTestCase):
     - test_duplicate_email_refuses, a second account for the same email
       (iexact) raises
     - test_output_mentions_login_link, stdout points at makeloginlink
+    - test_first_user_must_be_superuser, plain createuser on an empty
+      table raises with the --superuser instruction
+    - test_first_user_with_superuser_flag_allowed, --superuser on an
+      empty table creates
     """
+
+    def setUp(self) -> None:
+        User.objects.create_user(username="root", password="x", email="root@example.com")
 
     def test_creates_user_with_names(self) -> None:
         """Email + names land on the row; username derives from the local part."""
@@ -41,11 +50,11 @@ class CreateUserCommandTests(BaseTestCase):
         """--superuser sets is_staff + is_superuser and audits the grant."""
         call_command(
             "createuser",
-            "root@example.com",
+            "root2@example.com",
             "--superuser",
             stdout=StringIO(),
         )
-        user = User.objects.get(email="root@example.com")
+        user = User.objects.get(email="root2@example.com")
         self.assertTrue(user.is_superuser)
         self.assertTrue(user.is_staff)
         entry = UserHistory.objects.get(target_user=user)
@@ -69,3 +78,27 @@ class CreateUserCommandTests(BaseTestCase):
         out = StringIO()
         call_command("createuser", "hint@example.com", stdout=out)
         self.assertIn("makeloginlink hint@example.com", out.getvalue())
+
+    def test_first_user_must_be_superuser(self) -> None:
+        """A plain first user would lock everyone out — refuse with the fix."""
+        User.objects.all().delete()  # setUp's seed — the guard is empty-table only
+        with self.assertRaises(CommandError) as ctx:
+            call_command(
+                "createuser",
+                "first@example.com",
+                "--first-name",
+                "First",
+                stdout=StringIO(),
+            )
+        msg = str(ctx.exception)
+        self.assertIn("first user", msg)
+        self.assertIn("--superuser", msg)
+        self.assertEqual(User.objects.count(), 0)
+
+    def test_first_user_with_superuser_flag_allowed(self) -> None:
+        """--superuser on the empty table is exactly the intended first user."""
+        User.objects.all().delete()  # setUp's seed — recreate as the first user
+        call_command("createuser", "first@example.com", "--superuser", stdout=StringIO())
+        user = User.objects.get(email="first@example.com")
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(user.is_staff)

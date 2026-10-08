@@ -30,7 +30,7 @@ const isSuperuser = computed(
 
 const sessionCount = ref(p.session_count)
 const showLinkPanel = ref(false)
-const ttlMinutes = ref(15)
+const ttlMinutes = ref(60)
 const linkResult = ref<z.infer<typeof LoginLinkResponseSchema> | null>(null)
 const generating = ref(false)
 const loggingOut = ref(false)
@@ -151,7 +151,6 @@ async function logoutEverywhere() {
             v-model="ttlMinutes"
             class="form-select form-select-sm w-auto"
           >
-            <option :value="15">15 minutes</option>
             <option :value="60">1 hour</option>
             <option :value="480">8 hours</option>
             <option :value="1440">24 hours</option>

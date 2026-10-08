@@ -31,6 +31,14 @@ class Command(BaseCommand):
         first_name: str = options["first_name"]
         last_name: str = options["last_name"]
         superuser: bool = options["superuser"]
+        # The FIRST user must be a superuser: there is no signup and no other way in yet
+        if not superuser and not User.objects.exists():
+            msg = (
+                "This would be the first user, and it is not a superuser — "
+                "the first user must be one (there is no signup; "
+                "a normal first user locks everyone out). Retry with --superuser"
+            )
+            raise CommandError(msg)
         # The User model does not enforce unique emails — refuse a second
         # account for the same address (iexact) instead of silently doubling.
         if User.objects.filter(email__iexact=email).exists():

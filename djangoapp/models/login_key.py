@@ -18,6 +18,12 @@ def _hash_key(key: str) -> str:
     return hashlib.sha256(key.encode()).hexdigest()
 
 
+# Login links are a human handoff — issued in one terminal, pasted into a
+# browser possibly much later — so anything shorter than an hour outlives
+# its purpose. issue()'s default AND the CLI's enforced floor.
+LOGIN_LINK_MIN_MINUTES = 60
+
+
 class LoginKey(models.Model):
     """One-time login link issued by an admin (CLI or the details page).
 
@@ -40,14 +46,18 @@ class LoginKey(models.Model):
     used_at = models.DateTimeField(null=True, blank=True)
 
     @classmethod
-    def issue(cls, user: User, minutes: int = 15) -> tuple[str, dt_datetime]:
+    def issue(cls, user: User, minutes: int = LOGIN_LINK_MIN_MINUTES) -> tuple[str, dt_datetime]:
         """Create a fresh key row for ``user``; return the raw key + its expiry.
 
         The raw key exists only in this return value (and the caller's
-        response/stdout) — never in the database. Expired rows are
+        response/stdout) — never in the database. The default lifetime is an
+        hour: links are a human handoff, not a race. Expired rows are
         swept on every issue: they can never redeem again, so they're pure
         clutter.
         """
+        if minutes < LOGIN_LINK_MIN_MINUTES:
+            msg = f"Login links live at least {LOGIN_LINK_MIN_MINUTES} minutes (got {minutes})."
+            raise ValueError(msg)
         cls.objects.filter(expires_at__lt=timezone.now()).delete()
         key = secrets.token_urlsafe(32)
         expires_at = timezone.now() + timedelta(minutes=minutes)

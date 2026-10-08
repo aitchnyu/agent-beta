@@ -5,7 +5,7 @@ from typing import Any
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 
-from djangoapp.models import LoginKey, User
+from djangoapp.models import LOGIN_LINK_MIN_MINUTES, LoginKey, User
 
 
 class Command(BaseCommand):
@@ -29,16 +29,18 @@ class Command(BaseCommand):
         parser.add_argument(
             "--minutes",
             type=int,
-            default=15,
-            help="Link lifetime in minutes (default 15).",
+            default=LOGIN_LINK_MIN_MINUTES,
+            help="Link lifetime in minutes "
+            f"(default {LOGIN_LINK_MIN_MINUTES}; minimum {LOGIN_LINK_MIN_MINUTES}).",
         )
 
     def handle(self, **options: Any) -> None:  # noqa: ANN401 # Django passes **options as untyped command flags
         email: str = options["email"]
         minutes: int = options["minutes"]
-        # 0/negative would issue an already-dead link and print it as success.
-        if minutes <= 0:
-            msg = f"--minutes must be > 0 (got {minutes})."
+        # 0/negative/sub-hour values refuse instead of printing a link that
+        # dies before the operator uses it.
+        if minutes < LOGIN_LINK_MIN_MINUTES:
+            msg = f"--minutes must be >= {LOGIN_LINK_MIN_MINUTES} (got {minutes})."
             raise CommandError(msg)
         # email__iexact so "User@x.com" matches "user@x.com". The User model does
         # not enforce a unique email, so guard against 0 / >1 matches explicitly.

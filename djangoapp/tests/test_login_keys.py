@@ -22,6 +22,7 @@ class LoginKeyTests(BaseTestCase):
     unknown values.
 
     - test_issue_stores_hash_not_raw_key, the raw key never reaches the table
+    - test_issue_refuses_sub_hour, issue() itself enforces the 60-minute floor
     - test_issue_sweeps_expired_rows, issue() clears stale rows
     - test_redeem_consumed_after_success, a second redeem returns None
     - test_redeem_marks_used_at, success stamps used_at
@@ -34,39 +35,45 @@ class LoginKeyTests(BaseTestCase):
 
     def test_issue_stores_hash_not_raw_key(self) -> None:
         """The table holds only the SHA-256; the raw key exists solely in the return."""
-        raw, _expires_at = LoginKey.issue(self.user, minutes=15)
+        raw, _expires_at = LoginKey.issue(self.user)
         row = LoginKey.objects.get()
         self.assertNotEqual(row.key_hash, raw)
         self.assertEqual(len(row.key_hash), 64)
         self.assertIsNone(row.used_at)
         self.assertGreater(row.expires_at, timezone.now())
 
+    def test_issue_refuses_sub_hour(self) -> None:
+        """issue() itself refuses sub-hour lifetimes — the API path has no CLI guard."""
+        with self.assertRaises(ValueError):
+            LoginKey.issue(self.user, minutes=59)
+        self.assertEqual(LoginKey.objects.count(), 0)
+
     def test_issue_sweeps_expired_rows(self) -> None:
         """issue() sweeps expired rows out of the table."""
-        raw, _a = LoginKey.issue(self.user, minutes=15)
+        raw, _a = LoginKey.issue(self.user)
         LoginKey.objects.update(expires_at=timezone.now() - timedelta(minutes=1))
-        LoginKey.issue(self.user, minutes=15)
+        LoginKey.issue(self.user)
         self.assertEqual(LoginKey.objects.count(), 1)
         self.assertIsNone(LoginKey.redeem(raw))
 
     @tag("scratch-test-subset")
     def test_redeem_consumed_after_success(self) -> None:
         """A valid key returns its user once, then None forever after."""
-        raw, _expires_at = LoginKey.issue(self.user, minutes=15)
+        raw, _expires_at = LoginKey.issue(self.user)
         redeemed = LoginKey.redeem(raw)
         self.assertEqual(redeemed, self.user)
         self.assertIsNone(LoginKey.redeem(raw))
 
     def test_redeem_marks_used_at(self) -> None:
         """A successful redeem stamps used_at (mark, not delete)."""
-        raw, _expires_at = LoginKey.issue(self.user, minutes=15)
+        raw, _expires_at = LoginKey.issue(self.user)
         LoginKey.redeem(raw)
         row = LoginKey.objects.get()
         self.assertIsNotNone(row.used_at)
 
     def test_redeem_expired_is_none(self) -> None:
         """Keys past their expires_at are refused and never marked used."""
-        raw, _expires_at = LoginKey.issue(self.user, minutes=15)
+        raw, _expires_at = LoginKey.issue(self.user)
         LoginKey.objects.update(expires_at=timezone.now() - timedelta(minutes=1))
         self.assertIsNone(LoginKey.redeem(raw))
         self.assertIsNone(LoginKey.objects.get().used_at)
@@ -88,7 +95,7 @@ class MakeLoginLinkCommandTests(BaseTestCase):
     - test_missing_email_errors, unknown email raises CommandError
     - test_duplicate_email_errors, ambiguous email raises CommandError
     - test_case_variant_email_matches, lookup is iexact
-    - test_minutes_must_be_positive, 0/negative --minutes refuses
+    - test_minutes_must_be_at_least_an_hour, sub-hour --minutes refuses
     """
 
     def setUp(self) -> None:
@@ -144,8 +151,8 @@ class MakeLoginLinkCommandTests(BaseTestCase):
         call_command("makeloginlink", "CMD@example.com", stdout=out)
         self.assertIn("/login-for-test/", out.getvalue())
 
-    def test_minutes_must_be_positive(self) -> None:
-        """0/negative --minutes would issue an already-dead link — refuse."""
-        for bad in (0, -5):
+    def test_minutes_must_be_at_least_an_hour(self) -> None:
+        """Sub-hour --minutes issues a link that dies before a human uses it — refuse."""
+        for bad in (0, -5, 30, 59):
             with self.assertRaises(CommandError):
                 call_command("makeloginlink", self.user.email, minutes=bad, stdout=StringIO())
