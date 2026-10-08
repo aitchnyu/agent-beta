@@ -156,6 +156,11 @@ reference file (INSTRUCTIONS.md, the reference views, a base class) you just
 looked at is pure waste — 50+ reads for a one-feature turn means you're
 re-fetching context instead of remembering it.
 
+**Batch your tool calls — every turn is a full model roundtrip.** Ask for
+ALL the files and greps you need in ONE turn (multiple tool calls ride a
+single assistant message) and fold quick shell inspection into one `&&`
+chain; start dependent steps only after the batch returns.
+
 **Resolve lint, don't suppress it.** Don't pile on `# noqa`. ruff's
 type-checking-only rule wants annotation-only imports under
 `if TYPE_CHECKING:` — move them there cleanly; don't deliberate each import or
@@ -201,6 +206,8 @@ it's there to clear.
 ./run lintfix
 git diff
 git log --oneline -3
+./run djangomanage createuser you@example.com --first-name You --last-name Name
+./run djangomanage makeloginlink you@example.com   # operator login handoff (user-admin verbs: unblocked)
 ./run playwrighttest ourapp.tests.test_chores_playwright   # e2e debugging ONLY (operator-asked); a green deployscratch needs no post-deploy e2e
 
 # BAD — near-misses and raw tools: blocked every time (or denied)
