@@ -20,7 +20,7 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
     ``tearDown`` fails on any browser console error.
 
     - test_uncommitted_renders — /git/uncommitted/ lists both worktrees' files
-      (main then scratch) as folder trees with new/mod status words + colors;
+      (main then scratch) as folder trees with new/mod status icons + colors;
       each file links to its worktree diff and to the file url
     - test_file_tree_folds — folder rows fold their subtree away and back,
       independently per folder
@@ -96,11 +96,28 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         expect(page.locator('a[href="/files/main/TodoApp/app.py"]')).to_have_count(1)
         expect(page.locator('a[href="/files/scratch/TodoApp/scratch_only.py"]')).to_have_count(1)
 
-        # -- status words new/mod with their color classes (4 untracked → new,
-        #    2 modified → mod across the two worktrees) --
-        words = page.locator(".git-status").all_inner_texts()
-        self.assertIn("new", words)
-        self.assertIn("mod", words)
+        # Rendered shape per file row:
+        #   <span class="git-status text-warning" role="img"
+        #         aria-label="modified" title="modified">
+        #     <span class="lucide-icon" aria-hidden="true"></span>
+        #   </span>
+        #   <a href="/git/uncommitted/main/TodoApp/app.py">app.py</a>
+        for path, status in (
+            ("main/TodoApp/app.py", "modified"),
+            ("main/TodoApp/notes.md", "untracked"),
+            ("main/Docs/idea.md", "untracked"),
+            ("main/TodoApp/Docs/x.md", "untracked"),
+            ("scratch/TodoApp/scratch_only.py", "modified"),
+            ("scratch/TodoApp/scratch_notes.md", "untracked"),
+        ):
+            # span.git-status:has(+ a[href=…]) — the status span whose
+            # immediate next sibling is THAT file's link; folder li's
+            # nest files, so li:has(a[href=…]) would match every
+            # ancestor instead.
+            expect(
+                page.locator(f'span.git-status:has(+ a[href="/git/uncommitted/{path}"])')
+            ).to_have_attribute("aria-label", status)
+        expect(page.locator(".git-status .lucide-icon")).to_have_count(6)
         expect(page.locator(".git-status.text-success")).to_have_count(4)
         expect(page.locator(".git-status.text-warning")).to_have_count(2)
 

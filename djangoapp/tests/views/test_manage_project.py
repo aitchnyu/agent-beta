@@ -136,6 +136,10 @@ class ManageProjectTests(BaseInertiaTestCase):
         self.assertEqual(col_types["author"], "foreign_key")
         self.assertEqual(col_types["reviewer"], "user")
 
+        # The list drops the public_id column — the row's enter-icon link
+        # is the detail affordance (the detail page still shows it).
+        self.assertNotIn("public_id", col_types)
+
         row = props["rows"][0]
 
         # FK→BaseModel cell: linked via get_absolute_url(), pk-free.

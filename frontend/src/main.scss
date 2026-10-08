@@ -284,13 +284,17 @@ body {
   color: $gray-600;
 }
 
-// /git lists: the new/mod/del status word (color-coded via Bootstrap text-*
-// classes) left of each filename, and the secondary link to the file itself.
+// /git lists: the new/mod/del status icon
 .git-status {
   display: inline-block;
-  min-width: 2.5em;
+  min-width: 1.4em;
   margin-right: 0.5rem;
   font-weight: 600;
+}
+
+// The status slot's own margin spaces the icon — don't double it.
+.git-status .lucide-icon {
+  margin-right: 0;
 }
 
 .git-file-link {

@@ -343,7 +343,12 @@ def model_rows_page(
     """List rows of a model, paginated and sorted newest-first (built-ins only)."""
     require_superuser(request)
     model_cls = _model_or_404(model_name)
-    fields_with_kind = _fields_with_kind(model_cls)
+    # The list drops ``public_id`` as a COLUMN: the row's enter-icon link IS
+    # the detail affordance, so the raw id reads as noise here (the detail
+    # page still shows it; non-BaseModel rows have none anyway).
+    fields_with_kind = [
+        (f, kind) for f, kind in _fields_with_kind(model_cls) if f.name != "public_id"
+    ]
 
     sort = _resolve_sort(model_cls, filters.sort)
     qs = (

@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { ref, useId } from "vue"
 import { Link } from "@inertiajs/vue3"
+import LucideIcon from "./LucideIcon.vue"
+import filePenIcon from "../icons/file-pen.svg"
+import filePlus2Icon from "../icons/file-plus-2.svg"
+import fileXIcon from "../icons/file-x.svg"
 import type {
   FileTreeEntry,
   FileTreeFolder,
@@ -10,7 +14,7 @@ import type {
 // Recursive changed-files tree shared by the uncommitted and commit pages.
 // The pages supply the two link builders — routes AND worktree prefixes
 // differ (uncommitted links carry the worktree, commit links read main/);
-// the status words/colors live HERE, one mapping instead of the two per-page
+// the status icons/colors live HERE, one mapping instead of the two per-page
 // copies this replaces. Fold state is per-FOLDER (a Set of sibling names —
 // names are unique within a level), NOT one ref per component instance: the
 // v-for renders many folders through one instance, and a shared ref there
@@ -42,21 +46,11 @@ function toggleFolder(name: string) {
 
 const subtreeId = (name: string) => `${instanceId}-${name}`
 
-// new/mod/del + colors to the left of the path — the backend statuses
-// (untracked|added|modified|deleted) map here, not in the API: untracked and
-// added are both "new". del keeps the filename strikethrough.
-function statusWord(status: string): string {
-  switch (status) {
-    case "untracked":
-    case "added":
-      return "new"
-    case "modified":
-      return "mod"
-    case "deleted":
-      return "del"
-    default:
-      return "?"
-  }
+const STATUS_ICON_BY_STATUS: Record<string, string> = {
+  untracked: filePlus2Icon,
+  added: filePlus2Icon,
+  modified: filePenIcon,
+  deleted: fileXIcon,
 }
 
 function statusClass(status: string): string {
@@ -108,9 +102,19 @@ const fileName = (entry: FileTreeEntry) =>
       class="d-flex align-items-baseline"
       :title="entry.path"
     >
-      <code class="git-status" :class="statusClass(entry.status)">{{
-        statusWord(entry.status)
-      }}</code>
+      <span
+        class="git-status"
+        :class="statusClass(entry.status)"
+        role="img"
+        :aria-label="entry.status"
+        :title="entry.status"
+      >
+        <LucideIcon
+          v-if="STATUS_ICON_BY_STATUS[entry.status]"
+          :src="STATUS_ICON_BY_STATUS[entry.status]"
+        />
+        <template v-else>?</template>
+      </span>
       <Link
         :class="{ 'text-decoration-line-through': entry.status === 'deleted' }"
         :href="props.diffHref(entry.path)"

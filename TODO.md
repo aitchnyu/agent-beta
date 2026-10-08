@@ -1,7 +1,3 @@
-create a user Jesvin Jose and share a login link
- first user should be superuser
- login link 1 hour
-
 run reviews earlier? Run in parallel?
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
@@ -18,8 +14,8 @@ Features - file section with git etc
 
 Prewarm pi with prompt?
 
-mod, new, del should be icons
-No need to show public_id, show icons
+mod, new, del in git should be lucide icons
+No need to show public_id in models list, show a 'enter' icon
 
 TUI for config, vapid script
 

@@ -2,8 +2,10 @@
 import { computed } from "vue"
 import { Link, router } from "@inertiajs/vue3"
 import BackToTopLink from "../components/BackToTopLink.vue"
+import LucideIcon from "../components/LucideIcon.vue"
 import PageTitle from "../components/PageTitle.vue"
 import RowCell from "../components/RowCell.vue"
+import cornerDownLeftIcon from "../icons/corner-down-left.svg"
 import { ModelRowsPropsSchema } from "../schemas"
 import { rowDetailUrl, rowListUrl } from "../utils/urls"
 
@@ -117,8 +119,10 @@ const nextHref = computed(() => {
               v-if="row.public_id"
               class="manage-row-link"
               :href="rowDetailUrl(p.model_name, row.public_id)"
-              >&rarr;</Link
-            >
+              :aria-label="`Open row ${row.public_id}`"
+              :title="`Open row ${row.public_id}`"
+              ><LucideIcon :src="cornerDownLeftIcon"
+            /></Link>
           </td>
           <td v-for="col in p.columns" :key="col.name">
             <RowCell :col="col" :value="row.values[col.name]" />
