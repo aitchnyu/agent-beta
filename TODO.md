@@ -14,9 +14,6 @@ Features - file section with git etc
 
 Prewarm pi with prompt?
 
-mod, new, del in git should be lucide icons
-No need to show public_id in models list, show a 'enter' icon
-
 TUI for config, vapid script
 
 Branding

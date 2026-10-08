@@ -1,20 +1,46 @@
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../components/HumanizedTime.vue"
+import LucideIcon from "../components/LucideIcon.vue"
 import PageTitle from "../components/PageTitle.vue"
 import RepoNav from "../components/RepoNav.vue"
+import fileCodeIcon from "../icons/file-code.svg"
+import fileIcon from "../icons/file.svg"
+import fileImageIcon from "../icons/file-image.svg"
+import fileTextIcon from "../icons/file-text.svg"
+import folderIcon from "../icons/folder.svg"
 import { FileBrowserPropsSchema } from "../schemas"
-import { fileUrl, formatSize } from "../utils/files"
+import { detectLanguage, fileUrl, formatSize } from "../utils/files"
 
 const props = defineProps<{ props: object }>()
+
 const p = FileBrowserPropsSchema.parse(props.props)
 
 // An entry under the current dir: join `rel` and the entry name.
 function entryUrl(name: string): string {
   return fileUrl(p.rel ? `${p.rel}/${name}` : name)
 }
-</script>
 
+// Icon per entry type:
+// - dir → folder, image → file-image, md/txt/rst → file-text, rest → file
+// - code → file-code, decided by detectLanguage — the same map the
+//   viewer highlights from, so icon and highlighting can't drift
+//   (lucide has no python/vue glyphs; all code shares file-code)
+const TEXT_SUFFIXES = new Set(["md", "txt", "rst"])
+
+function entryIcon(e: {
+  is_dir: boolean
+  is_image: boolean
+  name: string
+}): string {
+  if (e.is_dir) return folderIcon
+  if (e.is_image) return fileImageIcon
+  const suffix = e.name.split(".").pop()?.toLowerCase() ?? ""
+  if (TEXT_SUFFIXES.has(suffix)) return fileTextIcon
+  if (detectLanguage(e.name)) return fileCodeIcon
+  return fileIcon
+}
+</script>
 <template>
   <PageTitle value="Files" />
   <div>
@@ -52,8 +78,8 @@ function entryUrl(name: string): string {
       <tbody>
         <tr v-if="p.parent !== null">
           <td colspan="3">
-            <Link class="files-entry files-dir" :href="fileUrl(p.parent)"
-              >📁 ..</Link
+            <Link class="files-entry" :href="fileUrl(p.parent)"
+              ><LucideIcon :src="folderIcon" /> ..</Link
             >
           </td>
         </tr>
@@ -61,10 +87,9 @@ function entryUrl(name: string): string {
           <td>
             <Link
               class="files-entry"
-              :class="{ 'files-dir': e.is_dir, 'files-image': e.is_image }"
+              :class="{ 'files-image': e.is_image }"
               :href="entryUrl(e.name)"
-              >{{ e.is_dir ? "📁" : e.is_image ? "🖼" : "📄" }}
-              {{ e.name }}</Link
+              ><LucideIcon :src="entryIcon(e)" /> {{ e.name }}</Link
             >
           </td>
           <td class="text-end files-size">
