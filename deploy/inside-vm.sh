@@ -46,7 +46,8 @@
 #   ├── usr/local/bin/
 #   │   ├── desmo                 `desmo <cmd>` wrapper (1)
 #   │   └── fd                    symlink → fdfind (1); uv, pi, node ride
-#   │                             apt/npm/NodeSource/caddy repos (1)
+#   │                             apt/npm/NodeSource repos; caddy rides the
+#   │                             GitHub-release .deb (1)
 #   ├── srv/desmo/                775 desmo:desmo (1)
 #   │   ├── main/                 the seed extract, desmo-owned, g+w (2)
 #   │   │   ├── dbbackups/        postgres 700 — self-contained pgbackrest
@@ -78,6 +79,10 @@ creds_env="$creds_dir/.env.vm"
 # pi CLI version for the npm -g install (lockstep with dev's
 # npm install -g @earendil-works/pi-coding-agent).
 _PI_NPM_VERSION="1.0.0"
+# Caddy version for the GitHub-release .deb (2026-10-09: the Cloudsmith
+# apt repo upstream documents began answering 402 "repository restricted";
+# the SAME official .deb rides caddyserver/caddy GitHub releases).
+_CADDY_VERSION="2.11.7"
 
 # KEY="value" from an env-format file (first match wins; missing → empty —
 # the `|| true` keeps set -e/pipefail from aborting BEFORE the friendly
@@ -249,13 +254,14 @@ EOF
   echo "    pi CLI (npm -g, version-pinned)"
   npm install -g --ignore-scripts "@earendil-works/pi-coding-agent@$_PI_NPM_VERSION"
 
-  echo "    caddy (official apt repo)"
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
-    | gpg --batch --yes --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
-  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
-    > /etc/apt/sources.list.d/caddy-stable.list
-  apt-get update -y
-  apt-get install -y caddy
+  echo "    caddy (official GitHub-release .deb, version-pinned)"
+  local caddy_arch caddy_deb
+  caddy_arch="$(dpkg --print-architecture)"
+  caddy_deb="caddy_${_CADDY_VERSION}_linux_${caddy_arch}.deb"
+  curl -fsSL -o "/tmp/${caddy_deb}" \
+    "https://github.com/caddyserver/caddy/releases/download/v${_CADDY_VERSION}/${caddy_deb}"
+  apt-get install -y "/tmp/${caddy_deb}"
+  rm -f "/tmp/${caddy_deb}"
 
   # uv SYSTEM-WIDE — on every user's default PATH.
   echo "    uv system-wide (/usr/local/bin)"
