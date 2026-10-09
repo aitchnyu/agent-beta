@@ -74,7 +74,7 @@ request
   |      revise ......... back to [2]
   |      write docs ..... to [3]
   v
-[3] DESIGN DOCS          workflow, models, ER + state diagrams
+[3] DESIGN DOCS          use cases, data + its changes, dev reference
   |   share doc + mockup links (T3) --> user picks:
   |      revise docs/mockups ... back as directed
   |      approved ............... to [4]
@@ -105,8 +105,8 @@ lives in [Stage messages](#stage-messages):
   round).
 - **[2] Interactive mockups** — the same pages plus client-side state and
   links BETWEEN mockup pages; still no backend API calls, nothing saves.
-- **[3] Design docs** — the design doc (models-first plan, ER/state
-  diagrams) joins the mockups; share doc + mockup links via T3.
+- **[3] Design docs** — the design doc (per the [Feature docs](#feature-docs)
+  outline) joins the mockups; share doc + mockup links via T3.
 - **[4] Code — only after explicit approval.** Continue in the SAME
   `../scratch/` (no second `createscratch` unless sent back). Edit →
   `./run deployscratch` from `main/` **once per edit batch** — every green
@@ -115,8 +115,8 @@ lives in [Stage messages](#stage-messages):
   into the real feature (real URL, real props/endpoints) and DELETE the
   `/mockup-*` page and its homepage link when the real page lands.
 - **[5] Agent review + doc updates** — spawn the reviewer subagent to
-  re-read the diff against the requirement; update the design doc to
-  as-built.
+  re-read the diff against the requirement; update the design doc to match
+  the code.
 - **[6] Offer to commit** — T6; never commit unasked.
 - **[7] Final checklist** — after the commit lands, audit the job yourself
   (these are the operator's recurring catches — never make them catch one
@@ -470,11 +470,8 @@ links in chat immediately after each deploy via
 [Stage messages](#stage-messages).
 
 - **Design doc — `../scratch/ourapp/docs/<feature>.md`** (after deploy, link
-  it in chat as `/files/main/ourapp/docs/<feature>.md`). Write the mermaid
-  **`erDiagram`** whenever models / DB tables come up (entities, fields, FKs,
-  ownership — one field per line as `type name`) and a **`stateDiagram-v2`**
-  for any lifecycle, as \`\`\`mermaid fenced code blocks — the doc viewer
-  renders them.
+  it in chat as `/files/main/ourapp/docs/<feature>.md`). Structure, diagrams,
+  and writing rules live in one place: [Feature docs](#feature-docs).
 - **Mockups — static pages under `/mockup-…`.** Build each mockup as a
   REAL Vue page at a THROWAWAY URL (`/mockup-chores`, …) following the
   normal conventions (route in `ourapp/views/<feature>.py` registered in
@@ -503,6 +500,95 @@ links in chat immediately after each deploy via
   homepage link in the same change. (A feature abandoned after its mockup
   deployed: delete its files from scratch; the next `deployscratch`'s
   rsync `--delete` retires them from `main/`.)
+
+### Feature docs
+
+Every feature gets one doc: `ourapp/docs/<feature>.md`.
+
+**The doc's life.** It is drafted in `../scratch/` at stage 3, so it reaches
+`main/` with the first deployscratch. It is updated at stage 5 to match the
+code. From then on it is kept current with every change, diagrams included.
+In chat, link it as `<base>/files/main/ourapp/docs/<feature>.md`.
+
+**Two audiences, one file.** The front of the doc, however long the plain language needs — is the feature in plain
+language; the owner or a new contributor reads only that far. The later
+sections ("For developers") are the reference for people who will touch the
+code.
+
+**The premise.** Framed around the data — what is stored, how it changes,
+and how it is presented — the app is understandable to both audiences. ER
+diagrams therefore belong up front with the plain language; dev jargon
+comes later.
+
+**The spine: the data and how it changes.** Organize everything around what
+is stored and every way it changes. Pages, features, and diagrams hang off
+that.
+
+Every rule for these docs lives here. The workflow stages and the feature
+checklist point to this section and restate nothing.
+
+**The outline** — in order. Skip a section that doesn't apply; never pad one.
+
+1. **Title + one short paragraph.** What the feature does, and for whom. No
+   implementation words.
+2. **Who can do what.** One or more `usecase-beta` diagrams (see Diagrams
+   below) — split them by page or area when a single one would crowd. Plus:
+   - actors are roles — people, and system actors like schedulers or crons;
+     `--|>` marks role inheritance
+   - boundaries are pages or areas of the app
+   - permission rules ride the diagram; anonymous behavior is a note
+     ("gets a 404 — the feature is hidden")
+   - a `json` table node can show a payload shape worth seeing (the
+     homepage summary counts)
+3. **The data.** Each model in plain words first ("a chore is the repeating
+   rule; an instance is one concrete occurrence"), then the `erDiagram`.
+   Translate every relationship into behavior: "RESTRICT = a chore with
+   instances can never be deleted".
+4. **How the data changes.** The contract table: every modification the
+   feature makes — change, made by, what exactly happens. Open it with the
+   promise "if a change isn't listed here, the feature doesn't make it".
+   Then:
+   - a `stateDiagram-v2` when one row kind has a lifecycle
+   - the safety rails as bullets (uniqueness, version checks, atomicity,
+     clamping)
+5. **What you see.** The UI walkthrough: pages, groups, buttons, feedback.
+6. **History (optional).** Notable behavior changes over time — a
+   capability added or removed, a rule changed. A first release skips this.
+7. **For developers.** Field tables with rules, algorithm internals, the
+   endpoints table, frontend files, tests. Everything framework-flavored —
+   Django, ninja, Inertia, zod, code paths — lives here and only here.
+
+**Writing rules.**
+
+- The plain sections must stand alone: no framework names, no field names,
+  no SQL. The developer sections map each plain claim to its field,
+  endpoint, or file.
+- The contract table lists every modification the feature makes today. A
+  new capability adds a row; changed behavior edits its row in place. The
+  doc is wrong if the code makes a modification the table doesn't list — or
+  the table lists one the code no longer makes. (Removed or replaced
+  behavior goes to History, not the table.)
+- State bounds in human terms up front ("N is 1–365"); put exact validation
+  in the developer sections.
+- The title is just the feature name. No process narration (session
+  history, mockup archaeology) scattered through the doc — history, when
+  worth recording, lives in its own section.
+- A feature with no stored data folds sections 3–4 into a brief
+  "Behaviour".
+- `ourapp/README.md` stays one or two lines (what + URLs) and links the
+  doc. The doc carries the detail, never the README.
+
+**Diagrams.** Mermaid, in fenced ` ```mermaid ` blocks — the /files viewer
+renders them.
+
+- **`usecase-beta`** (Mermaid 12; the viewer bundles it). One statement per
+  physical line. Declare every `actor` explicitly — position never implies
+  one. Relationships stay outside `systemBoundary` blocks. Use
+  `..> : include` and `..> : extend` for UML semantics. Quote or avoid the
+  reserved sequences in labels: `--`, `:::`, `@{`, `<<`.
+- **`erDiagram`** — whenever models exist. Entities, fields, FKs,
+  ownership; one field per line as `type name`.
+- **`stateDiagram-v2`** — when a row kind changes state.
 
 ### Models
 Concrete models live in `ourapp/models/<feature>.py` (imported in
@@ -610,9 +696,8 @@ Run through every box; the order is the order you build in.
 - [ ] **README** — update `ourapp/README.md` to describe the feature (what it
       does, its URLs/pages), not its internal implementation. One or two lines.
 - [ ] **Feature doc** — the design doc written in stage 3
-      (`ourapp/docs/<feature>.md`) grows into the feature catalogue (models,
-      endpoints, pages, command, data shape — keep its diagrams current);
-      link it from the README.
+      (`ourapp/docs/<feature>.md`) follows [Feature docs](#feature-docs) and
+      stays current (diagrams included); link it from the README.
 - [ ] **Model module** — `ourapp/models/<feature>.py`, wired into
       `ourapp/models/`:
     - [ ] subclass `BaseModel`, give it a docstring

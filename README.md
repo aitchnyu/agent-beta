@@ -4,7 +4,7 @@ service user, and `desmo` command name — is a codename for this deployment.
 
 ## Install on your VM (production)
 
-DNS for your domain must already point at the VM.
+DNS for your domain must already point at the VM.  
 You must get SSH into the machine.
 
 One curl|bash command turns a fresh VM you administer — any cloud
