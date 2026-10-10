@@ -308,6 +308,14 @@ screenshots() {
   GENERATE_SCREENSHOTS=1 uv run manage.py test $_DJANGO_NO_COLOR --tag screenshots --noinput "$@"
 }
 
+checkmermaid() {
+  # Validate ONE mermaid diagram from stdin — the entire input must parse,
+  # or this exits 1 with the parser's error. Validate a draft BEFORE writing
+  # it into a doc: printf '%s' "…" | ./run checkmermaid
+  _require_main_run checkmermaid || return 1
+  node "$_MAIN_DIR/deploy/checkmermaid.mjs"
+}
+
 # The full gate: lint + types in main/, then FOUR test stages — 1-3 under
 # coverage, merged into one report:
 #   1. unit suite (main/; project tests self-skip — no RUN_PROJECT_TESTS)
@@ -704,6 +712,8 @@ ${H}Development${R}
 ${H}Checks${R}
   ${C}lintfix${R}             ruff format + ruff check, eslint (writes)
   ${C}typecheck${R}           mypy (backend) + vue-tsc (frontend)
+  ${C}checkmermaid${R}           validate one mermaid diagram from stdin (exit 0 = ok;
+                        exit 1 = the parser's error)
   ${C}test${R} [args…]        Django test suite (args pass through to manage.py test)
   ${C}playwrighttest${R} …    Playwright e2e suite
   ${C}screenshots${R}         regenerate docs/screenshots via Playwright

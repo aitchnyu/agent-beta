@@ -7,6 +7,8 @@
     "get_subagent_result": "allow",
     "read": "allow",
     "grep": "allow",
+    "ls": "allow",
+    "find": "allow",
     "path": {
       "*": "allow",
       ".env": "ask",
@@ -51,6 +53,8 @@
       "./run deployscratch": "allow",
       "./run cleanscratch": "allow",
       "./run checkframework1": "allow",
+      "./run checkmermaid": "allow",
+      "./run checkmermaid *": "allow",
       "./run typecheck": "allow",
       "./run lintfix": "allow",
       "npm run build": "allow",

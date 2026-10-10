@@ -107,16 +107,17 @@ lives in [Stage messages](#stage-messages):
   links BETWEEN mockup pages; still no backend API calls, nothing saves.
 - **[3] Design docs** — the design doc (per the [Feature docs](#feature-docs)
   outline) joins the mockups; share doc + mockup links via T3.
-- **[4] Code — only after explicit approval.** Continue in the SAME
+- **[4] Code — only after explicit approval.** First spawn the reviewer
+  prewarm in background (see below). Continue in the SAME
   `../scratch/` (no second `createscratch` unless sent back). Edit →
   `./run deployscratch` from `main/` **once per edit batch** — every green
   batch goes LIVE (migrate/collectstatic/restarts folded in); run it
   straight through, don't stop to report progress. Evolve the mockup pages
   into the real feature (real URL, real props/endpoints) and DELETE the
   `/mockup-*` page and its homepage link when the real page lands.
-- **[5] Agent review + doc updates** — spawn the reviewer subagent to
-  re-read the diff against the requirement; update the design doc to match
-  the code.
+- **[5] Agent review + doc updates** — resume the prewarmed reviewer (or
+  spawn one fresh if this session has none) to re-read the diff against
+  the requirement; update the design doc to match the code.
 - **[6] Offer to commit** — T6; never commit unasked.
 - **[7] Final checklist** — after the commit lands, audit the job yourself
   (these are the operator's recurring catches — never make them catch one
@@ -131,6 +132,25 @@ lives in [Stage messages](#stage-messages):
         uncommitted)
   - [ ] single sentence report to user — the whole close-out is one line:
         what shipped, where it lives, that the checklist is green.
+
+**Reviewer prewarm (stage 4 → 5).** Prewarm the reviewer in the background
+while you code; resume it for the review instead of spawning fresh.
+
+- **Stage 4 start**, before the first edit batch:
+  `subagent(subagent_type: "reviewer", run_in_background: true, prompt: …)`
+  — "Build a MAP, not a copy: steer.md conventions, the reference app
+  pattern, the ourapp/ + djangoapp/ + frontend tree. Read-only. Treat it
+  as a map that may be stale by review time — re-read any file you judge,
+  trust the file over your memory. Reply STORED." Hold the agent ID.
+- **Stage 5**, resume it:
+  `subagent(subagent_type: "reviewer", resume: <id>, prompt: …)` — the
+  requirement + `git status --short` + touched files, labeled "changed
+  since your study — re-read fresh."
+- Steer a misdirected study mid-run — background agents take steering
+  messages without restarting.
+- No prewarm (small fix, resumed session)? Spawn fresh, as before. The
+  prewarm is read-only (no bash in the reviewer's toolset) — nothing
+  interrupts the operator.
 
 **Work fast — don't spin on the trivial.** For low-stakes choices (a selector
 style, whether an import is runtime vs annotation-only), follow what the
@@ -540,10 +560,10 @@ checklist point to this section and restate nothing.
      ("gets a 404 — the feature is hidden")
    - a `json` table node can show a payload shape worth seeing (the
      homepage summary counts)
-3. **The data.** Each model in plain words first ("a chore is the repeating
-   rule; an instance is one concrete occurrence"), then the `erDiagram`.
-   Translate every relationship into behavior: "RESTRICT = a chore with
-   instances can never be deleted".
+3. **The data.** Each model in plain words first ("a dish is the menu item;
+   an order is one concrete meal"), then the `erDiagram`. Translate every
+   relationship into behavior: "RESTRICT = a dish with orders can never be
+   deleted".
 4. **How the data changes.** The contract table: every modification the
    feature makes — change, made by, what exactly happens. Open it with the
    promise "if a change isn't listed here, the feature doesn't make it".
@@ -583,9 +603,61 @@ renders them.
 
 - **`usecase-beta`** (Mermaid 12; the viewer bundles it). One statement per
   physical line. Declare every `actor` explicitly — position never implies
-  one. Relationships stay outside `systemBoundary` blocks. Use
-  `..> : include` and `..> : extend` for UML semantics. Quote or avoid the
-  reserved sequences in labels: `--`, `:::`, `@{`, `<<`.
+  one (an undeclared edge endpoint silently becomes a use case).
+  Relationships stay outside `systemBoundary` blocks. Use
+  `..> : include` and `..> : extend` for UML semantics. A literal `"`
+  inside a label ends it — rephrase or use `#quot;`; the other scary
+  sequences (`--`, `:::`, `@{`, `<<`, `'`) actually parse fine, but
+  rephrase if rendering looks off.
+  The grammar is mermaid's OWN — PlantUML habits (`as` aliases, a
+  `usecase "…" as ID` line, `{ … }` braces after systemBoundary) are parse
+  errors and the viewer shows raw source. Imitate this skeleton:
+
+  ```mermaid
+  usecase-beta
+  direction LR
+  actor Visitor("Anonymous visitor")
+  actor Employee("Employee")
+  systemBoundary canteen["Canteen"]
+    Menu("See the weekly menu")
+    Order("Pre-order a meal")
+  end
+  Employee --> Menu
+  Employee --> Order
+  note for Visitor "Gets a 404. The feature is hidden until you sign in."
+  ```
+
+  Imitate this skeleton. Full grammar + worked examples: `docs/mermaid.md`
+  (read before your first usecase diagram in a session).
+
+  **MANDATORY: pipe every draft through the validator before it enters
+  the doc** — the grammar is too new for model training data, and an
+  unvalidated diagram is user-visible raw source. A clean draft:
+
+  ```
+  $ printf '%s' "usecase-beta
+  direction LR
+  actor Member(\"Library member\")
+  systemBoundary library[\"Library\"]
+    Borrow(\"Borrow a book\")
+  end
+  Member --> Borrow" | ./run checkmermaid
+  ok
+  ```
+
+  One mistake — a PlantUML `as` alias — and the validator names it:
+
+  ```
+  $ printf '%s' "usecase-beta
+  actor \"X\" as member" | ./run checkmermaid
+  Error parsing usecase diagram: Expecting: one of these possible Token
+  sequences: … but found: 'as'
+  ```
+
+  exit 0 = valid; exit 1 = fix and re-pipe. The validator catches
+  grammar, not semantics: an edge endpoint without an `actor` declaration
+  silently becomes a use case — declare every actor. After any later edit
+  to a diagram, re-pipe it the same way.
 - **`erDiagram`** — whenever models exist. Entities, fields, FKs,
   ownership; one field per line as `type name`.
 - **`stateDiagram-v2`** — when a row kind changes state.
@@ -1213,6 +1285,7 @@ The allowlisted commands (defined in the `bash` map of
 ./run deployscratch                  # check battery + deploy ../scratch/ → main/ (live; no commit)
 ./run cleanscratch                   # remove the scratch tree — PREFER over rm -rf
 ./run checkframework1               # full gate: lint + 4 test stages + merged coverage; before promoting a framework change
+./run checkmermaid < diagram.mmd     # validate one mermaid diagram (stdin)
 ./run typecheck                      # …and ./run lintfix
 ./run test …                         # any args
 ./run playwrighttest …
