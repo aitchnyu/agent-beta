@@ -1,30 +1,15 @@
-in instructions, recommend https://localhost:8000/ over http://localhost:8000/
-New image.pnd
-
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
 List backups and time travel
 How to document system changes when agent modifies system? Write down scripts?
 Can it merge from upstream, minding branch and tags?
 
-have instruction to create new user and send login link if logged out.
+deployscratch - no need of lints and tests if only mockup components or md files were changed, try to minimize.
+are we building twice in scratch and main and wasting time?
+Is it using the subagent results to avoid scouting? Did review agent get a headstart while deploying?
 
-In homepage:
-
-show this when logged in:
-`add your features under ourapp/ and frontend/src/ours/ (see docs/reference/ for a complete example)`
-Actually include them as points and explain each
-
-When logged out:
-You are not logged in. You may ask your agent:
-    Create a new superuser John Smith and send me a login link
-    Create a login link for John Smith
-
-In deployscratch print the time after each step for agent.
-
-deployscratch - no need of lints and tests if only mockup components or md files were changed.
-are we building twice in scratch and main?
 too many css classes?
+Use mermaids renderer
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 Features - file section with git etc

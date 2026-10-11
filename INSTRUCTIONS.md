@@ -38,6 +38,7 @@ Try not to generate multiline bash commands. My agent thinks each line is a comm
 
 Do not run `rm` or `ls` in bash. Use the tool calls.
 Do not use curl to read urls. Use browser tool call.
+When opening or sharing the app's URL, prefer `https://localhost:8000/` over `http://localhost:8000/` — https is the deployed origin, some features may be https-only.
 
 ## In-VM scripts
 Any command that runs inside a VM — multipass-exec'd from the host or

@@ -304,6 +304,10 @@ One-time setup:
 
    ![pi /model — typing fla filters to glm-5.3-flash](docs/screenshots/pi/pi-model.png)
 
+   When we set up a provider and model, a background agent analyzes the repo. It is normal and helps save operator's time:
+
+   ![pi first session — the groundwork scout already running in the background, footer glm-5.3-flash • high, 1 running agent](docs/screenshots/pi/pi-groundwork-scout.png)
+
 4. **Thinking level**: `/thinking` opens the picker for the current
    model → **high** → **Ctrl+S** sets it as the startup default. On
    Z.AI the recommendation is **glm-5.3-flash** at **high**; Shift+Tab
