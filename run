@@ -597,6 +597,16 @@ createscratch() {
   echo "scratch/ ready at $_SCRATCH_DIR. Edit there, then deploy with: ./run deployscratch (from main/)"
 }
 
+# Wall-seconds the just-finished deploy step took: call with the step's
+# label immediately after the step (deployscratch resets _STEP_T0 before
+# its first step). bash's $SECONDS counts — the agent reading the deploy
+# log sees where the minutes go.
+_STEP_T0=0
+_step_seconds() { # <label>
+  echo "    [$1 $((SECONDS - _STEP_T0))s]"
+  _STEP_T0=$SECONDS
+}
+
 # The ONE command: the full check battery in scratch (nothing deploys
 # red), then rsync → main/ (.git + gitignored dirs excluded), pre-migration backup,
 # migrate, collectstatic + restart granian/huey so deploys go LIVE.
@@ -620,24 +630,24 @@ deployscratch() {
     return 1
   fi
 
+  _STEP_T0=$SECONDS
   ( cd "$_SCRATCH_DIR" && _scratch_checks )
+  _step_seconds "check battery"
 
   echo "Deploying $_SCRATCH_DIR/ → $_MAIN_DIR/ (--delete, excluding .git + gitignored/runtime dirs)…"
-  # The sync runs under sudo (as the non-root default user, rsync -a
-  # can't preserve attrs on desmo-owned files — exit 23), and scratch's
-  # files are default-user-owned. Re-own to desmo AND re-add
-  # group-write afterwards — chown alone leaves rsync-created 644/755
-  # files without g+w, and the next build as the default user then dies
-  # on desmo-owned dirs (EACCES rmdir .vite, a real session's playwright
-  # wall).
-  # On top of the derived excludes: `.git` never rides a deploy (scratch
-  # only borrowed main's history — git never lists it, so no rule in the
-  # derived set covers it).
+  # - sudo rsync: non-root can't preserve attrs on desmo-owned files
+  #   (exit 23), and scratch's files are default-user-owned.
+  # - re-own to desmo AND re-add g+w after — chown alone leaves rsync's
+  #   644/755 without g+w; the next default-user build dies (EACCES
+  #   rmdir .vite, a real playwright wall).
+  # - `.git` never rides a deploy: scratch only borrowed main's history
+  #   (git never lists it, so no derived exclude covers it).
   local excluded_files
   excluded_files=$(scratch_excluded_files '^djangoapp/static/' "$_SCRATCH_DIR" "$_MAIN_DIR")
   sudo rsync -a --delete --exclude='.git/' \
     --exclude-from="$excluded_files" "$_SCRATCH_DIR/" "$_MAIN_DIR/"
   rm -f "$excluded_files"
+  _step_seconds "rsync"
   # Own the tree as desmo (scratch's files arrive default-user-owned):
   #   - main tree: the agent's user edits it (builds, git resets)
   #   - dbbackups/: PRUNED — stays postgres-owned (pgbackrest runs as
@@ -653,18 +663,23 @@ deployscratch() {
   #   - dbbackups/: PRUNED — the repo stays mode 700; g+w would open
   #     it to the desmo group
   sudo find "$_MAIN_DIR" -path "$_MAIN_DIR/dbbackups" -prune -o -exec chmod g+w {} +
+  _step_seconds "own"
   # Pre-migration snapshot through the real unit — the DB state to
   # restore to if this deploy's migrate goes wrong. Runs BEFORE any
   # DB-touching step; diff keeps it near-free; output lands in the
   # unit's journal.
   sudo systemctl start desmo_pgbackrest.service
+  _step_seconds "backup"
   ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py migrate --noinput )
+  _step_seconds "migrate"
   echo "collectstatic + restarting services…"
   ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py collectstatic --noinput --clear )
+  _step_seconds "collectstatic"
   # Huey's unit always exists on provisioned VMs (HUEY_WORKERS ≥ 1 is
   # enforced at provisioning).
   sudo systemctl daemon-reload
   sudo systemctl restart desmo_granian.service desmo_huey.service
+  _step_seconds "restart"
   # Share-URL base — never a hardcoded one. The FIRST BASE_URLS entry is
   # the link base (the same rule makeloginlink uses); it keeps scheme and
   # port, so nothing is prefixed here.
@@ -673,11 +688,10 @@ deployscratch() {
   _SHARE_BASE="${_SHARE_BASE%/}"   # drop a trailing slash — the links below add their own
   echo "App is available under:"
   ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py baseurls )
+  _step_seconds "baseurls"
   echo "Deployed scratch/ → main/ (uncommitted, services live). Commit in main/ when ready."
-  echo "Share design artifacts as absolute URLs at the BOTTOM of your message (with the summary):"
-  echo "  docs:  ${_SHARE_BASE}/files/main/ourapp/docs/<feature>.md"
-  echo "  pages: ${_SHARE_BASE}/<page-url>"
-  echo "Verify each file exists in main/ before sharing the link."
+  echo "Share absolute URLs you verified exist in main/ at the BOTTOM of your message (with the summary):"
+  echo "  docs: ${_SHARE_BASE}/files/main/ourapp/docs/<feature>.md · pages: ${_SHARE_BASE}/<page-url>"
 }
 
 cleanscratch() {

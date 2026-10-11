@@ -18,21 +18,38 @@ const p = computed(() => HomePropsSchema.parse(props.props))
 <template>
   <PageTitle />
   <div class="home-container">
-    <p class="home-placeholder-note text-muted">
-      This is a placeholder app, not a finished product — add your features
-      under
-      <Link :href="fileUrl('main/ourapp')"><code>ourapp/</code></Link> and
-      <Link :href="fileUrl('main/frontend/src/ours')"
-        ><code>frontend/src/ours/</code></Link
-      >
-      (see
-      <Link :href="fileUrl('main/docs/reference')"
-        ><code>docs/reference/</code></Link
-      >
-      for a complete example).
-    </p>
-    <p v-if="!p.is_authenticated" class="home-status home-status-signed-out">
-      You are not signed in.
-    </p>
+    <template v-if="p.is_authenticated">
+      <p class="home-placeholder-note text-muted">
+        This is a placeholder app, not a finished product — add your features:
+      </p>
+      <ul class="home-points">
+        <li>
+          <Link :href="fileUrl('main/ourapp')"><code>ourapp/</code></Link> — the
+          backend: one module per feature under models/, views/ and tests/
+          (Django models, Ninja endpoints, Huey tasks).
+        </li>
+        <li>
+          <Link :href="fileUrl('main/frontend/src/ours')"
+            ><code>frontend/src/ours/</code></Link
+          >
+          — the frontend: one Vue page per feature under pages/, plus the shared
+          props schemas and styles.
+        </li>
+        <li>
+          <Link :href="fileUrl('main/docs/reference')"
+            ><code>docs/reference/</code></Link
+          >
+          — a complete worked example of both — copy a feature from there and
+          adapt it.
+        </li>
+      </ul>
+    </template>
+    <div v-else class="home-status home-status-signed-out">
+      <p>You are not logged in. You may ask your agent:</p>
+      <ul class="home-points">
+        <li>Create a new superuser John Smith and send me a login link</li>
+        <li>Create a login link for John Smith</li>
+      </ul>
+    </div>
   </div>
 </template>
