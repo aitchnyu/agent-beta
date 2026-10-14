@@ -41,9 +41,11 @@ and ask the operator).
 - Fresh scratch tree: `./run createscratch` (run from `main/`).
 - Edit + check + deploy, all one command: `./run deployscratch` **run from
   `main/`** — NOT from inside `../scratch/` (the script resolves main and
-  scratch from its OWN location; invoked from scratch it refuses). It runs
-  the full check battery in scratch; if green, rsyncs to `main/`, migrates,
-  and on the VM collectstatic + restarts granian/huey so it's LIVE.
+  scratch from its OWN location; invoked from scratch it refuses). It:
+  - runs the check battery in scratch — frontend/docs-only diffs take a
+    fast path (lint/build or fence validation, no backend checks);
+  - if green, rsyncs to `main/`;
+  - migrates + restarts granian/huey only when backend code changed.
   **A green `deployscratch` IS the whole verification.** If it succeeded,
   do not verify anything else — no post-deploy e2e run, no live-URL
   checks, no re-running suites from `main/`. The operator verifies the
@@ -111,7 +113,7 @@ lives in [Stage messages](#stage-messages):
   prewarm in background (see below). Continue in the SAME
   `../scratch/` (no second `createscratch` unless sent back). Edit →
   `./run deployscratch` from `main/` **once per edit batch** — every green
-  batch goes LIVE (migrate/collectstatic/restarts folded in); run it
+  batch goes LIVE (migrate/restarts folded in when backend code changed); run it
   straight through, don't stop to report progress. Evolve the mockup pages
   into the real feature (real URL, real props/endpoints) and DELETE the
   `/mockup-*` page and its homepage link when the real page lands.
@@ -265,23 +267,21 @@ incremental. An existing `../scratch/` is wiped — **if one already exists,
 ask first whether to delete it**, during planning / before the go-ahead (it
 may hold uncommitted work from a prior task; `./run cleanscratch` wipes it).
 
-**`./run deployscratch`** (from `main/`) — the ONE command: the full
-check battery, then the deploy tail. The battery: ruff + mypy + **ourapp's
-own tests** + frontend lint/type-check/build (it does NOT re-run the
-framework backend suite, `djangoapp/tests/`, identical to `main/`, or the
-full Playwright pass — those belong in `main/`'s `checkframework1`). If
-scratch edits touch framework files (anything outside `ourapp/` +
-`frontend/src/ours/`, diffed against `scratch-baseline`), it additionally
-runs the tagged `scratch-test-subset` smoke tests (~5-10s: one view test
-per feature + one browser smoke class incl. a homepage-load). Nothing
-deploys while the battery is red. The tail: rsync `../scratch/` → `main/`
-with `--delete` (`.git` and `.env` excluded — main's repo and env are never
-overwritten), `migrate`, and on the VM collectstatic + restart
-granian/huey — **deployed routes are live immediately**. The tail ends by
-printing `App is available under:` + the `baseurls` command's output
-(the deployed origins — `BASE_URLS`, comma-separated) — you never
-need to derive or print origins yourself after a deploy. Does **not**
-commit; commits in `main/` stay the human's.
+**`./run deployscratch`** (from `main/`) — the ONE command.
+
+- **Battery**: ruff + mypy + **ourapp's own tests** + frontend
+  lint/type-check/build (framework suite + Playwright stay in `main/`'s
+  `checkframework1`). Framework-file edits (outside `ourapp/` +
+  `frontend/src/ours/`) add the `scratch-test-subset` smoke tests.
+- **Fast path**: changes only under `frontend/src/ours/**` +
+  `ourapp/docs/*.md` → lint/build + mermaid fence validation, no backend
+  battery. Nothing deploys red.
+- **Tail**: rsync → `main/` `--delete` (`.git`/`.env` never overwritten);
+  on the VM: backup + `migrate` + granian/huey restart for backend diffs,
+  collectstatic when the bundle changed, neither for docs-only —
+  **deployed routes are live immediately**.
+- Ends by printing `App is available under:` + `baseurls` output. Does
+  **not** commit; commits in `main/` stay the human's.
 
 **Never deploy over uncommitted work you can't account for.** The deploy
 rsync is `--delete` and never commits, so `main/` routinely holds
@@ -657,7 +657,10 @@ renders them.
   exit 0 = valid; exit 1 = fix and re-pipe. The validator catches
   grammar, not semantics: an edge endpoint without an `actor` declaration
   silently becomes a use case — declare every actor. After any later edit
-  to a diagram, re-pipe it the same way.
+  to a diagram, re-pipe it the same way; after editing a whole doc,
+  `./run checkmarkdownmermaid <file.md>` validates every fence at once
+  (first broken block + error) — the docs fast path runs it on changed
+  files automatically.
 - **`erDiagram`** — whenever models exist. Entities, fields, FKs,
   ownership; one field per line as `type name`.
 - **`stateDiagram-v2`** — when a row kind changes state.
@@ -1132,7 +1135,7 @@ auto-discovers each installed app's `tasks` module. Redis is a **hard dependency
 
 ## Database backups (pgbackrest)
 Backups run themselves (nightly timer + a pre-migration snapshot on
-every deploy) — you never schedule anything. Work inside the VM via
+every backend deploy) — you never schedule anything. Work inside the VM via
 these, and read
 **docs/backups.md** before any backup work beyond them:
 
@@ -1286,6 +1289,7 @@ The allowlisted commands (defined in the `bash` map of
 ./run cleanscratch                   # remove the scratch tree — PREFER over rm -rf
 ./run checkframework1               # full gate: lint + 4 test stages + merged coverage; before promoting a framework change
 ./run checkmermaid < diagram.mmd     # validate one mermaid diagram (stdin)
+./run checkmarkdownmermaid <file.md> # validate every mermaid fence in a file
 ./run typecheck                      # …and ./run lintfix
 ./run test …                         # any args
 ./run playwrighttest …

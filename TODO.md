@@ -1,23 +1,28 @@
+All three answered from the transcript timestamps
+
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
 List backups and time travel
 How to document system changes when agent modifies system? Write down scripts?
 Can it merge from upstream, minding branch and tags?
 
-deployscratch - no need of lints and tests if only mockup components or md files were changed, try to minimize.
+deployscratch - no need of lints and tests if only mockup components or md files were changed, try to minimize delays.
 are we building twice in scratch and main and wasting time?
 Is it using the subagent results to avoid scouting? Did review agent get a headstart while deploying?
 
 too many css classes?
-Use mermaids renderer
+
+Review with multiple agents?
+Prewarm a new agent/agents if significant changes
+
+Screenshots of features in doc
+Multiple use case diagrams per page, each screen/page/task
+Try to minimize horizontal scrolling for Mermaid
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 Features - file section with git etc
 
 TUI for config, vapid script
-
-Still at Mermaid usecase-beta, wait till they release
-Bootstrap 6, with dialog
 
 Branding, org/reponame
 
@@ -31,6 +36,11 @@ Update docs for adding users and login links
 desmo user shouldnt have rw access to its files
 
 Desec dns docs
+
+## Upgrades
+Still at Mermaid usecase-beta, wait till they release
+Bootstrap 6, with dialog
+TSC7 if compatible, Vue vapor
 
 ## Future
 Have a sequence generator for tables

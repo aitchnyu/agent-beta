@@ -312,8 +312,18 @@ checkmermaid() {
   # Validate ONE mermaid diagram from stdin — the entire input must parse,
   # or this exits 1 with the parser's error. Validate a draft BEFORE writing
   # it into a doc: printf '%s' "…" | ./run checkmermaid
+  # No args on a TTY: instead scan every ```mermaid fence in the default
+  # docs (ourapp/docs/, ourapp/README.md, docs/mermaid.md, steer.md).
   _require_main_run checkmermaid || return 1
   node "$_MAIN_DIR/deploy/checkmermaid.mjs"
+}
+
+checkmarkdownmermaid() {
+  # Validate EVERY ```mermaid fence in one or more markdown files — the
+  # first broken block is printed, then its parse error (exit 1). All ok →
+  # exit 0.
+  _require_main_run checkmarkdownmermaid || return 1
+  node "$_MAIN_DIR/deploy/checkmarkdownmermaid.mjs" "$@"
 }
 
 # The full gate: lint + types in main/, then FOUR test stages — 1-3 under
@@ -354,9 +364,7 @@ checkframework1() {
   cd frontend
   echo "Running frontend linting"
   npm run lint
-  echo "Running frontend type checking"
-  npm run type-check
-  echo "Running frontend build (bundle for the Playwright pass)"
+  echo "Running frontend build (type-check + vite, bundle for the Playwright pass)"
   npm run build
   cd ..
   echo "Running Playwright tests under coverage (stage 2/4)"
@@ -432,12 +440,23 @@ checkframework2() {
   multipass exec desmo -- sudo bash /srv/desmo/main/deploy/gate.sh gate
 }
 
-# The scratch/ fast loop: validate the agent's ourapp/ edits without re-running the
-# unchanged framework suite or the slow browser pass. ruff + mypy (whole codebase
-# — the agent's Python must pass), ourapp's OWN tests only (not djangoapp/tests/,
-# which is identical to main/), and the frontend lint/typecheck/build (the build
-# confirms the agent's frontend compiles; the browser pass is skipped). The full
-# backend suite + Playwright stay in checkframework1, run in main/.
+# Changed-set vs the frozen scratch-baseline + untracked files (one path per
+# line) — one listing for both the fast-path gate and the framework watch.
+_scratch_changed_files() { # <dir>
+  local baseline
+  baseline=$(git -C "$1" rev-parse --verify scratch-baseline 2>/dev/null) \
+    || { echo "REFUSING: no scratch-baseline ref — re-run ./run createscratch" >&2; return 1; }
+  {
+    git -C "$1" diff --name-only "$baseline" \
+      || { echo "REFUSING: git diff failed in $1 — no deploy on a partial changed-set." >&2; return 1; }
+    git -C "$1" ls-files --others --exclude-standard \
+      || { echo "REFUSING: git ls-files failed in $1 — no deploy on a partial changed-set." >&2; return 1; }
+  } | sort -u
+}
+
+# The scratch/ fast loop: the agent's edits checked without the unchanged
+# framework suite or the slow browser pass — those stay in main/'s
+# checkframework1.
 _scratch_checks() {
   echo "Running ruff format --check (formatting drift)"
   uv run ruff format $_RUFF_COLOR --check
@@ -450,25 +469,16 @@ _scratch_checks() {
   cd frontend
   echo "Running frontend linting"
   npm run lint
-  echo "Running frontend type checking"
-  npm run type-check
-  echo "Running frontend build"
+  echo "Running frontend build (type-check + vite in one pass)"
   npm run build
   cd ..
-  # Framework-file watch: diff the working tree against the frozen
-  # `scratch-baseline` ref (main's HEAD at seed time); edits outside
-  # ourapp/ + frontend/src/ours/ mean framework code changed → run the
-  # `scratch-test-subset` smoke (an early-warning fraction of
-  # checkframework1; the full suite still gates in main/).
-  local baseline outside
-  baseline=$(git -C "$_SCRATCH_DIR" rev-parse --verify scratch-baseline 2>/dev/null) \
-    || { echo "REFUSING: no scratch-baseline ref — re-run ./run createscratch" >&2; return 1; }
-  outside=$(
-    {
-      git -C "$_SCRATCH_DIR" diff --name-only "$baseline"
-      git -C "$_SCRATCH_DIR" ls-files --others --exclude-standard
-    } | sort -u | grep -vE '^(ourapp/|frontend/src/ours/)' || true
-  )
+  # Framework-file watch: edits outside ourapp/ + frontend/src/ours/ mean
+  # framework code changed → run the `scratch-test-subset` smoke (an
+  # early-warning fraction of checkframework1; the full suite still gates
+  # in main/).
+  local changed_files outside
+  changed_files=$(_scratch_changed_files "$_SCRATCH_DIR") || return 1
+  outside=$(grep -vE '^(ourapp/|frontend/src/ours/)' <<<"$changed_files" || true)
   if [ -n "$outside" ]; then
     echo "=== framework files changed — running scratch-test-subset smoke tests ==="
     printf '  %s\n' $(grep -c . <<<"$outside") files:
@@ -607,9 +617,11 @@ _step_seconds() { # <label>
   _STEP_T0=$SECONDS
 }
 
-# The ONE command: the full check battery in scratch (nothing deploys
-# red), then rsync → main/ (.git + gitignored dirs excluded), pre-migration backup,
+# The ONE command: the check battery in scratch (nothing deploys red),
+# then rsync → main/ (.git + gitignored dirs excluded), pre-migration backup,
 # migrate, collectstatic + restart granian/huey so deploys go LIVE.
+# Fast path: frontend/docs-only diffs skip the backend battery, backup,
+# migrate and restarts (lint+build / mermaid validation only).
 # VM ONLY — the scratch loop is the agent's edit cycle and the agent
 # lives in the VM; a dev Mac has none of it (no pgbackrest, no units).
 # Never commits.
@@ -630,9 +642,38 @@ deployscratch() {
     return 1
   fi
 
+  # Fast path — every changed file is one of:
+  #   - frontend/src/ours/**  → lint + build (the bundle rides the rsync)
+  #   - ourapp/docs/*.md      → mermaid fence validation
+  # Nothing backend can break → no backend battery, backup, migrate, restarts.
+  local changed_files docs_or_frontend_only=false frontend_changed=false
+  changed_files=$(_scratch_changed_files "$_SCRATCH_DIR") || return 1
+  # docs_or_frontend_only = the set is nonempty and every line matches the safe set.
+  if [ -n "$changed_files" ] && ! grep -vqE '^(frontend/src/ours/|ourapp/docs/[^/]+\.md$)' <<<"$changed_files"; then
+    docs_or_frontend_only=true
+    if grep -q '^frontend/src/ours/' <<<"$changed_files"; then frontend_changed=true; fi
+  fi
+
   _STEP_T0=$SECONDS
-  ( cd "$_SCRATCH_DIR" && _scratch_checks )
-  _step_seconds "check battery"
+  if $docs_or_frontend_only; then
+    echo "Fast path: frontend/docs-only changes — no backend checks, backup, migrate, or restarts."
+    if $frontend_changed; then
+      # Lint + build the SPA in scratch; the bundle rides the rsync.
+      ( cd "$_SCRATCH_DIR/frontend" && npm run lint && npm run build )
+    fi
+    # Design docs: validate every mermaid fence in each changed file.
+    local md_file
+    while IFS= read -r md_file; do
+      # Deleted/renamed-away paths list here too — nothing to validate,
+      # rsync --delete carries the removal.
+      [ -f "$_SCRATCH_DIR/$md_file" ] || continue
+      node "$_MAIN_DIR/deploy/checkmarkdownmermaid.mjs" "$_SCRATCH_DIR/$md_file" || return 1
+    done <<<"$(grep -E '\.md$' <<<"$changed_files")"
+    _step_seconds "check battery (fast)"
+  else
+    ( cd "$_SCRATCH_DIR" && _scratch_checks )
+    _step_seconds "check battery"
+  fi
 
   echo "Deploying $_SCRATCH_DIR/ → $_MAIN_DIR/ (--delete, excluding .git + gitignored/runtime dirs)…"
   # - sudo rsync: non-root can't preserve attrs on desmo-owned files
@@ -664,22 +705,30 @@ deployscratch() {
   #     it to the desmo group
   sudo find "$_MAIN_DIR" -path "$_MAIN_DIR/dbbackups" -prune -o -exec chmod g+w {} +
   _step_seconds "own"
-  # Pre-migration snapshot through the real unit — the DB state to
-  # restore to if this deploy's migrate goes wrong. Runs BEFORE any
-  # DB-touching step; diff keeps it near-free; output lands in the
-  # unit's journal.
-  sudo systemctl start desmo_pgbackrest.service
-  _step_seconds "backup"
-  ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py migrate --noinput )
-  _step_seconds "migrate"
-  echo "collectstatic + restarting services…"
-  ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py collectstatic --noinput --clear )
-  _step_seconds "collectstatic"
-  # Huey's unit always exists on provisioned VMs (HUEY_WORKERS ≥ 1 is
-  # enforced at provisioning).
-  sudo systemctl daemon-reload
-  sudo systemctl restart desmo_granian.service desmo_huey.service
-  _step_seconds "restart"
+  # Backup + migrate only when backend code changed; collectstatic when the
+  # bundle changed; restart only for backend — static chunks and
+  # tree-served docs need no service restart.
+  if ! $docs_or_frontend_only; then
+    # Pre-migration snapshot through the real unit — the DB state to
+    # restore to if this deploy's migrate goes wrong.
+    sudo systemctl start desmo_pgbackrest.service
+    _step_seconds "backup"
+    ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py migrate --noinput )
+    _step_seconds "migrate"
+  fi
+  if ! $docs_or_frontend_only || $frontend_changed; then
+    echo "collectstatic…"
+    ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py collectstatic --noinput --clear )
+    _step_seconds "collectstatic"
+  fi
+  if ! $docs_or_frontend_only; then
+    echo "restarting services…"
+    # Huey's unit always exists on provisioned VMs (HUEY_WORKERS ≥ 1 is
+    # enforced at provisioning).
+    sudo systemctl daemon-reload
+    sudo systemctl restart desmo_granian.service desmo_huey.service
+    _step_seconds "restart"
+  fi
   # Share-URL base — never a hardcoded one. The FIRST BASE_URLS entry is
   # the link base (the same rule makeloginlink uses); it keeps scheme and
   # port, so nothing is prefixed here.
@@ -727,7 +776,11 @@ ${H}Checks${R}
   ${C}lintfix${R}             ruff format + ruff check, eslint (writes)
   ${C}typecheck${R}           mypy (backend) + vue-tsc (frontend)
   ${C}checkmermaid${R}           validate one mermaid diagram from stdin (exit 0 = ok;
-                        exit 1 = the parser's error)
+                        exit 1 = the parser's error); no args on a TTY →
+                        scan every fence in the default docs
+  ${C}checkmarkdownmermaid${R} <file.md>
+                        validate every mermaid fence in file(s) (first broken
+                        block + error, exit 1)
   ${C}test${R} [args…]        Django test suite (args pass through to manage.py test)
   ${C}playwrighttest${R} …    Playwright e2e suite
   ${C}screenshots${R}         regenerate docs/screenshots via Playwright
@@ -738,8 +791,9 @@ ${H}Checks${R}
 
 ${H}Scratch (the agent edit loop)${R}
   ${C}createscratch${R}       copy main/ → scratch/ + tag scratch-baseline
-  ${C}deployscratch${R}       check battery, then deploy scratch/ → main/ (VM only:
-                       backup, migrate, collectstatic, restart services)
+  ${C}deployscratch${R}       checks, then deploy scratch/ → main/ (VM only). Full path:
+                       battery, backup, migrate, restarts; frontend/docs-only
+                       diffs take a fast path (lint/build or fence checks)
   ${C}cleanscratch${R}        remove scratch/
 
 ${H}Backups (pgbackrest — docs/backups.md)${R}

@@ -12,8 +12,9 @@ The label for a restore is the one `info` prints per snapshot —
 ## What's automatic
 
 - Every night at 00:00 UTC.
-- A snapshot before every deploy's `migrate` — the state to roll back
-  to if a migration goes wrong.
+- A snapshot before the migrate of every backend deploy — the state to
+  roll back to if a migration goes wrong (frontend/docs-only deploys run
+  neither step).
 - Two months of history: weekly fulls + daily diffs, old sets expire
   on their own.
 

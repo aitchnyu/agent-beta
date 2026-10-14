@@ -4,7 +4,9 @@ The /files viewer renders ```` ```mermaid ```` fences with the mermaid
 version pinned in `frontend/package.json`. **Validate before deploying**
 — run `./run checkmermaid` (no args, interactive) and it parses every
 fence in the default docs with that exact build; to validate ONE diagram,
-pipe it on stdin. A broken diagram otherwise shows as raw source in the
+pipe it on stdin, or check every fence in one file with
+`./run checkmarkdownmermaid <file.md>`.
+A broken diagram otherwise shows as raw source in the
 browser. Full grammar per type lives at mermaid.js.org/docs; this page
 carries the constructs feature docs use, with skeletons that parse (this
 file is itself among checkmermaid's default targets).
@@ -114,5 +116,8 @@ method name.
 **Always run the validator** — the usecase grammar is too new for AI
 training data: pipe the whole draft through
 `printf '%s' "usecase-beta …" | ./run checkmermaid` (exit 0 = valid;
-exit 1 = the parser's error). The viewer shows raw source on parse
-failure, so a broken diagram is user-visible — never deploy one.
+exit 1 = the parser's error). For a whole file — before a docs deploy, or
+after editing several fences — run `./run checkmarkdownmermaid <file.md>`:
+it validates every fence and shows the first broken block, then its
+error. The viewer shows raw source on parse failure, so a broken diagram
+is user-visible — never deploy one.

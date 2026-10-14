@@ -55,6 +55,8 @@
       "./run checkframework1": "allow",
       "./run checkmermaid": "allow",
       "./run checkmermaid *": "allow",
+      "./run checkmarkdownmermaid": "allow",
+      "./run checkmarkdownmermaid *": "allow",
       "./run typecheck": "allow",
       "./run lintfix": "allow",
       "npm run build": "allow",

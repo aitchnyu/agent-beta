@@ -145,7 +145,7 @@ If you want to look around:
   ([pgbackrest](https://pgbackrest.org/), apt-installed) into a plain,
   unencrypted, self-contained `dbbackups/`
   **on the same machine as the database** — copying that one folder carries
-  the whole backup; every deploy snapshots too. Running one now, listing,
+  the whole backup; every backend deploy snapshots first. Running one now, listing,
   checking, restoring to a point in time — `docs/backups.md` is the source
   of truth.
 - **Models management** — a superuser UI at `/manage/models` to browse, sort,
@@ -252,8 +252,9 @@ means a click-through warning (the supported mode):
 
 **Everything else happens on the VM**: `desmo createscratch` → `desmo pi`
 (from a multipass shell, as the default cloud user) edits `scratch/` →
-`desmo deployscratch` (check battery + deploy + migrate; on the VM
-collectstatic + service restarts fold in automatically). Before the first
+`desmo deployscratch` (checks + deploy; migrate + service restarts when
+backend changed, collectstatic when the bundle changed — frontend/docs-only
+diffs take a lint/build + mermaid-check fast path). Before the first
 `desmo pi`, do the one-time provider auth + model setup —
 [Pi setup](#pi-setup-provider-auth--model-one-time). The env on the
 VM is a single file all services share
@@ -500,13 +501,16 @@ change:
 3. `./run deployscratch` — **run from `main/`, never from scratch's own
    `./run` (it refuses)**. The check battery: ruff + mypy + `ourapp` tests +
    frontend lint/type-check/build (the fast loop: the framework suite and
-   Playwright stay in `main/`). Must finish green. When scratch edits touch
+   Playwright stay in `main/`; frontend/docs-only diffs skip the backend
+   battery — lint/build + mermaid fence checks only). Must finish green.
+   When scratch edits touch
    framework files (outside `ourapp/` + `frontend/src/ours/`), it also runs
    the tagged `scratch-test-subset` smoke tests. Run `checkframework1` in
    `main/` for the full gate.
 4. the same command's tail — deploy `../scratch/` into `main/` (never
-   overwriting `main/.env`; on the VM it also migrates, collectstatics, and
-   restarts granian/huey). This does **not** commit.
+   overwriting `main/.env`; on the VM: backup + migrate + granian/huey
+   restart when backend code changed, collectstatic when the bundle
+   changed). This does **not** commit.
 
 Mid-build UIs are reviewed as **mockups**: throwaway superuser-only
 `/mockup-<feature>` pages rendered with a crosshatch overlay, so a design is
@@ -579,7 +583,8 @@ fan-out as its own task — push-service HTTP never runs inline in a request.
 App/dev via the `run` script: `init`, `runserver`, `dev`,
 `pi`, `test`,
 `typecheck`, `lintfix`, `playwrighttest`, `screenshots`, `checkframework1`,
-`checkframework2`, `createscratch`, `deployscratch`, `cleanscratch`,
+`checkframework2`, `checkmermaid`, `checkmarkdownmermaid`, `createscratch`,
+`deployscratch`, `cleanscratch`,
 `hueydev` (background consumer alone),
 plus `djangomanage`/`python` passthroughs (e.g.
 `./run djangomanage makemigrations`, `./run python manage.py …`).
@@ -755,7 +760,8 @@ Three tiers:
 
 - **`deployscratch`** — the ONE command, run from `main/` once per edit batch:
   - ruff + mypy over the whole codebase, `ourapp`'s own tests only, and the
-    frontend lint/type-check/build
+    frontend lint/type-check/build — unless the diff is frontend/docs-only,
+    which takes the fast path (lint/build + mermaid fence checks)
   - skips the framework suite and Playwright (those run in `main/`) — unless
     the edit touches framework files (outside `ourapp/` + `frontend/src/ours/`),
     which adds the tagged `scratch-test-subset` smoke tests
