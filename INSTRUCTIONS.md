@@ -274,7 +274,42 @@ class RowUpdateValueSerializerTests(TestCase):
 
 In the bullet list, if two adjacent lines seem similar, in one line, mention whats different than previous line.
 
-When adding/editing tests, keep method and class docstrings up to date, even for test classes which don't have docstrings.
+When adding/editing tests, keep method and class docstrings up to date.
+
+## Comments and markdown
+
+Comments and markdown are for humans first. The rule covers:
+
+- comments — shell, Python, TypeScript, config files
+- markdown — steer.md, docs/, `.pi/agents/`, prompts
+
+It binds prose you write or edit; the keep-my-comments rules above still
+govern the operator's existing text.
+
+Rules:
+
+- listings become points — one item per line, each duty its own bullet;
+  never pack them into parentheticals inside one sentence
+- a paragraph that mixes distinct rules (mechanics, evidence, timing)
+  splits into points
+
+Cutoffs (the unit is the sentence/bullet/paragraph — lines wrap at ~72-78
+chars and carry no signal):
+
+- one sentence: ≤ 25 words; past that it carries multiple ideas — split
+- one bullet: ≤ 50 words, max 2 sentences; past that, promote its parts to
+  sub-points or separate bullets
+- ≥ 3 enumerable items (parentheticals, comma chains) → points, however
+  short — structure beats count
+- ≥ 2 distinct rules in one paragraph → split, regardless of length
+- noun-phrase inventories (duty labels, file lists) stay inline — the
+  cutoffs bind clauses and rules, not short lists
+
+Counterexamples (both fixed in steer.md):
+
+- `reviewer-correctness (spec-vs-code drift, API contract, edge cases), reviewer-conventions (doc-claims-vs-code, mirrors, style), reviewer-trace (…)` — three reviewers packed into one sentence with parenthetical duty lists
+- a Stage-5 bullet running the resume call, the evidence rule, and the
+  launch timing in one paragraph — each rule now sits on its own point
 
 ## Frontend
 Do not introduce inline css or Vue scoped styles. Ensure rules are in main.css.  

@@ -1,19 +1,11 @@
-All three answered from the transcript timestamps
-
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
 List backups and time travel
 How to document system changes when agent modifies system? Write down scripts?
 Can it merge from upstream, minding branch and tags?
 
-deployscratch - no need of lints and tests if only mockup components or md files were changed, try to minimize delays.
-are we building twice in scratch and main and wasting time?
-Is it using the subagent results to avoid scouting? Did review agent get a headstart while deploying?
-
+outline should draw left and right border for screenshots
 too many css classes?
-
-Review with multiple agents?
-Prewarm a new agent/agents if significant changes
 
 Screenshots of features in doc
 Multiple use case diagrams per page, each screen/page/task

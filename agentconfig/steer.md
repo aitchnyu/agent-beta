@@ -110,16 +110,26 @@ lives in [Stage messages](#stage-messages):
 - **[3] Design docs** — the design doc (per the [Feature docs](#feature-docs)
   outline) joins the mockups; share doc + mockup links via T3.
 - **[4] Code — only after explicit approval.** First spawn the reviewer
-  prewarm in background (see below). Continue in the SAME
-  `../scratch/` (no second `createscratch` unless sent back). Edit →
-  `./run deployscratch` from `main/` **once per edit batch** — every green
-  batch goes LIVE (migrate/restarts folded in when backend code changed); run it
-  straight through, don't stop to report progress. Evolve the mockup pages
-  into the real feature (real URL, real props/endpoints) and DELETE the
-  `/mockup-*` page and its homepage link when the real page lands.
-- **[5] Agent review + doc updates** — resume the prewarmed reviewer (or
-  spawn one fresh if this session has none) to re-read the diff against
-  the requirement; update the design doc to match the code.
+  prewarm(s) in background (one, or all three for a significant diff —
+  see below). Continue in the SAME `../scratch/` (no second
+  `createscratch` unless sent back). Then, per edit batch:
+  - Edit → `./run deployscratch` from `main/` **once per edit batch** —
+    every green batch goes LIVE (migrate/restarts folded in when backend
+    code changed). Run it straight through; don't stop to report progress.
+  - After any write batch — review fixes included — run
+    `cd ../scratch && ./run lintfix` first (seconds, allowlisted,
+    repo-wide). DJ001-class errors die there, not in the battery.
+  - After any format pass, re-read a file before editing it again —
+    reformatted text breaks old-text matches.
+  - Evolve the mockup pages into the real feature (real URL, real
+    props/endpoints) and DELETE the `/mockup-*` page and its homepage
+    link when the real page lands.
+- **[5] Agent review + doc updates** —
+  - run the executable checks yourself; paste their outputs as evidence
+  - resume the prewarmed reviewer(s) — or spawn fresh if this session
+    has none — to re-read the diff against the requirement
+  - triage findings per the rules below
+  - update the design doc to match the code
 - **[6] Offer to commit** — T6; never commit unasked.
 - **[7] Final checklist** — after the commit lands, audit the job yourself
   (these are the operator's recurring catches — never make them catch one
@@ -135,24 +145,68 @@ lives in [Stage messages](#stage-messages):
   - [ ] single sentence report to user — the whole close-out is one line:
         what shipped, where it lives, that the checklist is green.
 
-**Reviewer prewarm (stage 4 → 5).** Prewarm the reviewer in the background
-while you code; resume it for the review instead of spawning fresh.
+**Review with prewarmed agents (stage 4 → 5).** Prewarm reviewers in the
+background while you code; resume them for the review instead of spawning
+fresh. How many:
 
-- **Stage 4 start**, before the first edit batch:
-  `subagent(subagent_type: "reviewer", run_in_background: true, prompt: …)`
-  — "Build a MAP, not a copy: steer.md conventions, the reference app
-  pattern, the ourapp/ + djangoapp/ + frontend tree. Read-only. Treat it
+- **Significant diff** — touches backend AND frontend, any framework file,
+  or more than ~10 files → prewarm all THREE rule-focused reviewers
+  (`.pi/agents/`):
+  - `reviewer-correctness` — spec-vs-code drift, API contract, edge cases
+  - `reviewer-conventions` — doc-claims-vs-code, mirrors, naming,
+    comment style, TODO hygiene
+  - `reviewer-trace` — cross-layer wiring, render-vs-validate ground truth
+- **Small diff** — anything else: the single `reviewer`, as before.
+
+Prewarm + resume mechanics:
+
+- **Stage 4 start**, before the first edit batch: spawn each reviewer with
+  `subagent(subagent_type: <type>, run_in_background: true, prompt: …)` —
+  "Build a MAP, not a copy: <your rule domain's reference material — the
+  design doc, steer.md conventions, the layer wiring>. Read-only. Treat it
   as a map that may be stale by review time — re-read any file you judge,
-  trust the file over your memory. Reply STORED." Hold the agent ID.
-- **Stage 5**, resume it:
-  `subagent(subagent_type: "reviewer", resume: <id>, prompt: …)` — the
+  trust the file over your memory. Reply STORED." Hold the agent IDs.
+- **Stage 5**, resume them:
+  `subagent(subagent_type: <type>, resume: <id>, prompt: …)` — the
   requirement + `git status --short` + touched files, labeled "changed
   since your study — re-read fresh."
+  - Run the executable checks yourself FIRST — the feature's tests,
+    `./run checkmarkdownmermaid`, quick fixture probes — and PASTE the
+    outputs into the resume prompts as evidence. Reviewers read results;
+    they never execute.
+  - Resume right after the last edit batch's checks pass in scratch —
+    before that batch's `deployscratch`
+  - scratch is what the review reads; the deploy doesn't change it — so
+    the review overlaps the battery instead of following it
+  - if another edit batch follows, re-resume the reviewers with the new
+    diff
 - Steer a misdirected study mid-run — background agents take steering
   messages without restarting.
-- No prewarm (small fix, resumed session)? Spawn fresh, as before. The
-  prewarm is read-only (no bash in the reviewer's toolset) — nothing
+- No prewarm (small fix, resumed session)? Spawn fresh, as before. All
+  reviewers are read-only (no bash in their toolsets) — nothing
   interrupts the operator.
+
+Triage the findings (never auto-apply everything):
+
+- **blockers/majors** → fix.
+- **minors** → fix only in files the diff already touches.
+- **nits** → list them; apply only the trivial ones.
+- **conflicts between reviewers** → the operator's standing conventions
+  win (short pointed comments, minimal prose, points over paragraphs).
+
+Round 2 (only if needed):
+
+- Re-review is always **resume** — round-1 reviewers already hold the
+  context; resume them on the fix diff.
+- **Cascade trigger** — either:
+  - round 1 yields more than ~2 blockers/majors
+  - the fixes touch files round 1 didn't study
+
+  While applying the fixes, prewarm a targeted round-2 reviewer for the
+  failure class they revealed (e.g. model/migration drift) — not the
+  whole repo again.
+- **Hard bound: 2 rounds.** Still blockers after round 2 → the problem is
+  the plan, not the review — stop and surface to the operator.
 
 **Work fast — don't spin on the trivial.** For low-stakes choices (a selector
 style, whether an import is runtime vs annotation-only), follow what the
@@ -432,7 +486,8 @@ Track multi-step work with a **checklist in your messages** — one item per
 step, marked done (`[x]`) as you complete it, repeated at the top of each
 stage report so I can watch progress across turns. The **subagent**
 tool is available (the package's builtins `general-purpose`/`Explore`/`Plan`,
-plus this repo's project agents `scout` and `reviewer` in `.pi/agents/`); use it for
+plus this repo's project agents in `.pi/agents/` — `scout`, `reviewer`,
+and the three rule-focused reviewers); use it for
 genuinely parallel independent research (parallel mode), and to **review
 your work** — before reporting done, spawn the reviewer to re-read the
 diff against the requirement and catch what you missed. Not for a single
@@ -1292,6 +1347,7 @@ The allowlisted commands (defined in the `bash` map of
 ./run checkmarkdownmermaid <file.md> # validate every mermaid fence in a file
 ./run typecheck                      # …and ./run lintfix
 ./run test …                         # any args
+./run python …                       # quick fixture probes (stage-5 evidence)
 ./run playwrighttest …
 ./run djangomanage makemigrations …  # … / migrate / findstatic / baseurls
                                       # (findstatic, baseurls are read-only)
@@ -1429,4 +1485,3 @@ no web surface in front of you. Mind the data-exfiltration surface:
   that by writing files via shell.
 - Never send the integer `pk`/`id` to the client — only the designated public id
   (`public_id`).
-
