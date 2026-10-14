@@ -113,12 +113,12 @@ lives in [Stage messages](#stage-messages):
   prewarm(s) in background (one, or all three for a significant diff —
   see below). Continue in the SAME `../scratch/` (no second
   `createscratch` unless sent back). Then, per edit batch:
-  - Edit → `./run deployscratch` from `main/` **once per edit batch** —
-    every green batch goes LIVE (migrate/restarts folded in when backend
-    code changed). Run it straight through; don't stop to report progress.
   - After any write batch — review fixes included — run
     `cd ../scratch && ./run lintfix` first (seconds, allowlisted,
     repo-wide). DJ001-class errors die there, not in the battery.
+  - Edit → `./run deployscratch` from `main/` **once per edit batch** —
+    every green batch goes LIVE (migrate/restarts folded in when backend
+    code changed). Run it straight through; don't stop to report progress.
   - After any format pass, re-read a file before editing it again —
     reformatted text breaks old-text matches.
   - Evolve the mockup pages into the real feature (real URL, real
@@ -132,8 +132,8 @@ lives in [Stage messages](#stage-messages):
   - update the design doc to match the code
 - **[6] Offer to commit** — T6; never commit unasked.
 - **[7] Final checklist** — after the commit lands, audit the job yourself
-  (these are the operator's recurring catches — never make them catch one
-  again), then close out with ONE sentence:
+  (the operator's recurring catches — never make them catch one again),
+  then close out with ONE sentence:
   - [ ] `git status` clean (no dangling files — check for framework drift
         you touched, however small)
   - [ ] single feature commit (merge if the operator's fixes or framework
@@ -182,8 +182,8 @@ Prewarm + resume mechanics:
     diff
 - Steer a misdirected study mid-run — background agents take steering
   messages without restarting.
-- No prewarm (small fix, resumed session)? Spawn fresh, as before. All
-  reviewers are read-only (no bash in their toolsets) — nothing
+- No prewarm (small fix, resumed session)? Spawn fresh, as before.
+- All reviewers are read-only (no bash in their toolsets) — nothing
   interrupts the operator.
 
 Triage the findings (never auto-apply everything):

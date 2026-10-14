@@ -13,6 +13,7 @@ Try to minimize horizontal scrolling for Mermaid
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 Features - file section with git etc
+Desec dns docs
 
 TUI for config, vapid script
 
@@ -26,8 +27,6 @@ local-vm portforward
 Update docs for adding users and login links
 
 desmo user shouldnt have rw access to its files
-
-Desec dns docs
 
 ## Upgrades
 Still at Mermaid usecase-beta, wait till they release

@@ -3,7 +3,7 @@
 Committed PNGs referenced from the root [README.md](../../README.md). Each is
 captured by the `screenshots`-tagged Playwright pass at a 1280×960 viewport,
 clipped to the page's main content (the app navbar is not part of the shots),
-with a small frame so images in md are easily distinguished.
+with light-gray left/right rails so images in md are easily distinguished.
 
 Regenerate after intentional UI changes:
 

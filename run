@@ -804,6 +804,7 @@ ${H}Backups (pgbackrest — docs/backups.md)${R}
 
 ${H}Passthrough${R}
   ${C}djangomanage${R} …      manage.py <…> with the env sourced (e.g. djangomanage migrate)
+  ${C}python${R} …           python <…> with the env sourced (e.g. python -c '…')
 EOF
 }
 

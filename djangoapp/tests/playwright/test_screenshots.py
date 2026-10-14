@@ -68,9 +68,9 @@ class BaseScreenshotTestCase(BasePlaywrightTestCase):
     - _shot_below_navbar, clip screenshot of everything under the app navbar
       (for the fragment-rooted git/files pages that have no container div)
 
-    Both bake in a 1px rounded light-gray frame (#d0d7de) 4px inside the
+    Both bake in 1px light-gray left/right rails (#d0d7de) 4px inside the
     captured rect (_draw_frame) — element shots capture a ring of page
-    background around the card (FRAME_MARGIN_PX) so the line never crosses
+    background around the card (FRAME_MARGIN_PX) so the rails never cross
     the card's content.
     """
 
@@ -90,9 +90,9 @@ class BaseScreenshotTestCase(BasePlaywrightTestCase):
         self.addCleanup(lambda: self.page.set_viewport_size(default_viewport))
 
     def _draw_frame(self, x: float, y: float, width: float, height: float) -> None:
-        """Draw the frame div 4px inside the given page rect.
+        """Draw the left/right rails 4px inside the given page rect.
 
-        Integer-snapped so rounding can't shave its border; id-stamped so a
+        Integer-snapped so rounding can't shave their border; id-stamped so a
         stale frame from a previous shot on the same page is replaced.
         """
         self.page.evaluate(
@@ -104,8 +104,8 @@ class BaseScreenshotTestCase(BasePlaywrightTestCase):
                     "position:absolute",
                     `left:${r.x}px`, `top:${r.y}px`,
                     `width:${r.w}px`, `height:${r.h}px`,
-                    "border:1px solid #d0d7de",
-                    "border-radius:6px",
+                    "border-left:1px solid #d0d7de",
+                    "border-right:1px solid #d0d7de",
                     "pointer-events:none",
                 ].join(";");
                 document.body.appendChild(frame);

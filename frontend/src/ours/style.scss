@@ -1,6 +1,9 @@
 // App-specific styles, kept with the app under ours/.
 // Imported as a side-effect by the page components (`import "../style.scss"`),
 // so the features are self-contained and need no edit to the framework's main.scss.
+// The .ours-todos-* block is copied from docs/reference/frontend/src/ours/style.scss
+// — update both together.
+// Mirrored at docs/reference/frontend/src/ours/style.scss — keep in sync.
 
 .home-container {
   max-width: 32rem;

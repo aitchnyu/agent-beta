@@ -1,3 +1,6 @@
+// Framework-page styles live in the partials below; ours-app styles in
+// ours/style.scss. Reuse existing classes before adding new ones (feature-
+// prefixed, defined once). No inline styles, no new frameworks.
 @use "styles/bootstrap";
 @use "styles/users";
 @use "styles/files";
@@ -139,8 +142,7 @@ body {
   left: 0;
 }
 
-.layout-signin-menu,
-.layout-user-menu-list {
+.layout-signin-menu {
   right: 0;
 }
 
@@ -298,7 +300,7 @@ body {
 }
 
 .git-file-link {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
 }
 
 // Diff viewer (SplitDiff.vue → diff2html): one container per outputFormat,
@@ -327,7 +329,7 @@ body {
 // diff2html adjustments: app monospace stack + the app's red/green row tints.
 .diff-view .d2h-wrapper {
   font-family: $font-family-monospace;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
 }
 
 .diff-view .d2h-code-line,
