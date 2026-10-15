@@ -22,7 +22,7 @@ from __future__ import annotations
 import os
 from datetime import timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 from unittest import skipIf
 
 from django.apps import apps
@@ -37,10 +37,6 @@ from djangoapp.tests.views import skip_unless_env
 
 if TYPE_CHECKING:
     from playwright.sync_api import FloatRect, ViewportSize
-
-# PNGs are committed artifacts of the repo, not test scratch: they live under
-# docs/ next to the README that references them (BASE_DIR = repo root).
-_SCREENSHOT_DIR = Path(str(settings.BASE_DIR)) / "docs" / "screenshots"
 
 # The README's screenshot viewport: desktop width (the git diff renders its
 # side-by-side view at ≥768px) with a modest height — cards taller than the
@@ -72,7 +68,29 @@ class BaseScreenshotTestCase(BasePlaywrightTestCase):
     captured rect (_draw_frame) — element shots capture a ring of page
     background around the card (FRAME_MARGIN_PX) so the rails never cross
     the card's content.
+
+    Captures land in ``screenshot_dir`` — a ClassVar so a subclass can point
+    the pass at its own docs subtree.
+
+    Subclass docstrings describe captures, not asserts — never
+    verify/check/expect language. The class docstring lists its shots (image
+    + what it shows); each test's docstring names the image it captures and
+    the user steps that reach the captured state:
+
+        class FilesScreenshotTests(BaseScreenshotTestCase):
+            \"\"\"The files shot (docs/screenshots/files.png).\"\"\"
+
+            def test_files(self) -> None:
+                \"\"\"files.png — a user opens /files and sees their shelf.\"\"\"
+                self.page.goto(
+                    f"{self.live_server_url}/files", wait_until="networkidle"
+                )
+                self._shot_below_navbar("files")
     """
+
+    screenshot_dir: ClassVar[Path] = (
+        Path(str(settings.BASE_DIR)) / "docs" / "screenshots"
+    )
 
     # Width of that page-background ring. The body's own padding (≥8px)
     # always leaves room for it, so expanding the clip needs no clamping.
@@ -81,7 +99,7 @@ class BaseScreenshotTestCase(BasePlaywrightTestCase):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        _SCREENSHOT_DIR.mkdir(parents=True, exist_ok=True)
+        cls.screenshot_dir.mkdir(parents=True, exist_ok=True)
 
     def setUp(self) -> None:
         super().setUp()
@@ -136,7 +154,7 @@ class BaseScreenshotTestCase(BasePlaywrightTestCase):
         }
         self._draw_frame(**rect)
         self.page.screenshot(
-            path=str(_SCREENSHOT_DIR / f"{name}.png"),
+            path=str(self.screenshot_dir / f"{name}.png"),
             full_page=True,
             clip=rect,
         )
@@ -162,7 +180,7 @@ class BaseScreenshotTestCase(BasePlaywrightTestCase):
             height = min(height, max_height)
         self._draw_frame(0.0, top, body["width"], height)
         self.page.screenshot(
-            path=str(_SCREENSHOT_DIR / f"{name}.png"),
+            path=str(self.screenshot_dir / f"{name}.png"),
             full_page=True,
             clip={"x": 0.0, "y": top, "width": body["width"], "height": height},
         )

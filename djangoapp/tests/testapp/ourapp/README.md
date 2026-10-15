@@ -1,14 +1,16 @@
-# ourapp (test app)
+# Test app
 
-The test-app fixture overlaid onto `scratch/ourapp/` by `checkframework1` (project
-stage) and onto the VM's `ourapp/` by the checkframework2 gate. A complete app
-exercising the framework features the project tests need:
+A small book-shelf app the test suite runs against instead of the real one:
+**authors** write **books**, the landing page lists the shelf, and every row
+carries a full audit history — who changed what, when. A superuser-only
+media API (no page, no model) stores uploads under uuid names and streams
+them back through `serve_file`.
 
-- **Books** — the landing page's list (Inertia `ours/BooksPage`); `Author` +
-  `Book` models carry the audit-log / optimistic-lock project tests
-  (`djangoapp/tests/models/`, `djangoapp/tests/views/`).
-- **Media** — the checkframework2 gate's file-upload illustration
-  (`views/media.py`): a superuser-only multipart upload storing under
-  `MEDIA_ROOT` with unguessable uuid names, plus a GET that streams bytes back
-  through `djangoapp.media.serve_file` (gate assert 10). API-only — no page,
-  no model — the full file feature lives in the reference app.
+It exists so the framework's tests can exercise real data flows — writes,
+optimistic locking, audit logs, Inertia pages, file uploads — without
+touching the actual user app. The gate overlays this app over `ourapp/` for
+the project test stage; the VM's gate does the same for its own run.
+
+Screenshots of its pages are part of the suite: regenerate with
+`./run screenshots` (the model shots need the project stage:
+`RUN_PROJECT_TESTS=1`).

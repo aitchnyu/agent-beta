@@ -1,119 +1,65 @@
 # Reference app
 
-A complete, copyable example of the user app's multi-file layout, with two
-features: **facts** (a `Topic` + `Fact` + a daily `FactOfTheDay` picked by a Huey
-cron, a seed command, two pages) and **todos** (a `Todo` owned by a user, one
-page). Copy a feature into the real `ourapp/` locations and adapt. The agent
-consults this when adding a feature.
+A small household app with real, working features — random trivia, a
+personal todo list, file sharing — and a landing page that shows today's
+trivia pick. Visitors read facts and download files; signing in (Google)
+unlocks a private todo list; superusers manage the file shelf.
 
-> The reference frontend under `docs/reference/frontend/src/ours/` ships only the
-> app's own pages/components/schemas/styles — its pages `import` the framework's
-> `../../utils/{csrf,http,sweetalert}`, which already exist in the main
-> `frontend/`. The framework's Layout (navbar) wraps every page automatically
-> (default layout in `createInertiaApp`) — pages don't import or wrap it. It's
-> meant to be dropped into an existing framework frontend, not built standalone.
-
-## Files → where they go
-
-| Reference file | Copy to |
-| --- | --- |
-| `ourapp/models/<feature>.py` | `ourapp/models/<feature>.py` (import in `models/__init__.py`) |
-| `ourapp/views/<feature>.py` | `ourapp/views/<feature>.py` (register in `views/__init__.py`) |
-| `ourapp/tasks/` | `ourapp/tasks/` (a package; one file per feature, re-exported from `tasks/__init__.py`; auto-discovered by djhuey) |
-| `ourapp/management/commands/<cmd>.py` | `ourapp/management/commands/<cmd>.py` |
-| `ourapp/urls.py` | `ourapp/urls.py` (mounts the API) |
-| `ourapp/tests/test_<feature>_<layer>.py` | `ourapp/tests/test_<feature>_<layer>.py` (flat; layer = models/views/commands/playwright) |
-| `frontend/src/ours/pages/<Name>.vue` | `frontend/src/ours/pages/<Name>.vue` |
-| `frontend/src/ours/schemas.ts` | `frontend/src/ours/schemas.ts` (app zod schemas) |
-| `frontend/src/ours/style.scss` | `frontend/src/ours/style.scss` (side-effect-imported by pages) |
-
-## The pattern
-
-- **Models** (`models/<feature>.py`): subclass `djangoapp.models.BaseModel`; give
-  each a docstring (shown in `/manage/models`). A `ForeignKey` to the project
-  `User` links to the owner's profile; a `ForeignKey` to another `BaseModel`
-  links to that row's detail page via its `get_absolute_url()`. **Fat models,
-  thin views** — put domain logic (e.g. `Fact.objects.random(...)`,
-  `Topic.random_fact()`) on the model/manager, not in views. Import the model in
-  `models/__init__.py`; add/change a model → `./run djangomanage makemigrations ourapp`.
-- **Views** (`views/<feature>.py`): each feature exposes a django-ninja `Router`;
-  `views/__init__.py` owns one `NinjaAPI` and registers every router
-  (`api.add_router("/", <feature>.router)`). Page responses use
-  `InertiaResponse(request, "ours/<Page>", {"props": …})`; data responses are
-  pydantic schemas (ninja validates them). CSRF is handled by the host (the
-  Inertia client's `http` config + the ky hook in `utils/http.ts`; the cookie
-  is set on every response by `InertiaMiddleware`).
-- **Commands** (`management/commands/<cmd>.py`): seed/setup commands; one module
-  per command, with its seed data inlined at the top of the command.
-- **Frontend**: a self-contained `frontend/src/ours/` module — pages in
-  `ours/pages/<Name>.vue` (Inertia component name `ours/<Name>`), components in
-  `ours/components/`, helpers in `ours/utils/`, zod schemas in `ours/schemas.ts`,
-  and styles in `ours/style.scss` (imported as a side-effect by the page).
-  Parse every server payload with a zod schema; make standalone HTTP calls via
-  the host's `utils/http.ts` (`postJSON`/`getJSON`/`streamPost`) or Inertia v3's
-  `useHttp` for form-shaped state, never a raw `fetch`/`axios` — wrap every call
-  in `try/catch` + `showErrorToast`.
-- **Home navigation**: link every feature from the landing page
-  (`ours/pages/Home.vue`), shown only when this viewer can use it — hide an
-  auth-required feature (e.g. todos, whose `/todos` 404s for anon) from an
-  anonymous visitor. A reachable-but-unlinked feature is effectively missing.
-- **Tests**: flat under `tests/` — one file per feature + layer, named
-  `test_<feature>_<layer>.py` (`models`, `views`, `commands`, `playwright`).
-  Playwright files subclass `BasePlaywrightTestCase` (tagged `playwright`), so
-  `./run test` skips them and `./run playwrighttest` runs them.
-- **Public ids only**: never send the integer `pk`/`id`; send `public_id`.
-
-## Response shapes
-
-The API has two response kinds — don't confuse them.
-
-**Page response (Inertia)** — a `GET` that renders a page. The view wraps its
-data under a literal `props` key:
-
-```python
-InertiaResponse(request, "ours/FactsPage", {"props": {"fact": ..., "topics": [...]}})
-```
-
-`SharedPropsMiddleware` merges the viewer in, so the client's `page.props` is:
-
-```jsonc
-{
-  "user": { "public_id": "…", "title": "…" },     // shared — every page
-  "viewer_is_superuser": true,                    // shared — every page
-  "props": { "fact": ..., "topics": [ /* TopicOutSchema[] */ ] } // THIS page's data
-}
-```
-
-Read the page data from the nested `props` key, not the top level:
-
-```ts
-const props = defineProps<{ props: object }>()
-const p = FactsPagePropsSchema.parse(props.props)
-```
-
-**Data response (JSON)** — a `POST`/`PUT`/`DELETE` returns a flat pydantic
-schema as JSON (ninja validates it). No `props` wrapper, no shared props:
-
-```jsonc
-// POST /todos/create → TodoOutSchema
-{ "public_id": "…", "text": "…", "completed": false, "owner_public_id": "…" }
-```
-
-Public ids only in both kinds (never the integer `pk`).
+This is the copyable example: to add a feature to the real app, copy it
+from here and adapt. The agent consults this when adding a feature.
 
 ## Features
 
 - [facts](ourapp/docs/facts.md) — random trivia by topic + a daily Fact of the
   Day (Huey cron); seedable.
 - [todos](ourapp/docs/todos.md) — a signed-in user's todo list.
-- [home](ourapp/docs/home.md) — the landing page (shows today's Fact of the Day).
+- [downloads](ourapp/docs/downloads.md) — files shared for anonymous download
+  until expiry.
+- [home](ourapp/docs/home.md) — the landing page (shows today's Fact of the
+  Day).
+
+Each doc follows the same shape: what the screen shows, the data behind it,
+and how it changes — with diagrams and captures.
+
+## Screenshots
+
+The four captures embedded in the docs are generated from the running app —
+regenerate whenever a page changes. The suite imports reference-only models
+(`Fact`, `Topic`, `Download`), so it runs in an overlaid scratch copy; the
+captures land in the suite's own docs subtree (`screenshot_dir` on
+`ReferenceScreenshots`) and are copied back — main's `docs/screenshots/` is
+never touched. From main/'s root:
+
+    ./run createscratch
+    rsync -a --delete docs/reference/ourapp/ ../scratch/ourapp/
+    rsync -a --delete docs/reference/frontend/src/ours/ \
+       ../scratch/frontend/src/ours/
+    ( cd ../scratch && ./run screenshots ourapp.tests.test_screenshots )
+    cp ../scratch/docs/reference/ourapp/docs/screenshots/*.png \
+       docs/reference/ourapp/docs/screenshots/
+    ./run cleanscratch
+
+## Layout
+
+```
+docs/reference/
+  README.md     this file
+  ourapp/       the app: models/views/tasks/management per feature,
+                tests flat (test_<feature>_<layer>.py), docs/ per feature,
+                screenshots in ourapp/docs/screenshots/
+  frontend/     the app's own pages/schemas/styles (overlaid into the bundle)
+```
+
+## Conventions
+
+Fat models/thin views, ninja routers + Inertia pages, zod-parsed payloads,
+public ids only, tests per feature + layer — all of it is
+`agentconfig/steer.md` ("Feature workflow"); this app follows it exactly
+and this README doesn't restate it.
 
 ## Workflow
 
 Edit in `scratch/`, then `./run deployscratch` from `main/` (checks +
 deploy — frontend/docs-only diffs take a fast path; commit is a separate
-step). See `agentconfig/steer.md` and
-its "Checklist — adding or changing a feature".
-
-These files are illustrative and excluded from ruff/mypy/eslint — they are not
-installed or run as-is (they are overlaid onto `ourapp/` by `checkframework1`).
+step). These files are illustrative — excluded from ruff/mypy/eslint,
+overlaid onto `ourapp/` by `checkframework1`.

@@ -619,18 +619,20 @@ checklist point to this section and restate nothing.
    an order is one concrete meal"), then the `erDiagram`. Translate every
    relationship into behavior: "RESTRICT = a dish with orders can never be
    deleted".
-4. **How the data changes.** The contract table: every modification the
-   feature makes — change, made by, what exactly happens. Open it with the
-   promise "if a change isn't listed here, the feature doesn't make it".
-   Then:
+4. **How the data changes.** Every modification the feature makes —
+   change, made by, what exactly happens — as a tight table or bullets,
+   opened with the promise "if a change isn't listed here, the feature
+   doesn't make it". Then:
    - a `stateDiagram-v2` when one row kind has a lifecycle
    - the safety rails as bullets (uniqueness, version checks, atomicity,
      clamping)
-5. **What you see.** The UI walkthrough: pages, groups, buttons, feedback.
+5. **What you see.** The UI walkthrough — pages, groups, buttons, feedback.
+   - Embed each screen's generated screenshot (the screenshot suite writes
+     them to `docs/screenshots/`).
 6. **History (optional).** Notable behavior changes over time — a
    capability added or removed, a rule changed. A first release skips this.
-7. **For developers.** Field tables with rules, algorithm internals, the
-   endpoints table, frontend files, tests. Everything framework-flavored —
+7. **For developers.** Field rules, algorithm internals, the endpoints,
+   frontend files, tests. Everything framework-flavored —
    Django, ninja, Inertia, zod, code paths — lives here and only here.
 
 **Writing rules.**
@@ -638,11 +640,11 @@ checklist point to this section and restate nothing.
 - The plain sections must stand alone: no framework names, no field names,
   no SQL. The developer sections map each plain claim to its field,
   endpoint, or file.
-- The contract table lists every modification the feature makes today. A
-  new capability adds a row; changed behavior edits its row in place. The
-  doc is wrong if the code makes a modification the table doesn't list — or
-  the table lists one the code no longer makes. (Removed or replaced
-  behavior goes to History, not the table.)
+- The change list covers every modification the feature makes today. A
+  new capability adds a line; changed behavior edits it in place. The doc
+  is wrong if the code makes a modification the list doesn't cover — or
+  the list one the code no longer makes. (Removed or replaced behavior
+  goes to History, not the list.)
 - State bounds in human terms up front ("N is 1–365"); put exact validation
   in the developer sections.
 - The title is just the feature name. No process narration (session
@@ -682,8 +684,14 @@ renders them.
   note for Visitor "Gets a 404. The feature is hidden until you sign in."
   ```
 
-  Imitate this skeleton. Full grammar + worked examples: `docs/mermaid.md`
-  (read before your first usecase diagram in a session).
+  Imitate this skeleton.
+  - Diagrams are per screen/page and chained — a→b→c flows, never flat
+    one-level lists.
+  - Lay them out top-down (`direction TB`): wide left-to-right diagrams
+    overflow a phone screen and force side scrolling, while a vertical
+    flow fits the narrow screen column.
+  - Full grammar + worked examples: `docs/mermaid.md` (read before your
+    first usecase diagram in a session).
 
   **MANDATORY: pipe every draft through the validator before it enters
   the doc** — the grammar is too new for model training data, and an
