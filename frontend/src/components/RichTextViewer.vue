@@ -45,6 +45,33 @@ const sanitizedHtml = computed(() => {
 // before the fresh render starts stacking new ones. Same on unmount.
 const zoomCleanups: (() => void)[] = []
 
+// One fence: swap its <pre> for a .rich-diagram div and fill it. Fire-and-
+// forget from enrich() — each fence renders independently.
+async function renderFence(div: HTMLDivElement, source: string) {
+  try {
+    const svg = await renderDiagram(source)
+    // Toggled away mid-render (unmount) — the div is detached; wiring
+    // panzoom on it would leak document-level listeners no cleanup ever
+    // drains (the unmount hook already ran on an empty list).
+    if (!div.isConnected) return
+    div.innerHTML = svg
+    if (props.diagramControls) {
+      try {
+        const cleanup = await makeDiagramZoomable(div)
+        zoomCleanups.push(cleanup)
+      } catch {
+        // Controls are optional by design: if the panzoom module failed
+        // to load, the rendered diagram still shows.
+      }
+    }
+  } catch {
+    // Leave the raw source visible (plain text reads fine) and flag the
+    // failure so the stylesheet can deemphasize it.
+    div.classList.add("rich-diagram-error")
+    div.textContent = source
+  }
+}
+
 function renderDiagrams(el: HTMLElement) {
   for (const code of el.querySelectorAll<HTMLElement>(
     "pre > code.language-d2",
@@ -57,23 +84,7 @@ function renderDiagrams(el: HTMLElement) {
     const div = document.createElement("div")
     div.className = "rich-diagram"
     pre.replaceWith(div)
-    renderDiagram(source)
-      .then((svg) => {
-        div.innerHTML = svg
-        if (props.diagramControls) {
-          // Controls are optional by design: if the panzoom module failed to
-          // load, the rendered diagram still shows.
-          makeDiagramZoomable(div)
-            .then((cleanup) => zoomCleanups.push(cleanup))
-            .catch(() => {})
-        }
-      })
-      .catch(() => {
-        // Leave the raw source visible (plain text reads fine) and flag the
-        // failure so the stylesheet can deemphasize it.
-        div.classList.add("rich-diagram-error")
-        div.textContent = source
-      })
+    renderFence(div, source)
   }
 }
 

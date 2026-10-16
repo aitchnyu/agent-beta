@@ -3,17 +3,21 @@ import { nextTick, onMounted, ref } from "vue"
 import MarkdownOutline from "./MarkdownOutline.vue"
 import RichTextViewer from "./RichTextViewer.vue"
 
-// The whole markdown preview: heading outline at the top, a deemphasized link
-// to the raw source, the rendered HTML, then the highlighted raw source (the
-// #files-raw-source scroll target). Owns the async filePreview fill (lazy
-// chunk) and the scroll-to-hash pass (heading ids exist only after the
-// render); emits `rendered` when done so the parent's
-// [data-files-state] test/a11y hook flips.
+// The whole markdown preview. Mode is client state only — never in the
+// URL, so shared links render identically.
+// - rendered mode: outline + rendered HTML
+// - source mode: the highlighted source alone
+// - owns the async filePreview fill (lazy chunk)
+// - owns the scroll-to-hash pass — heading ids exist only after the
+//   render, and only rendered mode acts on them
+// - emits `rendered` when done, so the parent's [data-files-state]
+//   test/a11y hook flips
 const props = defineProps<{ text: string; rel: string }>()
 const emit = defineEmits<{ rendered: [] }>()
 
+const mode = ref<"rendered" | "source">("rendered")
 const rendered = ref("")
-// Markdown source shown below the rendered view (highlighted).
+// Markdown source shown in source mode (highlighted).
 const raw = ref("")
 // Heading outline parsed from the final rendered HTML — the ids the renderer
 // added are the outline's link targets.
@@ -55,23 +59,45 @@ function safeFragment(hash: string): string {
 </script>
 
 <template>
-  <MarkdownOutline :entries="outline" />
-  <p class="files-raw-link">
-    <a href="#files-raw-source">↓ View raw source</a>
-  </p>
-  <!-- RichTextViewer sanitizes again — redundant by design (the HTML here
-     is already sanitized + id'd). Kept as defense-in-depth: every
-     v-html in the app funnels through one sanitize call site. -->
-  <!-- diagram-controls: this component IS the /files markdown view — the
-     only RichTextViewer user that zooms (UserDetails/UserHistory render
-     it directly, without it). -->
-  <RichTextViewer
-    class-name="files-markdown"
-    :html="rendered"
-    diagram-controls
-  />
+  <div class="files-markdown-toolbar">
+    <div class="files-mode-toggle" role="group" aria-label="View mode">
+      <button
+        type="button"
+        class="files-mode-btn"
+        :class="{ active: mode === 'rendered' }"
+        :aria-pressed="mode === 'rendered'"
+        @click="mode = 'rendered'"
+      >
+        Rendered
+      </button>
+      <button
+        type="button"
+        class="files-mode-btn"
+        :class="{ active: mode === 'source' }"
+        :aria-pressed="mode === 'source'"
+        @click="mode = 'source'"
+      >
+        Source
+      </button>
+    </div>
+  </div>
+
+  <template v-if="mode === 'rendered'">
+    <MarkdownOutline :entries="outline" />
+    <!-- RichTextViewer sanitizes again — redundant by design (the HTML here
+       is already sanitized + id'd). Kept as defense-in-depth: every
+       v-html in the app funnels through one sanitize call site. -->
+    <!-- diagram-controls: this component IS the /files markdown view — the
+       only RichTextViewer user that zooms (UserDetails/UserHistory render
+       it directly, without it). -->
+    <RichTextViewer
+      class-name="files-markdown"
+      :html="rendered"
+      diagram-controls
+    />
+  </template>
   <pre
-    id="files-raw-source"
+    v-else
     class="files-code files-raw-source"
   ><code class="hljs language-markdown" v-html="raw"></code></pre>
 </template>

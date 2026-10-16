@@ -44,6 +44,8 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
       Section 1 vs the anonymous fallback)
     - test_markdown_d2_error_fallback, an invalid fence shows raw source
       in .rich-diagram-error (30s waits — the lazy d2 WASM chunk is slow on VMs)
+    - test_markdown_source_toggle, Source mode shows the markdown source
+      alone (client state — URL unchanged); switching back works
     """
 
     def setUp(self) -> None:
@@ -118,15 +120,14 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         expect(t).not_to_have_text(relative)
 
     def test_markdown_renders_with_image(self) -> None:
-        """Markdown shows a raw-source link, then rendered HTML, then raw source.
+        """Markdown renders prose + the rewritten image, behind the toolbar.
 
-        Asserts the link precedes the rendered prose + rewritten
-        image, which precede the raw block. The raw block shows the markdown
-        source (not the rendered HTML). Clicking the link scrolls to it (hash nav).
+        The Rendered/Source toggle sits above the rendered HTML; rendered
+        mode is the default.
         """
         page = self.page
         page.goto(self._files("main/djangoapp/tests/filefixtures/sample.md"))
-        # Both the rendered view and the raw block fill asynchronously — wait
+        # Both the rendered view and the raw fill asynchronously — wait
         # on the component state flip, not their (already-visible) elements.
         page.wait_for_selector('[data-files-state="rendered"]')
         rendered = page.locator(".files-markdown")
@@ -136,21 +137,35 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         expect(img).to_have_attribute(
             "src", "/files/raw/main/djangoapp/tests/filefixtures/diagram.svg"
         )
+        # Rendered mode is the default: outline + rendered HTML, no source.
+        expect(page.locator(".markdown-outline")).to_be_visible()
+        expect(page.locator(".files-raw-source")).to_have_count(0)
 
-        # A deemphasized link targets the raw block.
-        link = page.locator(".files-raw-link a")
-        expect(link).to_have_attribute("href", "#files-raw-source")
+    def test_markdown_source_toggle(self) -> None:
+        """Source mode shows the markdown source alone; switching back works.
 
-        # The raw block shows the markdown source, not the rendered HTML: the
-        # image is the literal `![…](…)` syntax, not an <img> element.
-        raw = page.locator("#files-raw-source")
+        The toggle is client state — the URL never changes. Source mode
+        shows the literal `![…](…)` syntax (not an <img> element) and hides
+        the outline and rendered HTML.
+        """
+        page = self.page
+        self._goto_sample_md()
+        page.locator(".files-mode-btn", has_text="Source").click()
+        expect(page).to_have_url(re.compile(r"/files/main/.*sample\.md$"))
+        raw = page.locator(".files-raw-source")
+        expect(raw).to_be_visible()
         expect(raw).to_contain_text("# Sample markdown")
         expect(raw).to_contain_text("![A blue square](diagram.svg)")
         expect(raw.locator("img")).to_have_count(0)
 
-        # Clicking the link scrolls to the raw block (native hash navigation).
-        link.click()
-        expect(page).to_have_url(re.compile(re.escape("#files-raw-source")))
+        # Rendered-mode furniture is gone — no rendered HTML, no outline.
+        expect(page.locator(".files-markdown")).to_have_count(0)
+        expect(page.locator(".markdown-outline")).to_have_count(0)
+
+        # And back: rendered HTML returns, the source block goes.
+        page.locator(".files-mode-btn", has_text="Rendered").click()
+        expect(page.locator(".files-markdown")).to_contain_text("Sample markdown")
+        expect(page.locator(".files-raw-source")).to_have_count(0)
 
     def _goto_sample_md(self) -> None:
         """Open the markdown fixture and wait for the async preview to render."""

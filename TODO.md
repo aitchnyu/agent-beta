@@ -1,19 +1,20 @@
 d2 with full lucide icons? No usecase diagrams. How to minimize horizontal scrolling? Have a nice viewer
 
-toggle mode for md rendering/plain rendering. We can download md as pdf.
-
-Merge test and reference app?
+toggle mode for md rendering/plain rendering in file view. We can download md files as pdf.
 
 _capture_page and _shot_below_navbar names
 
 `Menu` and others have an ugly dropdown icon
 
+Merge test and reference app?
+files-mode-btn and other css stuff
+
 Does shortcut deploy mode check ours/ 
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
-List backups and time travel
 How to document system changes when agent modifies system? Write down scripts?
+List backups and time travel
 Can it merge from upstream, minding branch and tags?
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth

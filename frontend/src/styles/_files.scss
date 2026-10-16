@@ -86,8 +86,7 @@
 
 // Markdown: rendered HTML; keep images responsive. (Token/code colours come from
 // the highlight.js theme CSS, loaded with the lazy chunk.) Headings are scroll
-// targets (outline/hash links) — breathing room below the navbar, matching
-// .files-raw-source.
+// targets (outline/hash links) — breathing room below the navbar.
 .files-markdown {
   margin-top: 0.5rem;
 
@@ -199,24 +198,39 @@
   cursor: pointer;
 }
 
-// Deemphasized link to the raw markdown source.
-.files-raw-link {
-  margin: 1.5rem 0 0;
-  font-size: 0.85rem;
-  opacity: 0.55;
+// Toolbar above the markdown preview: the Rendered/Source toggle.
+.files-markdown-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 1rem;
+}
 
-  a {
-    color: var(--bs-secondary-color, #6c757d);
-    text-decoration: none;
+.files-mode-toggle {
+  display: inline-flex;
+  border: 1px solid $gray-300;
+  border-radius: $radius-md;
+  overflow: hidden;
+}
+
+.files-mode-btn {
+  padding: 0.15rem 0.75rem;
+  font-size: 0.8rem;
+  color: $gray-600;
+  background: rgba(255, 255, 255, 0.85);
+  border: none;
+
+  & + & {
+    border-left: 1px solid $gray-300;
   }
 
-  a:hover {
-    opacity: 1;
-    text-decoration: underline;
+  &.active {
+    color: $gray-800;
+    background: $gray-100;
   }
 }
 
-// Give the scroll target breathing room below any fixed chrome.
+// Source mode: the highlighted markdown source, full page.
 .files-raw-source {
-  scroll-margin-top: 1rem;
+  margin: 0;
 }
