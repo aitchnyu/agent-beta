@@ -8,12 +8,12 @@
 // open space.
 import { onBeforeUnmount, onMounted, ref } from "vue"
 
-// ``caret``: render the summary's ▾ (default) or leave the trigger slot
-// as-is — a boxed trigger (e.g. a button-styled span) carries its own
-// caret INSIDE the box, where the ::after one would sit detached outside.
-// ``label``: the summary's accessible name. Icon-only triggers NEED it on
-// the <summary> itself — accname computation ignores aria-labels on
-// generic descendants, so a label on an inner span announces nothing.
+// ``caret``: show a chevron after the trigger (default). Set false when the
+// trigger is a button that already carries its own chevron inside it — the
+// summary-level one would appear outside the button box.
+// ``label``: accessible name for the <summary>. Icon-only triggers must set
+// it HERE: screen readers ignore aria-label on an inner span, so it would
+// never be announced.
 withDefaults(
   defineProps<{
     align?: "left" | "right"

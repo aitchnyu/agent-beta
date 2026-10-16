@@ -2,6 +2,8 @@
 import { ref, useId } from "vue"
 import { Link } from "@inertiajs/vue3"
 import LucideIcon from "./LucideIcon.vue"
+import chevronDownIcon from "../icons/chevron-down.svg"
+import chevronRightIcon from "../icons/chevron-right.svg"
 import filePenIcon from "../icons/file-pen.svg"
 import filePlus2Icon from "../icons/file-plus-2.svg"
 import fileXIcon from "../icons/file-x.svg"
@@ -80,9 +82,14 @@ const fileName = (entry: FileTreeEntry) =>
         :aria-controls="subtreeId(folder.name)"
         @click="toggleFolder(folder.name)"
       >
-        <span class="git-folder-caret" aria-hidden="true">{{
-          collapsedFolders.has(folder.name) ? "▸" : "▾"
-        }}</span>
+        <LucideIcon
+          class="git-folder-caret"
+          :src="
+            collapsedFolders.has(folder.name)
+              ? chevronRightIcon
+              : chevronDownIcon
+          "
+        />
         <span class="git-folder-name"
           >{{ folder.name }}/
           <span class="git-folder-count">({{ folder.count }})</span></span

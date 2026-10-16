@@ -12,6 +12,7 @@ import { SharedPropsSchema } from "../schemas"
 import type { User } from "../schemas"
 import DropdownMenu from "./DropdownMenu.vue"
 import LucideIcon from "./LucideIcon.vue"
+import chevronDownIcon from "../icons/chevron-down.svg"
 import circleUserIcon from "../icons/circle-user.svg"
 import logOutIcon from "../icons/log-out.svg"
 import { registerPushSW, rebindAfterLogin } from "../utils/push"
@@ -108,7 +109,7 @@ onBeforeUnmount(() => {
         >
         <!-- Caret lives INSIDE the button box (the summary-level one
              renders detached outside it). -->
-        <span class="layout-user-caret" aria-hidden="true">▾</span>
+        <LucideIcon :src="chevronDownIcon" class="layout-user-caret" />
       </span>
     </template>
     <Link
