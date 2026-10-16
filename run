@@ -507,7 +507,7 @@ scratch_excluded_files() { # scratch_excluded_files <egrep -v filter> <dir>...
   # staticfiles/) survives the deploy only if MAIN's listing carries the
   # exclude — scratch never contains those dirs to list them.
   # (--directory also sweeps in fully-untracked dirs whose contents are
-  # all ignored — djangoapp/apps/, docs/apps/ — intended: generated
+  # all ignored — djangoapp/apps/ — intended: generated
   # output, never source.)
   for d in "$@"; do
     # Command-substitution subshells don't inherit errexit, so a git

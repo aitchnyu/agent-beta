@@ -791,10 +791,10 @@ Three tiers:
     `cleanscratch`
 
 The **test app** (`djangoapp/tests/testapp/`) is a fixture: a complete `ourapp/`
-with models exercising every field kind + both FK types, plus an `ours/` page. The
-**reference app** (`docs/reference/`) is the user-facing example, same format,
-shipping its own tests. Both are excluded from ruff/mypy (they're only valid when
-overlaid onto `ourapp/`).
+with models exercising every field kind + both FK types, plus the gate's home
+and media endpoints. The **reference app** (`docs/reference/`) is the user-facing
+example, same format, shipping its own tests. Both are excluded from ruff/mypy
+(they're only valid when overlaid onto `ourapp/`).
 
 The README's committed screenshots ([docs/screenshots/](docs/screenshots/)) come
 from a fourth, `screenshots`-tagged Playwright pass that self-gates on the

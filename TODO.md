@@ -7,9 +7,8 @@ _capture_page and _shot_below_navbar names
 `Menu` and others have an ugly dropdown icon
 
 Merge test and reference app?
-files-mode-btn and other css stuff
-
 Does shortcut deploy mode check ours/ 
+files-mode-btn and other css names
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
