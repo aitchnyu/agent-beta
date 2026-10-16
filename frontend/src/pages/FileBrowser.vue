@@ -50,7 +50,7 @@ function entryIcon(e: {
       <nav class="files-breadcrumb">
         <template v-for="c in p.breadcrumb" :key="c.rel">
           <Link class="files-crumb" :href="fileUrl(c.rel)">{{ c.label }}</Link>
-          <span class="files-sep" aria-hidden="true">/</span>
+          <span class="files-separator" aria-hidden="true">/</span>
         </template>
       </nav>
       <!-- Toggles excluded dirs (.venv/node_modules/.git/__pycache__) via ?hidden.
@@ -95,7 +95,7 @@ function entryIcon(e: {
           <td class="text-end files-size">
             {{ e.is_dir ? "—" : formatSize(e.size) }}
           </td>
-          <td class="files-mtime"><HumanizedTime :ms="e.mtime" /></td>
+          <td class="files-modified-time"><HumanizedTime :ms="e.mtime" /></td>
         </tr>
         <tr v-if="p.entries.length === 0">
           <td colspan="3" class="text-center text-muted py-4">

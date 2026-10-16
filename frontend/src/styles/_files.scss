@@ -28,7 +28,7 @@
   color: $blue-600;
 }
 
-.files-sep {
+.files-separator {
   color: $gray-400;
 }
 
@@ -46,7 +46,7 @@
 
 // Muted, tabular metadata columns (size + modified).
 .files-size,
-.files-mtime {
+.files-modified-time {
   font-variant-numeric: tabular-nums;
   color: $gray-500;
 }
@@ -177,10 +177,10 @@
   mask-image: linear-gradient(to bottom, black 85%, transparent 100%);
 }
 
-// Per-level indent classes (no inline styles): l1 flush, each deeper level
-// indented 0.9rem.
+// Per-level indent classes (no inline styles): level 1 flush, each deeper
+// level indented 0.9rem.
 @for $i from 1 through 6 {
-  .markdown-outline-l#{$i} {
+  .markdown-outline-level#{$i} {
     padding-left: ($i - 1) * 0.9rem;
   }
 }
@@ -213,7 +213,7 @@
   overflow: hidden;
 }
 
-.files-mode-btn {
+.files-mode-button {
   padding: 0.15rem 0.75rem;
   font-size: 0.8rem;
   color: $gray-600;

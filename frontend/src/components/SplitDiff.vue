@@ -66,7 +66,7 @@ onMounted(async () => {
     <p v-if="failed" class="text-danger">Failed to render diff.</p>
     <p v-else-if="!ready" class="text-muted">Loading…</p>
     <!-- The side-by-side container holds BOTH panes (diff2html's own columns). -->
-    <div v-show="ready" ref="sideEl" data-sd-side></div>
-    <div v-show="ready" ref="lineEl" data-sd-unified></div>
+    <div v-show="ready" ref="sideEl" data-split-diff-side></div>
+    <div v-show="ready" ref="lineEl" data-split-diff-unified></div>
   </div>
 </template>

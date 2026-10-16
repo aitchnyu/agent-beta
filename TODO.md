@@ -10,6 +10,8 @@ Merge test and reference app?
 Does shortcut deploy mode check ours/ 
 files-mode-btn and other css names
 
+Branding
+
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
 How to document system changes when agent modifies system? Write down scripts?
@@ -22,7 +24,7 @@ Desec dns docs
 
 TUI for config, vapid script could be in Python
 
-Branding, org/reponame
+org/reponame
 
 Switch to Debian for lower memory usage? Multipass is for Ubuntu. Incus can rewind machines.
 Incus for native port forward

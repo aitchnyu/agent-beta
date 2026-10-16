@@ -128,16 +128,18 @@ onMounted(() => {
           <td class="text-muted">{{ user.username }}</td>
           <td class="text-muted">{{ user.email }}</td>
           <td class="text-center">
-            <span v-if="user.has_public_profile" class="user-yes">Yes</span>
-            <span v-else class="user-no">&mdash;</span>
+            <span v-if="user.has_public_profile" class="user-boolean-yes"
+              >Yes</span
+            >
+            <span v-else class="user-boolean-no">&mdash;</span>
           </td>
           <td class="text-center">
-            <span v-if="user.is_staff" class="user-yes">Yes</span>
-            <span v-else class="user-no">&mdash;</span>
+            <span v-if="user.is_staff" class="user-boolean-yes">Yes</span>
+            <span v-else class="user-boolean-no">&mdash;</span>
           </td>
           <td class="text-center">
-            <span v-if="user.is_superuser" class="user-yes">Yes</span>
-            <span v-else class="user-no">&mdash;</span>
+            <span v-if="user.is_superuser" class="user-boolean-yes">Yes</span>
+            <span v-else class="user-boolean-no">&mdash;</span>
           </td>
         </tr>
         <tr v-if="p.users.length === 0">

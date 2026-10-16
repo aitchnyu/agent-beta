@@ -63,7 +63,7 @@ function safeFragment(hash: string): string {
     <div class="files-mode-toggle" role="group" aria-label="View mode">
       <button
         type="button"
-        class="files-mode-btn"
+        class="files-mode-button"
         :class="{ active: mode === 'rendered' }"
         :aria-pressed="mode === 'rendered'"
         @click="mode = 'rendered'"
@@ -72,7 +72,7 @@ function safeFragment(hash: string): string {
       </button>
       <button
         type="button"
-        class="files-mode-btn"
+        class="files-mode-button"
         :class="{ active: mode === 'source' }"
         :aria-pressed="mode === 'source'"
         @click="mode = 'source'"

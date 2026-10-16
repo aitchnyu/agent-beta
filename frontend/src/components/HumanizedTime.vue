@@ -47,7 +47,7 @@ const tzName = computed(() => {
   >
     <template v-if="showAbsolute">
       {{ datePart }}<small class="humanized-time-time">{{ timePart }}</small
-      ><small v-if="tzName" class="humanized-time-tz">{{ tzName }}</small>
+      ><small v-if="tzName" class="humanized-time-timezone">{{ tzName }}</small>
     </template>
     <template v-else>{{ relativeTime(ms) }}</template>
   </button>

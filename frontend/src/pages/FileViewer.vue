@@ -53,7 +53,7 @@ onMounted(async () => {
     <nav class="files-breadcrumb">
       <template v-for="c in p.breadcrumb" :key="c.rel">
         <Link class="files-crumb" :href="fileUrl(c.rel)">{{ c.label }}</Link>
-        <span class="files-sep" aria-hidden="true">/</span>
+        <span class="files-separator" aria-hidden="true">/</span>
       </template>
     </nav>
     <div class="files-header">

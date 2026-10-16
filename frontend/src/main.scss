@@ -209,7 +209,7 @@ body {
   text-underline-offset: 0.3em;
 }
 
-.apps-back-to-top {
+.back-to-top {
   display: inline-flex;
   align-items: center;
   margin-top: 1rem;
@@ -222,7 +222,7 @@ body {
   font: inherit;
 }
 
-.apps-back-to-top-arrow {
+.back-to-top-arrow {
   margin-right: 0.35rem;
   font-weight: 700;
 }
@@ -333,16 +333,16 @@ body {
   font-size: 0.85rem;
 }
 
-[data-sd-side] {
+[data-split-diff-side] {
   display: none;
 }
 
 @media (min-width: 768px) {
-  [data-sd-side] {
+  [data-split-diff-side] {
     display: block;
   }
 
-  [data-sd-unified] {
+  [data-split-diff-unified] {
     display: none;
   }
 }

@@ -150,7 +150,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         """
         page = self.page
         self._goto_sample_md()
-        page.locator(".files-mode-btn", has_text="Source").click()
+        page.locator(".files-mode-button", has_text="Source").click()
         expect(page).to_have_url(re.compile(r"/files/main/.*sample\.md$"))
         raw = page.locator(".files-raw-source")
         expect(raw).to_be_visible()
@@ -163,7 +163,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         expect(page.locator(".markdown-outline")).to_have_count(0)
 
         # And back: rendered HTML returns, the source block goes.
-        page.locator(".files-mode-btn", has_text="Rendered").click()
+        page.locator(".files-mode-button", has_text="Rendered").click()
         expect(page.locator(".files-markdown")).to_contain_text("Sample markdown")
         expect(page.locator(".files-raw-source")).to_have_count(0)
 

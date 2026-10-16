@@ -8,8 +8,8 @@ defineProps<{ href: string }>()
 </script>
 
 <template>
-  <Link class="apps-back-to-top" :href="href">
-    <span class="apps-back-to-top-arrow" aria-hidden="true">↑</span>
+  <Link class="back-to-top" :href="href">
+    <span class="back-to-top-arrow" aria-hidden="true">↑</span>
     <slot />
   </Link>
 </template>

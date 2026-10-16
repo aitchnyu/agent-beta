@@ -142,7 +142,7 @@ const nextHref = computed(() => {
     <div class="d-flex align-items-center manage-modelrows-pagination">
       <Link
         v-if="prevHref"
-        class="btn btn-sm btn-outline-secondary me-2 manage-prev-link"
+        class="btn btn-sm btn-outline-secondary me-2 manage-previous-link"
         :href="prevHref"
         >Prev</Link
       >

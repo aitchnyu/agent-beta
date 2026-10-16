@@ -115,7 +115,7 @@ async function logoutEverywhere() {
         >Edit</Link
       >
       <button
-        class="btn btn-outline-secondary btn-sm user-details-login-link-btn"
+        class="btn btn-outline-secondary btn-sm user-details-login-link-button"
         :aria-expanded="showLinkPanel"
         aria-controls="user-details-link-panel"
         @click="showLinkPanel = !showLinkPanel"
@@ -123,7 +123,7 @@ async function logoutEverywhere() {
         Login link
       </button>
       <button
-        class="btn btn-outline-danger btn-sm user-details-logout-btn"
+        class="btn btn-outline-danger btn-sm user-details-logout-button"
         :disabled="loggingOut"
         @click="logoutEverywhere()"
       >
@@ -156,7 +156,7 @@ async function logoutEverywhere() {
             <option :value="1440">24 hours</option>
           </select>
           <button
-            class="btn btn-sm btn-primary user-details-generate-link-btn"
+            class="btn btn-sm btn-primary user-details-generate-link-button"
             :disabled="generating"
             @click="generateLink()"
           >
@@ -173,7 +173,7 @@ async function logoutEverywhere() {
               @focus="($event.target as HTMLInputElement).select()"
             />
             <button
-              class="btn btn-outline-secondary user-details-copy-link-btn"
+              class="btn btn-outline-secondary user-details-copy-link-button"
               @click="copyLink()"
             >
               Copy
@@ -197,29 +197,31 @@ async function logoutEverywhere() {
         <tr>
           <th scope="row">Public profile</th>
           <td>
-            <span v-if="p.has_public_profile" class="user-yes">Yes</span>
-            <span v-else class="user-no">No</span>
+            <span v-if="p.has_public_profile" class="user-boolean-yes"
+              >Yes</span
+            >
+            <span v-else class="user-boolean-no">No</span>
           </td>
         </tr>
         <tr>
           <th scope="row">Active</th>
           <td>
-            <span v-if="p.is_active" class="user-yes">Yes</span>
-            <span v-else class="user-no">No</span>
+            <span v-if="p.is_active" class="user-boolean-yes">Yes</span>
+            <span v-else class="user-boolean-no">No</span>
           </td>
         </tr>
         <tr>
           <th scope="row">Staff</th>
           <td>
-            <span v-if="p.is_staff" class="user-yes">Yes</span>
-            <span v-else class="user-no">No</span>
+            <span v-if="p.is_staff" class="user-boolean-yes">Yes</span>
+            <span v-else class="user-boolean-no">No</span>
           </td>
         </tr>
         <tr>
           <th scope="row">Superuser</th>
           <td>
-            <span v-if="p.is_superuser" class="user-yes">Yes</span>
-            <span v-else class="user-no">No</span>
+            <span v-if="p.is_superuser" class="user-boolean-yes">Yes</span>
+            <span v-else class="user-boolean-no">No</span>
           </td>
         </tr>
         <tr>

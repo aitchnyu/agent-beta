@@ -190,8 +190,8 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         # the view rendered before the asserts below.
         page.wait_for_selector("[data-split-diff] .d2h-ins")
         diff = page.locator("[data-split-diff]")
-        expect(diff.locator("[data-sd-side] .d2h-ins").first).to_be_visible()
-        expect(diff.locator("[data-sd-side] .d2h-del").first).to_be_visible()
+        expect(diff.locator("[data-split-diff-side] .d2h-ins").first).to_be_visible()
+        expect(diff.locator("[data-split-diff-side] .d2h-del").first).to_be_visible()
         expect(diff).to_contain_text("TodoApp/app.py")
         expect(diff).to_contain_text("final")
 
@@ -208,14 +208,14 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         page.wait_for_selector("[data-split-diff] .d2h-ins")
         # Wide (default 1280x720): the side-by-side container shows (with
         # diff2html's two file panes inside), line-by-line hides.
-        side = page.locator("[data-sd-side]")
+        side = page.locator("[data-split-diff-side]")
         expect(side).to_be_visible()
         # diff2html's side-by-side: one wrapper, two side panes.
         expect(side.locator(".d2h-file-side-diff")).to_have_count(2)
-        expect(page.locator("[data-sd-unified]")).to_be_hidden()
+        expect(page.locator("[data-split-diff-unified]")).to_be_hidden()
         # Narrow: the line-by-line container shows, side-by-side hides.
         page.set_viewport_size({"width": 375, "height": 800})
-        expect(page.locator("[data-sd-unified]")).to_be_visible()
+        expect(page.locator("[data-split-diff-unified]")).to_be_visible()
         expect(side).to_be_hidden()
         page.set_viewport_size(default_viewport)
 
@@ -243,7 +243,7 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         page.wait_for_url(f"**/git/commits/{self.short_b}/TodoApp/endpoints.py")
         page.wait_for_selector("[data-split-diff] .d2h-ins")
         diff = page.locator("[data-split-diff]")
-        expect(diff.locator("[data-sd-side] .d2h-ins").first).to_be_visible()
+        expect(diff.locator("[data-split-diff-side] .d2h-ins").first).to_be_visible()
         expect(diff).to_contain_text("ADDED")
 
     def test_commit_navigation(self) -> None:

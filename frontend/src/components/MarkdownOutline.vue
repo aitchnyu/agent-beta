@@ -44,7 +44,7 @@ function toggle() {
       <li
         v-for="e in props.entries"
         :key="e.id"
-        :class="`markdown-outline-l${e.level}`"
+        :class="`markdown-outline-level${e.level}`"
       >
         <a :href="`#${e.id}`">{{ e.text }}</a>
       </li>

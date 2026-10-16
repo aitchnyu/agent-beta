@@ -211,10 +211,10 @@ class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):
         self.page.set_default_timeout(4000)
         page = self.page
         page.goto(f"{self.live_server_url}/users/id/{self.target.public_id}")
-        page.wait_for_selector(".user-details-login-link-btn")
+        page.wait_for_selector(".user-details-login-link-button")
 
-        page.locator(".user-details-login-link-btn").click()
-        page.locator(".user-details-generate-link-btn").click()
+        page.locator(".user-details-login-link-button").click()
+        page.locator(".user-details-generate-link-button").click()
         page.wait_for_selector(".user-details-link-url")
         url = page.locator(".user-details-link-url").input_value()
 
@@ -240,8 +240,8 @@ class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):
         self.page.set_default_timeout(4000)
         page = self.page
         page.goto(f"{self.live_server_url}/users/id/{self.target.public_id}")
-        page.locator(".user-details-login-link-btn").click()
-        page.locator(".user-details-generate-link-btn").click()
+        page.locator(".user-details-login-link-button").click()
+        page.locator(".user-details-generate-link-button").click()
         page.wait_for_selector(".user-details-link-url")
         url = page.locator(".user-details-link-url").input_value()
 
@@ -249,9 +249,9 @@ class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):
             anon.goto(url)
             anon.wait_for_selector(".layout-user-menu")
 
-            page.locator(".user-details-logout-btn").click()
+            page.locator(".user-details-logout-button").click()
             page.locator(".swal2-confirm").click()
-            page.wait_for_selector(".user-details-logout-btn:not([disabled])")
+            page.wait_for_selector(".user-details-logout-button:not([disabled])")
 
             anon.goto(f"{self.live_server_url}/")
             anon.wait_for_selector(".home-status-signed-out")
@@ -261,5 +261,5 @@ class UserDetailsAdminActionsE2eTestCase(BasePlaywrightTestCase):
         with self.anon_page() as page:
             page.goto(f"{self.live_server_url}/users/id/{self.target.public_id}")
             page.wait_for_selector(".user-details-page")
-            expect(page.locator(".user-details-login-link-btn")).to_have_count(0)
+            expect(page.locator(".user-details-login-link-button")).to_have_count(0)
             expect(page.locator(".user-details-attrs")).to_have_count(0)
