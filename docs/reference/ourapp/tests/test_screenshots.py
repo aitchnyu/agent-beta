@@ -52,7 +52,7 @@ class ReferenceScreenshots(BaseScreenshotTestCase):
         FactOfTheDay.choose_for_today()
         self.page.goto(f"{self.live_server_url}/", wait_until="networkidle")
         self.page.get_by_text("worked example you can copy").first.wait_for()
-        self._shot_below_navbar("home")
+        self.capture_below_navbar("home")
 
     def test_facts(self) -> None:
         """facts.png — a visitor opens /facts and reads facts grouped by topic."""
@@ -60,7 +60,7 @@ class ReferenceScreenshots(BaseScreenshotTestCase):
         Fact.objects.create(text="E2E fact about cars", topic=topic)
         self.page.goto(f"{self.live_server_url}/facts", wait_until="networkidle")
         self.page.get_by_text("E2E fact about cars").first.wait_for()
-        self._shot_below_navbar("facts")
+        self.capture_below_navbar("facts")
 
     def test_todos(self) -> None:
         """todos.png — a user opens /todos, adds two todos, completes the first."""
@@ -76,7 +76,7 @@ class ReferenceScreenshots(BaseScreenshotTestCase):
             "button", name="Toggle complete"
         ).click()
         self.page.locator(".ours-todo-completed").wait_for()
-        self._shot_below_navbar("todos")
+        self.capture_below_navbar("todos")
 
     def test_downloads(self) -> None:
         """downloads.png — a superuser opens /downloads; one seeded file."""
@@ -89,4 +89,4 @@ class ReferenceScreenshots(BaseScreenshotTestCase):
         )
         self.page.goto(f"{self.live_server_url}/downloads", wait_until="networkidle")
         self.page.get_by_text("field-notes.txt").first.wait_for()
-        self._shot_below_navbar("downloads")
+        self.capture_below_navbar("downloads")
