@@ -171,7 +171,7 @@ Prewarm + resume mechanics:
   requirement + `git status --short` + touched files, labeled "changed
   since your study — re-read fresh."
   - Run the executable checks yourself FIRST — the feature's tests,
-    `./run checkmarkdownmermaid`, quick fixture probes — and PASTE the
+    `./run checkmarkdownd2`, quick fixture probes — and PASTE the
     outputs into the resume prompts as evidence. Reviewers read results;
     they never execute.
   - Resume right after the last edit batch's checks pass in scratch —
@@ -328,7 +328,7 @@ may hold uncommitted work from a prior task; `./run cleanscratch` wipes it).
   `checkframework1`). Framework-file edits (outside `ourapp/` +
   `frontend/src/ours/`) add the `scratch-test-subset` smoke tests.
 - **Fast path**: changes only under `frontend/src/ours/**` +
-  `ourapp/docs/*.md` → lint/build + mermaid fence validation, no backend
+  `ourapp/docs/*.md` → lint/build + d2 fence validation, no backend
   battery. Nothing deploys red.
 - **Tail**: rsync → `main/` `--delete` (`.git`/`.env` never overwritten);
   on the VM: backup + `migrate` + granian/huey restart for backend diffs,
@@ -655,78 +655,41 @@ checklist point to this section and restate nothing.
 - `ourapp/README.md` stays one or two lines (what + URLs) and links the
   doc. The doc carries the detail, never the README.
 
-**Diagrams.** Mermaid, in fenced ` ```mermaid ` blocks — the /files viewer
-renders them.
+**Diagrams.** D2, in fenced ` ```d2 ` blocks — the /files viewer renders
+them with pan/zoom controls.
 
-- **`usecase-beta`** (Mermaid 12; the viewer bundles it). One statement per
-  physical line. Declare every `actor` explicitly — position never implies
-  one (an undeclared edge endpoint silently becomes a use case).
-  Relationships stay outside `systemBoundary` blocks. Use
-  `..> : include` and `..> : extend` for UML semantics. A literal `"`
-  inside a label ends it — rephrase or use `#quot;`; the other scary
-  sequences (`--`, `:::`, `@{`, `<<`, `'`) actually parse fine, but
-  rephrase if rendering looks off.
-  The grammar is mermaid's OWN — PlantUML habits (`as` aliases, a
-  `usecase "…" as ID` line, `{ … }` braces after systemBoundary) are parse
-  errors and the viewer shows raw source. Imitate this skeleton:
-
-  ```mermaid
-  usecase-beta
-  direction LR
-  actor Visitor("Anonymous visitor")
-  actor Employee("Employee")
-  systemBoundary canteen["Canteen"]
-    Menu("See the weekly menu")
-    Order("Pre-order a meal")
-  end
-  Employee --> Menu
-  Employee --> Order
-  note for Visitor "Gets a 404. The feature is hidden until you sign in."
-  ```
-
-  Imitate this skeleton.
-  - Diagrams are per screen/page and chained — a→b→c flows, never flat
-    one-level lists.
-  - Lay them out top-down (`direction TB`): wide left-to-right diagrams
-    overflow a phone screen and force side scrolling, while a vertical
-    flow fits the narrow screen column.
-  - Full grammar + worked examples: `docs/mermaid.md` (read before your
-    first usecase diagram in a session).
-
-  **MANDATORY: pipe every draft through the validator before it enters
-  the doc** — the grammar is too new for model training data, and an
-  unvalidated diagram is user-visible raw source. A clean draft:
-
-  ```
-  $ printf '%s' "usecase-beta
-  direction LR
-  actor Member(\"Library member\")
-  systemBoundary library[\"Library\"]
-    Borrow(\"Borrow a book\")
-  end
-  Member --> Borrow" | ./run checkmermaid
-  ok
-  ```
-
-  One mistake — a PlantUML `as` alias — and the validator names it:
-
-  ```
-  $ printf '%s' "usecase-beta
-  actor \"X\" as member" | ./run checkmermaid
-  Error parsing usecase diagram: Expecting: one of these possible Token
-  sequences: … but found: 'as'
-  ```
-
-  exit 0 = valid; exit 1 = fix and re-pipe. The validator catches
-  grammar, not semantics: an edge endpoint without an `actor` declaration
-  silently becomes a use case — declare every actor. After any later edit
-  to a diagram, re-pipe it the same way; after editing a whole doc,
-  `./run checkmarkdownmermaid <file.md>` validates every fence at once
-  (first broken block + error) — the docs fast path runs it on changed
-  files automatically.
-- **`erDiagram`** — whenever models exist. Entities, fields, FKs,
-  ownership; one field per line as `type name`.
-- **`stateDiagram-v2`** — when a row kind changes state.
+- **Use-case diagrams** — composed from D2 primitives, one statement per
+  line:
+  - actors — `shape: person`, declared explicitly
+  - use cases — `shape: oval`
+  - the system boundary — a container
+  - associations — `->`; include/extend — dashed labeled arrows
+    (`{style.stroke-dash: 3}`)
+- Diagrams are per screen/page and chained — a→b→c flows, never flat
+  one-level lists.
+- Lay them out top-down (`direction: down`): wide left-to-right layouts
+  overflow a phone screen and force side scrolling, while a vertical
+  flow fits the narrow screen column. Keep boundaries narrow — few
+  ovals per row.
+- Icons stay local: copy a lucide SVG (grep
+  `frontend/node_modules/lucide-static/icons/`) to
+  `djangoapp/static/icons/` with a concrete stroke hex, reference
+  `icon: /static/icons/<name>-<hex>.svg`.
+- **MANDATORY: validate after writing a diagram** — run
+  `./run checkmarkdownd2 <file.md>` on the doc you touched; an
+  unvalidated diagram is user-visible raw source. The validator catches
+  grammar, not semantics: an undeclared actor is just a shape — declare
+  every actor as `shape: person` yourself. The docs fast path re-checks
+  changed files at deploy time automatically.
+- **ER diagrams** — whenever models exist: entities as
+  `shape: sql_table` (columns with types), FKs as labeled arrows carrying
+  the cardinality (`orders -> customer: "N..1"`), delete rules as further
+  labels (`on delete RESTRICT`).
+- **State diagrams** — when a row kind changes state: states as shapes,
+  transitions as labeled arrows, the initial/final states as small
+  circles.
+- Full skeletons, worked examples, and the icon workflow:
+  `docs/d2.md` — read it before your first d2 diagram in a session.
 
 ### Models
 Concrete models live in `ourapp/models/<feature>.py` (imported in
@@ -1351,8 +1314,7 @@ The allowlisted commands (defined in the `bash` map of
 ./run deployscratch                  # check battery + deploy ../scratch/ → main/ (live; no commit)
 ./run cleanscratch                   # remove the scratch tree — PREFER over rm -rf
 ./run checkframework1               # full gate: lint + 4 test stages + merged coverage; before promoting a framework change
-./run checkmermaid < diagram.mmd     # validate one mermaid diagram (stdin)
-./run checkmarkdownmermaid <file.md> # validate every mermaid fence in a file
+./run checkmarkdownd2 <file.md>      # validate every d2 fence in a file
 ./run typecheck                      # …and ./run lintfix
 ./run test …                         # any args
 ./run python …                       # quick fixture probes (stage-5 evidence)

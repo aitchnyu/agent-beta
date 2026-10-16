@@ -27,7 +27,7 @@ class _ManifestEntry(pydantic.BaseModel):
          "dynamicImports": ["src/utils/filePreview.ts", ...],
          "css": ["assets/main-*.css"]}
 
-    and chunk records keyed by hashed chunk name (``"_mermaid-core-*.js"``,
+    and chunk records keyed by hashed chunk name (``"d2-*.js"``,
     ``"node_modules/diff/libesm/index.js"``, …) with just
     ``file``/``name``/``imports``. ``extra="ignore"`` makes both shapes (and
     any future keys) validate; only ``file`` is required, ``css`` defaults
@@ -100,7 +100,7 @@ def entry_preloads(url: str) -> list[str]:
     discovered by the browser only AFTER main.js parses and its import
     statements run — a serial round trip per hop. Emitting modulepreload
     links from the HTML starts those fetches in parallel with main.js.
-    Chunks reachable only dynamically (mermaid, filePreview, … — including
+    Chunks reachable only dynamically (d2, filePreview, … — including
     transitively, via another chunk's dynamicImports) are deliberately NOT
     preloaded — they stay lazy.
 
@@ -116,8 +116,8 @@ def entry_preloads(url: str) -> list[str]:
         return []
     static_prefix = (settings.STATIC_URL or "/static/").rstrip("/")
     # rolldown's manifest lists dynamic-import chunks in `imports` as well,
-    # and laziness is transitive (mermaid-uncommon is the ENTRY's import but
-    # mermaid-core's dynamicImport) — exclude the union of dynamicImports
+    # and laziness is transitive (a d2 sub-chunk may be the ENTRY's import but
+    # its core chunk's dynamicImport) — exclude the union of dynamicImports
     # across ALL records, or the preload would eagerly fetch lazy chunks.
     dynamic = {
         key

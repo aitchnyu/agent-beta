@@ -16,6 +16,7 @@ node_modules/
 # on a stable URL — not Vite output (emptyOutDir wipes static/djangoapp only).
 djangoapp/static/*
 !djangoapp/static/allauth/
+!djangoapp/static/icons/
 
 # Python lint/type caches.
 .mypy_cache/

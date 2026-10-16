@@ -10,8 +10,7 @@
 @SITE_HOSTNAMES@ {
 	@TLS_DIRECTIVE@
 	# Compress text assets on the wire: the JS chunks are the bulk of first
-	# load (mermaid ~600 KB gzipped of 2.4 MB raw) and Django's static handler
-	# serves everything uncompressed — encode here cuts every cold cache ~4x.
+	# load and Django's static handler serves everything uncompressed.
 	encode zstd gzip
 
 	# Content-hashed bundles (vite output: name-Ab12Cd34.js) — cache forever.

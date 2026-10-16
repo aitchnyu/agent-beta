@@ -6,33 +6,35 @@ leaks its existence.
 
 ## Who can do what
 
-```mermaid
-usecase-beta
-direction TB
-actor Guest("Anonymous visitor")
-actor Member("Signed-in member")
-systemBoundary todos["Todos"]
-  Add("Add a todo")
-  Toggle("Tick it off / untick")
-end
-Member --> Add
-Toggle ..> : extend Add
-note for Guest "The page 404s — a private feature never leaks its existence."
+```d2
+direction: down
+guest: Anonymous visitor {shape: person}
+member: Signed-in member {shape: person}
+todos: Todos {
+  add: Add a todo {shape: oval}
+  toggle: Tick it off / untick {shape: oval}
+}
+member -> todos.add
+todos.toggle -> todos.add: extend {style.stroke-dash: 3}
+note: The page 404s — a private feature never leaks its existence. {shape: text}
 ```
 
 ## The data
 
 One model. A **todo** is the text, a done flag, and its owner:
 
-```mermaid
-erDiagram
-    USER ||--o{ TODO : "owns"
-
-    TODO {
-        varchar text "max 500"
-        boolean completed "default false"
-        varchar owner_id "FK RESTRICT — the owner"
-    }
+```d2
+user: User {
+  shape: sql_table
+  id: int {constraint: primary_key}
+}
+todo: Todo {
+  shape: sql_table
+  text: varchar(500)
+  completed: boolean
+  owner_id: int
+}
+todo.owner_id -> user.id: owns · 1..N · RESTRICT
 ```
 
 `Todo.objects.active_for(user)` lists a user's todos, newest first;

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { marked } from "marked"
 import { sanitizeHtml } from "../utils/html"
-import { renderDiagram } from "../utils/mermaid"
+import { renderDiagram, makeDiagramZoomable } from "../utils/d2"
 
 interface Props {
   html?: string | null
@@ -11,12 +11,17 @@ interface Props {
   // replies, which may contain fenced ```code``` blocks → <pre><code>). Default
   // false: the input is already HTML (e.g. from the Quill rich-text editor).
   markdown?: boolean
+  // Pan/zoom controls on rendered d2 diagrams. Only the /files markdown
+  // viewer enables it; the other RichTextViewer users (UserDetails,
+  // UserHistory) stay static — no controls, no panzoom wiring.
+  diagramControls?: boolean
 }
 
 const props = withDefaults(defineProps<Props>(), {
   html: "",
   className: "",
   markdown: false,
+  diagramControls: false,
 })
 
 const root = ref<HTMLElement>()
@@ -29,15 +34,20 @@ const sanitizedHtml = computed(() => {
   return sanitizeHtml(source)
 })
 
-// ```mermaid fenced code blocks render to SVG lazily: each <pre> is swapped
+// ```d2 fenced code blocks render to SVG lazily: each <pre> is swapped
 // for a .rich-diagram div carrying the SVG (or, on parse failure, the raw
 // source styled .rich-diagram-error). The swap is synchronous, so re-runs
 // over the same DOM (the sanitizedHtml watcher below) never double-render;
 // Vue replaces innerHTML wholesale on each change, so new content always
 // gets rendered once.
+// Zoom instances bind document-level move/up listeners, so a re-render that
+// replaces the DOM would orphan them — destroy the previous batch here, right
+// before the fresh render starts stacking new ones. Same on unmount.
+const zoomCleanups: (() => void)[] = []
+
 function renderDiagrams(el: HTMLElement) {
   for (const code of el.querySelectorAll<HTMLElement>(
-    "pre > code.language-mermaid",
+    "pre > code.language-d2",
   )) {
     const pre = code.parentElement
     if (!(pre instanceof HTMLPreElement) || pre.dataset.richRendered) continue
@@ -50,6 +60,13 @@ function renderDiagrams(el: HTMLElement) {
     renderDiagram(source)
       .then((svg) => {
         div.innerHTML = svg
+        if (props.diagramControls) {
+          // Controls are optional by design: if the panzoom module failed to
+          // load, the rendered diagram still shows.
+          makeDiagramZoomable(div)
+            .then((cleanup) => zoomCleanups.push(cleanup))
+            .catch(() => {})
+        }
       })
       .catch(() => {
         // Leave the raw source visible (plain text reads fine) and flag the
@@ -63,10 +80,14 @@ function renderDiagrams(el: HTMLElement) {
 function enrich() {
   const el = root.value
   if (!el) return
+  for (const cleanup of zoomCleanups.splice(0)) cleanup()
   renderDiagrams(el)
 }
 
 onMounted(enrich)
+onBeforeUnmount(() => {
+  for (const cleanup of zoomCleanups.splice(0)) cleanup()
+})
 // flush:"post" runs after Vue has written the new v-html, so the marker divs are
 // in the DOM before we walk them.
 watch(sanitizedHtml, enrich, { flush: "post" })

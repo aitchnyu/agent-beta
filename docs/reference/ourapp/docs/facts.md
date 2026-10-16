@@ -5,19 +5,18 @@ the Huey cron rotates each local midnight, shown on the home page.
 
 ## Who can do what
 
-```mermaid
-usecase-beta
-direction TB
-actor Visitor("Anyone — no sign-in")
-systemBoundary facts["Facts pages"]
-  Browse("Browse the list (a fresh draw)")
-  PickTopic("Open a topic")
-  ReadOne("Read one fact (permalink)")
-end
-Visitor --> Browse
-PickTopic ..> : extend Browse
-ReadOne ..> : extend PickTopic
-note for Visitor "Open to everyone — facts have no sign-in gate."
+```d2
+direction: down
+visitor: Anyone — no sign-in {shape: person}
+facts: Facts pages {
+  browse: Browse the list — a fresh draw {shape: oval}
+  pick_topic: Open a topic {shape: oval}
+  read_one: Read one fact — permalink {shape: oval}
+}
+visitor -> facts.browse
+facts.pick_topic -> facts.browse: extend {style.stroke-dash: 3}
+facts.read_one -> facts.pick_topic: extend {style.stroke-dash: 3}
+note: Open to everyone — facts have no sign-in gate. {shape: text}
 ```
 
 ## The data
@@ -26,23 +25,24 @@ A **topic** groups facts ("cars", "science"); a **fact** is one piece of
 trivia in that topic. The **Fact of the Day** is a singleton — exactly one
 row, DB-enforced — whose `fact` is today's pick.
 
-```mermaid
-erDiagram
-    TOPIC ||--o{ FACT : "groups"
-    FACT ||--o| FACT_OF_THE_DAY : "today's pick"
-
-    TOPIC {
-        varchar name
-        varchar slug "unique"
-    }
-    FACT {
-        text text
-        varchar topic_id "FK RESTRICT"
-    }
-    FACT_OF_THE_DAY {
-        varchar fact_id "FK SET_NULL — the daily pick"
-        smallint singleton "always 1 — one row max"
-    }
+```d2
+topic: Topic {
+  shape: sql_table
+  name: varchar
+  slug: varchar {constraint: unique}
+}
+fact: Fact {
+  shape: sql_table
+  text: text
+  topic_id: int
+}
+pick: FactOfTheDay {
+  shape: sql_table
+  fact_id: int
+  singleton: smallint
+}
+fact.topic_id -> topic.id: groups · 1..N · RESTRICT
+pick.fact_id -> fact.id: today's pick · 1..1 · SET_NULL
 ```
 
 Reading the diagram: deleting a topic that has facts is refused

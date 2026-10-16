@@ -34,16 +34,16 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
     - test_markdown_renders_with_image, a linked image resolves to /files/raw and renders
     - test_markdown_outline_renders_and_expands, the heading outline shows and its
       >300px cap expands via the toggle
-    - test_no_mermaid_requests_without_diagrams, a diagram-free page fetches no
-      mermaid chunk (the lazy-bundle tripwire)
+    - test_no_d2_requests_without_diagrams, a diagram-free page fetches no
+      d2 chunk (the lazy-bundle tripwire)
     - test_markdown_hash_link_scrolls, an outline link scrolls its heading into view
     - test_markdown_links_to_other_files, relative links resolve to /files/<rel>;
       external and pure-hash links pass through
-    - test_markdown_mermaid_fence_renders, a ```mermaid fence renders an SVG
+    - test_markdown_d2_fence_renders, a ```d2 fence renders an SVG
     - test_markdown_heading_ids_dedupe, ids dedupe over taken ids (Foo/Foo 2/Foo,
       Section 1 vs the anonymous fallback)
-    - test_markdown_mermaid_error_fallback, an invalid fence shows raw source
-      in .rich-diagram-error (15s waits — the lazy mermaid chunk is slow on VMs)
+    - test_markdown_d2_error_fallback, an invalid fence shows raw source
+      in .rich-diagram-error (30s waits — the lazy d2 WASM chunk is slow on VMs)
     """
 
     def setUp(self) -> None:
@@ -259,39 +259,50 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         page.wait_for_selector('[data-files-state="rendered"]')
         expect(page.locator(".files-markdown")).to_contain_text("Other file")
 
-    def test_no_mermaid_requests_without_diagrams(self) -> None:
-        """A page without diagrams downloads no mermaid chunk.
+    def test_no_d2_requests_without_diagrams(self) -> None:
+        """A page without diagrams downloads no d2 chunk.
 
-        Mermaid is one lazy bundle (vite.config.js) whose only entry point is
-        the dynamic import on first diagram render — the entry must never
-        statically import it (that once made every page fetch 3+ MB). A
-        chunk-graph regression shows up here as mermaid requests on this
-        mermaid-free page, so this is the tripwire for the bundle staying
-        lazy. Resource entries are read after the render completes — a
-        diagram-free page never triggers the import, so there is nothing to
-        wait for.
+        - d2 is one lazy bundle (vite.config.js); its only entry point is
+          the dynamic import on first diagram render
+        - the entry must never statically import it — that would make
+          every page fetch ~11.5 MB of WASM
+        - a chunk-graph regression shows up as d2 requests on this
+          diagram-free page: the tripwire for the bundle staying lazy
+        - resource entries are read after the render completes — a
+          diagram-free page never triggers the import, so there is
+          nothing to wait for
         """
         page = self.page
         page.goto(self._files("main/djangoapp/tests/filefixtures/other.md"))
         page.wait_for_selector('[data-files-state="rendered"]')
-        mermaid_resources = page.evaluate(
+        d2_resources = page.evaluate(
             "performance.getEntriesByType('resource')"
-            ".map(e => e.name).filter(n => n.includes('/mermaid-'))"
+            ".map(e => e.name).filter(n => n.includes('/d2-'))"
         )
-        self.assertEqual(mermaid_resources, [])
+        self.assertEqual(d2_resources, [])
 
-    def test_markdown_mermaid_fence_renders(self) -> None:
-        """A ```mermaid fenced block renders as an SVG diagram, not a code block."""
+    def test_markdown_d2_fence_renders(self) -> None:
+        """A ```d2 fenced block renders as an SVG diagram, not a code block."""
         page = self.page
         self._goto_sample_md()
-        svg = page.locator(".files-markdown .rich-diagram svg")
+        # d2 output nests an inner svg — "> svg" pins the outer wrapper
+        # (the zoom target) so strict-mode sees exactly one element.
+        svg = page.locator(".files-markdown .rich-diagram > svg")
         # Documented exception (the only timeout override in the suite): the
-        # lazy mermaid chunk (~900 KB gzipped) + parse can exceed the 2s
+        # lazy d2 chunk (WASM, ~8.6 MB gzipped) + compile can exceed the 2s
         # default on the test VM.
-        svg.wait_for(state="visible", timeout=15000)
+        svg.wait_for(state="visible", timeout=30000)
         expect(page.locator(".files-markdown .rich-diagram-error")).to_have_count(0)
         # The fence is no longer a code block (the <pre> was swapped out).
-        expect(page.locator(".files-markdown pre > code.language-mermaid")).to_have_count(0)
+        expect(page.locator(".files-markdown pre > code.language-d2")).to_have_count(0)
+        # The files viewer wires zoom controls onto every rendered diagram.
+        expect(page.locator(".files-markdown .rich-diagram-zoom")).to_have_count(3)
+        # zoomIn is exponential (scale x e^step, step 0.3 -> x1.3499) so equal
+        # clicks compound equally in log space; reset returns to exactly 1.
+        page.locator(".files-markdown .rich-diagram-zoom-in").click()
+        expect(svg).to_have_attribute("style", re.compile(r"scale\(1\.34"))
+        page.locator(".files-markdown .rich-diagram-zoom-reset").click()
+        expect(svg).to_have_attribute("style", re.compile(r"scale\(1\)"))
 
     def test_markdown_heading_ids_dedupe(self) -> None:
         """Heading ids dedupe over ASSIGNED ids, not per-base counts.
@@ -313,12 +324,12 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         expect(rendered.locator("h2#section-1")).to_have_count(1)
         expect(rendered.locator("h2#section-1-2")).to_have_count(1)
 
-    def test_markdown_mermaid_error_fallback(self) -> None:
-        """An invalid mermaid fence shows the raw source in the error style."""
+    def test_markdown_d2_error_fallback(self) -> None:
+        """An invalid d2 fence shows the raw source in the error style."""
         page = self.page
         page.goto(self._files("main/djangoapp/tests/filefixtures/dedupe.md"))
         page.wait_for_selector('[data-files-state="rendered"]')
         error = page.locator(".files-markdown .rich-diagram-error")
-        # Same mermaid chunk-load exception as the fence test above.
-        error.wait_for(state="visible", timeout=15000)
-        expect(error).to_contain_text("this is not valid mermaid")
+        # Same d2 chunk-load exception as the fence test above.
+        error.wait_for(state="visible", timeout=30000)
+        expect(error).to_contain_text("a -> -> b")

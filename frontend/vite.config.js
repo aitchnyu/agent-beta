@@ -1,22 +1,21 @@
 import { defineConfig } from "vite"
 import vue from "@vitejs/plugin-vue"
 
-// One lazy mermaid bundle + one small eager shared chunk:
-//   mermaid — mermaid + its exclusive engines (d3/dagre layout, cytoscape,
-//     katex, roughjs, …) in a SINGLE chunk that loads on the first diagram
-//     render; utils/mermaid.ts's `import("mermaid")` is the lazy boundary.
+// One lazy d2 bundle + one small eager shared chunk:
+//   d2 — @d2lang/d2 (WASM renderer, web worker, fonts) + @panzoom in a
+//     SINGLE chunk that loads on the first diagram render; utils/d2.ts's
+//     `import("@d2lang/d2")` is the lazy boundary.
 //   vendor-shared — packages and bundler helpers that BOTH the entry and
-//     mermaid need (dompurify, lodash-*, dayjs, es-toolkit, khroma, …, plus
+//     d2 need (dompurify, lodash-*, dayjs, es-toolkit, khroma, …, plus
 //     vite's preload helper). Rolldown assigns a module to exactly one
 //     chunk, and whenever a module the entry needs is captured by (or parked
-//     inside) the mermaid chunk, main.js gains a STATIC import edge into the
-//     whole 3+ MB bundle — the regression that keeps returning. This group
+//     inside) the d2 chunk, main.js gains a STATIC import edge into the
+//     whole ~11.5 MB bundle — the regression that keeps returning. This group
 //     is the pressure valve: those modules live in a small chunk the entry
-//     imports directly, and mermaid imports it lazily like everyone else.
+//     imports directly, and d2 imports it lazily like everyone else.
 // test_files.py pins the outcome: a page without diagrams requests no
-// mermaid-* chunk at all.
-const MERMAID_BUNDLE =
-  /node_modules[\\/](mermaid|@mermaid-js|@braintree|@iconify|@upsetjs|cytoscape|cytoscape-[a-z-]+|cose-base|layout-base|dagre-d3-es|d3|d3-[a-z-]+|internmap|katex|roughjs)[\\/]/
+// d2-* chunk at all.
+const D2_BUNDLE = /node_modules[\\/](@d2lang|@panzoom)[\\/]/
 const VENDOR_SHARED =
   /node_modules[\\/](dompurify|lodash-es|lodash\.isequal|dayjs|es-toolkit|khroma|stylis|ts-dedent|uuid)[\\/]|vite[/\\]preload-helper/
 
@@ -57,7 +56,7 @@ export default defineConfig({
         codeSplitting: {
           groups: [
             { name: "vendor-shared", test: VENDOR_SHARED, priority: 2 },
-            { name: "mermaid", test: MERMAID_BUNDLE, priority: 1 },
+            { name: "d2", test: D2_BUNDLE, priority: 1 },
           ],
         },
       },

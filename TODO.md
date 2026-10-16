@@ -1,10 +1,14 @@
 d2 with full lucide icons? No usecase diagrams. How to minimize horizontal scrolling? Have a nice viewer
 
+toggle mode for md rendering/plain rendering. We can download md as pdf.
+
 Merge test and reference app?
 
 _capture_page and _shot_below_navbar names
 
-_DJANGO_NO_COLOR
+`Menu` and others have an ugly dropdown icon
+
+Does shortcut deploy mode check ours/ 
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
@@ -16,7 +20,7 @@ Admin file uploads - admin can download, both agent and admin can pass files bac
 Features - file section with git etc
 Desec dns docs
 
-TUI for config, vapid script
+TUI for config, vapid script could be in Python
 
 Branding, org/reponame
 
@@ -30,8 +34,7 @@ Update docs for adding users and login links
 desmo user shouldnt have rw access to its files
 
 ## Upgrades
-Still at Mermaid usecase-beta, wait till they release
-Bootstrap 6, with dialog
+Bootstrap 6, with dialog element
 TSC7 if compatible, Vue vapor
 
 ## Future

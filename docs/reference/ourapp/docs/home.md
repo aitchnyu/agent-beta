@@ -6,25 +6,24 @@ in, and links to the features.
 
 ## Who can do what
 
-```mermaid
-usecase-beta
-direction TB
-actor Visitor("Anonymous visitor")
-actor Viewer("Signed-in viewer")
-actor Cron("Huey cron (midnight)")
-systemBoundary home["Home"]
-  ReadPick("Read today's Fact of the Day")
-  SignIn("Follow the sign-in link")
-  SeeIdentity("See display_name + public_id")
-  OpenFeature("Open a feature link")
-end
-Visitor --> ReadPick
-Visitor --> OpenFeature
-Visitor --> SignIn
-Viewer --> SeeIdentity
-Viewer --> OpenFeature
-Cron --> ReadPick
-note for Visitor "A plain sign-in link only — the full auth chrome lives in the framework navbar."
+```d2
+direction: down
+visitor: Anonymous visitor {shape: person}
+viewer: Signed-in viewer {shape: person}
+cron: Huey cron — midnight {shape: person}
+home: Home {
+  read_pick: Read today's Fact of the Day {shape: oval}
+  sign_in: Follow the sign-in link {shape: oval}
+  see_identity: See display_name + public_id {shape: oval}
+  open_feature: Open a feature link {shape: oval}
+}
+visitor -> home.read_pick
+visitor -> home.open_feature
+visitor -> home.sign_in
+viewer -> home.see_identity
+viewer -> home.open_feature
+cron -> home.read_pick
+note: A plain sign-in link only — the auth chrome lives in the framework navbar. {shape: text}
 ```
 
 ## Behaviour

@@ -239,8 +239,9 @@ _CSP_COMMON = {
     "object-src": [],
     # Images (data: covers base64-encoded images in rich text editors)
     "img-src": [CSP.SELF, "data:"],
-    # Web fonts
-    "font-src": [CSP.SELF],
+    # Web fonts — data: for the d2 renderer's SVG-embedded @font-face woff
+    # URLs (diagram text renders in its bundled Source Sans Pro)
+    "font-src": [CSP.SELF, "data:"],
     # Form submissions — Google's authorize domain (the login POST's redirect
     # chain is form-action-checked); change per provider (docs/social-login.md).
     "form-action": [
@@ -257,6 +258,9 @@ _CSP_STRICT = _CSP_COMMON | {
     # JavaScript sources — unsafe-eval: zod's sync-parse fast path (and its
     # feature probe) JIT-compiles via new Function; avoid csp violation
     "script-src": [CSP.SELF, CSP.UNSAFE_EVAL],
+    # Web workers — blob: for the d2 renderer's WASM worker (without
+    # this, diagrams never render)
+    "worker-src": [CSP.SELF, "blob:"],
     # CSS sources — unsafe-inline: sweetalert2 (the toast layer,
     # utils/sweetalert.ts) injects its stylesheet as an inline <style> at
     # first toast
@@ -269,6 +273,9 @@ if DEBUG:
     SECURE_CSP = _CSP_COMMON | {
         # unsafe-eval required by Vite HMR
         "script-src": [CSP.SELF, CSP.UNSAFE_EVAL],
+        # Web workers — blob: for the d2 renderer's WASM worker (same as
+        # strict above)
+        "worker-src": [CSP.SELF, "blob:"],
         # unsafe-inline required by Vite injected styles
         "style-src": [CSP.SELF, CSP.UNSAFE_INLINE],
         # WebSocket connection for Vite HMR hot reload

@@ -65,10 +65,11 @@ The target of the in-page hash link above.
 
 Long enough (24 headings) that the outline exceeds its 300px collapsed cap.
 
-```mermaid
-stateDiagram-v2
-    [*] --> pending : generated from the schedule
-    pending --> completed : user completes
-    completed --> pending : undo
-    completed --> [*]
+```d2
+schedule: Schedule {shape: diamond}
+pending: pending
+completed: completed
+schedule -> pending: generated from the schedule {style.stroke-dash: 3}
+pending -> completed: user completes
+completed -> pending: undo
 ```

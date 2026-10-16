@@ -160,11 +160,10 @@ class HashedEntryTests(SimpleTestCase):
         Two rolldown-manifest quirks make "the entry's ``imports`` field" the
         WRONG list to preload blindly: (a) it also lists chunks the code
         loads via dynamic ``import()`` — preloading those would eagerly fetch
-        the multi-megabyte mermaid chunks the app works hard to keep lazy;
+        the multi-megabyte d2 chunk the app works hard to keep lazy;
         (b) laziness is transitive — a chunk can appear in the entry's
         ``imports`` yet only ever load at runtime through ANOTHER chunk's
-        ``dynamicImports`` (mermaid-uncommon is like this: listed on the
-        entry, actually loaded by mermaid-core). The filter drops both
+        ``dynamicImports``. The filter drops both
         kinds: anything named under any record's ``dynamicImports`` is out.
         """
         manifest = {

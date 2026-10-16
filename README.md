@@ -254,7 +254,7 @@ means a click-through warning (the supported mode):
 (from a multipass shell, as the default cloud user) edits `scratch/` →
 `desmo deployscratch` (checks + deploy; migrate + service restarts when
 backend changed, collectstatic when the bundle changed — frontend/docs-only
-diffs take a lint/build + mermaid-check fast path). Before the first
+diffs take a lint/build + d2-check fast path). Before the first
 `desmo pi`, do the one-time provider auth + model setup —
 [Pi setup](#pi-setup-provider-auth--model-one-time). The env on the
 VM is a single file all services share
@@ -482,7 +482,7 @@ code, and images.
 
 <figure>
   <img src="docs/screenshots/file-viewer.png" alt="File viewer" />
-  <figcaption><code>/files/&lt;path&gt;</code> — rendered markdown with its heading outline.</figcaption>
+  <figcaption><code>/files/&lt;path&gt;</code> — rendered markdown with its heading outline; d2 diagrams (when present) get zoom controls (+/−/1:1 buttons, ctrl/cmd+wheel, pinch).</figcaption>
 </figure>
 
 ## Edit → test → deploy workflow
@@ -502,7 +502,7 @@ change:
    `./run` (it refuses)**. The check battery: ruff + mypy + `ourapp` tests +
    frontend lint/type-check/build (the fast loop: the framework suite and
    Playwright stay in `main/`; frontend/docs-only diffs skip the backend
-   battery — lint/build + mermaid fence checks only). Must finish green.
+   battery — lint/build + d2 fence checks only). Must finish green.
    When scratch edits touch
    framework files (outside `ourapp/` + `frontend/src/ours/`), it also runs
    the tagged `scratch-test-subset` smoke tests. Run `checkframework1` in
@@ -583,7 +583,7 @@ fan-out as its own task — push-service HTTP never runs inline in a request.
 App/dev via the `run` script: `init`, `runserver`, `dev`,
 `pi`, `test`,
 `typecheck`, `lintfix`, `playwrighttest`, `screenshots`, `checkframework1`,
-`checkframework2`, `checkmermaid`, `checkmarkdownmermaid`, `createscratch`,
+`checkframework2`, `checkmarkdownd2`, `createscratch`,
 `deployscratch`, `cleanscratch`,
 `hueydev` (background consumer alone),
 plus `djangomanage`/`python` passthroughs (e.g.
@@ -761,7 +761,7 @@ Three tiers:
 - **`deployscratch`** — the ONE command, run from `main/` once per edit batch:
   - ruff + mypy over the whole codebase, `ourapp`'s own tests only, and the
     frontend lint/type-check/build — unless the diff is frontend/docs-only,
-    which takes the fast path (lint/build + mermaid fence checks)
+    which takes the fast path (lint/build + d2 fence checks)
   - skips the framework suite and Playwright (those run in `main/`) — unless
     the edit touches framework files (outside `ourapp/` + `frontend/src/ours/`),
     which adds the tagged `scratch-test-subset` smoke tests

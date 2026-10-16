@@ -308,22 +308,14 @@ screenshots() {
   GENERATE_SCREENSHOTS=1 uv run manage.py test $_DJANGO_NO_COLOR --tag screenshots --noinput "$@"
 }
 
-checkmermaid() {
-  # Validate ONE mermaid diagram from stdin — the entire input must parse,
-  # or this exits 1 with the parser's error. Validate a draft BEFORE writing
-  # it into a doc: printf '%s' "…" | ./run checkmermaid
-  # No args on a TTY: instead scan every ```mermaid fence in the default
-  # docs (ourapp/docs/, ourapp/README.md, docs/mermaid.md, steer.md).
-  _require_main_run checkmermaid || return 1
-  node "$_MAIN_DIR/deploy/checkmermaid.mjs"
-}
-
-checkmarkdownmermaid() {
-  # Validate EVERY ```mermaid fence in one or more markdown files — the
-  # first broken block is printed, then its parse error (exit 1). All ok →
-  # exit 0.
-  _require_main_run checkmarkdownmermaid || return 1
-  node "$_MAIN_DIR/deploy/checkmarkdownmermaid.mjs" "$@"
+checkmarkdownd2() {
+  # Validate EVERY ```d2 fence in one or more markdown files — the
+  # first broken block is printed, then its compile error (exit 1).
+  # All ok → exit 0. No args on a TTY: scan every fence in the default
+  # docs (ourapp/docs/, ourapp/README.md, docs/d2.md,
+  # docs/reference/ourapp/docs/, agentconfig/steer.md).
+  _require_main_run checkmarkdownd2 || return 1
+  node "$_MAIN_DIR/deploy/checkmarkdownd2.mjs" "$@"
 }
 
 # The full gate: lint + types in main/, then FOUR test stages — 1-3 under
@@ -621,7 +613,7 @@ _step_seconds() { # <label>
 # then rsync → main/ (.git + gitignored dirs excluded), pre-migration backup,
 # migrate, collectstatic + restart granian/huey so deploys go LIVE.
 # Fast path: frontend/docs-only diffs skip the backend battery, backup,
-# migrate and restarts (lint+build / mermaid validation only).
+# migrate and restarts (lint+build / d2 fence validation only).
 # VM ONLY — the scratch loop is the agent's edit cycle and the agent
 # lives in the VM; a dev Mac has none of it (no pgbackrest, no units).
 # Never commits.
@@ -644,7 +636,7 @@ deployscratch() {
 
   # Fast path — every changed file is one of:
   #   - frontend/src/ours/**  → lint + build (the bundle rides the rsync)
-  #   - ourapp/docs/*.md      → mermaid fence validation
+  #   - ourapp/docs/*.md      → d2 fence validation
   # Nothing backend can break → no backend battery, backup, migrate, restarts.
   local changed_files docs_or_frontend_only=false frontend_changed=false
   changed_files=$(_scratch_changed_files "$_SCRATCH_DIR") || return 1
@@ -661,13 +653,13 @@ deployscratch() {
       # Lint + build the SPA in scratch; the bundle rides the rsync.
       ( cd "$_SCRATCH_DIR/frontend" && npm run lint && npm run build )
     fi
-    # Design docs: validate every mermaid fence in each changed file.
+    # Design docs: validate every d2 fence in each changed file.
     local md_file
     while IFS= read -r md_file; do
       # Deleted/renamed-away paths list here too — nothing to validate,
       # rsync --delete carries the removal.
       [ -f "$_SCRATCH_DIR/$md_file" ] || continue
-      node "$_MAIN_DIR/deploy/checkmarkdownmermaid.mjs" "$_SCRATCH_DIR/$md_file" || return 1
+      node "$_MAIN_DIR/deploy/checkmarkdownd2.mjs" "$_SCRATCH_DIR/$md_file" || return 1
     done <<<"$(grep -E '\.md$' <<<"$changed_files")"
     _step_seconds "check battery (fast)"
   else
@@ -775,12 +767,10 @@ ${H}Development${R}
 ${H}Checks${R}
   ${C}lintfix${R}             ruff format + ruff check, eslint (writes)
   ${C}typecheck${R}           mypy (backend) + vue-tsc (frontend)
-  ${C}checkmermaid${R}           validate one mermaid diagram from stdin (exit 0 = ok;
-                        exit 1 = the parser's error); no args on a TTY →
+  ${C}checkmarkdownd2${R} [file.md]
+                        validate every d2 fence in file(s) (first broken
+                        block + error, exit 1); no args on a TTY →
                         scan every fence in the default docs
-  ${C}checkmarkdownmermaid${R} <file.md>
-                        validate every mermaid fence in file(s) (first broken
-                        block + error, exit 1)
   ${C}test${R} [args…]        Django test suite (args pass through to manage.py test)
   ${C}playwrighttest${R} …    Playwright e2e suite
   ${C}screenshots${R}         regenerate docs/screenshots via Playwright

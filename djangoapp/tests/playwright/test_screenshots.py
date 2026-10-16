@@ -88,9 +88,7 @@ class BaseScreenshotTestCase(BasePlaywrightTestCase):
                 self._shot_below_navbar("files")
     """
 
-    screenshot_dir: ClassVar[Path] = (
-        Path(str(settings.BASE_DIR)) / "docs" / "screenshots"
-    )
+    screenshot_dir: ClassVar[Path] = Path(str(settings.BASE_DIR)) / "docs" / "screenshots"
 
     # Width of that page-background ring. The body's own padding (≥8px)
     # always leaves room for it, so expanding the clip needs no clamping.

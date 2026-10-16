@@ -59,10 +59,17 @@ function safeFragment(hash: string): string {
   <p class="files-raw-link">
     <a href="#files-raw-source">↓ View raw source</a>
   </p>
-  <!-- RichTextViewer sanitizes again — redundant by design (the HTML here is
-     already sanitized + id'd) and kept as defense-in-depth: every v-html in
-     the app funnels through one sanitize call site. -->
-  <RichTextViewer class-name="files-markdown" :html="rendered" />
+  <!-- RichTextViewer sanitizes again — redundant by design (the HTML here
+     is already sanitized + id'd). Kept as defense-in-depth: every
+     v-html in the app funnels through one sanitize call site. -->
+  <!-- diagram-controls: this component IS the /files markdown view — the
+     only RichTextViewer user that zooms (UserDetails/UserHistory render
+     it directly, without it). -->
+  <RichTextViewer
+    class-name="files-markdown"
+    :html="rendered"
+    diagram-controls
+  />
   <pre
     id="files-raw-source"
     class="files-code files-raw-source"
