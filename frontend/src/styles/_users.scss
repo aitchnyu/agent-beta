@@ -34,12 +34,12 @@
 
   &:hover {
     text-decoration: underline;
-    color: $blue-600;
+    color: var(--bs-primary-text-emphasis);
   }
 }
 
 .user-boolean-yes {
-  color: $green-500;
+    color: var(--bs-success-text-emphasis);
   font-weight: 600;
 }
 
@@ -91,5 +91,5 @@
   border: $border-default;
   border-radius: $radius-md;
   padding: 0.5rem;
-  background-color: $gray-50;
+  background-color: var(--bs-tertiary-bg);
 }

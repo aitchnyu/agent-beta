@@ -25,7 +25,7 @@
 }
 
 .files-crumb {
-  color: $blue-600;
+  color: var(--bs-primary-text-emphasis);
 }
 
 .files-separator {
@@ -145,7 +145,7 @@
   padding: 0.75rem 1rem;
   border: $border-light;
   border-radius: $radius-md;
-  background-color: $gray-50;
+  background-color: var(--bs-tertiary-bg);
 }
 
 // Collapsed: hard 300px cap with a fade hint at the bottom edge; the cap is
@@ -166,7 +166,7 @@
   }
 
   a:hover {
-    color: $blue-600;
+    color: var(--bs-primary-text-emphasis);
     text-decoration: underline;
   }
 }
@@ -193,7 +193,7 @@
   border: none;
   background: none;
   font-size: 0.85rem;
-  color: $blue-600;
+  color: var(--bs-primary-text-emphasis);
   text-decoration: underline;
   cursor: pointer;
 }

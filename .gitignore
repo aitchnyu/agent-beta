@@ -17,6 +17,7 @@ node_modules/
 djangoapp/static/*
 !djangoapp/static/allauth/
 !djangoapp/static/icons/
+!djangoapp/static/favicon.svg
 
 # Python lint/type caches.
 .mypy_cache/

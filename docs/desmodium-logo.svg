@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-labelledby="title desc">
+  <!-- MAINTAIN-CONSISTENCY: detailed large-render logo. Keep visually in sync with djangoapp/static/favicon.svg and frontend/src/icons/leaf.svg (bold small-render versions). -->
+  <title id="title">Desmodium golden trifoliate logo</title>
+  <desc id="desc">A golden desmodium leaf with three pointed leaflets, central veins, and fine secondary veins.</desc>
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2=".8" y2="1">
+      <stop offset="0" stop-color="#f2df78"/><stop offset=".56" stop-color="#e6d35a"/><stop offset="1" stop-color="#c3a929"/>
+    </linearGradient>
+    <g id="leaflet">
+      <path d="M0 4 C-17 0-31-19-32-39 C-33-59-22-77-7-91 C-3-95 1-97 5-93 C20-81 32-62 32-42 C32-22 17-3 0 4Z" fill="url(#gold)" stroke="#716a14" stroke-width="2.8" stroke-linejoin="round"/>
+      <path d="M0 0 C-1-25 1-57 4-91" fill="none" stroke="#716a14" stroke-opacity=".7" stroke-width="2.2" stroke-linecap="round"/>
+      <path d="M0-22 C-10-24-19-29-27-37 M0-34 C10-38 18-45 25-54 M1-49 C-7-52-14-57-19-63 M2-62 C8-66 13-72 17-78" fill="none" stroke="#716a14" stroke-opacity=".38" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+    <g id="leafletRight">
+      <path d="M0 4 C-17 0-31-19-32-39 C-33-59-22-77-7-91 C-3-95 1-97 5-93 C20-81 32-62 32-42 C32-22 17-3 0 4Z" fill="url(#gold)" stroke="#716a14" stroke-width="2.8" stroke-linejoin="round"/>
+      <path d="M-1 0 C-1-34 0-70 3.5-92 C3.8-95 4.5-97 5-98 C5.2-96 5.4-94 5.2-92 C3.5-67 2-30 1 0Z" fill="#716a14" fill-opacity=".7"/>
+      <path d="M-1-21 C-11-24-20-29-29-38 C-28-39-27-39-26-38 C-18-32-10-27 0-25Z" fill="#716a14" fill-opacity=".34"/>
+      <path d="M0-34 C10-38 19-45 27-55 C28-56 29-55 28-54 C21-45 12-37 0-31Z" fill="#716a14" fill-opacity=".34"/>
+      <path d="M1-49 C-7-52-14-57-20-64 C-20-65-19-65-18-64 C-13-59-7-55 2-53Z" fill="#716a14" fill-opacity=".3"/>
+      <path d="M2-63 C8-67 14-73 18-80 C19-81 20-80 19-79 C15-72 9-66 2-60Z" fill="#716a14" fill-opacity=".3"/>
+    </g>
+  </defs>
+  <path d="M153 225 C151 218 154 212 160 207" fill="none" stroke="#716a14" stroke-width="6.4" stroke-linecap="round"/>
+  <use href="#leaflet" transform="translate(160 207) rotate(-55) scale(.9)"/>
+  <use href="#leaflet" transform="translate(160 207) scale(1.02)"/>
+  <use href="#leafletRight" transform="translate(160 207) rotate(55) scale(.9)"/>
+  </svg>

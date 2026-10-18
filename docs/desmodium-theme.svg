@@ -1,0 +1,379 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1263" viewBox="0 0 1280 1010" font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <g id="leaflet">
+      <path d="M0 0 C -22 -10 -30 -38 18 -54 C 24 -40 18 -14 0 0 Z" fill="currentColor" stroke="#2f4a29" stroke-opacity="0.25" stroke-width="1"/>
+      <path d="M0 -4 Q -6 -28 14 -50" fill="none" stroke="#2f4a29" stroke-opacity="0.30" stroke-width="1.1" stroke-linecap="round"/>
+      <path d="M-1.3 -18 Q -8 -20 -14 -26" fill="none" stroke="#2f4a29" stroke-opacity="0.22" stroke-width="0.8" stroke-linecap="round"/>
+      <path d="M-0.5 -22 Q 8 -25 16 -33" fill="none" stroke="#2f4a29" stroke-opacity="0.22" stroke-width="0.8" stroke-linecap="round"/>
+    </g>
+    <g id="trifoliate">
+      <line x1="0" y1="8" x2="0" y2="0" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <use href="#leaflet" transform="translate(0,0) rotate(-52) scale(-0.82,0.82)"/>
+      <use href="#leaflet"/>
+      <use href="#leaflet" transform="rotate(52) scale(0.82)"/>
+    </g>
+    <g id="leafB">
+      <line x1="0" y1="8" x2="0" y2="0" stroke="#8a7715" stroke-width="3" stroke-linecap="round"/>
+      <g id="lfB">
+        <path d="M0 0 L -10 -6 L -14 -14 L -10 -16 L -18 -24 L -14 -28 L -20 -36 L -12 -40 L -14 -48 L 0 -54 L 10 -44 L 12 -40 L 20 -36 L 14 -28 L 18 -24 L 10 -16 L 14 -14 L 10 -6 Z" fill="#d2bd4b" stroke="#8a7715" stroke-width="0.6" stroke-linejoin="round"/>
+        <line x1="0" y1="-4" x2="0" y2="-50" stroke="#8a7715" stroke-width="0.8" stroke-opacity="0.5"/>
+      </g>
+      <use href="#lfB" transform="rotate(-52) scale(-0.82,0.82)"/>
+      <use href="#lfB"/>
+      <use href="#lfB" transform="rotate(52) scale(0.82)"/>
+    </g>
+    <linearGradient id="gradC" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e6b84d"/>
+      <stop offset="1" stop-color="#a87d0c"/>
+    </linearGradient>
+    <g id="leafC">
+      <line x1="0" y1="8" x2="0" y2="0" stroke="#8a6d00" stroke-width="3" stroke-linecap="round"/>
+      <g id="lfC">
+        <path d="M0 0 C -20 -4 -26 -20 -24 -36 C -22 -52 -8 -60 2 -56 C 16 -50 22 -26 12 -8 C 8 -2 4 1 0 0 Z" fill="url(#gradC)" stroke="#8a6d00" stroke-width="0.7"/>
+        <path d="M0 -3 Q -2 -26 4 -50" fill="none" stroke="#f0d68a" stroke-width="0.9" stroke-opacity="0.9" stroke-linecap="round"/>
+      </g>
+      <use href="#lfC" transform="rotate(-52) scale(-0.82,0.82)"/>
+      <use href="#lfC"/>
+      <use href="#lfC" transform="rotate(52) scale(0.82)"/>
+    </g>
+    <g id="leafD">
+      <line x1="0" y1="8" x2="0" y2="0" stroke="#cc9900" stroke-width="3" stroke-linecap="round"/>
+      <g id="lfD">
+        <path d="M0 0 C -20 -8 -24 -34 -2 -52 C 12 -60 20 -44 16 -26 C 12 -12 8 -4 0 0 Z" fill="#fdf3cf" stroke="#cc9900" stroke-width="1.4"/>
+        <path d="M0 -3 Q -2 -26 6 -46" fill="none" stroke="#cc9900" stroke-width="0.8" stroke-opacity="0.7" stroke-linecap="round"/>
+      </g>
+      <use href="#lfD" transform="rotate(-52) scale(-0.82,0.82)"/>
+      <use href="#lfD"/>
+      <use href="#lfD" transform="rotate(52) scale(0.82)"/>
+    </g>
+    <g id="leafE">
+      <line x1="0" y1="8" x2="0" y2="0" stroke="#b3a600" stroke-width="3" stroke-linecap="round"/>
+      <g id="lfE">
+        <path d="M0 0 L -16 -22 L -9 -45 L 4 -54 Z" fill="#e0cf00"/>
+        <path d="M0 0 L 4 -54 L 15 -32 L 9 -9 Z" fill="#fff763"/>
+        <path d="M0 0 L -16 -22 L -9 -45 L 4 -54 L 15 -32 L 9 -9 Z" fill="none" stroke="#b3a600" stroke-width="0.8" stroke-linejoin="round"/>
+        <line x1="0" y1="-2" x2="4" y2="-52" stroke="#b3a600" stroke-width="0.8" stroke-opacity="0.6"/>
+      </g>
+      <use href="#lfE" transform="rotate(-52) scale(-0.82,0.82)"/>
+      <use href="#lfE"/>
+      <use href="#lfE" transform="rotate(52) scale(0.82)"/>
+    </g>
+    <g id="leafF">
+      <line x1="0" y1="8" x2="0" y2="0" stroke="#b99b2e" stroke-width="3" stroke-linecap="round"/>
+      <g id="lfF">
+        <path d="M0 0 C -10 -12 -12 -34 -2 -52 C 4 -58 10 -54 10 -44 C 10 -26 8 -10 0 0 Z" fill="#e8c547" stroke="#b99b2e" stroke-width="0.6"/>
+      </g>
+      <use href="#lfF" transform="rotate(-48) scale(-0.9,0.9)"/>
+      <use href="#lfF"/>
+      <use href="#lfF" transform="rotate(48) scale(0.9)"/>
+    </g>
+  </defs>
+
+  <rect width="1280" height="1010" fill="#ffffff"/>
+  <rect x="12" y="12" width="1256" height="986" rx="14" fill="none" stroke="#d8d2c0" stroke-width="1.5"/>
+
+  <text x="44" y="64" font-size="26" font-weight="700" fill="#2b2620">Golden Bootstrap theme</text>
+  <text x="44" y="90" font-size="13" fill="#6b6656">D. umbellatum: golden trifoliate leaves</text>
+
+  <line x1="390" y1="104" x2="390" y2="760" stroke="#e7e1cf" stroke-width="1.5"/>
+
+  <!-- ===================== left: leaves only ===================== -->
+  <rect x="44" y="112" width="331" height="640" rx="14" fill="#ffffff" stroke="#e7e1cf"/>
+  <text x="60" y="140" font-size="12" font-style="italic" fill="#6b6656">Golden leaves — source of every $primary below</text>
+
+  <use href="#trifoliate" transform="translate(130,202) rotate(-18)" color="#e6d35a"/>
+  <use href="#leafB" transform="translate(130,294) rotate(6)"/>
+  <use href="#leafC" transform="translate(130,386) rotate(22)"/>
+  <use href="#leafD" transform="translate(130,502) rotate(-10)"/>
+  <use href="#leafE" transform="translate(130,594) rotate(14)"/>
+  <use href="#leafF" transform="translate(130,686) rotate(-25)"/>
+
+  <g font-size="11" font-weight="600" fill="#3f3a30">
+    <text x="200" y="206">A · #e6d35a</text>
+    <text x="200" y="298">B · #d2bd4b</text>
+    <text x="200" y="390">C · #cc9900</text>
+    <text x="200" y="504">D · #f5b800</text>
+    <text x="200" y="596">E · #ffe500</text>
+    <text x="200" y="688">F · #e8c547</text>
+  </g>
+
+  <!-- ===================== right: golden theme grid ===================== -->
+  <text x="406" y="98" font-size="15" font-weight="700" fill="#2b2620">Golden options — wheel-aligned Bootstrap map per gold</text>
+
+  <!-- ============ card A · Sunlit yellow ============ -->
+  <g transform="translate(-306,0)">
+    <rect x="712" y="116" width="256" height="272" rx="10" fill="#ffffff" stroke="#e7e1cf"/>
+    <text x="726" y="136" font-size="12.5" font-weight="700" fill="#2b2620">A · Sunlit yellow</text>
+    <text x="954" y="136" font-size="10" fill="#6b6656" text-anchor="end">#e6d35a · h52</text>
+    <rect x="726" y="144" width="74" height="64" rx="6" fill="#e6d35a"/>
+    <text x="763" y="164" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$primary</text>
+    <text x="763" y="182" font-size="8.5" fill="#2b2620" text-anchor="middle">#e6d35a</text>
+    <text x="763" y="198" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="806" y="144" width="74" height="64" rx="6" fill="#716a14"/>
+    <text x="843" y="164" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">btn deep</text>
+    <text x="843" y="182" font-size="8.5" fill="#ffffff" text-anchor="middle">#716a14</text>
+    <text x="843" y="198" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="886" y="144" width="74" height="64" rx="6" fill="#323276"/>
+    <text x="923" y="164" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">$secondary</text>
+    <text x="923" y="182" font-size="8.5" fill="#ffffff" text-anchor="middle">#323276</text>
+    <text x="923" y="198" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="726" y="212" width="74" height="64" rx="6" fill="#36ba36"/>
+    <text x="763" y="232" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$success</text>
+    <text x="763" y="250" font-size="8.5" fill="#2b2620" text-anchor="middle">#36ba36</text>
+    <text x="763" y="266" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="806" y="212" width="74" height="64" rx="6" fill="#3d7a72"/>
+    <text x="843" y="232" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">$info</text>
+    <text x="843" y="250" font-size="8.5" fill="#ffffff" text-anchor="middle">#3d7a72</text>
+    <text x="843" y="266" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="886" y="212" width="74" height="64" rx="6" fill="#f9ae9c"/>
+    <text x="923" y="232" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$warning</text>
+    <text x="923" y="250" font-size="8.5" fill="#2b2620" text-anchor="middle">#f9ae9c</text>
+    <text x="923" y="266" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="726" y="280" width="228" height="30" rx="5" fill="#861c0b"/>
+    <text x="840" y="299" font-size="8.5" font-weight="700" fill="#ffffff" text-anchor="middle">$danger · #861c0b</text>
+    <rect x="726" y="314" width="111" height="30" rx="5" fill="#f5f4e5" stroke="#d8d2c0"/>
+    <text x="781" y="333" font-size="8.5" font-weight="700" fill="#2b2620" text-anchor="middle">$light · #f5f4e5</text>
+    <rect x="843" y="314" width="111" height="30" rx="5" fill="#2b2a1d"/>
+    <text x="898" y="333" font-size="8.5" font-weight="700" fill="#ffffff" text-anchor="middle">$dark · #2b2a1d</text>
+    <rect x="726" y="352" width="228" height="28" rx="5" fill="#1a1a0e" stroke="#41412d"/>
+    <text x="734" y="370" font-size="8.5" font-weight="700" fill="#ececde">dark</text>
+    <rect x="764" y="358" width="12" height="12" rx="3" fill="#282819" stroke="#41412d"/>
+    <text x="779" y="368" font-size="7.5" fill="#ececde">#282819</text>
+    <rect x="814" y="358" width="12" height="12" rx="3" fill="#ececde"/>
+    <text x="829" y="368" font-size="7.5" fill="#ececde">#ececde</text>
+    <rect x="862" y="358" width="12" height="12" rx="3" fill="#e6d35a"/>
+    <text x="877" y="368" font-size="7.5" fill="#ececde">#e6d35a</text>
+  </g>
+
+  <!-- ============ card B · Gold leaf ============ -->
+  <g transform="translate(-306,0)">
+    <rect x="984" y="116" width="256" height="272" rx="10" fill="#ffffff" stroke="#e7e1cf"/>
+    <text x="998" y="136" font-size="12.5" font-weight="700" fill="#2b2620">B · Gold leaf</text>
+    <text x="1226" y="136" font-size="10" fill="#6b6656" text-anchor="end">#d2bd4b · h51</text>
+    <rect x="998" y="144" width="74" height="64" rx="6" fill="#d2bd4b"/>
+    <text x="1035" y="164" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$primary</text>
+    <text x="1035" y="182" font-size="8.5" fill="#2b2620" text-anchor="middle">#d2bd4b</text>
+    <text x="1035" y="198" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="1078" y="144" width="74" height="64" rx="6" fill="#715e14"/>
+    <text x="1115" y="164" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">btn deep</text>
+    <text x="1115" y="182" font-size="8.5" fill="#ffffff" text-anchor="middle">#715e14</text>
+    <text x="1115" y="198" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="1158" y="144" width="74" height="64" rx="6" fill="#323a76"/>
+    <text x="1195" y="164" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">$secondary</text>
+    <text x="1195" y="182" font-size="8.5" fill="#ffffff" text-anchor="middle">#323a76</text>
+    <text x="1195" y="198" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="998" y="212" width="74" height="64" rx="6" fill="#24ba45"/>
+    <text x="1035" y="232" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$success</text>
+    <text x="1035" y="250" font-size="8.5" fill="#2b2620" text-anchor="middle">#24ba45</text>
+    <text x="1035" y="266" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="1078" y="212" width="74" height="64" rx="6" fill="#335299"/>
+    <text x="1115" y="232" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">$info</text>
+    <text x="1115" y="250" font-size="8.5" fill="#ffffff" text-anchor="middle">#335299</text>
+    <text x="1115" y="266" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="1158" y="212" width="74" height="64" rx="6" fill="#f9ae9c"/>
+    <text x="1195" y="232" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$warning</text>
+    <text x="1195" y="250" font-size="8.5" fill="#2b2620" text-anchor="middle">#f9ae9c</text>
+    <text x="1195" y="266" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="998" y="280" width="228" height="30" rx="5" fill="#861c0b"/>
+    <text x="1112" y="299" font-size="8.5" font-weight="700" fill="#ffffff" text-anchor="middle">$danger · #861c0b</text>
+    <rect x="998" y="314" width="111" height="30" rx="5" fill="#f2f2e5" stroke="#d8d2c0"/>
+    <text x="1053" y="333" font-size="8.5" font-weight="700" fill="#2b2620" text-anchor="middle">$light · #f2f2e5</text>
+    <rect x="1115" y="314" width="111" height="30" rx="5" fill="#2b281d"/>
+    <text x="1170" y="333" font-size="8.5" font-weight="700" fill="#ffffff" text-anchor="middle">$dark · #2b281d</text>
+    <rect x="998" y="352" width="228" height="28" rx="5" fill="#19180e" stroke="#3f3f2d"/>
+    <text x="1006" y="370" font-size="8.5" font-weight="700" fill="#eaeade">dark</text>
+    <rect x="1036" y="358" width="12" height="12" rx="3" fill="#292619" stroke="#3f3f2d"/>
+    <text x="1051" y="368" font-size="7.5" fill="#eaeade">#292619</text>
+    <rect x="1086" y="358" width="12" height="12" rx="3" fill="#eaeade"/>
+    <text x="1101" y="368" font-size="7.5" fill="#eaeade">#eaeade</text>
+    <rect x="1134" y="358" width="12" height="12" rx="3" fill="#d2bd4b"/>
+    <text x="1149" y="368" font-size="7.5" fill="#eaeade">#d2bd4b</text>
+  </g>
+
+  <!-- ============ card C · Goldenrod ============ -->
+  <g transform="translate(238,-222)">
+    <rect x="712" y="338" width="256" height="272" rx="10" fill="#ffffff" stroke="#e7e1cf"/>
+    <text x="726" y="358" font-size="12.5" font-weight="700" fill="#2b2620">C · Goldenrod</text>
+    <text x="954" y="358" font-size="10" fill="#6b6656" text-anchor="end">#cc9900 · h45</text>
+    <rect x="726" y="366" width="74" height="64" rx="6" fill="#cc9900"/>
+    <text x="763" y="386" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$primary</text>
+    <text x="763" y="404" font-size="8.5" fill="#2b2620" text-anchor="middle">#cc9900</text>
+    <text x="763" y="420" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="806" y="366" width="74" height="64" rx="6" fill="#8a6d00"/>
+    <text x="843" y="386" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">btn deep</text>
+    <text x="843" y="404" font-size="8.5" fill="#ffffff" text-anchor="middle">#8a6d00</text>
+    <text x="843" y="420" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="886" y="366" width="74" height="64" rx="6" fill="#1432df"/>
+    <text x="923" y="386" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">$secondary</text>
+    <text x="923" y="404" font-size="8.5" fill="#ffffff" text-anchor="middle">#1432df</text>
+    <text x="923" y="420" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="726" y="434" width="74" height="64" rx="6" fill="#24ba57"/>
+    <text x="763" y="454" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$success</text>
+    <text x="763" y="472" font-size="8.5" fill="#2b2620" text-anchor="middle">#24ba57</text>
+    <text x="763" y="488" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="806" y="434" width="74" height="64" rx="6" fill="#334499"/>
+    <text x="843" y="454" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">$info</text>
+    <text x="843" y="472" font-size="8.5" fill="#ffffff" text-anchor="middle">#334499</text>
+    <text x="843" y="488" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="886" y="434" width="74" height="64" rx="6" fill="#f9ae9c"/>
+    <text x="923" y="454" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$warning</text>
+    <text x="923" y="472" font-size="8.5" fill="#2b2620" text-anchor="middle">#f9ae9c</text>
+    <text x="923" y="488" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="726" y="502" width="228" height="30" rx="5" fill="#860b0b"/>
+    <text x="840" y="521" font-size="8.5" font-weight="700" fill="#ffffff" text-anchor="middle">$danger · #860b0b</text>
+    <rect x="726" y="536" width="111" height="30" rx="5" fill="#dafbde" stroke="#d8d2c0"/>
+    <text x="781" y="555" font-size="8.5" font-weight="700" fill="#2b2620" text-anchor="middle">$light · #dafbde</text>
+    <rect x="843" y="536" width="111" height="30" rx="5" fill="#0c3111"/>
+    <text x="898" y="555" font-size="8.5" font-weight="700" fill="#ffffff" text-anchor="middle">$dark · #0c3111</text>
+    <rect x="726" y="574" width="228" height="28" rx="5" fill="#17120e" stroke="#3f322d"/>
+    <text x="734" y="592" font-size="8.5" font-weight="700" fill="#ede2de">dark</text>
+    <rect x="764" y="580" width="12" height="12" rx="3" fill="#291d19" stroke="#3f322d"/>
+    <text x="779" y="590" font-size="7.5" fill="#ede2de">#291d19</text>
+    <rect x="814" y="580" width="12" height="12" rx="3" fill="#ede2de"/>
+    <text x="829" y="590" font-size="7.5" fill="#ede2de">#ede2de</text>
+    <rect x="862" y="580" width="12" height="12" rx="3" fill="#e4a425"/>
+    <text x="877" y="590" font-size="7.5" fill="#ede2de">#e4a425</text>
+  </g>
+
+  <!-- ============ card D · Marigold pop ============ -->
+  <g transform="translate(-578,62)">
+    <rect x="984" y="338" width="256" height="272" rx="10" fill="#ffffff" stroke="#e7e1cf"/>
+    <text x="998" y="358" font-size="12.5" font-weight="700" fill="#2b2620">D · Marigold pop</text>
+    <text x="1226" y="358" font-size="10" fill="#6b6656" text-anchor="end">#f5b800 · h45</text>
+    <rect x="998" y="366" width="74" height="64" rx="6" fill="#f5b800"/>
+    <text x="1035" y="386" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$primary</text>
+    <text x="1035" y="404" font-size="8.5" fill="#2b2620" text-anchor="middle">#f5b800</text>
+    <text x="1035" y="420" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="1078" y="366" width="74" height="64" rx="6" fill="#8a6600"/>
+    <text x="1115" y="386" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">btn deep</text>
+    <text x="1115" y="404" font-size="8.5" fill="#ffffff" text-anchor="middle">#8a6600</text>
+    <text x="1115" y="420" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="1158" y="366" width="74" height="64" rx="6" fill="#1428df"/>
+    <text x="1195" y="386" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">$secondary</text>
+    <text x="1195" y="404" font-size="8.5" fill="#ffffff" text-anchor="middle">#1428df</text>
+    <text x="1195" y="420" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="998" y="434" width="74" height="64" rx="6" fill="#24ba4c"/>
+    <text x="1035" y="454" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$success</text>
+    <text x="1035" y="472" font-size="8.5" fill="#2b2620" text-anchor="middle">#24ba4c</text>
+    <text x="1035" y="488" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="1078" y="434" width="74" height="64" rx="6" fill="#334d99"/>
+    <text x="1115" y="454" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">$info</text>
+    <text x="1115" y="472" font-size="8.5" fill="#ffffff" text-anchor="middle">#334d99</text>
+    <text x="1115" y="488" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="1158" y="434" width="74" height="64" rx="6" fill="#f4ab85"/>
+    <text x="1195" y="454" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$warning</text>
+    <text x="1195" y="472" font-size="8.5" fill="#2b2620" text-anchor="middle">#f4ab85</text>
+    <text x="1195" y="488" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="998" y="502" width="228" height="30" rx="5" fill="#86160b"/>
+    <text x="1112" y="521" font-size="8.5" font-weight="700" fill="#ffffff" text-anchor="middle">$danger · #86160b</text>
+    <rect x="998" y="536" width="111" height="30" rx="5" fill="#fbf1da" stroke="#d8d2c0"/>
+    <text x="1053" y="555" font-size="8.5" font-weight="700" fill="#2b2620" text-anchor="middle">$light · #fbf1da</text>
+    <rect x="1115" y="536" width="111" height="30" rx="5" fill="#31150c"/>
+    <text x="1170" y="555" font-size="8.5" font-weight="700" fill="#ffffff" text-anchor="middle">$dark · #31150c</text>
+    <rect x="998" y="574" width="228" height="28" rx="5" fill="#19140e" stroke="#3f382d"/>
+    <text x="1006" y="592" font-size="8.5" font-weight="700" fill="#ede6de">dark</text>
+    <rect x="1036" y="582" width="12" height="12" rx="3" fill="#292119" stroke="#3f382d"/>
+    <text x="1051" y="592" font-size="7.5" fill="#ede6de">#292119</text>
+    <rect x="1086" y="582" width="12" height="12" rx="3" fill="#ede6de"/>
+    <text x="1101" y="592" font-size="7.5" fill="#ede6de">#ede6de</text>
+    <rect x="1134" y="582" width="12" height="12" rx="3" fill="#f5b800"/>
+    <text x="1149" y="592" font-size="7.5" fill="#ede6de">#f5b800</text>
+  </g>
+
+  <!-- ============ card E · Citrus flash ============ -->
+  <g transform="translate(-34,-160)">
+    <rect x="712" y="560" width="256" height="272" rx="10" fill="#ffffff" stroke="#e7e1cf"/>
+    <text x="726" y="580" font-size="12.5" font-weight="700" fill="#2b2620">E · Citrus flash</text>
+    <text x="954" y="580" font-size="10" fill="#6b6656" text-anchor="end">#ffe500 · h54</text>
+    <rect x="726" y="588" width="74" height="64" rx="6" fill="#ffe500"/>
+    <text x="763" y="608" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$primary</text>
+    <text x="763" y="626" font-size="8.5" fill="#2b2620" text-anchor="middle">#ffe500</text>
+    <text x="763" y="642" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="806" y="588" width="74" height="64" rx="6" fill="#756800"/>
+    <text x="843" y="608" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">btn deep</text>
+    <text x="843" y="626" font-size="8.5" fill="#ffffff" text-anchor="middle">#756800</text>
+    <text x="843" y="642" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="886" y="588" width="74" height="64" rx="6" fill="#1414df"/>
+    <text x="923" y="608" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">$secondary</text>
+    <text x="923" y="626" font-size="8.5" fill="#ffffff" text-anchor="middle">#1414df</text>
+    <text x="923" y="642" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="726" y="656" width="74" height="64" rx="6" fill="#24ba3c"/>
+    <text x="763" y="676" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$success</text>
+    <text x="763" y="694" font-size="8.5" fill="#2b2620" text-anchor="middle">#24ba3c</text>
+    <text x="763" y="710" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="806" y="656" width="74" height="64" rx="6" fill="#335899"/>
+    <text x="843" y="676" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">$info</text>
+    <text x="843" y="694" font-size="8.5" fill="#ffffff" text-anchor="middle">#335899</text>
+    <text x="843" y="710" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="886" y="656" width="74" height="64" rx="6" fill="#f99d85"/>
+    <text x="923" y="676" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$warning</text>
+    <text x="923" y="694" font-size="8.5" fill="#2b2620" text-anchor="middle">#f99d85</text>
+    <text x="923" y="710" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="726" y="724" width="228" height="30" rx="5" fill="#cf2f17"/>
+    <text x="840" y="743" font-size="8.5" font-weight="700" fill="#ffffff" text-anchor="middle">$danger · #cf2f17</text>
+    <rect x="726" y="758" width="111" height="30" rx="5" fill="#fbf8dc" stroke="#d8d2c0"/>
+    <text x="781" y="777" font-size="8.5" font-weight="700" fill="#2b2620" text-anchor="middle">$light · #fbf8dc</text>
+    <rect x="843" y="758" width="111" height="30" rx="5" fill="#2e2e0c"/>
+    <text x="898" y="777" font-size="8.5" font-weight="700" fill="#ffffff" text-anchor="middle">$dark · #2e2e0c</text>
+    <rect x="726" y="796" width="228" height="28" rx="5" fill="#1a190e" stroke="#40412d"/>
+    <text x="734" y="814" font-size="8.5" font-weight="700" fill="#ecebde">dark</text>
+    <rect x="764" y="804" width="12" height="12" rx="3" fill="#292719" stroke="#40412d"/>
+    <text x="779" y="814" font-size="7.5" fill="#ecebde">#292719</text>
+    <rect x="814" y="804" width="12" height="12" rx="3" fill="#ecebde"/>
+    <text x="829" y="814" font-size="7.5" fill="#ecebde">#ecebde</text>
+    <rect x="862" y="804" width="12" height="12" rx="3" fill="#ffe500"/>
+    <text x="877" y="814" font-size="7.5" fill="#ecebde">#ffe500</text>
+  </g>
+
+  <!-- ============ card F · Pale gold ============ -->
+  <g transform="translate(-34,-160)">
+    <rect x="984" y="560" width="256" height="272" rx="10" fill="#ffffff" stroke="#e7e1cf"/>
+    <text x="998" y="580" font-size="12.5" font-weight="700" fill="#2b2620">F · Pale gold</text>
+    <text x="1226" y="580" font-size="10" fill="#6b6656" text-anchor="end">#e8c547 · h47</text>
+    <rect x="998" y="588" width="74" height="64" rx="6" fill="#e8c547"/>
+    <text x="1035" y="608" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$primary</text>
+    <text x="1035" y="626" font-size="8.5" fill="#2b2620" text-anchor="middle">#e8c547</text>
+    <text x="1035" y="642" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="1078" y="588" width="74" height="64" rx="6" fill="#715b14"/>
+    <text x="1115" y="608" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">btn deep</text>
+    <text x="1115" y="626" font-size="8.5" fill="#ffffff" text-anchor="middle">#715b14</text>
+    <text x="1115" y="642" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="1158" y="588" width="74" height="64" rx="6" fill="#203ddf"/>
+    <text x="1195" y="608" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">$secondary</text>
+    <text x="1195" y="626" font-size="8.5" fill="#ffffff" text-anchor="middle">#203ddf</text>
+    <text x="1195" y="642" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="998" y="656" width="74" height="64" rx="6" fill="#24ba4a"/>
+    <text x="1035" y="676" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$success</text>
+    <text x="1035" y="694" font-size="8.5" fill="#2b2620" text-anchor="middle">#24ba4a</text>
+    <text x="1035" y="710" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="1078" y="656" width="74" height="64" rx="6" fill="#335899"/>
+    <text x="1115" y="676" font-size="9" font-weight="700" fill="#ffffff" text-anchor="middle">$info</text>
+    <text x="1115" y="694" font-size="8.5" fill="#ffffff" text-anchor="middle">#335899</text>
+    <text x="1115" y="710" font-size="8" fill="#ffffff" text-anchor="middle">white</text>
+    <rect x="1158" y="656" width="74" height="64" rx="6" fill="#f4ab85"/>
+    <text x="1195" y="676" font-size="9" font-weight="700" fill="#2b2620" text-anchor="middle">$warning</text>
+    <text x="1195" y="694" font-size="8.5" fill="#2b2620" text-anchor="middle">#f4ab85</text>
+    <text x="1195" y="710" font-size="8" fill="#2b2620" text-anchor="middle">ink</text>
+    <rect x="998" y="724" width="228" height="30" rx="5" fill="#d42511"/>
+    <text x="1112" y="743" font-size="8.5" font-weight="700" fill="#ffffff" text-anchor="middle">$danger · #d42511</text>
+    <rect x="998" y="758" width="111" height="30" rx="5" fill="#fbe2da" stroke="#d8d2c0"/>
+    <text x="1053" y="777" font-size="8.5" font-weight="700" fill="#2b2620" text-anchor="middle">$light · #fbe2da</text>
+    <rect x="1115" y="758" width="111" height="30" rx="5" fill="#31180c"/>
+    <text x="1170" y="777" font-size="8.5" font-weight="700" fill="#ffffff" text-anchor="middle">$dark · #31180c</text>
+    <rect x="998" y="796" width="228" height="28" rx="5" fill="#19130e" stroke="#3f372d"/>
+    <text x="1006" y="814" font-size="8.5" font-weight="700" fill="#ede4de">dark</text>
+    <rect x="1036" y="804" width="12" height="12" rx="3" fill="#292019" stroke="#3f372d"/>
+    <text x="1051" y="814" font-size="7.5" fill="#ede4de">#292019</text>
+    <rect x="1086" y="804" width="12" height="12" rx="3" fill="#ede4de"/>
+    <text x="1101" y="814" font-size="7.5" fill="#ede4de">#ede4de</text>
+    <rect x="1134" y="804" width="12" height="12" rx="3" fill="#e8c547"/>
+    <text x="1149" y="814" font-size="7.5" fill="#ede4de">#e8c547</text>
+  </g>
+
+  <!-- ===================== footer notes ===================== -->
+  <text x="44" y="800" font-size="11" font-weight="700" fill="#6b6656" letter-spacing="1">NOTES</text>
+  <text x="44" y="820" font-size="11" fill="#6b6656">neutrals: border #d8d2c0 · muted #6b6656 · focus #a4b83a</text>
+  <text x="44" y="838" font-size="11" fill="#6b6656">status trio: danger dark · success mid · warning light — deutan-safe</text>
+  <text x="44" y="856" font-size="11" fill="#6b6656">wheel rules: docs/golden-theme.md</text>
+  <text x="44" y="874" font-size="11" fill="#6b6656">assets: desmodium-logo.svg (this dir) · djangoapp/static/favicon.svg · frontend/src/icons/leaf.svg</text>
+</svg>

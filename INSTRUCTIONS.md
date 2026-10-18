@@ -408,3 +408,14 @@ Only after `./run checkframework1` succeeds till the finish, you can say the tas
 
 ## Review
 I may ask you to review code. If its a commit or a set of commits, check the changed prompts file. Verify each checklist item is correctly reflected in code, especially when conflicting checklist items exist. Check the code itself. Find any security issues and put them as high priority.
+
+## Commit messages
+
+When a commit or squash is wanted, propose the message first and wait for approval — commits stay
+the human's call.
+
+- Title ≤ 120 chars, user/feature-focused — what the operator got, not a change-list (e.g. "Added
+  theme in light and dark mode, icon, favicon, reference for both theme colors and images").
+- Body: one bullet per deliverable, ≤ 120 chars each, same framing; file paths only when the path is
+  the deliverable.
+- For multi-commit work: offer to squash into one with this message before proposing the final log.

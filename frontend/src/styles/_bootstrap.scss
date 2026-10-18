@@ -7,6 +7,37 @@
 
 // Configuration (required by every Bootstrap partial that follows).
 @import "bootstrap/scss/functions";
+
+// Golden theme (option A) — docs/golden-theme.md. Overrides must precede the
+// variables import. $color-mode-type: media-query makes dark mode follow the
+// OS prefers-color-scheme setting with no toggle.
+$color-mode-type: media-query;
+$primary: #716a14;
+$secondary: #323276;
+$success: #248727;
+$info: #3d7a72;
+$warning: #f9ae9c;
+$warning-text-emphasis: #2b2620;
+$danger: #861c0b;
+$light: #f5f4e5;
+$dark: #2b2a1d;
+$body-bg: #ffffff;
+$body-color: #2b2620;
+$border-color: #d8d2c0;
+$link-color: #716a14;
+$link-hover-color: #57500f;
+$focus-ring-color: #a4b83a;
+$font-family-sans-serif: system-ui, -apple-system, sans-serif;
+$code-color: #861c0b; // inline code: rust (stock #d63384 pink clashed)
+// Dark tokens (prefers-color-scheme: dark).
+$body-bg-dark: #1a1a0e;
+$body-color-dark: #ececde;
+$border-color-dark: #3a3423;
+$secondary-bg-dark: #282819;
+$tertiary-bg-dark: #201d12;
+$primary-text-emphasis-dark: #e6d35a;
+$warning-text-emphasis-dark: #f9ae9c;
+
 @import "bootstrap/scss/variables";
 @import "bootstrap/scss/variables-dark";
 @import "bootstrap/scss/maps";

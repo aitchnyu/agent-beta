@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="4 4 56 56" role="img" aria-labelledby="title desc">
+  <!-- MAINTAIN-CONSISTENCY: small-render brand mark. Keep visually in sync with djangoapp/static/favicon.svg (same geometry) and docs/desmodium-logo.svg (detailed large render). -->
+  <title id="title">Desmodium golden trifoliate icon</title>
+  <desc id="desc">A golden desmodium leaf with three bold leaflets and a short stalk, drawn heavy for small sizes.</desc>
+  <defs>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f2df78"/><stop offset=".56" stop-color="#e6d35a"/><stop offset="1" stop-color="#c3a929"/></linearGradient>
+    <g id="leaflet">
+      <path d="M0 2 C-5-1-10-7-11-14 C-12-21-8-27-3-31 C-1-32 1-32 3-30 C8-26 12-20 12-14 C12-7 6-1 0 2Z" fill="url(#gold)" stroke="#716a14" stroke-width="4.6" stroke-linejoin="round"/>
+      <path d="M0-2 C0-10 .5-19 1.5-27" fill="none" stroke="#716a14" stroke-opacity=".5" stroke-width="2.4" stroke-linecap="round"/>
+    </g>
+  </defs>
+  <path d="M30 43 C29.8 41.3 30.4 39.6 32 38" fill="none" stroke="#716a14" stroke-width="5" stroke-linecap="round"/>
+  <use href="#leaflet" transform="translate(32 38) rotate(-55) scale(.82)"/>
+  <use href="#leaflet" transform="translate(32 38) scale(.94)"/>
+  <use href="#leaflet" transform="translate(32 38) rotate(55) scale(.82)"/>
+  </svg>

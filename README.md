@@ -179,6 +179,9 @@ If you want to look around:
   a crosshatch overlay let you review a UI before it's built
   (the convention lives in `agentconfig/steer.md`; `/mockup-todos` ships as the
   permanent demo — see [Edit → test → deploy workflow](#edit--test--deploy-workflow)).
+- **Golden theme** — a worked example for building a Bootstrap color theme (six wheel-derived
+  golden options, light + dark tokens, AA contrast, colorblind review). Start from
+  [docs/golden-theme.md](docs/golden-theme.md) when making a new theme.
 
 ## VM (test server)
 

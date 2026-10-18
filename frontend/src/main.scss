@@ -12,7 +12,6 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
   margin: 0;
   padding: 0.5rem 1rem;
-  color: #1a1a1a;
 }
 
 // Icon spans (LucideIcon.vue): the svg file is the mask shape, painted with
@@ -36,6 +35,16 @@ body {
 // suppress the default margin so it isn't doubled there.
 .layout-user-button .lucide-icon {
   margin-right: 0;
+}
+
+// The golden home leaf: a full-color <img> (not a currentColor mask) so the
+// option-A leaflets, veins and deep-gold stalk stay visible in the navbar.
+// The viewBox carries ~5px margins around the leaf, hence the larger em size.
+.home-leaf-icon {
+  width: 1.2em;
+  height: 1.2em;
+  flex: none;
+  vertical-align: -0.18em;
 }
 
 // Hide-on-scroll (HideOnScroll.vue): the sticky/hide mechanics for any
@@ -68,8 +77,8 @@ body {
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   margin-bottom: 0.5rem;
-  background-color: $gray-100;
-  border: $border-light;
+  background-color: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
   border-radius: $radius-md;
 }
 
@@ -94,8 +103,8 @@ body {
   z-index: 10;
   min-width: 10rem;
   padding: 0.35rem 0;
-  background-color: $white;
-  border: $border-light;
+  background-color: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
   border-radius: $radius-md;
   box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.12);
 }
@@ -107,11 +116,11 @@ body {
   text-align: left;
   background: none;
   border: none;
-  color: $blue-600;
+  color: var(--bs-primary-text-emphasis);
 }
 
 .layout-menu-link:hover {
-  background-color: $gray-100;
+  background-color: var(--bs-secondary-bg);
 }
 
 .layout-menu-summary {
@@ -203,7 +212,7 @@ body {
 // highlights itself — link-colored, bold, underlined off the baseline.
 // Scoped to .repo-nav so a future bootstrap .nav elsewhere stays unstyled.
 .repo-nav .nav-link.active {
-  color: $blue-600;
+  color: var(--bs-primary-text-emphasis);
   font-weight: 600;
   text-decoration: underline;
   text-underline-offset: 0.3em;
@@ -216,7 +225,7 @@ body {
   padding: 0;
   background: none;
   border: none;
-  color: $blue-600;
+  color: var(--bs-primary-text-emphasis);
   text-decoration: underline;
   cursor: pointer;
   font: inherit;

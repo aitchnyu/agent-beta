@@ -1,25 +1,32 @@
 $gray-50: #f9fafb;
-$gray-100: #f3f4f6;
-$gray-200: #e5e7eb;
-$gray-300: #d1d5db;
-$gray-400: #9ca3af;
-$gray-500: #6b7280;
-$gray-600: #4b5563;
-$gray-700: #374151;
-$gray-800: #1f2937;
+$gray-100: #f4f1e8;
+$gray-200: #e8e3d6;
+$gray-300: #d8d2c0;
+$gray-400: #a49d8c;
+$gray-500: #6b6656;
+$gray-600: #6b6656;
+$gray-700: #4b4636;
+$gray-800: #3a3428;
 
 $white: #fff;
 
-$blue-500: #3b82f6;
-$blue-600: #2563eb;
-$green-500: #10b981;
-$amber-500: #f59e0b;
-$amber-50: #fffbeb;
-$red-500: #ef4444;
-$red-50: #fef2f2;
+// Golden theme (option A) — docs/golden-theme.md.
+$gold-300: #e6d35a;   // bright accent, dark-mode primary
+$gold-700: #716a14;   // buttons / links (white text)
+$leaf-500: #36ba36;   // success (soft)
+$teal-600: #549c9c;   // info (soft)
+$salmon-300: #f9ae9c; // warning
+$rust-700: #861c0b;   // danger (white text)
+$plum-700: #323276;   // secondary
+$cream-100: #f5f4e5;  // light
+$soil-900: #2b2a1d;   // dark
+$ink: #2b2620;        // body text
+$line: #d8d2c0;       // border
+$muted: #6b6656;      // muted text
+$focus-gold: #a4b83a; // focus ring
 
-$indigo-50: #eef2ff;
-$indigo-500: #6366f1;
+$blue-600: #716a14;
+$green-500: #248727;
 
 $radius-sm: 0.25rem;
 $radius-md: 0.375rem;

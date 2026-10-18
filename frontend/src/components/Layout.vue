@@ -5,7 +5,7 @@ import { SharedPropsSchema } from "../schemas"
 import HideOnScroll from "./HideOnScroll.vue"
 import UserMenu from "./UserMenu.vue"
 import LucideIcon from "./LucideIcon.vue"
-import houseIcon from "../icons/house.svg"
+import leafIcon from "../icons/leaf.svg"
 import logInIcon from "../icons/log-in.svg"
 
 // The signed-in viewer's profile + superuser flag are Inertia shared props,
@@ -75,8 +75,8 @@ onBeforeUnmount(() => {
   <div>
     <HideOnScroll class="layout-navbar">
       <Link class="nav-link" href="/" aria-label="Home"
-        ><LucideIcon :src="houseIcon"
-      /></Link>
+        ><img :src="leafIcon" alt="" class="home-leaf-icon" />
+      </Link>
       <template v-if="!navCompact">
         <Link
           v-for="link in navLinks"
