@@ -259,7 +259,7 @@ body {
 .humanized-time small {
   margin-left: 0.3em;
   font-size: 0.8em;
-  color: $gray-400;
+  color: var(--bs-secondary-color);
 }
 
 // Changed-files tree (FileTree.vue on the git pages): each nesting level
@@ -268,7 +268,7 @@ body {
 .file-tree ul {
   padding-left: 0.75rem;
   margin-left: 0.5rem;
-  border-left: 1px solid $gray-300;
+  border-left: 1px solid var(--bs-border-color);
 }
 
 .git-folder {
@@ -294,7 +294,7 @@ body {
 // empty span's bottom edge (its synthesized baseline) on the text baseline,
 // riding the chevron high.
 .git-folder-caret {
-  color: $gray-600;
+  color: var(--bs-secondary-color);
   font-size: 0.75rem;
   align-self: center;
 }
@@ -308,12 +308,12 @@ body {
 // colored status words); only the count stays muted.
 .git-folder-name {
   font-weight: 600;
-  color: $gray-800;
+  color: var(--bs-body-color);
 }
 
 .git-folder-count {
   font-weight: 400;
-  color: $gray-600;
+  color: var(--bs-secondary-color);
 }
 
 // /git lists: the new/mod/del status icon
@@ -367,20 +367,53 @@ body {
   font-family: $font-family-monospace;
 }
 
-.diff-view .d2h-ins {
-  background-color: #e6ffec;
-}
+// App red/green row tints for LIGHT mode. Dark mode is handled natively:
+// the container carries d2h-auto-color-scheme, whose variable set
+// (d2h-dark-*) flips under prefers-color-scheme: dark — no manual reskin.
+@media (prefers-color-scheme: light) {
+  .diff-view .d2h-ins {
+    background-color: #e6ffec;
+  }
 
-.diff-view .d2h-del {
-  background-color: #ffebe9;
-}
+  .diff-view .d2h-del {
+    background-color: #ffebe9;
+  }
 
-.diff-view .d2h-ins.d2h-change,
-.diff-view .d2h-del.d2h-change {
-  background-color: #fff5b1;
+  .diff-view .d2h-ins.d2h-change,
+  .diff-view .d2h-del.d2h-change {
+    background-color: #fff5b1;
+  }
 }
 
 .diff-view .d2h-file-diff {
   // The page provides surrounding chrome; keep the inner table tight.
   margin: 0;
+}
+
+// diff2html's dark surfaces are GitHub navy; theme tokens instead. Native
+// dark linenumber ink is light-theme grey — the compound selector
+// out-specifies the package css (loaded later).
+@media (prefers-color-scheme: dark) {
+  // The container itself, for the error/loading states the wrapper doesn't
+  // cover (package default stays navy there).
+  .diff-view.d2h-auto-color-scheme {
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+  }
+
+  .diff-view.d2h-auto-color-scheme .d2h-file-wrapper {
+    background: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+  }
+
+  .diff-view.d2h-auto-color-scheme .d2h-file-header {
+    background: var(--bs-secondary-bg);
+    border-bottom-color: var(--bs-border-color);
+  }
+
+  .diff-view.d2h-auto-color-scheme .d2h-code-linenumber,
+  .diff-view.d2h-auto-color-scheme .d2h-code-side-linenumber {
+    background: var(--bs-tertiary-bg);
+    color: #8b949e;
+  }
 }

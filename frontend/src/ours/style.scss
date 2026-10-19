@@ -41,7 +41,7 @@
   }
 }
 
-// Mockup demo page (/mockup-todos) — mirrors the reference app's todos page
+// Mockup demo page (/mockup/MockupTodos) — mirrors the reference app's todos page
 // styles (docs/reference/frontend/src/ours/style.scss) so the demo shows the
 // todos UI exactly as the example app renders it, under the crosshatch.
 .ours-todos-page {
@@ -64,4 +64,17 @@
 .ours-todo-completed span {
   text-decoration: line-through;
   color: #888;
+}
+
+// The black stripes vanish on the dark surface — flip to white there.
+@media (prefers-color-scheme: dark) {
+  .mockup::before {
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.07) 0,
+      rgba(255, 255, 255, 0.07) 6px,
+      transparent 6px,
+      transparent 14px
+    );
+  }
 }

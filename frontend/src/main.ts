@@ -13,7 +13,7 @@ import "./main.scss"
 import "vue-multiselect/dist/vue-multiselect.css"
 // Eager styles for the lazy JS chunks, otherwise these pages flash of unstyled content.
 import "quill/dist/quill.snow.css"
-import "highlight.js/styles/github.css"
+import "./styles/hljs.scss"
 
 // Re-entrancy latch for the error pipeline: reporting and toasting are
 // themselves fallible (the toast chunk is a network fetch), so without this

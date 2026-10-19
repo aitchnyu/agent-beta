@@ -73,3 +73,16 @@
   text-decoration: line-through;
   color: #888;
 }
+
+// The black stripes vanish on the dark surface — flip to white there.
+@media (prefers-color-scheme: dark) {
+  .mockup::before {
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.07) 0,
+      rgba(255, 255, 255, 0.07) 6px,
+      transparent 6px,
+      transparent 14px
+    );
+  }
+}

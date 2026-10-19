@@ -24,6 +24,7 @@ $dark: #2b2a1d;
 $body-bg: #ffffff;
 $body-color: #2b2620;
 $border-color: #d8d2c0;
+$secondary-bg: #f4f1e8;
 $link-color: #716a14;
 $link-hover-color: #57500f;
 $focus-ring-color: #a4b83a;
@@ -37,6 +38,15 @@ $secondary-bg-dark: #282819;
 $tertiary-bg-dark: #201d12;
 $primary-text-emphasis-dark: #e6d35a;
 $warning-text-emphasis-dark: #f9ae9c;
+// Bootstrap's defaults for these keep the light-theme look on the dark
+// surface (washed-out greens, navy buttons). Hue-kept lit values instead
+// (golden-theme "lightness only").
+$secondary-text-emphasis-dark: tint-color($secondary, 60%);
+$success-text-emphasis-dark: tint-color($success, 55%);
+$info-text-emphasis-dark: tint-color($info, 55%);
+$danger-text-emphasis-dark: tint-color($danger, 55%);
+$link-color-dark: #e6d35a;
+$link-hover-color-dark: #f2e289;
 
 @import "bootstrap/scss/variables";
 @import "bootstrap/scss/variables-dark";
@@ -74,3 +84,44 @@ $warning-text-emphasis-dark: #f9ae9c;
 @import "bootstrap/scss/helpers";
 @import "bootstrap/scss/utilities";
 @import "bootstrap/scss/utilities/api";
+
+// Lighter border step for $border-light (styles/_variables.scss): the app's
+// light $gray-200, flipping with the surface.
+@mixin app-tokens {
+  --app-border-light: #e8e3d6;
+}
+:root {
+  @include app-tokens;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    @include app-tokens;
+    --app-border-light: #{$border-color-dark};
+  }
+}
+
+// btn-outline-* bakes light-theme literals for base + disabled states —
+// near-black on the dark surface. Dark values below; hover/active fills
+// already contrast on both.
+@media (prefers-color-scheme: dark) {
+  .btn-outline-primary {
+    --bs-btn-color: var(--bs-primary-text-emphasis);
+    --bs-btn-border-color: var(--bs-primary-text-emphasis);
+    --bs-btn-disabled-color: var(--bs-primary-text-emphasis);
+    --bs-btn-disabled-border-color: var(--bs-primary-text-emphasis);
+  }
+
+  .btn-outline-secondary {
+    --bs-btn-color: var(--bs-secondary-text-emphasis);
+    --bs-btn-border-color: var(--bs-secondary-text-emphasis);
+    --bs-btn-disabled-color: var(--bs-secondary-text-emphasis);
+    --bs-btn-disabled-border-color: var(--bs-secondary-text-emphasis);
+  }
+
+  .btn-outline-danger {
+    --bs-btn-color: var(--bs-danger-text-emphasis);
+    --bs-btn-border-color: var(--bs-danger-text-emphasis);
+    --bs-btn-disabled-color: var(--bs-danger-text-emphasis);
+    --bs-btn-disabled-border-color: var(--bs-danger-text-emphasis);
+  }
+}

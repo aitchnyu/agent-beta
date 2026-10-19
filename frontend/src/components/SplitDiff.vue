@@ -62,7 +62,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="diff-view" data-split-diff>
+  <div class="diff-view d2h-auto-color-scheme" data-split-diff>
     <p v-if="failed" class="text-danger">Failed to render diff.</p>
     <p v-else-if="!ready" class="text-muted">Loading…</p>
     <!-- The side-by-side container holds BOTH panes (diff2html's own columns). -->

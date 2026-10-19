@@ -29,7 +29,7 @@
 }
 
 .files-separator {
-  color: $gray-400;
+  color: var(--bs-secondary-color);
 }
 
 // Directory listing
@@ -48,7 +48,7 @@
 .files-size,
 .files-modified-time {
   font-variant-numeric: tabular-nums;
-  color: $gray-500;
+  color: var(--bs-secondary-color);
 }
 
 // File viewer
@@ -84,6 +84,17 @@
   height: auto;
 }
 
+// Transparent SVGs go near-invisible on the dark surface: inside <img> the
+// lucide convention stroke="currentColor" resolves to black. A light plate
+// keeps them readable (dark mode only — raster previews need no backdrop).
+@media (prefers-color-scheme: dark) {
+  .files-image[src$=".svg" i] {
+    background: #fff;
+    padding: 0.75rem;
+    border-radius: $radius-md;
+  }
+}
+
 // Markdown: rendered HTML; keep images responsive. (Token/code colours come from
 // the highlight.js theme CSS, loaded with the lazy chunk.) Headings are scroll
 // targets (outline/hash links) — breathing room below the navbar.
@@ -116,14 +127,14 @@
 
   th,
   td {
-    border: 1px solid $gray-300;
+    border: 1px solid var(--bs-border-color);
     padding: 0.375rem 0.625rem;
     text-align: left;
     vertical-align: top;
   }
 
   thead th {
-    background: $gray-100;
+    background: var(--bs-secondary-bg);
   }
 }
 
@@ -208,7 +219,7 @@
 
 .files-mode-toggle {
   display: inline-flex;
-  border: 1px solid $gray-300;
+  border: 1px solid var(--bs-border-color);
   border-radius: $radius-md;
   overflow: hidden;
 }
@@ -216,17 +227,17 @@
 .files-mode-button {
   padding: 0.15rem 0.75rem;
   font-size: 0.8rem;
-  color: $gray-600;
-  background: rgba(255, 255, 255, 0.85);
+  color: var(--bs-secondary-color);
+  background: var(--bs-body-bg);
   border: none;
 
   & + & {
-    border-left: 1px solid $gray-300;
+    border-left: 1px solid var(--bs-border-color);
   }
 
   &.active {
-    color: $gray-800;
-    background: $gray-100;
+    color: var(--bs-body-color);
+    background: var(--bs-secondary-bg);
   }
 }
 
