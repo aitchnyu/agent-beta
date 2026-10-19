@@ -17,8 +17,8 @@ files-mode-btn and other css names
 Branding. Dark mode.
 
 How to track time taken for provisioning
-Avoid https://localhost:8000/accounts/login/, show items in dropdown only. 
-User form should be single column. Describe each field
+Remove https://localhost:8000/accounts/login/, show items in dropdown only. 
+User view form should be single column, each checkbox in own line. Describe each field and checkbox
 
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.

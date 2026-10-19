@@ -65,42 +65,62 @@ async function onSubmit() {
     </p>
 
     <form @submit.prevent="onSubmit">
-      <div class="row g-3 mb-3">
-        <div class="col-md-6">
-          <label class="form-label">First name</label>
-          <input
-            v-model="form.first_name"
-            type="text"
-            class="form-control user-edit-first-name"
-          />
+      <div class="mb-3">
+        <label class="form-label" for="user-edit-first-name">First name</label>
+        <input
+          id="user-edit-first-name"
+          v-model="form.first_name"
+          type="text"
+          class="form-control user-edit-first-name"
+        />
+        <div class="form-text">Displayed on this user's profile page.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="user-edit-last-name">Last name</label>
+        <input
+          id="user-edit-last-name"
+          v-model="form.last_name"
+          type="text"
+          class="form-control"
+        />
+        <div class="form-text">
+          Displayed alongside the first name on the profile page.
         </div>
-        <div class="col-md-6">
-          <label class="form-label">Last name</label>
-          <input v-model="form.last_name" type="text" class="form-control" />
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Username</label>
-          <input
-            :value="p.target.username"
-            type="text"
-            class="form-control"
-            disabled
-          />
-          <div class="form-text">Username cannot be changed.</div>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Email</label>
-          <input v-model="form.email" type="email" class="form-control" />
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="user-edit-username">Username</label>
+        <input
+          id="user-edit-username"
+          :value="p.target.username"
+          type="text"
+          class="form-control"
+          disabled
+        />
+        <div class="form-text">Username cannot be changed.</div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="user-edit-email">Email</label>
+        <input
+          id="user-edit-email"
+          v-model="form.email"
+          type="email"
+          class="form-control"
+        />
+        <div class="form-text">
+          Login identity — social sign-in matches this address.
         </div>
       </div>
 
       <div class="mb-3">
-        <label class="form-label">Description</label>
+        <label class="form-label" for="user-edit-description"
+          >Description</label
+        >
         <RichTextEditor v-model="form.description" />
+        <div class="form-text">Rich-text blurb shown on the profile page.</div>
       </div>
 
-      <div class="d-flex gap-4 mb-3">
-        <div class="form-check">
+      <div class="mb-3">
+        <div class="form-check mb-2">
           <input
             id="has_public_profile"
             v-model="form.has_public_profile"
@@ -110,8 +130,12 @@ async function onSubmit() {
           <label class="form-check-label" for="has_public_profile">
             Public profile
           </label>
+          <div class="form-text">
+            Show this user's username and description on their public profile
+            page.
+          </div>
         </div>
-        <div class="form-check">
+        <div class="form-check mb-2">
           <input
             id="is_active"
             v-model="form.is_active"
@@ -119,8 +143,12 @@ async function onSubmit() {
             class="form-check-input"
           />
           <label class="form-check-label" for="is_active"> Active </label>
+          <div class="form-text">
+            Inactive users cannot sign in; existing sessions stay until logged
+            out.
+          </div>
         </div>
-        <div class="form-check">
+        <div class="form-check mb-2">
           <input
             id="is_staff"
             v-model="form.is_staff"
@@ -128,8 +156,11 @@ async function onSubmit() {
             class="form-check-input"
           />
           <label class="form-check-label" for="is_staff"> Staff </label>
+          <div class="form-text">
+            Django admin access at /admin/ — rarely needed.
+          </div>
         </div>
-        <div class="form-check">
+        <div class="form-check mb-2">
           <input
             id="is_superuser"
             v-model="form.is_superuser"
@@ -137,6 +168,10 @@ async function onSubmit() {
             class="form-check-input"
           />
           <label class="form-check-label" for="is_superuser"> Superuser </label>
+          <div class="form-text">
+            Full control: the manage pages, editing any user, minting login
+            links.
+          </div>
         </div>
       </div>
 

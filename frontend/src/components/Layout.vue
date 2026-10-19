@@ -122,13 +122,14 @@ onBeforeUnmount(() => {
           >
         </div>
       </details>
-      <a
+      <button
         v-else
         class="btn btn-sm btn-outline-primary ms-auto"
-        href="/accounts/login/"
+        disabled
+        title="No login methods are configured on this deployment"
       >
         <LucideIcon :src="logInIcon" /> Sign in
-      </a>
+      </button>
     </HideOnScroll>
     <slot />
   </div>

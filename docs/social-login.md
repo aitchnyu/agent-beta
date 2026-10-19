@@ -53,9 +53,9 @@ any enabled provider, and the allauth templates never name a provider.
    ./run djangomanage addoauth <provider> <client_id> <secret>
    ```
 
-The provider's button then appears on `/accounts/login/` automatically —
-no template or frontend change, and the generic "Sign in" links keep
-working.
+The provider then appears in the navbar's "Sign in" dropdown automatically
+— no template or frontend change. (The allauth page at `/accounts/login/`
+stays routed; the navbar links only the dropdown, never that page.)
 
 ### Notes
 
