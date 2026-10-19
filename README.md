@@ -175,9 +175,9 @@ If you want to look around:
 - **Single-page Inertia + Vue frontend** — one build, sourcemaps emitted for
   offline row:col resolution; framework pages under `frontend/src/pages/`, the
   app's own under `frontend/src/ours/`.
-- **Design mockups** — throwaway superuser-only `/mockup-<feature>` pages with
+- **Design mockups** — throwaway superuser-only `/mockup/<page>` pages with
   a crosshatch overlay let you review a UI before it's built
-  (the convention lives in `agentconfig/steer.md`; `/mockup-todos` ships as the
+  (the convention lives in `agentconfig/steer.md`; `/mockup/MockupTodos` ships as the
   permanent demo — see [Edit → test → deploy workflow](#edit--test--deploy-workflow)).
 - **Golden theme** — a worked example for building a Bootstrap color theme (six wheel-derived
   golden options, light + dark tokens, AA contrast, colorblind review). Start from
@@ -516,14 +516,14 @@ change:
    changed). This does **not** commit.
 
 Mid-build UIs are reviewed as **mockups**: throwaway superuser-only
-`/mockup-<feature>` pages rendered with a crosshatch overlay, so a design is
+`/mockup/<page>` routes rendered with a crosshatch overlay, so a design is
 visible in the real app before it's built (the convention lives in
-`agentconfig/steer.md`; the repo ships `/mockup-todos` as the permanent demo —
+`agentconfig/steer.md`; the repo ships `/mockup/MockupTodos` as the permanent demo —
 append `?final=1` for its hatched-off "graduated" look).
 
 <figure>
   <img src="docs/screenshots/mockup-todos.png" alt="Todos as a mockup" />
-  <figcaption><code>/mockup-todos</code> — the todos page as a mockup: same markup, crosshatch overlay marks it unfinished.</figcaption>
+  <figcaption><code>/mockup/MockupTodos</code> — the todos page as a mockup: same markup, crosshatch overlay marks it unfinished.</figcaption>
 </figure>
 
 <figure>

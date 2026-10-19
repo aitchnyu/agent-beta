@@ -1,11 +1,11 @@
-# Home (+ mockup demo)
+# Home (+ the mockup hatch)
 
-The landing page — plus the repo's permanent mockup demo route.
+The landing page — plus the generic mockup route every mockup page serves from.
 
 ## Route
 
 - `GET /` → Inertia page `ours/Home`, props `{ is_authenticated, display_name, public_id }`.
-- `GET /mockup-todos` → Inertia page `ours/MockupTodos` (superuser-only; 404
+- `GET /mockup/MockupTodos` → Inertia page `ours/MockupTodos` (superuser-only; 404
   otherwise), no props.
 
 ## Behaviour
@@ -19,7 +19,7 @@ The landing page — plus the repo's permanent mockup demo route.
   `pk`); the page shows the placeholder's feature pointers as explained
   points — `ourapp/` (backend), `frontend/src/ours/` (frontend),
   `docs/reference/` (the complete worked example).
-- `/mockup-todos` renders a static todo list mirroring the reference app's
+- `/mockup/MockupTodos` renders a static todo list mirroring the reference app's
   todos page under the `div.mockup` crosshatch wrapper — the shipped example
   of the mockup convention (`agentconfig/steer.md` § Mockups and diagrams).
   Unlike a feature mockup it never graduates; append `?final=1` to drop the

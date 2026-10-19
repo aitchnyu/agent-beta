@@ -1,4 +1,4 @@
-"""Home feature — the app's landing page (plus the mockup demo route).
+"""Home feature — the app's landing page (plus the mockup hatch route).
 
 Owns the single public route ``/`` (rendered as the Inertia component
 ``ours/Home``). It shows login state and links to the app's features; the
@@ -56,17 +56,18 @@ def home_page(request: HttpRequest) -> InertiaResponse:
     return InertiaResponse(request, "ours/Home", {"props": props})
 
 
-@router.get("/mockup-todos", response=None)
-def mockup_todos(request: HttpRequest) -> InertiaResponse:
-    """Render the static todo-list mockup (component ``ours/MockupTodos``).
+@router.get("/mockup/{page}", response=None)
+def mockup_page(request: HttpRequest, page: str) -> InertiaResponse:
+    """Render the Inertia component ``ours/<page>`` — one route hosts every mockup.
 
-    ``/mockup-todos`` is a PERMANENT demo page (unlike feature mockups, it
-    never graduates into a real page): it shows what a mockup looks like —
-    the crosshatch ``div.mockup`` wrapper over a static todo list — so the
-    README can reference something live. It keeps all three mockup markers
-    from ``agentconfig/steer.md`` § Mockups and diagrams: superuser-only
-    route (404 otherwise), no data plumbing (no props, no DB), root
-    ``div.mockup`` wrapper.
+    - The URL carries the component name verbatim:
+      ``/mockup/MockupTodos`` → ``ours/MockupTodos``
+    - adding a mockup is a single ``frontend/src/ours/pages/<name>.vue`` —
+      the backend never changes and ``./run deployscratch`` takes the fast
+      deploy path
+    - mockups keep the three markers from ``agentconfig/steer.md``
+      § Mockups and diagrams: superuser-only route (404 otherwise), no data plumbing
+      (no props, no DB), component wraps in ``div.mockup``
     """
     require_superuser(request)
-    return InertiaResponse(request, "ours/MockupTodos", {"props": {}})
+    return InertiaResponse(request, f"ours/{page}", {"props": {}})

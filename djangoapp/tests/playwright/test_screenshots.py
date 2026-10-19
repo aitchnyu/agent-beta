@@ -477,13 +477,15 @@ class ModelScreenshotTests(BaseScreenshotTestCase):
 class MockupScreenshotTests(BaseScreenshotTestCase):
     """The mockup demo shots (docs/screenshots/{mockup-todos,todos-final}.png).
 
-    Inverse gate of the models shots: /mockup-todos lives in main's ourapp/,
+    Inverse gate of the models shots: the demo lives in main's ourapp/,
     which the testapp overlay deletes (rsync --delete), so the shots run
     only in a plain-main pass.
 
-    - test_mockup_todos, /mockup-todos static todo list under the crosshatch
-    - test_todos_final, /mockup-todos?final renders the same page WITHOUT the
-      crosshatch (the contrast shot for the README's mockup→final pair)
+    - test_mockup_todos, /mockup/MockupTodos static todo list under the
+      crosshatch
+    - test_todos_final, /mockup/MockupTodos?final renders the same page
+      WITHOUT the crosshatch (the contrast shot for the README's
+      mockup→final pair)
     - test_mockup_hidden_from_anonymous, an anonymous viewer gets 404
     """
 
@@ -495,14 +497,14 @@ class MockupScreenshotTests(BaseScreenshotTestCase):
         self.login_as(self.admin)
 
     def test_mockup_todos(self) -> None:
-        """/mockup-todos renders the todo mockup; the card is captured."""
-        self.page.goto(f"{self.live_server_url}/mockup-todos")
+        """/mockup/MockupTodos renders the todo mockup; the card is captured."""
+        self.page.goto(f"{self.live_server_url}/mockup/MockupTodos")
         self.page.wait_for_selector(".ours-mockup-todos.mockup")
         self.capture_element("mockup-todos", ".ours-mockup-todos")
 
     def test_todos_final(self) -> None:
-        """/mockup-todos?final drops the crosshatch wrapper; captured as-is."""
-        self.page.goto(f"{self.live_server_url}/mockup-todos?final=1")
+        """/mockup/MockupTodos?final drops the crosshatch wrapper; captured as-is."""
+        self.page.goto(f"{self.live_server_url}/mockup/MockupTodos?final=1")
         root = self.page.locator(".ours-mockup-todos")
         root.wait_for(state="visible")
         # The hatch rides the .mockup class (its ::before) — its absence is
@@ -513,7 +515,7 @@ class MockupScreenshotTests(BaseScreenshotTestCase):
     def test_mockup_hidden_from_anonymous(self) -> None:
         """An anonymous viewer of the mockup route gets a 404 (the gate holds)."""
         with self.anon_page() as page:
-            response = page.goto(f"{self.live_server_url}/mockup-todos")
+            response = page.goto(f"{self.live_server_url}/mockup/MockupTodos")
             assert response is not None
             self.assertEqual(response.status, 404)
         self.pop_expected_console_error(

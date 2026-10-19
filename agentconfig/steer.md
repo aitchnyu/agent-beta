@@ -54,7 +54,7 @@ and ask the operator).
 
 ## Feature workflow
 
-You build features through seven stages; every stage transition is my explicit
+You build features through six stages; every stage transition is my explicit
 choice (never advance on "ok"/"sure"/silence — end the stage with the
 choice menu below and WAIT for my explicit pick). I run the TUI session, Django, and the dev server myself — you
 edit `scratch/` and deploy via `deployscratch`, only once I've said to
@@ -65,51 +65,44 @@ stage's choice menu. Any stage can send the work back — follow the arrow.
 request
   |
   v
-[1] INITIAL MOCKUPS     /mockup-<feature>, static, no props
+[1] MOCKUPS             /mockup/<page>, static or interactive, no props
   |   share links (T1) --> user picks:
   |      revise ......... back to [1]
-  |      more interactivity ... to [2]
-  |      write docs ........... to [3]
+  |      write docs ........... to [2]
   v
-[2] INTERACTIVE MOCKUPS  client-side state, links between mockup pages, no api calls
-  |   share links (T2) --> user picks:
-  |      revise ......... back to [2]
-  |      write docs ..... to [3]
-  v
-[3] DESIGN DOCS          use cases, data + its changes, dev reference
-  |   share doc + mockup links (T3) --> user picks:
+[2] DESIGN DOCS          use cases, data + its changes, dev reference
+  |   share doc + mockup links (T2) --> user picks:
   |      revise docs/mockups ... back as directed
-  |      approved ............... to [4]
+  |      approved ............... to [3]
   v
-[4] CODE                 scratch, deployscratch per batch, mockups graduate
+[3] CODE                 scratch, deployscratch per batch, mockups graduate
   |
   v
-[5] AGENT REVIEW + design-doc updates
+[4] AGENT REVIEW + design-doc updates
   |
   v
-[6] OFFER TO COMMIT      T6 — commits stay the human's call
+[5] OFFER TO COMMIT      T5 — commits stay the human's call
   |
   v
-[7] FINAL CHECKLIST      clean tree, one commit, migrations run, scratch gone,
+[6] FINAL CHECKLIST      clean tree, one commit, migrations run, scratch gone,
                          one-sentence report
 ```
 
 Stage rules carry the TECHNICAL constraints only — every message shape
 lives in [Stage messages](#stage-messages):
 
-- **[1] Initial mockups** — `createscratch` **once**, then static mockup
-  pages (mechanics: [Mockups and diagrams](#mockups-and-diagrams)): real
-  Vue components with hardcoded markup — **no props, no `v-if`/`v-for`**
-  (hardcode repeated items), reuse the app's CSS, superuser-only route at
-  `/mockup-<feature>…`; a superuser-only link on the homepage is allowed.
-  Frontend-only edits keep the battery light — build something you can
-  think up and test FAST. Bundle the workflow questions into T1 (one
-  round).
-- **[2] Interactive mockups** — the same pages plus client-side state and
-  links BETWEEN mockup pages; still no backend API calls, nothing saves.
-- **[3] Design docs** — the design doc (per the [Feature docs](#feature-docs)
-  outline) joins the mockups; share doc + mockup links via T3.
-- **[4] Code — only after explicit approval.** First spawn the reviewer
+- **[1] Mockups** — `createscratch` **once**, then mockup pages
+  (mechanics: [Mockups and diagrams](#mockups-and-diagrams)): real Vue
+  components with hardcoded markup — **no props** (hardcode repeated
+  items), reuse the app's CSS, superuser-only pages at `/mockup/<page>`;
+  a superuser-only link on the homepage is allowed. Client-side state and
+  links BETWEEN mockup pages are fine from the start — still no backend
+  API calls, nothing saves. Frontend-only edits keep the battery light —
+  build something you can think up and test FAST. Bundle the workflow
+  questions into T1 (one round).
+- **[2] Design docs** — the design doc (per the [Feature docs](#feature-docs)
+  outline) joins the mockups; share doc + mockup links via T2.
+- **[3] Code — only after explicit approval.** First spawn the reviewer
   prewarm(s) in background (one, or all three for a significant diff —
   see below). Continue in the SAME `../scratch/` (no second
   `createscratch` unless sent back). Then, per edit batch:
@@ -122,16 +115,16 @@ lives in [Stage messages](#stage-messages):
   - After any format pass, re-read a file before editing it again —
     reformatted text breaks old-text matches.
   - Evolve the mockup pages into the real feature (real URL, real
-    props/endpoints) and DELETE the `/mockup-*` page and its homepage
+    props/endpoints) and DELETE the `Mockup<Name>.vue` page and its homepage
     link when the real page lands.
-- **[5] Agent review + doc updates** —
+- **[4] Agent review + doc updates** —
   - run the executable checks yourself; paste their outputs as evidence
   - resume the prewarmed reviewer(s) — or spawn fresh if this session
     has none — to re-read the diff against the requirement
   - triage findings per the rules below
   - update the design doc to match the code
-- **[6] Offer to commit** — T6; never commit unasked.
-- **[7] Final checklist** — after the commit lands, audit the job yourself
+- **[5] Offer to commit** — T5; never commit unasked.
+- **[6] Final checklist** — after the commit lands, audit the job yourself
   (the operator's recurring catches — never make them catch one again),
   then close out with ONE sentence:
   - [ ] `git status` clean (no dangling files — check for framework drift
@@ -145,7 +138,7 @@ lives in [Stage messages](#stage-messages):
   - [ ] single sentence report to user — the whole close-out is one line:
         what shipped, where it lives, that the checklist is green.
 
-**Review with prewarmed agents (stage 4 → 5).** Prewarm reviewers in the
+**Review with prewarmed agents (stage 3 → 4).** Prewarm reviewers in the
 background while you code; resume them for the review instead of spawning
 fresh. How many:
 
@@ -160,13 +153,13 @@ fresh. How many:
 
 Prewarm + resume mechanics:
 
-- **Stage 4 start**, before the first edit batch: spawn each reviewer with
+- **Stage 3 start**, before the first edit batch: spawn each reviewer with
   `subagent(subagent_type: <type>, run_in_background: true, prompt: …)` —
   "Build a MAP, not a copy: <your rule domain's reference material — the
   design doc, steer.md conventions, the layer wiring>. Read-only. Treat it
   as a map that may be stale by review time — re-read any file you judge,
   trust the file over your memory. Reply STORED." Hold the agent IDs.
-- **Stage 5**, resume them:
+- **Stage 4**, resume them:
   `subagent(subagent_type: <type>, resume: <id>, prompt: …)` — the
   requirement + `git status --short` + touched files, labeled "changed
   since your study — re-read fresh."
@@ -218,12 +211,12 @@ succeeds** — the actual call runs and returns (the endpoint responds, the
 command exits 0). "The code looks right" is not done; verify by executing it.
 
 **Escalate instead of spinning.** If the **same** error recurs 2–3 times,
-stop and report via [T4](#stage-messages) — you're missing something
+stop and report via [T3](#stage-messages) — you're missing something
 fundamental (e.g. a `from __future__ import annotations` schema needing
 `model_rebuild()`), and another retry won't fix it. Don't reason in circles
 silently, so I never have to ask "are you stuck". **Infra is mine, not
 yours**: when `createscratch`/`deployscratch` mechanics fail (venv errors,
-rsync exit 23, permission denied), report (T4) and STOP — never repair repo
+rsync exit 23, permission denied), report (T3) and STOP — never repair repo
 tooling, venvs, or file ownership by hand; a hand-repaired deploy is a
 deploy nobody can reproduce.
 
@@ -344,7 +337,7 @@ deployed-but-uncommitted changes. Before each `./run deployscratch`, check
 dirty file in `main/` must ALSO be pending in scratch (the normal loop —
 a previous deploy put it there). A file dirty in `main/` but untouched in
 scratch is an operator hotfix or hand-edit the rsync would silently
-overwrite or delete — STOP and report it (T4) instead of deploying.
+overwrite or delete — STOP and report it (T3) instead of deploying.
 
 **A deploy is for a change worth showing** — a substantive edit batch or a
 stage boundary. Formatting/lint/mypy fixes are NOT deploy points: fold them
@@ -402,10 +395,10 @@ summary in exactly this shape:
 Keep it tight. For a trivial change a single sentence is enough; don't pad.
 
 ### Stage messages
-Every approval-gated stage transition (the mockup/doc/code gates — T1, T2,
-T3, T6) ends with a **choice menu** — the concrete options as the message's
+Every approval-gated stage transition (the mockup/doc gates — T1, T2 —
+and the commit gate — T5) ends with a **choice menu** — the concrete options as the message's
 LAST lines — never advance such a stage without my explicit reply matching
-an option. (T4/T5 are report-and-continue stages — no gate menu, but when
+an option. (T3/T4 are report-and-continue stages — no gate menu, but when
 their verdict line ASKS for a decision it uses the same numbered shape; a
 pure report closes on a plain statement.)
 Verify every link's file exists in `main/` before sharing (see
@@ -428,40 +421,35 @@ We need to do this. Here are your choices
 Choose
 ```
 
-- **T1 — initial mockups**
+- **T1 — mockups**
   - [ ] one line of intent
   - [ ] mockup links, each labeled `(mockup quality)`
-        (e.g. `[chores (mockup quality)](<base>/mockup-chores)`)
+        (e.g. `[chores (mockup quality)](<base>/mockup/MockupChores)`)
+  - [ ] what's interactive (state, cross-page links), if any
   - [ ] bundled workflow questions, if any (one round)
-  - [ ] menu: 1. revise mockups 2. add more interactivity to the features
-        3. write down design docs — then `Choose`
+  - [ ] menu: 1. revise mockups 2. write down design docs — then `Choose`
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
-- **T2 — interactive mockups**
-  - [ ] what's now interactive (state, cross-page links)
-  - [ ] links
-  - [ ] menu: 1. revise 2. write down design docs — then `Choose`
-  - [ ] shaped per [Message structure](#message-structure-the-single-rule)
-- **T3 — design docs**
+- **T2 — design docs**
   - [ ] models-first plan digest
   - [ ] design-doc link + mockup links
   - [ ] menu: 1. revise docs 2. revise mockups 3. approved — code — then
         `Choose`
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
-- **T4 — blocker**
+- **T3 — blocker**
   - [ ] what failed
   - [ ] what you tried
   - [ ] what you need from me — as numbered choices + `Choose` (it's an ask)
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
-- **T5 — final summary**
+- **T4 — final summary**
   - [ ] the Requirement / What changed / Endpoints / Tests / Links checklist
         in [Message structure](#message-structure-the-single-rule)
-- **T6 — offer to commit**
-  - [ ] the T5 checklist
+- **T5 — offer to commit**
+  - [ ] the T4 checklist
   - [ ] files-to-commit list
   - [ ] menu: 1. commit 2. hold — then `Choose` (commits stay the human's
         call)
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
-- **T7 — final checklist close-out** (stage [7]; no menu — it runs after the
+- **T6 — final checklist close-out** (stage [6]; no menu — it runs after the
   commit lands): the checklist itself (clean tree, single feature commit,
   migrations + production scripts executed, scratch gone), then the
   ONE-sentence report.
@@ -537,51 +525,45 @@ Read code in this priority order:
    behaviour, not to rework. Change it only when the user explicitly asks.
 
 ### Mockups and diagrams
-Stages 1–3's artifacts live in **files**, not chat: diagrams render in the
+Stages 1–2's artifacts live in **files**, not chat: diagrams render in the
 browser (the `/files` viewer), mockups are real deployed pages. Everything
 lives in `../scratch/` and reaches `main/` only via `deployscratch` —
 allowlisted, so mockup deploys run unblocked; share the deployed
 links in chat immediately after each deploy via
 [Stage messages](#stage-messages).
 
-- **Design doc — `../scratch/ourapp/docs/<feature>.md`** (after deploy, link
-  it in chat as `/files/main/ourapp/docs/<feature>.md`). Structure, diagrams,
-  and writing rules live in one place: [Feature docs](#feature-docs).
-- **Mockups — static pages under `/mockup-…`.** Build each mockup as a
-  REAL Vue page at a THROWAWAY URL (`/mockup-chores`, …) following the
-  normal conventions (route in `ourapp/views/<feature>.py` registered in
-  `views/__init__.py`, page in `frontend/src/ours/pages/<Page>.vue`) — the
-  throwaway prefix is what keeps it unmistakably not-the-feature. Stage 1
-  is STATIC: hardcoded markup, **no props, no `v-if`/`v-for`** (hardcode
-  repeated items), reuse the app's CSS; stage 2 adds client-side state and
-  links between mockup pages — but **nothing ever saves**: no writes, no
-  DB, no models, no migrations, no endpoint logic. Three markers hold for
-  every mockup — all three come off when the page becomes real:
-   1. **`/mockup-` URL prefix + superuser-only gate** —
-      `require_superuser` from `djangoapp.views` (404, never 403): an
-      unreleased page stays hidden; a superuser-only homepage link to it
-      is allowed.
-   2. **No data plumbing** — hardcoded markup only; the page never reads
-      the DB or receives props while it's a mockup.
-   3. **Root `div.mockup` wrapper** — ONE semi-transparent diagonal-stripe
-      crosshatch layer over the whole page: a `::before` overlay on the
-      wrapper itself, `pointer-events: none`, defined in `ours/style.scss`.
-      Hatch the wrapper ONLY — never add stripes to children
-      (`.mockup *`): per-element background-images stack; nothing
-      passes for a finished page.
-  No tests while it's a mockup — the real implementation writes them.
-  **Becoming real** (stage 4): build the feature's page at its real URL
-  with real props/endpoints and DELETE the `/mockup-*` page and its
-  homepage link in the same change. (A feature abandoned after its mockup
-  deployed: delete its files from scratch; the next `deployscratch`'s
-  rsync `--delete` retires them from `main/`.)
+- **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
+  deploy as `/files/main/ourapp/docs/<feature>.md`. Structure and writing
+  rules: [Feature docs](#feature-docs).
+- **Mockups — one file: `frontend/src/ours/pages/Mockup<Name>.vue`.**
+  - The objective: zero backend changes — backend edits drag in the slow
+    full battery and service restarts; while a feature is a mockup, python
+    stays untouched.
+  - Confine changes to `frontend/src/ours/` (backend only in `ourapp/` when
+    a feature graduates) — framework files stay relatively pristine so upstream
+    changes still merge cleanly even after years.
+  - The hatch route in `home.py` serves `ours/<page>` verbatim at
+    `/mockup/<page>`. `/mockup/MockupChores` → `MockupChores.vue`.
+  - No route, view, or registration — frontend-only changes deploy fast.
+  - Static first: hardcoded markup, no props. Then client-side state.
+  - Nothing ever saves: no writes, DB, models, migrations, or endpoints.
+  - Superuser-only (404 otherwise).
+  - Wrap in `div.mockup` — one `::before` crosshatch overlay from
+    `ours/style.scss`; hatch the wrapper only.
+  - No tests; the real feature writes them.
+  - Editing existing code is normal work — just not part of adding a
+    mockup.
+- **Becoming real (stage 3)** — build the feature at its real URL with
+  real props/endpoints. DELETE the `Mockup<Name>.vue` + its homepage link
+  in the same change. (Abandoned: delete the files; the next
+  `deployscratch`'s rsync `--delete` retires them from `main/`.)
 
 ### Feature docs
 
 Every feature gets one doc: `ourapp/docs/<feature>.md`.
 
-**The doc's life.** It is drafted in `../scratch/` at stage 3, so it reaches
-`main/` with the first deployscratch. It is updated at stage 5 to match the
+**The doc's life.** It is drafted in `../scratch/` at stage 2, so it reaches
+`main/` with the first deployscratch. It is updated at stage 4 to match the
 code. From then on it is kept current with every change, diagrams included.
 In chat, link it as `<base>/files/main/ourapp/docs/<feature>.md`.
 
@@ -796,7 +778,7 @@ Run through every box; the order is the order you build in.
 
 - [ ] **README** — update `ourapp/README.md` to describe the feature (what it
       does, its URLs/pages), not its internal implementation. One or two lines.
-- [ ] **Feature doc** — the design doc written in stage 3
+- [ ] **Feature doc** — the design doc written in stage 2
       (`ourapp/docs/<feature>.md`) follows [Feature docs](#feature-docs) and
       stays current (diagrams included); link it from the README.
 - [ ] **Model module** — `ourapp/models/<feature>.py`, wired into
@@ -1317,7 +1299,7 @@ The allowlisted commands (defined in the `bash` map of
 ./run checkmarkdownd2 <file.md>      # validate every d2 fence in a file
 ./run typecheck                      # …and ./run lintfix
 ./run test …                         # any args
-./run python …                       # quick fixture probes (stage-5 evidence)
+./run python …                       # quick fixture probes (stage-4 evidence)
 ./run playwrighttest …
 ./run djangomanage makemigrations …  # … / migrate / findstatic / baseurls
                                       # (findstatic, baseurls are read-only)
@@ -1347,11 +1329,11 @@ rides the shell guard like any other command; it asks the operator
 when needed.)
 
 `./run deployscratch` IS allowlisted (in the list above) — mockup and doc
-deploys (stages 1–3) run unblocked so the demo loop
+deploys (stages 1–2) run unblocked so the demo loop
 stays fast; the compensating rule is that every deploy's links are shared
 in chat immediately via [Stage messages](#stage-messages). The REAL
-feature's deploys (stage 4) stay gated conversationally: only after the
-T3 "approved" choice.
+feature's deploys (stage 3) stay gated conversationally: only after the
+T2 "approved" choice.
 
 `./run checkframework1` (the **full gate**: lint + types + the four test tiers
 under one merged coverage report) is deliberately NOT in that list — it's a

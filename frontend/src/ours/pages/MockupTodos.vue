@@ -2,7 +2,7 @@
 // Permanent demo of the mockup convention (agentconfig/steer.md § Mockups
 // and diagrams): a stage-1 mockup — hardcoded markup only, no props, no
 // v-if/v-for, no client state — with the root div.mockup crosshatch layer.
-// Unlike a feature mockup it never graduates; /mockup-todos IS the example.
+// Unlike a feature mockup it never graduates; /mockup/MockupTodos IS the example.
 // The markup + styles mirror the reference app's todos page
 // (docs/reference/frontend/src/ours/pages/TodosPage.vue) so the demo shows
 // a real feature page as it looks under the overlay. The demo also doubles

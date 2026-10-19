@@ -6,14 +6,14 @@ where tests are flat `test_<feature>_<layer>.py`) and combined into a whole; see
 `docs/` for each feature.
 
 This is the **placeholder**: it ships the landing page (plus the permanent
-`/mockup-todos` demo below) so the project is runnable out of the box. Add
+`/mockup/MockupTodos` demo below) so the project is runnable out of the box. Add
 your features following the checklist in `agentconfig/steer.md`.
 
 ## Features
 
 - **Home** — the landing page at `/`, showing login state. See
   [docs/home.md](docs/home.md).
-- **Mockup todos (demo)** — `/mockup-todos`, the shipped, permanent example of
+- **Mockup todos (demo)** — `/mockup/MockupTodos`, the shipped, permanent example of
   the mockup convention (superuser-only, static markup, crosshatch wrapper;
   `?final=1` shows it without the overlay); the README's mockup screenshots
   come from it.

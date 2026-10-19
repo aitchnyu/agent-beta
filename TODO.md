@@ -1,3 +1,6 @@
+Why noninteractive components?
+
+mockups - were mockup deployments fast enough? Avoid writing python files?
 
 css
 favicon
