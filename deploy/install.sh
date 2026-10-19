@@ -36,6 +36,10 @@
 
 set -euo pipefail
 
+# Wall-clock stamp on every banner — absolute, rounded to the second;
+# consecutive banners diff into per-step durations.
+_banner() { echo "[$(date +%T)] $*"; }
+
 # The repo identity — also what gets cloned below. local-vm's `blank`
 # printout derives the curl line from this line
 # (MAINTAIN-CONSISTENCY vm-payload).
@@ -80,7 +84,7 @@ deps=()
 command -v curl >/dev/null 2>&1 || deps+=(curl)
 command -v git  >/dev/null 2>&1 || deps+=(git)
 if [ "${#deps[@]}" -gt 0 ]; then
-  echo "==> apt-get install: ${deps[*]} (bare image)"
+  _banner "==> apt-get install: ${deps[*]} (bare image)"
   apt-get update -y
   apt-get install -y "${deps[@]}"
 fi
@@ -101,7 +105,7 @@ else
     | awk -F'\t' '$2 ~ /^refs\/tags\// && $2 !~ /\^\{\}$/ { sub(/^refs\/tags\//, "", $2); print $2; exit }')"
   [ -n "$ref" ] || ref="main"
 fi
-echo "==> installing ref: $ref ($repo_url)"
+_banner "==> installing ref: $ref ($repo_url)"
 
 # ── payload — the SAME two files the local dev path ships ───────────────────
 # umask pinned like local-vm's: the seed tarball carries file/dir modes
@@ -109,7 +113,7 @@ echo "==> installing ref: $ref ($repo_url)"
 umask 022
 rm -rf "$clone_dir"
 git clone --depth 1 --branch "$ref" "$repo_url" "$clone_dir"
-echo "==> seed tarball (tracked files, from the clone)"
+_banner "==> seed tarball (tracked files, from the clone)"
 (cd "$clone_dir" && git ls-files -z) | tar czf /tmp/desmo-seed.tgz -C "$clone_dir" --null -T -
 install -m 755 "$clone_dir/deploy/inside-vm.sh" /tmp/inside-vm.sh
 
@@ -117,7 +121,7 @@ install -m 755 "$clone_dir/deploy/inside-vm.sh" /tmp/inside-vm.sh
 BASE_URL="$base_url" bash /tmp/inside-vm.sh provision
 
 # ── self-tests — the install verdict ────────────────────────────────────────
-echo "==> self-tests"
+_banner "==> self-tests"
 for unit in desmo_granian.service desmo_huey.service caddy redis-server postgresql desmo_pgbackrest.timer; do
   systemctl is-active --quiet "$unit" || { echo "FAILED: $unit is not active" >&2; exit 1; }
 done

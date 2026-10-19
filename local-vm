@@ -67,7 +67,7 @@ provision-blank() {
     echo "  ./local-vm delete && ./local-vm provision-blank  # to rebuild" >&2
     exit 1
   fi
-  echo "==> multipass launch desmo (bridged en0, DHCP, 2G ram, 20G disk, $release) — blank"
+  echo "[$(date +%T)] ==> multipass launch desmo (bridged en0, DHCP, 2G ram, 20G disk, $release) — blank"
   multipass launch --name desmo --network en0 --memory 2G --disk 20G "$release"
 
   # The curl|bash installer line, derived from deploy/install.sh's

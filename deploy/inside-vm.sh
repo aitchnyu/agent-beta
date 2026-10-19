@@ -91,9 +91,13 @@ _envval() { # <key> <file>
   { grep -E "^$1=" "$2" | head -1 | cut -d= -f2- | tr -d '"'; } || true
 }
 
+# Wall-clock stamp on every phase banner — absolute, rounded to the
+# second; consecutive banners diff into per-phase durations.
+_banner() { echo "[$(date +%T)] $*"; }
+
 provision() {
   # ── Phase 0/11: guards — payload, template values, VM freshness ────────
-  echo "==> [0/11] guards"
+  _banner "==> [0/11] guards"
   if [ ! -f /tmp/desmo-seed.tgz ]; then
     echo "REFUSING: /tmp/desmo-seed.tgz missing (deploy/install.sh builds + ships it — directly or via ./local-vm provision-full)." >&2
     exit 1
@@ -205,7 +209,7 @@ provision() {
   umask 022
 
   # ── Phase 1/11: machine — users, packages, node, pi, caddy, uv, swap ───
-  echo "==> [1/11] machine (users, apt, node, pi, caddy, uv, swap, redis, ufw)"
+  _banner "==> [1/11] machine (users, apt, node, pi, caddy, uv, swap, redis, ufw)"
   echo "    users: desmo (less powerful) + the default cloud user (powerful)"
   # Guarded: a pre-mint retry (see phase 0) re-runs phase 1 — useradd would
   # abort under set -e on the second pass.
@@ -297,7 +301,7 @@ EOF
   ufw --force enable >/dev/null
 
   # ── Phase 2/11: seed — extract /srv/desmo/main from the tarball ────────
-  echo "==> [2/11] seed /srv/desmo/main (tarball from the tracked working tree)"
+  _banner "==> [2/11] seed /srv/desmo/main (tarball from the tracked working tree)"
   install -d -o desmo -g desmo "$maindir"
   tar xzf /tmp/desmo-seed.tgz -C "$maindir"
   # Own the tree as desmo:
@@ -326,7 +330,7 @@ EOF
     "$maindir/deploy/desmo.sh" /usr/local/bin/desmo
 
   # ── Phase 3/11: credentials env — install + mint the machine secrets ───
-  echo "==> [3/11] credentials env + machine secrets"
+  _banner "==> [3/11] credentials env + machine secrets"
   install -d -o root -g desmo -m 750 "$creds_dir"
   # The phase-0 probe — the SAME bytes that were validated — pinned at
   # birth (root:desmo 640, no umask window); the mint below fills its three
@@ -403,7 +407,7 @@ EOF
   fi
 
   # ── Phase 4/11: config render — seeded templates → final paths ─────────
-  echo "==> [4/11] render configs (templates from the seeded deploy/*.in)"
+  _banner "==> [4/11] render configs (templates from the seeded deploy/*.in)"
   # Render inputs: knobs + site names were resolved (and validated) in
   # phase 0; only pg_main resolves here — the versioned postgres data dir
   # (Debian paths it per major — /var/lib/postgresql/<v>/main) needs the
@@ -445,7 +449,7 @@ EOF
   chmod 644 /etc/caddy/sites/desmo.caddy
 
   # ── Phase 5/11: stock configs — mutate the live ones in place ──────────
-  echo "==> [5/11] stock configs (redis maxmemory, caddy sites import)"
+  _banner "==> [5/11] stock configs (redis maxmemory, caddy sites import)"
   # Grep-guarded appends (the safe.directory pattern from phase 7): a
   # pre-mint retry re-runs this phase, and a duplicate import line would
   # fail `systemctl reload caddy` below. The old fetch-host/append/ship-back
@@ -458,7 +462,7 @@ EOF
   systemctl restart redis-server
 
   # ── Phase 6/11: postgres — role, databases, WAL archive, stanza ────────
-  echo "==> [6/11] postgres (role + DBs aligned to the env file, WAL archive, stanza)"
+  _banner "==> [6/11] postgres (role + DBs aligned to the env file, WAL archive, stanza)"
   systemctl enable --now postgresql >/dev/null
 
   # Wait for the cluster for 60s. (Arithmetic stays out of (( )) so set -e cannot abort the loop itself.)
@@ -504,7 +508,7 @@ SQL
   sudo -u postgres pgbackrest --stanza=desmo stanza-create
 
   # ── Phase 7/11: enable units + caddy (started in phase 11) ─────────────
-  echo "==> [7/11] enable units + caddy (start happens in phase 11)"
+  _banner "==> [7/11] enable units + caddy (start happens in phase 11)"
   # Enable only — START happens after the app bootstrap (phase 9/10). The
   # backup pair: the service is a one-line shim into `./run backupdb` (all
   # backup logic lives in ./run). The timer is enable --now — enable alone
@@ -528,16 +532,16 @@ SQL
     || git config --system --add safe.directory "$appdir/scratch"
 
   # ── Phase 8/11: first commit — the provisioned baseline ────────────────
-  echo "==> [8/11] git init + first commit in /srv/desmo/main"
+  _banner "==> [8/11] git init + first commit in /srv/desmo/main"
   # Self-dispatch as desmo (see the seed_commit subcommand at the bottom).
   sudo -u desmo -H bash "$0" seed-commit
 
   # ── Phase 9/11: bootstrap the app as desmo ─────────────────────────────
-  echo "==> [9/11] bootstrap (uv sync, npm build, migrate, collectstatic)"
+  _banner "==> [9/11] bootstrap (uv sync, npm build, migrate, collectstatic)"
   sudo -u desmo -H bash "$0" bootstrap
 
   # ── Phase 10/11: playwright (encapsulated) + /tmp hygiene ──────────────
-  echo "==> [10/11] playwright browsers + deps (deploy/install-playwright.sh)"
+  _banner "==> [10/11] playwright browsers + deps (deploy/install-playwright.sh)"
   # One script owns it all: the platform table (refuses unknown OSes HARD),
   # override keys, browsers into the shared cache, chromium system deps,
   # and a launch verification — a missing lib fails provision right here.
@@ -551,14 +555,14 @@ SQL
   rm -f /tmp/desmo-seed.tgz /tmp/template.env /tmp/inside-vm.sh
 
   # ── Phase 11/11: start services ────────────────────────────────────────
-  echo "==> [11/11] start services"
+  _banner "==> [11/11] start services"
   # Huey's unit always ships (HUEY_WORKERS ≥ 1 is validated in phase 0).
   systemctl restart desmo_granian.service desmo_huey.service
   systemctl restart caddy
 
   case "$site_hostname" in
-    localhost|127.*|::1) echo "==> provision done (site: localhost — via the ssh forward)" ;;
-    *) echo "==> provision done (site: $base_url — public, ACME TLS)" ;;
+    localhost|127.*|::1) _banner "==> provision done (site: localhost — via the ssh forward)" ;;
+    *) _banner "==> provision done (site: $base_url — public, ACME TLS)" ;;
   esac
 }
 

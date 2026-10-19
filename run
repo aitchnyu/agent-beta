@@ -599,14 +599,9 @@ createscratch() {
   echo "scratch/ ready at $_SCRATCH_DIR. Edit there, then deploy with: ./run deployscratch (from main/)"
 }
 
-# Wall-seconds the just-finished deploy step took: call with the step's
-# label immediately after the step (deployscratch resets _STEP_T0 before
-# its first step). bash's $SECONDS counts — the agent reading the deploy
-# log sees where the minutes go.
-_STEP_T0=0
-_step_seconds() { # <label>
-  echo "    [$1 $((SECONDS - _STEP_T0))s]"
-  _STEP_T0=$SECONDS
+# Wall-clock stamp for the just-finished deploy step (absolute, rounded to the second).
+_banner() { # <label>
+  echo "    [$1 $(date +%T)]"
 }
 
 # The ONE command: the check battery in scratch (nothing deploys red),
@@ -646,7 +641,6 @@ deployscratch() {
     if grep -q '^frontend/src/ours/' <<<"$changed_files"; then frontend_changed=true; fi
   fi
 
-  _STEP_T0=$SECONDS
   if $docs_or_frontend_only; then
     echo "Fast path: frontend/docs-only changes — no backend checks, backup, migrate, or restarts."
     if $frontend_changed; then
@@ -661,10 +655,10 @@ deployscratch() {
       [ -f "$_SCRATCH_DIR/$md_file" ] || continue
       node "$_MAIN_DIR/deploy/checkmarkdownd2.mjs" "$_SCRATCH_DIR/$md_file" || return 1
     done <<<"$(grep -E '\.md$' <<<"$changed_files")"
-    _step_seconds "check battery (fast)"
+    _banner "check battery (fast)"
   else
     ( cd "$_SCRATCH_DIR" && _scratch_checks )
-    _step_seconds "check battery"
+    _banner "check battery"
   fi
 
   echo "Deploying $_SCRATCH_DIR/ → $_MAIN_DIR/ (--delete, excluding .git + gitignored/runtime dirs)…"
@@ -680,7 +674,7 @@ deployscratch() {
   sudo rsync -a --delete --exclude='.git/' \
     --exclude-from="$excluded_files" "$_SCRATCH_DIR/" "$_MAIN_DIR/"
   rm -f "$excluded_files"
-  _step_seconds "rsync"
+  _banner "rsync"
   # Own the tree as desmo (scratch's files arrive default-user-owned):
   #   - main tree: the agent's user edits it (builds, git resets)
   #   - dbbackups/: PRUNED — stays postgres-owned (pgbackrest runs as
@@ -696,7 +690,7 @@ deployscratch() {
   #   - dbbackups/: PRUNED — the repo stays mode 700; g+w would open
   #     it to the desmo group
   sudo find "$_MAIN_DIR" -path "$_MAIN_DIR/dbbackups" -prune -o -exec chmod g+w {} +
-  _step_seconds "own"
+  _banner "own"
   # Backup + migrate only when backend code changed; collectstatic when the
   # bundle changed; restart only for backend — static chunks and
   # tree-served docs need no service restart.
@@ -704,14 +698,14 @@ deployscratch() {
     # Pre-migration snapshot through the real unit — the DB state to
     # restore to if this deploy's migrate goes wrong.
     sudo systemctl start desmo_pgbackrest.service
-    _step_seconds "backup"
+    _banner "backup"
     ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py migrate --noinput )
-    _step_seconds "migrate"
+    _banner "migrate"
   fi
   if ! $docs_or_frontend_only || $frontend_changed; then
     echo "collectstatic…"
     ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py collectstatic --noinput --clear )
-    _step_seconds "collectstatic"
+    _banner "collectstatic"
   fi
   if ! $docs_or_frontend_only; then
     echo "restarting services…"
@@ -719,7 +713,7 @@ deployscratch() {
     # enforced at provisioning).
     sudo systemctl daemon-reload
     sudo systemctl restart desmo_granian.service desmo_huey.service
-    _step_seconds "restart"
+    _banner "restart"
   fi
   # Share-URL base — never a hardcoded one. The FIRST BASE_URLS entry is
   # the link base (the same rule makeloginlink uses); it keeps scheme and
@@ -729,7 +723,7 @@ deployscratch() {
   _SHARE_BASE="${_SHARE_BASE%/}"   # drop a trailing slash — the links below add their own
   echo "App is available under:"
   ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py baseurls )
-  _step_seconds "baseurls"
+  _banner "baseurls"
   echo "Deployed scratch/ → main/ (uncommitted, services live). Commit in main/ when ready."
   echo "Share absolute URLs you verified exist in main/ at the BOTTOM of your message (with the summary):"
   echo "  docs: ${_SHARE_BASE}/files/main/ourapp/docs/<feature>.md · pages: ${_SHARE_BASE}/<page-url>"

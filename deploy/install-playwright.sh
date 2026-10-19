@@ -15,6 +15,10 @@ set -euo pipefail
 maindir="/srv/desmo/main"
 creds_env="/etc/credentials/desmo/.env.vm"
 
+# Wall-clock stamp on banners — absolute, rounded to the second
+# (matches the provisioner's _banner()).
+_banner() { echo "[$(date +%T)] $*"; }
+
 main() {
   # Detect the OS/arch: os-release is the portable source, dpkg the arch.
   . /etc/os-release
@@ -43,7 +47,7 @@ main() {
     # Append BOTH keys to the credentials env — they must persist (runtime
     # launches validate too); every user sources the file through ./run
     # setenv. Grep-guarded: a re-run must not duplicate.
-    echo "==> platform override: $override (keys appended to the credentials env)"
+    _banner "==> platform override: $override (keys appended to the credentials env)"
     grep -q '^PLAYWRIGHT_HOST_PLATFORM_OVERRIDE=' "$creds_env" \
       || printf 'PLAYWRIGHT_HOST_PLATFORM_OVERRIDE="%s"\n' "$override" >> "$creds_env"
     grep -q '^PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=' "$creds_env" \
@@ -60,7 +64,7 @@ main() {
   # fails anyway (it exits 0 on "cannot install"), the launch check below
   # turns that into a hard refusal.
   set -a; . "$creds_env"; set +a
-  echo "==> playwright chromium system deps ($([ -n "$override" ] && printf 'mapped %s' "$override" || printf 'native'))"
+  _banner "==> playwright chromium system deps ($([ -n "$override" ] && printf 'mapped %s' "$override" || printf 'native'))"
   uv run --no-sync --directory "$maindir" python -m playwright install-deps chromium
 
   # The real assertion: a headless launch of the installed shell. Missing

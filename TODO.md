@@ -1,8 +1,3 @@
-future commit messages?
-
-squash design 
-review previous stuff
-
 css
 favicon
 home icon
@@ -21,19 +16,15 @@ files-mode-btn and other css names
 
 Branding. Dark mode.
 
+How to track time taken for provisioning
+Avoid https://localhost:8000/accounts/login/, show items in dropdown only. 
+User form should be single column. Describe each field
+
 Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
 How to document system changes when agent modifies system? Write down scripts?
 List backups and time travel
 Can agent merge from upstream, minding branch and tags?
-
-Admin file uploads - admin can download, both agent and admin can pass files back and forth
-Features - file section with git etc. Readme is crap.
-Desec dns docs
-
-TUI for config, vapid script could be in Python
-
-org/reponame
 
 Switch to Debian for lower memory usage? Multipass is for Ubuntu. Incus can rewind machines.
 Incus for native port forward
@@ -42,6 +33,15 @@ Remove the ssh port forward `ssh -N -L 8000:localhost:443 ubuntu@192.168.1.56`
 local-vm setupalogin
 local-vm portforward
 Update docs for adding users and login links
+
+threeflet
+Desec dns docs
+org/reponame with main thing, landing page
+Features - file section with git etc. Readme is crap.
+
+Admin file uploads - admin can download, both agent and admin can pass files back and forth
+
+TUI for config, vapid script could be in Python
 
 ## Upgrades
 Bootstrap 6, with dialog element
