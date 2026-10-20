@@ -30,10 +30,11 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
     - test_clicking_directory_entry_navigates, an entry link SPA-navigates into the dir
     - test_text_file_preview, a code file's content renders (escaped)
     - test_text_preview_is_html_escaped, file markup is escaped text, not live elements
-    - test_humanized_time_toggles_to_absolute, clicking the time swaps relative → absolute
+    - test_humanized_time_toggles_to_absolute, file listings start absolute;
+      clicking swaps to the relative label
     - test_markdown_renders_with_image, a linked image resolves to /files/raw and renders
     - test_markdown_outline_renders_and_expands, the heading outline shows and its
-      >300px cap expands via the toggle
+      >600px cap expands via the toggle
     - test_no_d2_requests_without_diagrams, a diagram-free page fetches no
       d2 chunk (the lazy-bundle tripwire)
     - test_markdown_hash_link_scrolls, an outline link scrolls its heading into view
@@ -109,15 +110,19 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         expect(page.locator(".files-code div")).to_have_count(0)
 
     def test_humanized_time_toggles_to_absolute(self) -> None:
-        """Clicking the time swaps the relative label for the absolute one."""
+        """File listings start absolute; clicking swaps to the relative label."""
         page = self.page
         page.goto(self._files(_DIR))
-        t = page.locator(".humanized-time").first
-        relative = t.text_content() or ""
-        t.click()
-        # The deemphasized time small only exists in the absolute view.
-        t.locator("small.humanized-time-time").wait_for(state="visible")
-        expect(t).not_to_have_text(relative)
+        timestamp = page.locator(".humanized-time").first
+        # The value span is unconditional — assert the state within it.
+        value = timestamp.locator(".humanized-time-value")
+        # Absolute view: the clock rides along in a deemphasized small.
+        expect(value.locator("small.humanized-time-time")).to_be_visible()
+        absolute_label = value.text_content() or ""
+        timestamp.click()
+        # Relative view: plain text, no smalls.
+        expect(value).not_to_have_text(absolute_label)
+        expect(value.locator("small")).to_have_count(0)
 
     def test_markdown_renders_with_image(self) -> None:
         """Markdown renders prose + the rewritten image, behind the toolbar.
@@ -173,10 +178,10 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         self.page.wait_for_selector('[data-files-state="rendered"]')
 
     def test_markdown_outline_renders_and_expands(self) -> None:
-        """The heading outline shows at the top and expands past its 300px cap.
+        """The heading outline shows at the top and expands past its 600px cap.
 
-        sample.md has 25+ headings, so the collapsed list is taller than the
-        300px cap: the toggle must appear, start collapsed (capped class), and
+        sample.md has 40 headings, so the collapsed list is taller than the
+        600px cap: the toggle must appear, start collapsed (capped class), and
         remove the cap on click.
         """
         page = self.page
@@ -195,7 +200,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         assert outline_box is not None
         assert markdown_box is not None
         self.assertLess(outline_box["y"], markdown_box["y"])
-        # Over the 300px cap → toggle visible, collapsed first, expands on click.
+        # Over the 600px cap → toggle visible, collapsed first, expands on click.
         toggle = page.locator("[data-outline-toggle]")
         toggle.wait_for(state="visible")
         listing = page.locator(".markdown-outline-list")

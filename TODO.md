@@ -1,3 +1,7 @@
+md - overflow scroll, show absolute time
+Then tell me in which contexts we use relative times.
+Time taken for each stage?
+
 Why noninteractive components?
 
 mockups - were mockup deployments fast enough? Avoid writing python files?

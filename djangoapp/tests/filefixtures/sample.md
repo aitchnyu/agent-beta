@@ -63,7 +63,39 @@ The target of the in-page hash link above.
 
 ## Heading 24
 
-Long enough (24 headings) that the outline exceeds its 300px collapsed cap.
+## Heading 25
+
+## Heading 26
+
+## Heading 27
+
+## Heading 28
+
+## Heading 29
+
+## Heading 30
+
+## Heading 31
+
+## Heading 32
+
+## Heading 33
+
+## Heading 34
+
+## Heading 35
+
+## Heading 36
+
+## Heading 37
+
+## Heading 38
+
+## Heading 39
+
+## Heading 40
+
+Long enough (40 headings) that the outline exceeds its 600px collapsed cap.
 
 ```d2
 schedule: Schedule {shape: diamond}

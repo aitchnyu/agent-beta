@@ -60,7 +60,7 @@ onMounted(async () => {
       <h3 class="files-name">{{ p.name }}</h3>
       <p class="text-muted files-meta">
         {{ formatSize(p.size) }} · {{ p.kind }} ·
-        <HumanizedTime :ms="p.mtime" />
+        <HumanizedTime :ms="p.mtime" absolute />
       </p>
       <a
         class="btn btn-sm btn-outline-secondary files-download"

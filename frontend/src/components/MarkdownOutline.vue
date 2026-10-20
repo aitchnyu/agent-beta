@@ -5,11 +5,9 @@ const props = defineProps<{
   entries: { level: number; text: string; id: string }[]
 }>()
 
-// The outline collapses at 300px; the toggle appears only when the list is
-// actually taller (measured post-render — headings wrap unpredictably). The
-// entries arrive async (after the markdown renders), so measure on mount AND
-// on every entries change, both after the DOM update.
-const COLLAPSED_MAX = 300
+// Collapsed cap (scrollable within). The toggle shows only if the list is
+// taller. Entries arrive async, so re-measure on every change.
+const COLLAPSED_MAX = 600
 const expandable = ref(false)
 const expanded = ref(false)
 const listEl = ref<HTMLElement>()
@@ -29,7 +27,7 @@ function toggle() {
 
 <template>
   <!-- No visible title — the heading list is the outline. When the list is
-       taller than its 300px cap, a bottom-edge toggle expands/collapses it. -->
+        taller than its 600px cap, a bottom toggle expands/collapses it. -->
   <nav
     v-if="props.entries.length"
     class="markdown-outline"

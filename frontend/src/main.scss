@@ -254,12 +254,24 @@ body {
   text-decoration: underline dotted;
 }
 
-// In the absolute view the time + tz are deemphasized; the date (the button's
-// own text) stays prominent.
+// The absolute view is muted throughout (see .humanized-time-absolute); the
+// time + tz smalls are smaller still, spaced by margin (inline flow).
 .humanized-time small {
   margin-left: 0.3em;
   font-size: 0.8em;
+}
+
+// Absolute view: the whole value reads muted — an exact timestamp is
+// reference detail, not content.
+.humanized-time-absolute {
   color: var(--bs-secondary-color);
+}
+
+// Calendar hint beside the relative label (the base .lucide-icon margin
+// spaces it).
+.humanized-time-icon {
+  width: 0.9em;
+  height: 0.9em;
 }
 
 // Changed-files tree (FileTree.vue on the git pages): each nesting level

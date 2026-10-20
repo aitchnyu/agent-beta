@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
 
-const props = defineProps<{ ms: number }>()
-// Click toggles between humanized (relative) and absolute. Default: humanized.
-const showAbsolute = ref(false)
+import LucideIcon from "./LucideIcon.vue"
+import calendarIcon from "../icons/calendar.svg"
+
+const props = defineProps<{ ms: number; absolute?: boolean }>()
+// Click toggles between humanized (relative) and absolute.
+// `absolute` sets the starting side — file listings use it.
+const showAbsolute = ref(props.absolute ?? false)
 
 // Relative ("5m ago") for the last week, else a local date — friendly + local TZ.
 function relativeTime(ms: number): string {
@@ -45,10 +49,22 @@ const tzName = computed(() => {
     :title="`${datePart} ${timePart}`"
     @click="showAbsolute = !showAbsolute"
   >
-    <template v-if="showAbsolute">
-      {{ datePart }}<small class="humanized-time-time">{{ timePart }}</small
-      ><small v-if="tzName" class="humanized-time-timezone">{{ tzName }}</small>
-    </template>
-    <template v-else>{{ relativeTime(ms) }}</template>
+    <span
+      class="humanized-time-value"
+      :class="{ 'humanized-time-absolute': showAbsolute }"
+    >
+      <template v-if="showAbsolute">
+        {{ datePart }}<small class="humanized-time-time">{{ timePart }}</small
+        ><small v-if="tzName" class="humanized-time-timezone">{{
+          tzName
+        }}</small>
+      </template>
+      <template v-else>
+        <!-- The calendar hints at the absolute date one click away; it leaves
+             once the date itself shows. -->
+        <LucideIcon class="humanized-time-icon" :src="calendarIcon" />
+        {{ relativeTime(ms) }}
+      </template>
+    </span>
   </button>
 </template>

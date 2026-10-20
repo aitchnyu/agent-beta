@@ -95,7 +95,9 @@ function entryIcon(e: {
           <td class="text-end files-size">
             {{ e.is_dir ? "—" : formatSize(e.size) }}
           </td>
-          <td class="files-modified-time"><HumanizedTime :ms="e.mtime" /></td>
+          <td class="files-modified-time">
+            <HumanizedTime :ms="e.mtime" absolute />
+          </td>
         </tr>
         <tr v-if="p.entries.length === 0">
           <td colspan="3" class="text-center text-muted py-4">
