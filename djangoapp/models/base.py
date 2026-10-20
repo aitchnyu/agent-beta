@@ -161,6 +161,54 @@ class User(AbstractUser):
 
     generate_uuid7_id = staticmethod(generate_uuid7_id)
 
+    @classmethod
+    def create_by_email(
+        cls,
+        *,
+        email: str,
+        first_name: str = "",
+        last_name: str = "",
+        is_staff: bool = False,
+        is_superuser: bool = False,
+    ) -> User:
+        """Create a user by email with its "created" history entry.
+
+        Refuses a second account for the same address (iexact) instead of
+        silently doubling, and insists the first user on an empty table be a
+        superuser (no signup exists; a normal first user locks everyone out).
+        Guards raise ValueError with operator-readable messages.
+        """
+        if not is_superuser and not cls.objects.exists():
+            msg = (
+                "The first user must be a superuser — there is no signup; "
+                "a normal first user would lock everyone out. "
+                "Retry with --superuser"
+            )
+            raise ValueError(msg)
+        if cls.objects.filter(email__iexact=email).exists():
+            msg = f"A user with email '{email}' already exists."
+            raise ValueError(msg)
+        # One transaction: a failure between the row and its audit entry
+        # must not strand an unaudited user the duplicate-email guard then
+        # refuses to recreate. Username derives from the email local part
+        # (same local part twice raises IntegrityError).
+        with transaction.atomic():
+            user: User = cls.objects.create_user(
+                username=email.rsplit("@", 1)[0],
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+            )
+            if is_staff or is_superuser:
+                # Flags land on the fresh row so the single "created" audit
+                # entry carries the final state (a follow-up "edited" entry
+                # would misread creation as a promotion).
+                user.is_staff = is_staff
+                user.is_superuser = is_superuser
+                user.save()
+            UserHistory.record_created(user, user, user.snapshot())
+        return user
+
 
 class UserProfile(PydanticBaseModel):
     # pk-free: only the URL-safe public_id is ever sent to clients.

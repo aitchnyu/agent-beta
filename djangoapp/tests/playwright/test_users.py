@@ -111,10 +111,11 @@ class UserEditE2eTestCase(BasePlaywrightTestCase):
 class UserHistoryE2eTestCase(BasePlaywrightTestCase):
     """E2E tests for the superuser user-history page.
 
-    Verifies the history timeline renders after an edit, showing the
-    "Edited" badge and the per-field diff. (User "created" history is not
-    recorded yet, so the timeline is seeded by an explicit edit.)
+    Verifies the history timeline renders the "Created" entry (single-sided
+    rows — every user flows through the audited creation paths) and the
+    "Edited" badge with its per-field diff after an edit.
 
+    - test_history_page_shows_created_entry, the creation audit renders its badge + rows
     - test_history_page_shows_edit_diff, after an edit the timeline shows the first-name diff
     - test_history_page_requires_superuser, anonymous viewer gets 404
     """
@@ -127,14 +128,23 @@ class UserHistoryE2eTestCase(BasePlaywrightTestCase):
             is_staff=True,
             is_superuser=True,
         )
-        self.target = User.objects.create_user(
-            username="target",
-            password="pass",
+        # The audited creation path — like every real user (CLI + social).
+        self.target = User.create_by_email(
+            email="before@example.com",
             first_name="Before",
             last_name="Name",
-            email="before@example.com",
         )
         self.login_as(self.superuser)
+
+    def test_history_page_shows_created_entry(self) -> None:
+        """The creation audit renders: badge + single-sided field rows."""
+        page = self.page
+        page.goto(f"{self.live_server_url}/users/history/{self.target.public_id}")
+        page.wait_for_selector(".user-history-entry")
+        expect(page.locator("text=Created").first).to_be_visible()
+        # Single-sided rows (no Before/After split for created entries).
+        expect(page.locator(".user-history-diff", has_text="First name").first).to_be_visible()
+        expect(page.locator(".user-history-old")).to_have_count(0)
 
     def test_history_page_shows_edit_diff(self) -> None:
         """After an edit, the history timeline shows the first-name diff."""

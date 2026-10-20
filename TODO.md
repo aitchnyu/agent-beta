@@ -48,6 +48,7 @@ org/reponame with main thing, landing page
 Features - file section with git etc. Readme is crap.
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
+UserHistory.record_created(user, user, user.snapshot()) is a mess
 
 TUI for config, vapid script could be in Python
 

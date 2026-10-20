@@ -10,8 +10,8 @@ from djangoapp.models import User
 class Command(BaseCommand):
     """Create a user by email, optionally with names and superuser flags.
 
-    ``--superuser`` grants staff + superuser at creation (audited via
-    ``UserHistory`` like every user write).
+    Every creation is audited as a ``UserHistory`` "created" entry; with
+    ``--superuser`` the entry carries the staff + superuser flags.
     """
 
     help = "Create a user by email (optionally --first-name/--last-name/--superuser)."
@@ -27,51 +27,21 @@ class Command(BaseCommand):
         )
 
     def handle(self, **options: Any) -> None:  # noqa: ANN401 # Django passes **options as untyped command flags
-        email: str = options["email"]
-        first_name: str = options["first_name"]
-        last_name: str = options["last_name"]
         superuser: bool = options["superuser"]
-        # The FIRST user must be a superuser: there is no signup and no other way in yet
-        if not superuser and not User.objects.exists():
-            msg = (
-                "This would be the first user, and it is not a superuser — "
-                "the first user must be one (there is no signup; "
-                "a normal first user locks everyone out). Retry with --superuser"
+        try:
+            user = User.create_by_email(
+                email=options["email"],
+                first_name=options["first_name"],
+                last_name=options["last_name"],
+                is_staff=superuser,
+                is_superuser=superuser,
             )
-            raise CommandError(msg)
-        # The User model does not enforce unique emails — refuse a second
-        # account for the same address (iexact) instead of silently doubling.
-        if User.objects.filter(email__iexact=email).exists():
-            msg = f"A user with email '{email}' already exists."
-            raise CommandError(msg)
-        # Username derives from the email local part (unique-ified by
-        # create_user if needed); names pass through as given.
-        username = email.rsplit("@", 1)[0]
-        user = User.objects.create_user(
-            username=username,
-            email=email,
-            first_name=first_name,
-            last_name=last_name,
-        )
-        if superuser:
-            # Route through User.update so the grant is audited via
-            # UserHistory (the CLI has no request user, so the new user is
-            # recorded as its own actor).
-            user.update(
-                first_name=first_name,
-                last_name=last_name,
-                email=email,
-                description=user.description,
-                has_public_profile=user.has_public_profile,
-                is_active=user.is_active,
-                is_staff=True,
-                is_superuser=True,
-                user=user,
-            )
+        except ValueError as exc:
+            raise CommandError(str(exc)) from exc
         flags = " + superuser/staff" if superuser else ""
         self.stdout.write(
             self.style.SUCCESS(
-                f"Created user '{user.username}' ({email}){flags}. "
-                "Sign in via: manage.py makeloginlink " + email
+                f"Created user '{user.username}' ({user.email}){flags}. "
+                "Sign in via: manage.py makeloginlink " + user.email
             )
         )

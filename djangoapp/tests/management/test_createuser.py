@@ -13,9 +13,10 @@ class CreateUserCommandTests(BaseTestCase):
     setUp seeds the mandatory first superuser; later users may be plain.
 
     - test_creates_user_with_names, email + names land on the row
-    - test_superuser_flag_grants_and_audits, --superuser sets flags via
-      User.update (UserHistory "edited" entry)
-    - test_plain_create_records_no_history, no flags -> no history row
+    - test_superuser_flags_land_in_created_audit, --superuser sets the flags
+      on the row and the "created" entry carries them
+    - test_plain_create_records_created, plain createuser audits one
+      "created" entry (no is_superuser)
     - test_duplicate_email_refuses, a second account for the same email
       (iexact) raises
     - test_output_mentions_login_link, stdout points at makeloginlink
@@ -46,8 +47,8 @@ class CreateUserCommandTests(BaseTestCase):
         self.assertFalse(user.is_superuser)
         self.assertFalse(user.is_staff)
 
-    def test_superuser_flag_grants_and_audits(self) -> None:
-        """--superuser sets is_staff + is_superuser and audits the grant."""
+    def test_superuser_flags_land_in_created_audit(self) -> None:
+        """--superuser sets the flags on the row; one "created" entry carries them."""
         call_command(
             "createuser",
             "root2@example.com",
@@ -58,14 +59,19 @@ class CreateUserCommandTests(BaseTestCase):
         self.assertTrue(user.is_superuser)
         self.assertTrue(user.is_staff)
         entry = UserHistory.objects.get(target_user=user)
-        self.assertEqual(entry.action, "edited")
-        self.assertEqual(entry._changes["is_superuser"], {"old": False, "new": True})
+        self.assertEqual(entry.action, "created")
+        self.assertEqual(entry.user, user)  # CLI actor: the user itself
+        self.assertIs(entry._changes["is_superuser"]["new"], True)  # noqa: FBT003
+        self.assertIs(entry._changes["is_staff"]["new"], True)  # noqa: FBT003
 
-    def test_plain_create_records_no_history(self) -> None:
-        """Without flags nothing is audited (creation alone isn't a User.update)."""
+    def test_plain_create_records_created(self) -> None:
+        """Creation alone is audited: one "created" entry, no flags."""
         call_command("createuser", "plain@example.com", stdout=StringIO())
         user = User.objects.get(email="plain@example.com")
-        self.assertEqual(UserHistory.objects.filter(target_user=user).count(), 0)
+        entry = UserHistory.objects.get(target_user=user)
+        self.assertEqual(entry.action, "created")
+        self.assertEqual(entry.user, user)  # CLI actor: the user itself
+        self.assertIs(entry._changes["is_superuser"]["new"], False)  # noqa: FBT003
 
     def test_duplicate_email_refuses(self) -> None:
         """A second account for the same email (iexact) raises instead of doubling."""
@@ -92,7 +98,7 @@ class CreateUserCommandTests(BaseTestCase):
             )
         msg = str(ctx.exception)
         self.assertIn("first user", msg)
-        self.assertIn("--superuser", msg)
+        self.assertIn("superuser", msg)
         self.assertEqual(User.objects.count(), 0)
 
     def test_first_user_with_superuser_flag_allowed(self) -> None:
