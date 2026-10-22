@@ -1,3 +1,20 @@
+Examine the images within https://localhost:8000/files/main/ourapp/docs/chores.md#who-can-do-what and others.
+actors and ovals are diff sizes
+How to update steer.md to generate people and subjects/objects of fixed size
+And blocks should have fixed width
+
+have usecase diagrams in first place? We were stuck with mermaid which forced us into usecase mould. Is there an alternative diagram thats undertandable to laymen but well documented?
+
+direction: down direction is applicable to inner containers? The top level thing directs blocks downward. Seems inner blocks scroll horizontally.
+
+each line in md is around 80 chars wide for readability. Update steer.md with this.
+
+d2 layout engine
+d2 theme
+d2 auto dark mode?
+
+scroll to top and permalinks?
+
 md - overflow scroll, show absolute time
 Then tell me in which contexts we use relative times.
 Time taken for each stage?
@@ -49,6 +66,8 @@ Features - file section with git etc. Readme is crap.
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 UserHistory.record_created(user, user, user.snapshot()) is a mess
+Pass rison for components?
+Markdown parsing and stuff should return data structures, not just process strings like `assignHeadingIds` in the chain
 
 TUI for config, vapid script could be in Python
 

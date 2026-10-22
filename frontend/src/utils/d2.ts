@@ -30,7 +30,15 @@ function getD2(): Promise<import("@d2lang/d2").D2> {
 export async function renderDiagram(source: string): Promise<string> {
   const d2 = await getD2()
   try {
-    const result = await d2.compile(source)
+    // App-level defaults (the WASM build ignores the language's `vars:` block):
+    // - layout: elk — tighter packing than dagre on dense graphs
+    // - themeID: 1 — Neutral Grey; darkThemeID: 200 — dark mode flips
+    //   automatically (d2 embeds the media query in the SVG)
+    const result = await d2.compile(source, {
+      layout: "elk",
+      themeID: 1,
+      darkThemeID: 200,
+    })
     // One sanitize pass covers the whole app — this is the only path d2
     // output takes into the DOM (it never crosses sanitizeHtml).
     // - d2 escapes every text surface itself

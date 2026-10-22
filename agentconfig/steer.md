@@ -570,10 +570,12 @@ In chat, link it as `<base>/files/main/ourapp/docs/<feature>.md`.
 **Two audiences, one file.** The front of the doc, however long the plain language needs — is the feature in plain
 language; the owner or a new contributor reads only that far. The later
 sections ("For developers") are the reference for people who will touch the
-code.
+code. Wrap every line at ~80 characters — long lines are hard to reread and
+diff. Keep sentences under ~120 characters too; when a sentence runs long,
+split it into points.
 
 **The premise.** Framed around the data — what is stored, how it changes,
-and how it is presented — the app is understandable to both audiences. ER
+and how it is presented — the app is understandable to both audiences. Data
 diagrams therefore belong up front with the plain language; dev jargon
 comes later.
 
@@ -595,17 +597,17 @@ checklist point to this section and restate nothing.
    - boundaries are pages or areas of the app
    - permission rules ride the diagram; anonymous behavior is a note
      ("gets a 404 — the feature is hidden")
-   - a `json` table node can show a payload shape worth seeing (the
+   - a `json` code block can show a payload shape worth seeing (the
      homepage summary counts)
 3. **The data.** Each model in plain words first ("a dish is the menu item;
-   an order is one concrete meal"), then the `erDiagram`. Translate every
+   an order is one concrete meal"), then the data diagram. Translate every
    relationship into behavior: "RESTRICT = a dish with orders can never be
    deleted".
 4. **How the data changes.** Every modification the feature makes —
    change, made by, what exactly happens — as a tight table or bullets,
    opened with the promise "if a change isn't listed here, the feature
    doesn't make it". Then:
-   - a `stateDiagram-v2` when one row kind has a lifecycle
+   - a state diagram when one row kind has a lifecycle
    - the safety rails as bullets (uniqueness, version checks, atomicity,
      clamping)
 5. **What you see.** The UI walkthrough — pages, groups, buttons, feedback.
@@ -642,17 +644,25 @@ them with pan/zoom controls.
 
 - **Use-case diagrams** — composed from D2 primitives, one statement per
   line:
-  - actors — `shape: person`, declared explicitly
-  - use cases — `shape: oval`
+  - actors — `shape: person`, declared explicitly, pinned to
+    `width: 180; height: 160` so every actor renders identically
+  - use cases — `shape: oval`, fixed `width: 240` regardless of label
+    length; a generous radius when drawn as a box instead
+    (`style.border-radius: 24`)
   - the system boundary — a container
   - associations — `->`; include/extend — dashed labeled arrows
     (`{style.stroke-dash: 3}`)
+- **Stack vertically — both tools serve the same goal: phones scroll
+  vertically, and horizontal layouts force side scrolling.**
+  - `direction: down` at the TOP LEVEL of every fence.
+  - The engine ignores `direction` inside containers (inner flows never
+    reorient), so for members that must stack inside a container, use the
+    grid instead: `grid-rows: N; grid-columns: 1` — works everywhere.
+  - When a container outgrows the screen, split the concept into another
+    fence (also `direction: down`).
 - Diagrams are per screen/page and chained — a→b→c flows, never flat
   one-level lists.
-- Lay them out top-down (`direction: down`): wide left-to-right layouts
-  overflow a phone screen and force side scrolling, while a vertical
-  flow fits the narrow screen column. Keep boundaries narrow — few
-  ovals per row.
+- Keep boundaries narrow — few ovals per row.
 - Icons stay local: copy a lucide SVG (grep
   `frontend/node_modules/lucide-static/icons/`) to
   `djangoapp/static/icons/` with a concrete stroke hex, reference
@@ -663,10 +673,12 @@ them with pan/zoom controls.
   grammar, not semantics: an undeclared actor is just a shape — declare
   every actor as `shape: person` yourself. The docs fast path re-checks
   changed files at deploy time automatically.
-- **ER diagrams** — whenever models exist: entities as
-  `shape: sql_table` (columns with types), FKs as labeled arrows carrying
-  the cardinality (`orders -> customer: "N..1"`), delete rules as further
-  labels (`on delete RESTRICT`).
+- **Data diagrams** — whenever models exist: entities as
+  `shape: sql_table` (columns with types). Every connection carries a
+  plain-language description AND the cardinality — e.g.
+  `chores -> user: "belongs to (N..1)"`,
+  `user -> chores: "owns (1..N)"`. Delete rules as further labels
+  (`on delete RESTRICT`).
 - **State diagrams** — when a row kind changes state: states as shapes,
   transitions as labeled arrows, the initial/final states as small
   circles.

@@ -254,6 +254,29 @@ body {
   text-decoration: underline dotted;
 }
 
+// Heading tools: permalink to the section + jump to page top. Always
+// visible (hover is useless on mobile), muted to stay behind the text.
+.heading-tools {
+  display: inline;
+  margin-left: 0.5em;
+
+  a {
+    text-decoration: none;
+    font-weight: normal;
+    font-size: 0.8em;
+    color: var(--bs-secondary-color);
+    // Bigger tap target than the bare glyph; the opacity lift covers hover
+    // AND keyboard focus (touch keeps the faded state by design).
+    padding: 0.25em;
+    opacity: 0.6;
+
+    &:hover,
+    &:focus-visible {
+      opacity: 0.95;
+    }
+  }
+}
+
 // The absolute view is muted throughout (see .humanized-time-absolute); the
 // time + tz smalls are smaller still, spaced by margin (inline flow).
 .humanized-time small {

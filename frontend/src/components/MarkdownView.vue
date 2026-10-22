@@ -29,8 +29,10 @@ onMounted(async () => {
   rendered.value = renderMarkdown(props.text, props.rel)
   raw.value = highlightCode(props.text, "markdown")
   // Parse the rendered (sanitized) HTML — outline entries mirror what's on
-  // the page, and their ids exist only in that final HTML.
+  // the page, and their ids exist only in that final HTML. The heading tools
+  // (permalink/top) are stripped so they never leak into outline labels.
   const doc = new DOMParser().parseFromString(rendered.value, "text/html")
+  doc.querySelectorAll(".heading-tools").forEach((t) => t.remove())
   outline.value = [...doc.querySelectorAll("h1,h2,h3,h4,h5,h6")].map((h) => ({
     level: Number(h.tagName.slice(1)),
     text: h.textContent?.trim() ?? "",

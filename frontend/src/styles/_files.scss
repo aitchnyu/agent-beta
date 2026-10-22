@@ -101,9 +101,27 @@
 .files-markdown {
   margin-top: 0.5rem;
 
+  // Text wraps at a readable measure even on wide screens; images, code,
+  // tables, and diagrams span the full panel instead. marked wraps
+  // standalone images in a <p> — image-only paragraphs escape the measure.
+  > * {
+    max-width: 75ch;
+  }
+
+  > p:has(img:only-child) {
+    max-width: none;
+  }
+
   img {
-    max-width: 100%;
+    width: 100%;
+    max-width: none;
     height: auto;
+  }
+
+  pre,
+  table,
+  .rich-diagram {
+    max-width: none;
   }
 
   h1,

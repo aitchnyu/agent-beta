@@ -42,6 +42,15 @@ export function assignHeadingIds(html: string): string {
     while (taken.has(id)) id = `${base}-${++n}`
     taken.add(id)
     h.id = id
+    // § permalink + ↑ to-top. The id is URI-escaped before interpolation —
+    // heading text is untrusted, and this becomes HTML.
+    const attr = encodeURIComponent(id)
+    const tools = doc.createElement("span")
+    tools.className = "heading-tools"
+    tools.innerHTML =
+      `<a class="heading-permalink" href="#${attr}" title="Link to this section">§</a>` +
+      `<a class="heading-top" href="#" title="Scroll to top">↑</a>`
+    h.appendChild(tools)
   }
   return doc.body.innerHTML
 }
