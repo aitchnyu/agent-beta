@@ -402,6 +402,24 @@ body {
   font-family: $font-family-monospace;
 }
 
+// Restore in-flow linenumber cells (diff2html overlays them absolutely,
+// with huge compensating paddings on the line divs): Firefox paints the
+// absolute cells' background shorter than the row, leaving page-background
+// bands under the lines. The rule applies in every browser — Chromium's
+// rendering was already tight and stays so with the simpler layout.
+.diff-view td.d2h-code-linenumber,
+.diff-view td.d2h-code-side-linenumber {
+  position: static;
+  display: table-cell;
+  vertical-align: top;
+}
+
+.diff-view .d2h-code-line,
+.diff-view .d2h-code-side-line {
+  padding: 0 0.5em;
+  width: auto;
+}
+
 // App red/green row tints for LIGHT mode. Dark mode is handled natively:
 // the container carries d2h-auto-color-scheme, whose variable set
 // (d2h-dark-*) flips under prefers-color-scheme: dark — no manual reskin.

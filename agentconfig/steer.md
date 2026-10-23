@@ -92,7 +92,7 @@ Stage rules carry the TECHNICAL constraints only — every message shape
 lives in [Stage messages](#stage-messages):
 
 - **[1] Mockups** — `createscratch` **once**, then mockup pages
-  (mechanics: [Mockups and diagrams](#mockups-and-diagrams)): real Vue
+  (mechanics: [Mockups](#mockups)): real Vue
   components with hardcoded markup — **no props** (hardcode repeated
   items), reuse the app's CSS, superuser-only pages at `/mockup/<page>`;
   a superuser-only link on the homepage is allowed. Client-side state and
@@ -467,7 +467,7 @@ the user to sanity-check before you start; keep it a tight list, not prose.
 Reply in **markdown** — headings, lists, fenced code blocks, `` `inline
 code` ``, tables and links. Diagrams live in the design doc and mockups
 are deployed pages — both shared as absolute links (see
-[Mockups and diagrams](#mockups-and-diagrams)).
+[Mockups](#mockups)).
 
 ### Todos and subagents
 Track multi-step work with a **checklist in your messages** — one item per
@@ -524,12 +524,11 @@ Read code in this priority order:
 3. **The framework only as reference** — `djangoapp/` is there to understand
    behaviour, not to rework. Change it only when the user explicitly asks.
 
-### Mockups and diagrams
-Stages 1–2's artifacts live in **files**, not chat: diagrams render in the
-browser (the `/files` viewer), mockups are real deployed pages. Everything
-lives in `../scratch/` and reaches `main/` only via `deployscratch` —
-allowlisted, so mockup deploys run unblocked; share the deployed
-links in chat immediately after each deploy via
+### Mockups
+Stages 1–2's artifacts live in **files**, not chat: mockups are real deployed
+pages. Everything lives in `../scratch/` and reaches `main/` only via
+`deployscratch` — allowlisted, so mockup deploys run unblocked; share the
+deployed links in chat immediately after each deploy via
 [Stage messages](#stage-messages).
 
 - **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
@@ -544,6 +543,9 @@ links in chat immediately after each deploy via
     changes still merge cleanly even after years.
   - The hatch route in `home.py` serves `ours/<page>` verbatim at
     `/mockup/<page>`. `/mockup/MockupChores` → `MockupChores.vue`.
+  - URL params preset a mockup's state:
+    `/mockup/<Name>?props=<base64url-encoded JSON object>` — the hatch
+    passes the decoded object as the page props.
   - No route, view, or registration — frontend-only changes deploy fast.
   - Static first: hardcoded markup, no props. Then client-side state.
   - Nothing ever saves: no writes, DB, models, migrations, or endpoints.
@@ -639,7 +641,8 @@ checklist point to this section and restate nothing.
 - `ourapp/README.md` stays one or two lines (what + URLs) and links the
   doc. The doc carries the detail, never the README.
 
-**Diagrams.** D2, in fenced ` ```d2 ` blocks — the /files viewer renders
+### Diagrams
+D2, in fenced ` ```d2 ` blocks — the /files viewer renders
 them with pan/zoom controls.
 
 - **Use-case diagrams** — composed from D2 primitives, one statement per
@@ -674,11 +677,20 @@ them with pan/zoom controls.
   every actor as `shape: person` yourself. The docs fast path re-checks
   changed files at deploy time automatically.
 - **Data diagrams** — whenever models exist: entities as
-  `shape: sql_table` (columns with types). Every connection carries a
-  plain-language description AND the cardinality — e.g.
-  `chores -> user: "belongs to (N..1)"`,
-  `user -> chores: "owns (1..N)"`. Delete rules as further labels
-  (`on delete RESTRICT`).
+  `shape: sql_table` (columns with types), written for laymen:
+  - types in plain words — `true/false`, `text`, `date`, `date+time`,
+    `list of X`
+  - choices render inline — `schedule: weekdays | interval`
+  - optional columns get `?` — `completed_by: User?`
+  - references are model names, not integer columns — `chore: Chore`
+    (not `chore_id int`); the arrow starts at that row
+  - no surrogate `id` PK row, no BaseModel audit columns
+    (`created_by/at`, `last_updated_*`) — include an actor/time column
+    only when the feature's story turns on it
+  - Every connection carries a plain-language description AND the
+    cardinality — e.g. `chores -> user: "belongs to (N..1)"`,
+    `user -> chores: "owns (1..N)"`. Delete rules as further labels
+    (`on delete RESTRICT`).
 - **State diagrams** — when a row kind changes state: states as shapes,
   transitions as labeled arrows, the initial/final states as small
   circles.

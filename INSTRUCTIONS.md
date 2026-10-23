@@ -315,6 +315,7 @@ Counterexamples (both fixed in steer.md):
 Do not introduce inline css or Vue scoped styles. Ensure rules are in main.css.  
 Do not create `<a href='#'>...` with click handlers till I explicitly ask you.  
 Do not run `npm run build-only` except when I explicitly mention.  
+Use `await` with `try/catch`, not `.then(…).catch(…)` chains.  
 
 After changes to TS/JS files, run these lint commands and iterate till it reports zero errors.
 

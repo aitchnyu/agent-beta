@@ -21,7 +21,7 @@ The landing page — plus the generic mockup route every mockup page serves from
   `docs/reference/` (the complete worked example).
 - `/mockup/MockupTodos` renders a static todo list mirroring the reference app's
   todos page under the `div.mockup` crosshatch wrapper — the shipped example
-  of the mockup convention (`agentconfig/steer.md` § Mockups and diagrams).
+  of the mockup convention (`agentconfig/steer.md` § Mockups).
   Unlike a feature mockup it never graduates; append `?final=1` to drop the
   crosshatch and see the "graduated" look (the README's mockup screenshot
   pair comes from these two views).

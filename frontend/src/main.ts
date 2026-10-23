@@ -7,8 +7,10 @@ import {
   reportErrorEvent,
   reportRejection,
   reportVueError,
+  reportVisitError,
 } from "./utils/clientError"
 import { showErrorToast } from "./utils/sweetalert"
+import { UserVisibleError } from "./utils/errors"
 import "./main.scss"
 import "vue-multiselect/dist/vue-multiselect.css"
 // Eager styles for the lazy JS chunks, otherwise these pages flash of unstyled content.
@@ -95,8 +97,13 @@ createInertiaApp({
       : `./pages/${name}.vue`
     const mod = pages[key]
     if (!mod) {
-      throw new Error(
-        `Inertia page not found: ${key} — rebuild the frontend (npm run build)`,
+      // Stale links land here (retired mockups, renamed pages, old
+      // bundles). The error carries both copies: technical for the log,
+      // plain-language for the toast (rendered by showErrorToast).
+      throw new UserVisibleError(
+        `Page component not found: ${key}`,
+        "Page not found",
+        "This page isn't available. <a href='/'>Go to the homepage</a>.",
       )
     }
     return mod.default
@@ -119,19 +126,24 @@ createInertiaApp({
     router.on("httpException", (event) => {
       event.preventDefault()
       const { status, data } = event.detail.response
-      showErrorToast(
-        new HttpResponseError(`Request failed with status ${status}`, {
+      const responseError = new HttpResponseError(
+        `Request failed with status ${status}`,
+        {
           status,
           // Already-parsed object bodies (HttpExceptionResponse) re-serialize
           // so the toast's JSON-detail extraction sees a string either way.
           data: typeof data === "string" ? data : JSON.stringify(data),
           headers: {},
-        }),
-        "Request failed",
+        },
       )
+      // Visits bypass the unhandledrejection net (preventDefault above), so
+      // report from here — otherwise the failure never reaches client-errors.
+      reportVisitError(responseError, `inertia visit http ${status}`)
+      showErrorToast(responseError, "Request failed")
     })
     router.on("networkError", (event) => {
       event.preventDefault()
+      reportVisitError(event.detail.error, "inertia visit network")
       showErrorToast(event.detail.error, "Could not reach the server")
     })
     app.use(plugin).mount(el)

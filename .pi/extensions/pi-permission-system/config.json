@@ -34,6 +34,10 @@
       "../scratch/*": "allow",
       "/srv/desmo/scratch": "allow",
       "/srv/desmo/scratch/*": "allow",
+      "../main": "allow",
+      "../main/*": "allow",
+      "/srv/desmo/main": "allow",
+      "/srv/desmo/main/*": "allow",
       "..": "allow",
       "../*": "allow"
     },
@@ -106,7 +110,11 @@
       "lsof *": "allow",
       "bash -n *": "allow",
       "zsh -n *": "allow",
-      "export *": "allow"
+      "export *": "allow",
+      "journalctl -u desmo_granian*": "allow",
+      "journalctl -u desmo_huey*": "allow",
+      "journalctl -u desmo_pgbackrest*": "allow",
+      "mlr *": "allow"
     }
   }
 }

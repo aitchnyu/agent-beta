@@ -1,3 +1,27 @@
+test_home_views.py needed to test chores_summary changes. Did it waste time?
+
+boolean to true-false
+varchar to text
+No chore_id int, chore Chore
+
+Mockup error at https://localhost:8000/mockup/MockupChores - redirect to home?
+
+Why 422 toast happened instead of validation? 
+
+Agent in the vm generate `page.goto(f"{self.live_server_url}/chores", wait_until="networkidle")` - is this too slow?
+
+Move schemas to inline with Vue files if used by one file?
+
+
+dont supply these props
+        #     "props": {
+        #         "is_authenticated": True,
+        #         "display_name": "Alice Smith",
+        #         "public_id": "<url-safe public id>",
+        #     },
+
+when did reviewer warm up? Could we have launched it earlier?
+
 Examine the images within https://localhost:8000/files/main/ourapp/docs/chores.md#who-can-do-what and others.
 actors and ovals are diff sizes
 How to update steer.md to generate people and subjects/objects of fixed size
@@ -59,6 +83,8 @@ local-vm setupalogin
 local-vm portforward
 Update docs for adding users and login links
 
+Dont mention Huey, mention its a cron.  
+
 threeflet
 Desec dns docs
 org/reponame with main thing, landing page
@@ -66,8 +92,8 @@ Features - file section with git etc. Readme is crap.
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 UserHistory.record_created(user, user, user.snapshot()) is a mess
-Pass rison for components?
 Markdown parsing and stuff should return data structures, not just process strings like `assignHeadingIds` in the chain
+copy paste detector in main and sub repos
 
 TUI for config, vapid script could be in Python
 

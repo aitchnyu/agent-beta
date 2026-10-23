@@ -149,6 +149,29 @@ export function reportVueError(err: unknown, info?: string): void {
   })
 }
 
+/**
+ * Report an Inertia visit failure (router httpException/networkError
+ * events). main.ts preventDefault()s those events, so they never become
+ * unhandled rejections — without this they toast but stay invisible to
+ * the client-errors log.
+ */
+export function reportVisitError(err: unknown, context: string): void {
+  const e = err instanceof Error ? err : undefined
+  void reportClientError({
+    message:
+      e?.message ??
+      (typeof err === "string" ? err : `Visit failed (${context})`),
+    stack: e?.stack ?? "",
+    filename: "",
+    lineno: null,
+    colno: null,
+    url: window.location.href,
+    userAgent: navigator.userAgent,
+    vueInfo: context,
+    public_id: currentPublicId(),
+  })
+}
+
 // Read the viewer's public_id from the Inertia shared props (set by
 // SharedPropsMiddleware). Informational only — the backend re-derives identity
 // from request.user; this just lets a client_error record name its reporter.

@@ -1,5 +1,7 @@
 """Tests for the home view (``GET /``)."""
 
+import base64
+import json
 from http import HTTPStatus
 
 from djangoapp.models import User
@@ -9,35 +11,54 @@ from djangoapp.tests._base import BaseInertiaTestCase
 class HomeViewTests(BaseInertiaTestCase):
     """The landing page renders for anonymous and authenticated viewers (pk-free).
 
-    - test_anonymous_home, anon GET / has ours/Home component, is_authenticated False
+    - test_anonymous_home, anon GET / has ours/Home component, anonymous props
     - test_authenticated_home, authed GET / has display_name and public_id set
     - test_home_issues_csrftoken_cookie, GET / sets a csrftoken cookie so logout can POST
     - test_no_integer_pk_in_props, public_id present but no integer id/pk leaks
     """
 
     def test_anonymous_home(self) -> None:
-        """Anon GET / has ours/Home with is_authenticated False and empty display_name."""
+        """Anon GET / has ours/Home with anonymous home-owned props."""
+        # Full payload for reference (not asserted — features add props):
+        # {
+        #     "props": {
+        #         "is_authenticated": False,
+        #         "display_name": "",
+        #         "public_id": "",
+        #     },
+        #     # Shared viewer props (SharedPropsMiddleware) are anonymous
+        #     # here; no SocialApps configured → empty provider list.
+        #     "user": None,
+        #     "viewer_is_superuser": False,
+        #     "login_providers": [],
+        #     "unread_notifications": 0,
+        #     "just_logged_in": False,
+        # }
         self.inertia.get("/")
         self.assertComponentUsed("ours/Home")
-        self.assertHasExactProps(
-            {
-                "props": {
-                    "is_authenticated": False,
-                    "display_name": "",
-                    "public_id": "",
-                },
-                # Shared viewer props (SharedPropsMiddleware) are anonymous
-                # here; no SocialApps configured → empty provider list.
-                "user": None,
-                "viewer_is_superuser": False,
-                "login_providers": [],
-                "unread_notifications": 0,
-                "just_logged_in": False,
-            },
-        )
+        page = self.props()
+        self.assertIs(page["props"]["is_authenticated"], False)  # noqa: FBT003
+        self.assertEqual(page["props"]["display_name"], "")
+        self.assertEqual(page["props"]["public_id"], "")
 
     def test_authenticated_home(self) -> None:
         """Authed GET / has display_name and public_id set."""
+        # Full payload for reference (not asserted — features add props):
+        # {
+        #     "props": {
+        #         "is_authenticated": True,
+        #         "display_name": "Alice Smith",
+        #         "public_id": "<url-safe public id>",
+        #     },
+        #     "user": {"public_id": "<…>", "title": "Alice Smith"},
+        #     "viewer_is_superuser": False,
+        #     # Signed-in requests get null — no provider lookup runs.
+        #     "login_providers": None,
+        #     "unread_notifications": 0,
+        #     # force_login IS a login: the first render after it
+        #     # carries the one-shot rebind flag.
+        #     "just_logged_in": True,
+        # }
         user = User.objects.create_user(
             username="alice",
             first_name="Alice",
@@ -46,23 +67,14 @@ class HomeViewTests(BaseInertiaTestCase):
         self.inertia.force_login(user)
         self.inertia.get("/")
         self.assertComponentUsed("ours/Home")
-        self.assertHasExactProps(
-            {
-                "props": {
-                    "is_authenticated": True,
-                    "display_name": "Alice Smith",
-                    "public_id": user.public_id,
-                },
-                "user": {"public_id": user.public_id, "title": "Alice Smith"},
-                "viewer_is_superuser": False,
-                # Signed-in requests get null — no provider lookup runs.
-                "login_providers": None,
-                "unread_notifications": 0,
-                # force_login IS a login: the first render after it
-                # carries the one-shot rebind flag.
-                "just_logged_in": True,
-            },
-        )
+        page = self.props()
+        self.assertIs(page["props"]["is_authenticated"], True)  # noqa: FBT003
+        self.assertEqual(page["props"]["display_name"], "Alice Smith")
+        self.assertEqual(page["props"]["public_id"], user.public_id)
+        # Shared viewer props for the authed case: the navbar user + the
+        # one-shot rebind flag force_login produces.
+        self.assertEqual(page["user"]["title"], "Alice Smith")
+        self.assertIs(page["just_logged_in"], True)  # noqa: FBT003
 
     def test_home_issues_csrftoken_cookie(self) -> None:
         """GET / sets a csrftoken cookie so CSRF-needing POSTs can send it."""
@@ -90,6 +102,11 @@ class MockupTodosTests(BaseInertiaTestCase):
 
     - test_superuser_sees_mockup, superuser GET /mockup/MockupTodos renders
       ours/MockupTodos, empty props
+    - test_props_url_param_presets_props, ?props=<base64url JSON> becomes
+      the page props
+    - test_bad_props_param_is_422, a non-decodable props param is the standard 422
+    - test_deeply_nested_props_param_is_422, deeply-nested JSON is a 422 too
+      (json.loads RecursionError must not escape as a 500)
     - test_anonymous_gets_404, anyone else never learns the page exists (404, not 403)
     - test_non_superuser_gets_404, a logged-in regular user gets 404 too
     """
@@ -101,6 +118,29 @@ class MockupTodosTests(BaseInertiaTestCase):
         self.inertia.get("/mockup/MockupTodos")
         self.assertComponentUsed("ours/MockupTodos")
         self.assertEqual(self.props()["props"], {})
+
+    def test_props_url_param_presets_props(self) -> None:
+        """?props=<base64url JSON object> rides through as the page props."""
+        root = User.objects.create_user(username="root", password="pw", is_superuser=True)
+        self.inertia.force_login(root)
+        encoded = base64.urlsafe_b64encode(json.dumps({"items": 3}).encode()).decode().rstrip("=")
+        self.inertia.get(f"/mockup/MockupTodos?props={encoded}")
+        self.assertEqual(self.props()["props"], {"items": 3})
+
+    def test_bad_props_param_is_422(self) -> None:
+        """A props param that is not base64url JSON gets the standard 422."""
+        root = User.objects.create_user(username="root", password="pw", is_superuser=True)
+        self.client.force_login(root)
+        response = self.client.get("/mockup/MockupTodos?props=not-b64-json")
+        self.assertEqual(response.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
+
+    def test_deeply_nested_props_param_is_422(self) -> None:
+        """Deeply-nested JSON stays a 422 (RecursionError must not 500)."""
+        root = User.objects.create_user(username="root", password="pw", is_superuser=True)
+        self.client.force_login(root)
+        deep = base64.urlsafe_b64encode(("[" * 2000 + "]" * 2000).encode()).decode()
+        response = self.client.get(f"/mockup/MockupTodos?props={deep}")
+        self.assertEqual(response.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
 
     def test_anonymous_gets_404(self) -> None:
         """Anonymous never learns the page exists (404, not 403)."""
