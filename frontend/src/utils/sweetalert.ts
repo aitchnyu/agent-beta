@@ -67,8 +67,11 @@ export const showToast = async (
  * array detail never parses here.
  */
 const serverMessage = (data: unknown): string | null => {
+  // ApiErrorSchema's keys are all optional, so it parses ANY object body —
+  // only a present msg answers here, then the detail-string shape gets
+  // its turn.
   const api = ApiErrorSchema.safeParse(data)
-  if (api.success) return api.data.msg ?? null
+  if (api.success && api.data.msg !== undefined) return api.data.msg
   const detail = DetailStringSchema.safeParse(data)
   return detail.success ? detail.data.detail : null
 }

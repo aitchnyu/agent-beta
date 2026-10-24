@@ -1,3 +1,21 @@
+__root__ error rendering
+raise ApiError(403, "CSRF verification failed.") - can take dict/string/any
+
+raise HttpError(409, "Order already shipped")
+# → 409 {"detail": "Order already shipped"}
+
+fieldError will take custom messageFor
+
+Actually create will just return `_todo_out(todo)` or raise error
+We have ninjaPost<TodoListOutSchema>({
+        text: text.value,
+        expected_row_version: 0,
+      }) 
+instead of postJson
+It returns TodoListOutSchema or a NinjaError object. 
+
+With a NinjaError object we can .errorAtPath(["body", "payload", "nested", 0]) and it will try to fetch error at path and return ErrorDetail or null. We can also call .childForPath(["body", "payload",]) which returns a child NinjaError which we can call without prefix.
+
 test_home_views.py needed to test chores_summary changes. Did it waste time?
 
 boolean to true-false
@@ -84,6 +102,8 @@ local-vm portforward
 Update docs for adding users and login links
 
 Dont mention Huey, mention its a cron.  
+do we need ours/
+deployscratch error - specify which test to do
 
 threeflet
 Desec dns docs

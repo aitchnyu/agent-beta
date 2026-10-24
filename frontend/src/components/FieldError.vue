@@ -8,10 +8,11 @@ import {
   type ErrorDetail,
 } from "../utils/pydanticErrors"
 
-// message-for overrides copy the catalog doesn't resolve (no template).
+// message-for supplies copy the catalog doesn't resolve; return
+// undefined to pass through to the catalog/backend fallback.
 const props = defineProps<{
   error?: ErrorDetail | null | undefined
-  messageFor?: (_: string) => string
+  messageFor?: (_: string) => string | undefined
 }>()
 
 const text = computed(() => {

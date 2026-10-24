@@ -1056,12 +1056,29 @@ const item = result.childForPath(["body", "payload", "items", 1])
 
 #### Copy override — FieldError's `message-for` prop
 
-Show friendlier messages when the built-in catalog can't:
+Show friendlier messages when the built-in catalog can't. Write it as a
+named function in the script; return `undefined` for types it doesn't
+handle — the catalog/backend fallback applies:
 
 ```vue
-<FieldError :error="errors.value.errorAtPath(['end_date'])"
-            :message-for="(type) => type === 'end_date_before_start' ? 'The end must come after the start' : ''" />
+<script setup lang="ts">
+function endDateMessage(type: string): string | undefined {
+  if (type === "end_date_before_start") {
+    return "The end must come after the start"
+  }
+  return undefined
+}
+</script>
+
+<template>
+  <FieldError :error="errors?.errorAtPath(['end_date'])"
+              :message-for="endDateMessage" />
+</template>
 ```
+
+<!-- MAINTAIN-CONSISTENCY pydantic-errors — this section documents the
+     convention the catalog (frontend/src/utils/pydanticErrors.ts) and the
+     ruff ignores (pyproject.toml) implement; change all three together. -->
 
 
 

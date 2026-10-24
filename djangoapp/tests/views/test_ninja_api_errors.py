@@ -13,11 +13,11 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 from django.core.exceptions import PermissionDenied
-from ninja import NinjaAPI, Router
+from ninja import NinjaAPI
 from ninja.testing import TestClient
 
 from djangoapp.models import User
-from djangoapp.ninja_api import _NOT_FOUND, ApiError, register_api_error_handlers
+from djangoapp.ninja_api import _NOT_FOUND, register_api_error_handlers
 from djangoapp.tests._base import BaseInertiaTestCase, BaseTestCase
 
 if TYPE_CHECKING:
@@ -104,4 +104,3 @@ class NinjaPermissionDeniedTests(BaseTestCase):
             response.json(),
             {"type": "forbidden", "msg": "You don't have permission to do that."},
         )
-
