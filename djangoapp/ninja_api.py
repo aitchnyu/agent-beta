@@ -1,11 +1,13 @@
 """Consistent JSON error handling + API setup for all ninja endpoints.
 
-``ApiError`` is the single exception type raised from API/submit operations
-with a developer-authored, client-facing message. ``register_api_error_handlers``
-installs handlers on a ``NinjaAPI`` so every error is a friendly, leak-free JSON
-body:
+``ApiError`` is the single exception type raised from API/submit operations:
+``ApiError(status, *, type=…, msg=…, ctx=…)`` — all extras optional. Its body
+is the top-level ``{"type": …, "msg": …, "ctx": {}}`` (keys omitted when
+unset); a body ``msg`` is user copy the frontend toast shows verbatim.
+``register_api_error_handlers`` installs handlers on a ``NinjaAPI`` so every
+error is a friendly, leak-free JSON body:
 
-- ``ApiError``  → its own message/payload (controlled by the view).
+- ``ApiError``  → its own type/msg/ctx (controlled by the view).
 - ``Http404`` → ``"Not found: <path>"`` (the requested path is the user's own
   input, safe to echo) — never ``str(exc)``, which could leak internals. A fully
   custom message belongs in ``ApiError``.
@@ -16,6 +18,7 @@ body:
 """
 
 import http
+import typing
 from typing import TYPE_CHECKING
 
 from django.core.exceptions import PermissionDenied
@@ -43,23 +46,28 @@ _INTERNAL = "Something went wrong. Please try again, or reload if it keeps happe
 
 
 class ApiError(HttpError):
-    """API error carrying an optional structured payload.
+    """API error with optional ``type``/``msg``/``ctx`` (all keyword-only).
 
-    When ``payload`` is given it replaces the JSON response body verbatim;
-    ``message`` is kept only for logging and ``str()``. When ``payload`` is
-    ``None`` the body is ``{"detail": message}``, matching ninja's default
-    ``HttpError`` contract so frontend code reading ``response.data.detail``
-    keeps working.
+    ``raise ApiError(404)`` or
+    ``raise ApiError(404, type="user_mismatch", msg="…", ctx={…})``. The
+    response body is ``{"type": …, "msg": …, "ctx": {}}`` top-level with
+    unset keys omitted — a body ``msg`` is user copy the toast renders
+    verbatim. ``message`` (required by ``HttpError``) serves logs and
+    ``str()``: the msg, else the type, else a plain status line.
     """
 
     def __init__(
         self,
         status_code: int,
-        message: str,
-        payload: DictStrAny | None = None,
+        *,
+        type: str | None = None,  # noqa: A002
+        msg: str | None = None,
+        ctx: dict[str, typing.Any] | None = None,
     ) -> None:
-        super().__init__(status_code, message)
-        self.payload = payload
+        super().__init__(status_code, msg or type or f"HTTP {status_code}")
+        self.error_type = type
+        self.msg = msg
+        self.ctx = ctx
 
 
 def _wants_html(request: HttpRequest) -> bool:
@@ -78,13 +86,20 @@ def register_api_error_handlers(api: NinjaAPI) -> None:
 
     @api.exception_handler(ApiError)
     def on_api_error(request: HttpRequest, exc: ApiError) -> HttpResponse:
-        # str(exc) will return exc.message, thanks to HttpError __str__.
         if exc.status_code == http.HTTPStatus.NOT_FOUND and _wants_html(request):
-            # ApiError messages are developer-authored and client-facing (the
-            # class contract), so a browser navigation shows the message on
-            # the HTML 404 page instead of raw JSON.
-            return render(request, "404.html", {"message": str(exc)}, status=exc.status_code)
-        body: DictStrAny = exc.payload if exc.payload is not None else {"detail": str(exc)}
+            # A browser navigation shows the msg on the HTML 404 page; a
+            # bare ApiError(404) has none, so fall back to the friendly
+            # fixed text (never "HTTP 404").
+            return render(
+                request, "404.html", {"message": exc.msg or _NOT_FOUND}, status=exc.status_code
+            )
+        body: DictStrAny = {}
+        if exc.error_type is not None:
+            body["type"] = exc.error_type
+        if exc.msg is not None:
+            body["msg"] = exc.msg
+        if exc.ctx is not None:
+            body["ctx"] = exc.ctx
         return api.create_response(request, body, status=exc.status_code)
 
     @api.exception_handler(Http404)
@@ -92,17 +107,18 @@ def register_api_error_handlers(api: NinjaAPI) -> None:
         # Reveal the requested path (the user's own input — never a server-internal
         # leak) so a 404 names what wasn't found; never str(exc), which a message-
         # carrying Http404 could use to leak internals (use ApiError(404, …) for a
-        # fully custom message).
-        detail = f"{_NOT_FOUND}: {request.path}"
+        # fully custom message). The path rides in ctx, not the message.
+        body = {"type": "not_found", "msg": _NOT_FOUND, "ctx": {"path": request.path}}
         if _wants_html(request):
             # A browser navigation (Accept: text/html) gets the same message
             # rendered on the HTML 404 page instead of raw JSON.
+            detail = f"{_NOT_FOUND}: {request.path}"
             return render(request, "404.html", {"message": detail}, status=404)
-        return api.create_response(request, {"detail": detail}, status=404)
+        return api.create_response(request, body, status=404)
 
     @api.exception_handler(PermissionDenied)
     def on_permission_denied(request: HttpRequest, _exc: Exception) -> HttpResponse:
-        return api.create_response(request, {"detail": _FORBIDDEN}, status=403)
+        return api.create_response(request, {"type": "forbidden", "msg": _FORBIDDEN}, status=403)
 
     @api.exception_handler(Exception)
     def on_unexpected(request: HttpRequest, exc: Exception) -> HttpResponse:
@@ -122,7 +138,8 @@ def register_api_error_handlers(api: NinjaAPI) -> None:
             path=request.path,
             error_type=type(exc).__name__,
         )
-        return api.create_response(request, {"detail": _INTERNAL}, status=500)
+        body = {"type": "internal_error", "msg": _INTERNAL}
+        return api.create_response(request, body, status=500)
 
 
 _SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
@@ -156,7 +173,12 @@ def csrf_guard(request: HttpRequest) -> _CsrfPrincipal:
     if request.method not in _SAFE_METHODS and check_csrf(request) is not None:
         # check_csrf runs the real CsrfViewMiddleware logic (token match +
         # Origin/Referer); non-None is its rejection.
-        raise ApiError(403, "CSRF verification failed.")
+        raise ApiError(
+            403,
+            type="csrf_failed",
+            msg="CSRF verification failed. Try refreshing your browser.",
+            ctx={},
+        )
     return _CSRF_PRINCIPAL
 
 

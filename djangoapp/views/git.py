@@ -39,7 +39,7 @@ def _worktree_or_404(worktree: str) -> str:
     """Return ``worktree`` if it's one the viewer knows, else raise ApiError(404)."""
     if worktree not in WORKTREES:
         msg = f"Unknown worktree: {worktree}"
-        raise ApiError(404, msg)
+        raise ApiError(404, type="worktree_unknown", msg=msg)
     return worktree
 
 
@@ -190,7 +190,7 @@ def _commit_or_404(commit_id: str) -> tuple[git_data.CommitSummary, list[git_dat
     found = git_data.commit(commit_id)
     if found is None:
         msg = f"Unknown commit: {commit_id}"
-        raise ApiError(404, msg)
+        raise ApiError(404, type="commit_unknown", msg=msg)
     return found
 
 

@@ -127,7 +127,7 @@ def _own_notification_or_404(request: HttpRequest, public_id: str) -> Notificati
     try:
         notification: Notification = Notification.objects.get(recipient=user, public_id=public_id)
     except Notification.DoesNotExist:
-        raise ApiError(404, "Notification not found") from None
+        raise ApiError(404, type="notification_not_found", msg="Notification not found") from None
     return notification
 
 
@@ -243,7 +243,11 @@ def _session_index(request: HttpRequest, user: User) -> UserSessionIndex:
         else None
     )
     if key is None or expire_date is None:
-        raise ApiError(400, "No session to bind the push subscription to.")
+        raise ApiError(
+            400,
+            type="session_required",
+            msg="No session to bind the push subscription to.",
+        )
     row: UserSessionIndex = UserSessionIndex.objects.get_or_create(
         session_id=key, defaults={"user": user, "expire_date": expire_date}
     )[0]

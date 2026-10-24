@@ -3,8 +3,8 @@
 ``register_api_error_handlers`` renders 404s as the HTML error page (with the
 API message + a homepage link) when the client is a browser navigation
 (``Accept: text/html`` and no ``X-Inertia`` header), and keeps the JSON
-``{"detail": ...}`` contract for every API client. These tests pin both
-branches and the negotiation guard.
+``{"type", "msg", "ctx"}`` contract (ApiError shape) for every API client.
+These tests pin both branches and the negotiation guard.
 """
 
 from __future__ import annotations
@@ -13,11 +13,11 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING
 
 from django.core.exceptions import PermissionDenied
-from ninja import NinjaAPI
+from ninja import NinjaAPI, Router
 from ninja.testing import TestClient
 
 from djangoapp.models import User
-from djangoapp.ninja_api import register_api_error_handlers
+from djangoapp.ninja_api import _NOT_FOUND, ApiError, register_api_error_handlers
 from djangoapp.tests._base import BaseInertiaTestCase, BaseTestCase
 
 if TYPE_CHECKING:
@@ -32,7 +32,7 @@ class NinjaErrorHtmlTests(BaseInertiaTestCase):
     - test_browser_navigation_gets_html_404, text/html Accept without X-Inertia
       renders 404.html (message + homepage link)
     - test_api_client_still_gets_json_404, the default Accept (*/*) keeps the
-      {"detail": ...} JSON contract
+      {"type", "msg", "ctx"} JSON contract
     - test_inertia_visit_gets_json_404, an X-Inertia visit with a browser
       Accept stays on JSON
     """
@@ -59,7 +59,10 @@ class NinjaErrorHtmlTests(BaseInertiaTestCase):
         response = self.client.get("/files/ourapp/does-not-exist.txt")
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
         self.assertEqual(response.headers["Content-Type"], "application/json; charset=utf-8")
-        self.assertIn("detail", response.json())
+        body = response.json()
+        self.assertEqual(body["type"], "not_found")
+        self.assertEqual(body["msg"], _NOT_FOUND)
+        self.assertEqual(body["ctx"], {"path": "/files/ourapp/does-not-exist.txt"})
 
     def test_inertia_visit_gets_json_404(self) -> None:
         """An X-Inertia visit with a browser Accept stays on the JSON protocol."""
@@ -71,7 +74,7 @@ class NinjaErrorHtmlTests(BaseInertiaTestCase):
         )
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
         self.assertEqual(response.headers["Content-Type"], "application/json; charset=utf-8")
-        self.assertIn("detail", response.json())
+        self.assertEqual(response.json()["type"], "not_found")
 
 
 class NinjaPermissionDeniedTests(BaseTestCase):
@@ -97,4 +100,8 @@ class NinjaPermissionDeniedTests(BaseTestCase):
         self.assertEqual(response.status_code, HTTPStatus.FORBIDDEN)
         # The literal text, not the private constant — a regression in the
         # message itself must fail this test, not mirror it.
-        self.assertEqual(response.json(), {"detail": "You don't have permission to do that."})
+        self.assertEqual(
+            response.json(),
+            {"type": "forbidden", "msg": "You don't have permission to do that."},
+        )
+

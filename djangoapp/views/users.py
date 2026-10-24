@@ -192,7 +192,7 @@ def superuser_or_404(request: HttpRequest) -> User:
     viewer = request.user
     if not (viewer.is_authenticated and viewer.is_superuser):
         msg = "Superuser access required"
-        raise ApiError(404, msg)
+        raise ApiError(404, type="superuser_required", msg=msg)
     return viewer
 
 
@@ -200,7 +200,7 @@ def get_user_or_404(public_id: str) -> User:
     try:
         target: User = User.objects.get(public_id=public_id)
     except User.DoesNotExist:
-        raise ApiError(404, "User not found") from None
+        raise ApiError(404, type="user_not_found", msg="User not found") from None
     else:
         return target
 
@@ -364,7 +364,7 @@ def edit_submit(request: HttpRequest, public_id: str, payload: UserUpdateSchema)
     # active-superuser count can never fall to zero through this endpoint.
     if viewer.pk == target.pk and (not payload.is_superuser or not payload.is_active):
         msg = "You cannot remove your own superuser or active status."
-        raise ApiError(400, msg)
+        raise ApiError(400, type="self_lockout", msg=msg)
     target.update(
         first_name=payload.first_name,
         last_name=payload.last_name,

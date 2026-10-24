@@ -10,7 +10,7 @@ import {
   reportVisitError,
 } from "./utils/clientError"
 import { showErrorToast } from "./utils/sweetalert"
-import { UserVisibleError } from "./utils/errors"
+import { UserVisibleError } from "./utils/pydanticErrors"
 import "./main.scss"
 import "vue-multiselect/dist/vue-multiselect.css"
 // Eager styles for the lazy JS chunks, otherwise these pages flash of unstyled content.
@@ -121,8 +121,8 @@ createInertiaApp({
     // "every error toasts" contract (the handlers above only catch JS/Vue
     // errors, not failed page visits). httpException: preventDefault keeps
     // the user on the current page (Inertia would otherwise swap to an
-    // error page) and the toast carries the response's detail; networkError
-    // means the server was unreachable mid-visit.
+    // error page); the toast's copy comes from the status code.
+    // networkError means the server was unreachable mid-visit.
     router.on("httpException", (event) => {
       event.preventDefault()
       const { status, data } = event.detail.response
@@ -130,8 +130,8 @@ createInertiaApp({
         `Request failed with status ${status}`,
         {
           status,
-          // Already-parsed object bodies (HttpExceptionResponse) re-serialize
-          // so the toast's JSON-detail extraction sees a string either way.
+          // The taxonomy's data is a string body; visits hand us either
+          // shape depending on the response content type.
           data: typeof data === "string" ? data : JSON.stringify(data),
           headers: {},
         },

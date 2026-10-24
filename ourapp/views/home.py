@@ -14,10 +14,10 @@ from typing import TYPE_CHECKING
 
 from inertia import InertiaResponse
 from ninja import Router
-from ninja.errors import HttpError
 from pydantic import RootModel, ValidationError, model_validator
 
 from djangoapp.logging import get_logger
+from djangoapp.ninja_api import ApiError
 from djangoapp.shortcuts import maybe_user
 from djangoapp.views import require_superuser
 
@@ -99,7 +99,9 @@ def mockup_page(
       § Mockups: superuser-only route (404 otherwise), no data plumbing
       (no props, no DB), component wraps in ``div.mockup``
     - ``?props=<base64url JSON object>`` presets the page's props — deep-link
-      a mockup's client-side state (still nothing saves)
+      a mockup's client-side state (still nothing saves). Bound as a plain
+      string (ninja silently drops RootModel-typed query params), so the
+      schema runs in-view and a bad value is converted to a standard 422.
     """
     require_superuser(request)
     page_props: dict[str, typing.Any] = {}
@@ -108,5 +110,5 @@ def mockup_page(
             page_props = _B64JsonProps.model_validate(props).root
         except ValidationError as exc:
             # A 422 like any other bad endpoint input.
-            raise HttpError(422, exc.errors()[0]["msg"]) from exc
+            raise ApiError(422, type="props_invalid", msg=exc.errors()[0]["msg"]) from exc
     return InertiaResponse(request, f"ours/{page}", {"props": page_props})

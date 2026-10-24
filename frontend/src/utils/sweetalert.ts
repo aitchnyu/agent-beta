@@ -1,7 +1,11 @@
 import { HttpNetworkError, HttpResponseError } from "@inertiajs/core"
 import DOMPurify from "dompurify"
 
-import { UserVisibleError } from "./errors"
+import {
+  ApiErrorSchema,
+  DetailStringSchema,
+  UserVisibleError,
+} from "./pydanticErrors"
 
 type ToastIcon = "success" | "error" | "warning" | "info" | "question"
 
@@ -56,6 +60,31 @@ export const showToast = async (
   }
 }
 
+/**
+ * The server's authored message when the body carries one — an ApiError
+ * body (ApiErrorSchema) or ninja's own {"detail": "<string>"} bodies.
+ * Shown verbatim, the same trust as NinjaError custom msgs; a 422's
+ * array detail never parses here.
+ */
+const serverMessage = (data: unknown): string | null => {
+  const api = ApiErrorSchema.safeParse(data)
+  if (api.success) return api.data.msg ?? null
+  const detail = DetailStringSchema.safeParse(data)
+  return detail.success ? detail.data.detail : null
+}
+
+/**
+ * Toast copy per HTTP status — the message comes from the status code
+ * when the body carries none. Unlisted statuses get a generic title; the
+ * HTTP <n> detail line carries the status.
+ */
+const messageForStatus = (status: number): string => {
+  if (status === 404) return "The requested entity was not found"
+  if (status === 422) return "Validation error — submit it again"
+  if (status >= 500) return "Something wrong on our end"
+  return "That request didn't work"
+}
+
 export const showErrorToast = async (
   e: unknown,
   fallback: string,
@@ -69,8 +98,8 @@ export const showErrorToast = async (
     title = e.userTitle
     userHtml = sanitizeToastHtml(e.userHtml)
   } else if (e instanceof HttpResponseError) {
-    const msg = extractErrorMessage(safeParseJson(e.response.data))
-    if (msg) title = msg
+    title =
+      serverMessage(e.response.data) ?? messageForStatus(e.response.status)
     if (e.response.status) detail = `HTTP ${e.response.status}`
   } else if (e instanceof HttpNetworkError) {
     title = "Could not reach the server"
@@ -123,28 +152,3 @@ const sanitizeToastHtml = (html: string): string =>
     ALLOWED_TAGS: ["a", "b", "strong", "em", "code", "br"],
     ALLOWED_ATTR: ["href"],
   })
-
-/**
- * Pull a human message from a ninja/ApiError JSON body.
- * Handles `{"detail": "msg"}`, `{"message": "msg"}`, a bare string,
- * and arbitrary dict bodies.
- */
-const extractErrorMessage = (body: unknown): string => {
-  if (typeof body === "string") return body
-  if (body && typeof body === "object") {
-    const obj = body as Record<string, unknown>
-    const detail = obj.detail
-    if (typeof detail === "string") return detail
-    if (typeof obj.message === "string") return obj.message
-  }
-  return ""
-}
-
-/** Parse a response body string as JSON, returning null for empty/invalid. */
-const safeParseJson = (data: string): unknown => {
-  try {
-    return data ? (JSON.parse(data) as unknown) : null
-  } catch {
-    return null
-  }
-}
