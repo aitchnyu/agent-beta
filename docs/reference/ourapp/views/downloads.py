@@ -1,6 +1,6 @@
 """Downloads feature — admin-uploaded files, anonymously downloadable till expiry.
 
-Endpoints (one Inertia page ``ours/DownloadsPage`` + the anonymous serve route):
+Endpoints (one Inertia page ``DownloadsPage`` + the anonymous serve route):
 - GET  /downloads                        — superuser page: list + upload form
 - POST /downloads/upload                 — superuser multipart create → DownloadOutSchema
 - POST /downloads/{public_id}/replace    — superuser multipart replace (just reassign
@@ -93,12 +93,12 @@ def _parse_expiry(raw: str | None) -> datetime:
 
 @router.get("/downloads", response=None)
 def downloads_page(request: HttpRequest) -> InertiaResponse:
-    """Render the superuser download manager (component ``ours/DownloadsPage``)."""
+    """Render the superuser download manager (component ``DownloadsPage``)."""
     require_superuser(request)
     downloads = Download.objects.all()
     return InertiaResponse(
         request,
-        "ours/DownloadsPage",
+        "DownloadsPage",
         {"props": {"downloads": [_download_out(d).model_dump() for d in downloads]}},
     )
 

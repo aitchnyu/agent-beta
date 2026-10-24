@@ -47,11 +47,11 @@ todos, a private feature, stays hidden from signed-out visitors.
 ## For developers
 
 - View: `views/home.py` (`router`, mounted at `/`) — `GET /` → Inertia
-  page `ours/Home`, props `{ fact_of_day }` (`HomePropsSchema` declared
+  page `Home`, props `{ fact_of_day }` (`HomePropsSchema` declared
   inline in `Home.vue`; `fact_of_day` is `null` before the first cron run or
   with an empty fact pool). Login state is the shared viewer prop
-  (`utils/sharedProps.ts`).
-- Frontend: `frontend/src/ours/pages/Home.vue`.
+  (`system/schemas/sharedProps.ts`).
+- Frontend: `frontend/src/pages/Home.vue`.
 - Tests: `tests/test_home_views.py` (no e2e module of its own — the auth
   chrome lives in the framework navbar, covered by the framework suite);
   the capture is `tests/test_screenshots.py::test_home`.

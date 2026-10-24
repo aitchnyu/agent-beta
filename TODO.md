@@ -1,6 +1,7 @@
+New mypy and other system upgrades
+
 Dont mention Huey, mention its a cron. 
 do we need ours/? Have pages/system. Move schemas to shared modules like files etc.
-New mypy and other stuff
 deployscratch error - specify which test to do
 
 Decentralize schemas

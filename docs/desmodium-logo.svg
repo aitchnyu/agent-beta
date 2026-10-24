@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 320" role="img" aria-labelledby="title desc">
-  <!-- MAINTAIN-CONSISTENCY: detailed large-render logo. Keep visually in sync with djangoapp/static/favicon.svg and frontend/src/icons/leaf.svg (bold small-render versions). -->
+  <!-- MAINTAIN-CONSISTENCY: detailed large-render logo. Keep visually in sync with djangoapp/static/favicon.svg and frontend/src/system/icons/leaf.svg (bold small-render versions). -->
   <title id="title">Desmodium golden trifoliate logo</title>
   <desc id="desc">A golden desmodium leaf with three pointed leaflets, central veins, and fine secondary veins.</desc>
   <defs>

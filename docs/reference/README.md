@@ -32,8 +32,9 @@ never touched. From main/'s root:
 
     ./run createscratch
     rsync -a --delete docs/reference/ourapp/ ../scratch/ourapp/
-    rsync -a --delete docs/reference/frontend/src/ours/ \
-       ../scratch/frontend/src/ours/
+    for d in pages components schemas styles; do
+      rsync -a --delete docs/reference/frontend/src/$d/ ../scratch/frontend/src/$d/
+    done
     ( cd ../scratch && ./run screenshots ourapp.tests.test_screenshots )
     cp ../scratch/docs/reference/ourapp/docs/screenshots/*.png \
        docs/reference/ourapp/docs/screenshots/
@@ -47,7 +48,8 @@ docs/reference/
   ourapp/       the app: models/views/tasks/management per feature,
                 tests flat (test_<feature>_<layer>.py), docs/ per feature,
                 screenshots in ourapp/docs/screenshots/
-  frontend/     the app's own pages/schemas/styles (overlaid into the bundle)
+  frontend/     the app's own pages/components/schemas/styles (overlaid into
+                the bundle)
 ```
 
 ## Conventions

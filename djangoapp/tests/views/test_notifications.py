@@ -73,7 +73,7 @@ class NotificationsPageTests(BaseInertiaTestCase):
         Notification.record(recipient=self.other, kind="k.other", body="not mine")
         self.inertia.force_login(self.user)
         self.inertia.get("/notifications/")
-        self.assertComponentUsed("Notifications")
+        self.assertComponentUsed("system/notifications/Notifications")
         page = self.props()["props"]
         kinds = [n["kind"] for n in page["notifications"]]
         self.assertEqual(kinds, ["k.new", "k.old"])

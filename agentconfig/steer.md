@@ -2,7 +2,7 @@
 
 You are the pi TUI agent (`./run pi`) for this app. You build and
 edit the **single user app** (`ourapp/`) and its frontend
-(`frontend/src/ours/`).
+(`frontend/src/{pages,components,schemas,styles}`).
 
 ## Role & scope
 This repo is a **template with one user app**, `ourapp/` — a normal Django app
@@ -21,11 +21,11 @@ Change only:
   - `urls.py`
   - `tests/` (flat, `test_<feature>_<layer>.py`)
   - `management/commands/`
-- `frontend/src/ours/` — the app's self-contained frontend module:
-  - `pages/`
-  - `components/`
-  - `utils/`
-  - `style.scss`
+- the app side of `frontend/src/` (framework code lives under `system/`):
+  - `pages/` (the app's Inertia pages)
+  - `components/` (the app's components)
+  - `schemas/` (the app's shared zod modules)
+  - `styles/` (`app.scss`, side-effect-imported by the pages)
 
 ## Layout: main / scratch
 The repo is `main/` — the TUI's working directory (the agent runs from
@@ -317,9 +317,10 @@ may hold uncommitted work from a prior task; `./run cleanscratch` wipes it).
 
 - **Battery**: ruff + mypy + **ourapp's own tests** + frontend
   lint/type-check/build (framework suite + Playwright stay in `main/`'s
-  `checkframework1`). Framework-file edits (outside `ourapp/` +
-  `frontend/src/ours/`) add the `scratch-test-subset` smoke tests.
-- **Fast path**: changes only under `frontend/src/ours/**` +
+  `checkframework1`). Framework-file edits (outside `ourapp/` + the app's
+  `frontend/src/{pages,components,schemas,styles}/`) add the
+  `scratch-test-subset` smoke tests.
+- **Fast path**: changes only under `frontend/**` +
   `ourapp/docs/*.md` → lint/build + d2 fence validation, no backend
   battery. Nothing deploys red.
 - **Tail**: rsync → `main/` `--delete` (`.git`/`.env` never overwritten);
@@ -514,10 +515,10 @@ commits never flow back (`.git` is excluded from deployscratch), so link
 Read code in this priority order:
 
 1. **The user app first** — `ourapp/` (the `models/`, `views/`, `urls.py`,
-   `tests/` packages) and `frontend/src/ours/` are the source of truth and the
-   only thing you normally change; `ourapp/README.md` + `ourapp/docs/`
-   document the app's features, `docs/reference/` is the full copyable
-   pattern.
+   `tests/` packages) and the app side of `frontend/src/` are the source of
+   truth and the only thing you normally change; `ourapp/README.md` +
+   `ourapp/docs/` document the app's features, `docs/reference/` is the full
+   copyable pattern.
 2. **The reference next** — `docs/reference/` as a complete, copyable example
    (model + ninja API + urls + Inertia page + test).
 3. **The framework only as reference** — `djangoapp/` is there to understand
@@ -533,14 +534,14 @@ deployed links in chat immediately after each deploy via
 - **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
   deploy as `/files/main/ourapp/docs/<feature>.md`. Structure and writing
   rules: [Feature docs](#feature-docs).
-- **Mockups — one file: `frontend/src/ours/pages/Mockup<Name>.vue`.**
+- **Mockups — one file: `frontend/src/pages/Mockup<Name>.vue`.**
   - The objective: zero backend changes — backend edits drag in the slow
     full battery and service restarts; while a feature is a mockup, python
     stays untouched.
-  - Confine changes to `frontend/src/ours/` (backend only in `ourapp/` when
-    a feature graduates) — framework files stay relatively pristine so upstream
-    changes still merge cleanly even after years.
-  - The hatch route in `home.py` serves `ours/<page>` verbatim at
+  - Confine changes to the app side of `frontend/src/` (backend only in
+    `ourapp/` when a feature graduates) — framework files stay relatively
+    pristine so upstream changes still merge cleanly even after years.
+  - The hatch route in `home.py` serves `<page>` verbatim at
     `/mockup/<page>`. `/mockup/MockupChores` → `MockupChores.vue`.
   - URL params preset a mockup's state:
     `/mockup/<Name>?props=<base64url-encoded JSON object>` — the hatch
@@ -550,7 +551,7 @@ deployed links in chat immediately after each deploy via
   - Nothing ever saves: no writes, DB, models, migrations, or endpoints.
   - Superuser-only (404 otherwise).
   - Wrap in `div.mockup` — one `::before` crosshatch overlay from
-    `ours/style.scss`; hatch the wrapper only.
+    `styles/app.scss`; hatch the wrapper only.
   - No tests; the real feature writes them.
   - Editing existing code is normal work — just not part of adding a
     mockup.
@@ -832,11 +833,12 @@ Run through every box; the order is the order you build in.
           value, pk-free, 404 on missing/forbidden)
     - [ ] each command in `ourapp/tests/test_<feature>_commands.py`
     - [ ] every Inertia page end-to-end in `ourapp/tests/test_<feature>_playwright.py`
-- [ ] **Frontend** — page in `frontend/src/ours/pages/<Name>.vue` with its zod
-      schemas declared inline in the component, side-effect styles in
-      `ours/style.scss`.
+- [ ] **Frontend** — page in `frontend/src/pages/<Name>.vue` with its zod
+      schemas declared inline in the component (shared shapes in
+      `frontend/src/schemas/<feature>.ts`), side-effect styles in
+      `styles/app.scss`.
 - [ ] **PageTitle** — the page renders `<PageTitle :value="…"/>` (import from
-      `components/PageTitle.vue`); see "For every Inertia page" below.
+      `system/components/PageTitle.vue`); see "For every Inertia page" below.
 - [ ] **Toasts** — user feedback goes through the framework's toast helpers
       (`frontend/src/utils/sweetalert.ts`): a mutating action that succeeds
       confirms with `showToast("success", …)`; failures follow the HTTP
@@ -844,7 +846,7 @@ Run through every box; the order is the order you build in.
 - [ ] **Home navigation (ask first)** — during planning, **ask how the feature
       surfaces on the landing page**: a link, a summary/card, or reached from
       another page (e.g. listed inside a related feature). Then add that to
-      `frontend/src/ours/pages/Home.vue`, shown only when this viewer can use it
+      `frontend/src/pages/Home.vue`, shown only when this viewer can use it
       (hide an auth-required feature from an anonymous visitor). A feature that's
       reachable but unlinked is as good as missing — don't assume a plain link.
 
@@ -854,7 +856,9 @@ Prefer a django-ninja API: each feature exposes a `Router` in
 `NinjaAPI` and registers every router (`api.add_router("/", <feature>.router)`);
 it is mounted in `ourapp/urls.py`. Use it for both data and pages: data
 endpoints return pydantic schemas (ninja validates the response), pages return
-`InertiaResponse(request, "ours/<Page>", {"props": …})`. On the frontend, parse
+`InertiaResponse(request, "<Page>", {"props": …})` — the component name is
+the page's path (`Home`, or `system/<feature>/<Page>` for framework pages).
+On the frontend, parse
 every payload with a zod schema. See `docs/reference/` for the full pattern. Page data is nested under a `props` key
 (views pass `{"props": …}`) while `SharedPropsMiddleware` adds the viewer
 (`user`, `viewer_is_superuser`) at the top level — so a page reads its own data
@@ -927,7 +931,7 @@ For every **Inertia page**, all five must hold:
 - write a **zod schema** for its props (frontend).
 - **raise 404** when something is not found, or not allowed for that user
   (ownership/permissions) — never render an empty or broken page.
-- render **`<PageTitle :value="…"/>`** (import from `components/PageTitle.vue`) —
+- render **`<PageTitle :value="…"/>`** (import from `system/components/PageTitle.vue`) —
   sets the browser tab title on mount and whenever `value` changes. Pass a
   descriptive string (`value="Projects"`) or one derived from the page's data
   (`:value="p.first_name + ' ' + p.last_name"`); omit `value` to fall back to the
@@ -970,30 +974,32 @@ Streaming (SSE) responses use `streamPost` from the same module; multipart
 uploads use `postForm`; form-shaped state may use Inertia v3's `useHttp`.
 
 ### Frontend
-One Vue+Inertia app. The user app's frontend is a self-contained module at
-`frontend/src/ours/`: pages in `ours/pages/<Name>.vue` (Inertia component name
-`ours/<Name>`), components in `ours/components/`, helpers in `ours/utils/`, and
-styles in `ours/style.scss` (imported as a side-effect by the page component,
-so the feature is self-contained). Parse every server payload with a zod
-schema; make standalone HTTP calls via the framework's `utils/http.ts` and
-wrap every call in `try/catch` + `showErrorToast`.
+One Vue+Inertia app. The app's frontend lives at the plain paths of
+`frontend/src/` — pages in `pages/<Name>.vue` (Inertia component name =
+path, e.g. `Home`), components in `components/`, shared zod modules in
+`schemas/`, styles in `styles/app.scss` (imported as a side-effect by the
+page component, so the app is self-contained). Framework code lives under
+`frontend/src/system/` with the same subdirs plus `icons/`; generic helpers
+live in `src/utils/`. Parse every server payload with a zod schema; make
+standalone HTTP calls via `utils/http.ts` and wrap every call in
+`try/catch` + `showErrorToast`.
 
 Zod schemas live with their consumers:
 
-- one component → declare it inline (const, not exported)
-- several components of one feature → small sibling module (e.g.
-  `ours/factsSchemas.ts`)
-- shared framework shapes → next to their module (`utils/sharedProps.ts`,
-  `components/rowsSchemas.ts`)
+- one app component → declare it inline (const, not exported)
+- several components of one app feature → small module in `schemas/`
+  (e.g. `schemas/todos.ts` in the reference app)
+- framework features → `system/schemas/<feature>.ts` (e.g. `git.ts`,
+  `files.ts`, `manage.ts`, `sharedProps.ts`)
 
-**Edit only `ours/` where possible** — keep the app out of the framework's
-`pages/`, `components/`, `utils/`, and `styles/` (those hold framework code).
+**Edit only the app side where possible** — keep the app out of `system/`
+and `utils/` (those hold framework code).
 
 ### Forms & validation errors
 Validation errors render inline, against the field that caused them —
 flagged red, one plain sentence. Toasts are for what no form can show
 (network, server errors). Canonical example:
-`docs/reference/frontend/src/ours/components/TodoForm.vue`.
+`docs/reference/frontend/src/components/TodoForm.vue`.
 
 #### Backend — the validator writes the user copy
 
@@ -1092,15 +1098,16 @@ function endDateMessage(type: string): string | undefined {
 ### Icons
 Download from lucide —
 `https://unpkg.com/lucide-static@latest/icons/<name>.svg` (browse names at
-lucide.dev; ISC-licensed, license comment ships in the file) — usually into the
-app's own `frontend/src/ours/icons/`, not the framework's `src/icons/`.
+lucide.dev; ISC-licensed, license comment ships in the file) — into the
+app's own `frontend/src/icons/` (create it on demand), not the framework's
+`system/icons/`.
 Keep the file verbatim (stroke width 2 is the look; change only if the
 design asks). In Inertia pages/components render via the framework's
 `LucideIcon.vue` — a CSS mask painted with `currentColor`, so the icon
 follows the text color (no per-theme or per-state variants needed):
 
 ```vue
-import LucideIcon from "../../components/LucideIcon.vue"
+import LucideIcon from "../system/components/LucideIcon.vue"
 import checkIcon from "../icons/check.svg"
 
 <LucideIcon :src="checkIcon" /> Done
@@ -1241,7 +1248,7 @@ stream — never `print()` for diagnostics.
   catch something; a silent catch is a
   prod-invisible problem.
 
-- **Frontend** — keep the `ours/` HTTP convention (`utils/http.ts` + zod parse,
+- **Frontend** — keep the app HTTP convention (`utils/http.ts` + zod parse,
   `try/catch` + `showErrorToast`;
   above) for failures you handle. Anything you don't catch is captured by the
   global handlers (`window error` / `unhandledrejection` / Vue `errorHandler`) and

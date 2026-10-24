@@ -381,10 +381,13 @@ checkframework1() {
   echo "=== stage 4/4: reference app's own tests (scratch copy; not measured) ==="
   create_new_scratch
   overlay_app "$_MAIN_DIR/docs/reference"
-  # The reference app ships its own Vue pages; overlay them so its /notes
-  # page is in the built bundle (same as the old checkproject cycle 2).
-  rsync -a "$_MAIN_DIR/docs/reference/frontend/src/ours/" \
-    "$_SCRATCH_DIR/frontend/src/ours/"
+  # The reference app ships its own app-side frontend (pages, components,
+  # schemas, styles); overlay them so its pages are in the built bundle
+  # (same as the old checkproject cycle 2). System files stay the tree's own.
+  for _dir in pages components schemas styles; do
+    rsync -a "$_MAIN_DIR/docs/reference/frontend/src/$_dir/" \
+      "$_SCRATCH_DIR/frontend/src/$_dir/"
+  done
   ( cd "$_SCRATCH_DIR"
     ( cd frontend && npm run build )
     ./run test --noinput ourapp
@@ -464,20 +467,20 @@ _scratch_checks() {
   echo "Running frontend build (type-check + vite in one pass)"
   npm run build
   cd ..
-  # Framework-file watch: edits outside ourapp/ + frontend/src/ours/ mean
-  # framework code changed → run the `scratch-test-subset` smoke (an
-  # early-warning fraction of checkframework1; the full suite still gates
-  # in main/).
+  # Framework-file watch: edits outside the app surface (ourapp/ + the
+  # app-side frontend dirs) mean framework code changed → run the
+  # scratch-test-subset smoke (an early-warning fraction of
+  # checkframework1; the full suite still gates in main/).
   local changed_files outside
   changed_files=$(_scratch_changed_files "$_SCRATCH_DIR") || return 1
-  outside=$(grep -vE '^(ourapp/|frontend/src/ours/)' <<<"$changed_files" || true)
+  outside=$(grep -vE '^(ourapp/|frontend/src/(pages|components|schemas|styles)/)' <<<"$changed_files" || true)
   if [ -n "$outside" ]; then
     echo "=== framework files changed — running scratch-test-subset smoke tests ==="
     printf '  %s\n' $(grep -c . <<<"$outside") files:
     printf '  %s\n' $outside
     uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=scratch-test-subset
   else
-    echo "No framework-file changes (outside ourapp/ + frontend/src/ours/) — skipping scratch-test-subset smoke."
+    echo "No framework-file changes (outside the app surface) — skipping scratch-test-subset smoke."
   fi
 }
 

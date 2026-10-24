@@ -1,7 +1,7 @@
 """Home feature — the app's landing page.
 
 Owns the single public route ``/`` (rendered as the Inertia component
-``ours/Home``). It shows login state, the current **Fact of the Day** (a singleton
+``Home``). It shows login state, the current **Fact of the Day** (a singleton
 rotated daily by the Huey cron in ``ourapp/tasks/``), and links to the app's
 features; the integer ``pk`` is never exposed, only the ``public_id``.
 """
@@ -28,7 +28,7 @@ router = Router()
 
 @router.get("/", response=None)
 def home_page(request: HttpRequest) -> InertiaResponse:
-    """Render the landing page (component ``ours/Home``).
+    """Render the landing page (component ``Home``).
 
     The page's own props carry the current **Fact of the Day**
     (``FactOfTheDay.current()``, a read-only lookup — a GET never creates or
@@ -56,4 +56,4 @@ def home_page(request: HttpRequest) -> InertiaResponse:
         if daily is not None and daily.fact is not None
         else None
     )
-    return InertiaResponse(request, "ours/Home", {"props": {"fact_of_day": fact_of_day}})
+    return InertiaResponse(request, "Home", {"props": {"fact_of_day": fact_of_day}})

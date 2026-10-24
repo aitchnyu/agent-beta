@@ -9,8 +9,8 @@ Today's **Fact of the Day** (a singleton rotated daily by the Huey cron in
 ``ourapp/tasks/``) is shown on the **landing page** (``views/home.py``), not here.
 The first two routes re-draw on every request; the permalink route is deterministic.
 
-Page responses render the Inertia components ``ours/FactsPage``,
-``ours/FactTopicPage`` and ``ours/FactPage``; data is pk-free (only ``public_id``).
+Page responses render the Inertia components ``FactsPage``,
+``FactTopicPage`` and ``FactPage``; data is pk-free (only ``public_id``).
 """
 
 from __future__ import annotations
@@ -75,11 +75,11 @@ def _fact_or_404(public_id: str) -> Fact:
 
 @router.get("/facts", response=None)
 def facts_page(request: HttpRequest) -> InertiaResponse:
-    """Render a random fact (any topic) + the topic list (``ours/FactsPage``)."""
+    """Render a random fact (any topic) + the topic list (``FactsPage``)."""
     fact = Fact.objects.random()
     return InertiaResponse(
         request,
-        "ours/FactsPage",
+        "FactsPage",
         {
             "props": {
                 "fact": fact_out(fact).model_dump() if fact else None,
@@ -93,14 +93,14 @@ def facts_page(request: HttpRequest) -> InertiaResponse:
 def fact_topic_page(request: HttpRequest, slug: str) -> InertiaResponse:
     """Render a random fact in one topic, or 404 if the topic is gone.
 
-    (component ``ours/FactTopicPage``). A missing topic is a 404, not an empty
+    (component ``FactTopicPage``). A missing topic is a 404, not an empty
     page, so dead links surface instead of rendering blank.
     """
     topic = _topic_or_404(slug)
     fact = topic.random_fact()
     return InertiaResponse(
         request,
-        "ours/FactTopicPage",
+        "FactTopicPage",
         {
             "props": {
                 "topic": _topic_out(topic).model_dump(),
@@ -113,7 +113,7 @@ def fact_topic_page(request: HttpRequest, slug: str) -> InertiaResponse:
 
 @router.get("/fact/{public_id}", response=None)
 def fact_detail_page(request: HttpRequest, public_id: str) -> InertiaResponse:
-    """Render one specific fact by public_id (component ``ours/FactPage``).
+    """Render one specific fact by public_id (component ``FactPage``).
 
     A stable permalink (unlike the random ``/facts`` draws). A missing fact is a
     404, so dead links surface instead of rendering blank.
@@ -121,7 +121,7 @@ def fact_detail_page(request: HttpRequest, public_id: str) -> InertiaResponse:
     fact = _fact_or_404(public_id)
     return InertiaResponse(
         request,
-        "ours/FactPage",
+        "FactPage",
         {
             "props": {
                 "fact": fact_out(fact).model_dump(),

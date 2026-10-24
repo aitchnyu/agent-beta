@@ -102,7 +102,7 @@ class ManageProjectTests(BaseInertiaTestCase):
         #   {"name": "Book",   "docstring": "A book ...",          "row_count": 1},
         # ]
         self.client.get("/manage/models")
-        self.assertComponentUsed("ModelList")
+        self.assertComponentUsed("system/manage/ModelList")
 
         # Every test-app model appears, each with its live row count.
         models = {m["name"]: m for m in self.props()["props"]["models"]}
@@ -129,7 +129,7 @@ class ManageProjectTests(BaseInertiaTestCase):
         #    "pagination": {"page": 1, "total_pages": 1, "total_count": 1},
         #    "filters": {"per_page": 25, "page": 1, "sort": "created_at"}}
         props = self._rows_props("Book")
-        self.assertComponentUsed("ModelRows")
+        self.assertComponentUsed("system/manage/ModelRows")
 
         # Column types: a BaseModel FK → "foreign_key", a User FK → "user".
         col_types = {c["name"]: c["type"] for c in props["columns"]}
@@ -211,7 +211,7 @@ class ManageProjectTests(BaseInertiaTestCase):
         #    "created_by": {"public_id": "...", "title": "admin"},
         #    "created_at": "...", "edited_at": "..."}
         self.client.get(f"/manage/models/Book/id/{self.book.public_id}")
-        self.assertComponentUsed("RowDetail")
+        self.assertComponentUsed("system/manage/RowDetail")
         props = self.props()["props"]
 
         # Builtins (public_id/created_by/created_at/row_version/last_updated_at/
@@ -254,7 +254,7 @@ class ManageProjectTests(BaseInertiaTestCase):
         self.inertia.get(
             url,
             HTTP_X_INERTIA_PARTIAL_DATA="logs",
-            HTTP_X_INERTIA_PARTIAL_COMPONENT="RowDetail",
+            HTTP_X_INERTIA_PARTIAL_COMPONENT="system/manage/RowDetail",
         )
         props = self.props()
         # The callable ran (otherwise the key would be absent). The list is empty
@@ -271,7 +271,7 @@ class ManageProjectTests(BaseInertiaTestCase):
         self.inertia.get(
             f"/manage/models/Book/id/{self.book.public_id}",
             HTTP_X_INERTIA_PARTIAL_DATA="logs",
-            HTTP_X_INERTIA_PARTIAL_COMPONENT="RowDetail",
+            HTTP_X_INERTIA_PARTIAL_COMPONENT="system/manage/RowDetail",
         )
         logs = self.props()["logs"]
         self.assertEqual(len(logs), 1)
@@ -329,7 +329,7 @@ class ManageProjectTests(BaseInertiaTestCase):
         #                {"name": "active", "type": "boolean", ...}],
         #    "rows": [...]}
         props = self._rows_props("Author")
-        self.assertComponentUsed("ModelRows")
+        self.assertComponentUsed("system/manage/ModelRows")
 
         # Author has no FK columns; every column is a plain field kind.
         self.assertEqual(props["model_name"], "Author")

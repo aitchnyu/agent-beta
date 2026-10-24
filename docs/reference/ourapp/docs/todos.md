@@ -57,6 +57,6 @@ One page: the add form and the list, with a Toggle button per todo.
 - Model: `models/todos.py`. Manager: `Todo.objects.active_for(user)`.
   Method: `toggle()`.
 - View: `views/todos.py` (the router; all routes under `/todos`).
-- Frontend: `ours/pages/TodosPage.vue` (props schema inline), component
-  `TodoForm.vue`, shared `TodoSchema` in `ours/todosSchemas.ts`.
+- Frontend: `pages/TodosPage.vue` (props schema inline), component
+  `TodoForm.vue`, shared `TodoSchema` in `src/schemas/todos.ts`.
 - Tests: `tests/test_todos_{models,views,playwright}.py`.

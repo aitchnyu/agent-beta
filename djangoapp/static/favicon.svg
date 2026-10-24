@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="4 4 56 56" role="img" aria-labelledby="title desc">
-  <!-- MAINTAIN-CONSISTENCY: small-render brand mark. Keep visually in sync with frontend/src/icons/leaf.svg (same geometry) and docs/desmodium-logo.svg (detailed large render). -->
+  <!-- MAINTAIN-CONSISTENCY: small-render brand mark. Keep visually in sync with frontend/src/system/icons/leaf.svg (same geometry) and docs/desmodium-logo.svg (detailed large render). -->
   <title id="title">Desmodium favicon</title>
   <desc id="desc">A bold golden three-leaf desmodium symbol that stays legible at 16px.</desc>
   <defs>

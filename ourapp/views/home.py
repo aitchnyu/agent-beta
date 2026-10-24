@@ -1,7 +1,7 @@
 """Home feature — the app's landing page (plus the mockup hatch route).
 
 Owns the single public route ``/`` (rendered as the Inertia component
-``ours/Home``). It shows login state and links to the app's features; the
+``Home``). It shows login state and links to the app's features; the
 integer ``pk`` is never exposed, only the ``public_id``.
 """
 
@@ -52,7 +52,7 @@ class _B64JsonProps(RootModel[dict[str, typing.Any]]):
 
 @router.get("/", response=None)
 def home_page(request: HttpRequest) -> InertiaResponse:
-    """Render the landing page (component ``ours/Home``).
+    """Render the landing page (component ``Home``).
 
     Login state is the shared viewer prop (``user``, injected on every page
     by SharedPropsMiddleware).
@@ -66,7 +66,7 @@ def home_page(request: HttpRequest) -> InertiaResponse:
         logger.info("home viewed", viewer="anonymous")
     else:
         logger.info("home viewed", viewer=user.username)
-    return InertiaResponse(request, "ours/Home", {"props": {}})
+    return InertiaResponse(request, "Home", {"props": {}})
 
 
 @router.get("/mockup/{page}", response=None)
@@ -75,11 +75,11 @@ def mockup_page(
     page: str,
     props: str | None = None,
 ) -> InertiaResponse:
-    """Render the Inertia component ``ours/<page>`` — one route hosts every mockup.
+    """Render the Inertia component ``<page>`` — one route hosts every mockup.
 
     - The URL carries the component name verbatim:
-      ``/mockup/MockupTodos`` → ``ours/MockupTodos``
-    - adding a mockup is a single ``frontend/src/ours/pages/<name>.vue`` —
+      ``/mockup/MockupTodos`` → ``MockupTodos``
+    - adding a mockup is a single ``frontend/src/pages/<name>.vue`` —
       the backend never changes and ``./run deployscratch`` takes the fast
       deploy path
     - mockups keep the three markers from ``agentconfig/steer.md``
@@ -98,4 +98,4 @@ def mockup_page(
         except ValidationError as exc:
             # A 422 like any other bad endpoint input.
             raise ApiError(422, type="props_invalid", msg=exc.errors()[0]["msg"]) from exc
-    return InertiaResponse(request, f"ours/{page}", {"props": page_props})
+    return InertiaResponse(request, f"{page}", {"props": page_props})

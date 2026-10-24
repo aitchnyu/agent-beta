@@ -1,0 +1,472 @@
+// Framework-page styles live in the partials below; app styles in
+// styles/app.scss. Reuse existing classes before adding new ones (feature-
+// prefixed, defined once). No inline styles, no new frameworks.
+@use "bootstrap";
+@use "users";
+@use "files";
+@use "richcontent";
+@use "notifications";
+@use "variables" as *;
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 0.5rem 1rem;
+}
+
+// Icon spans (LucideIcon.vue): the svg file is the mask shape, painted with
+// currentColor — icons follow the surrounding text color (link/button
+// state colors included) with no per-context variants.
+.lucide-icon {
+  display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  flex: none;
+  vertical-align: -0.15em;
+  margin-right: 0.35rem;
+  background-color: currentColor;
+  mask-image: var(--lucide-src);
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+}
+
+// The user button's flex gap (0.4rem) already spaces the leading icon —
+// suppress the default margin so it isn't doubled there.
+.layout-user-button .lucide-icon {
+  margin-right: 0;
+}
+
+// The golden home leaf: a full-color <img> (not a currentColor mask) so the
+// option-A leaflets, veins and deep-gold stalk stay visible in the navbar.
+// The viewBox carries ~5px margins around the leaf, hence the larger em size.
+.home-leaf-icon {
+  width: 1.2em;
+  height: 1.2em;
+  flex: none;
+  vertical-align: -0.18em;
+}
+
+// Hide-on-scroll (HideOnScroll.vue): the sticky/hide mechanics for any
+// wrapped bar. Scrolling down translates the element fully out of view
+// (padding + border included); scrolling up restores it. A transform never
+// reflows the content behind it — and `visibility: hidden` (delayed until
+// the slide completes) drops the bar from the tab order and a11y tree
+// while hidden, so nothing focusable sits off-screen. Visuals belong to
+// the consumer's class. z-index matches bootstrap's sticky tier so
+// bootstrap's own sticky elements never overlap the bar.
+.hide-on-scroll {
+  position: sticky;
+  top: 0;
+  z-index: 1020;
+  transition: transform 0.2s ease-out;
+}
+
+.hide-on-scroll-hidden {
+  transform: translateY(calc(-100% - 1rem));
+  visibility: hidden;
+  transition: transform 0.2s ease-out, visibility 0s 0.2s;
+}
+
+// Navbar visuals (the element itself is the HideOnScroll wrapper): the
+// links (plus the user badge / Sign in) stay on one line.
+.layout-navbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+  background-color: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: $radius-md;
+}
+
+// ── Navbar dropdown panels ────────────────────────────────────────────────
+// One shared shape for the native-<details> menus. DropdownMenu.vue renders .layout-dropdown + .layout-menu-panel;
+// Layout's hand-rolled menus reuse the same panel classes.
+.layout-dropdown {
+  position: relative;
+}
+
+.layout-dropdown-left .layout-menu-panel {
+  left: 0;
+}
+
+.layout-dropdown-right .layout-menu-panel {
+  right: 0;
+}
+
+.layout-menu-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  z-index: 10;
+  min-width: 10rem;
+  padding: 0.35rem 0;
+  background-color: var(--bs-body-bg);
+  border: 1px solid var(--bs-border-color);
+  border-radius: $radius-md;
+  box-shadow: 0 0.35rem 1rem rgba(0, 0, 0, 0.12);
+}
+
+.layout-menu-link {
+  display: block;
+  width: 100%;
+  padding: 0.4rem 0.9rem;
+  text-align: left;
+  background: none;
+  border: none;
+  color: var(--bs-primary-text-emphasis);
+}
+
+.layout-menu-link:hover {
+  background-color: var(--bs-secondary-bg);
+}
+
+.layout-menu-summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.layout-menu-summary::-webkit-details-marker {
+  display: none;
+}
+
+.layout-menu-summary::after {
+  content: "";
+  display: inline-block;
+  width: 1.05em;
+  height: 1.05em;
+  margin-left: 0.35rem;
+  vertical-align: -0.15em;
+  background-color: currentColor;
+  // The caret is chevron-down painted through the same mask technique as
+  // .lucide-icon — a ::after can't be a LucideIcon span, but the icon FILE
+  // stays the one shape source (Vite resolves the url into the build).
+  mask-image: url("../icons/chevron-down.svg");
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+}
+
+// A boxed trigger (e.g. UserMenu's button-styled span) carries its caret
+// INSIDE the box — the summary-level ::after one would sit detached
+// outside it, so DropdownMenu's :caret="false" suppresses it here.
+.layout-menu-no-caret::after {
+  content: none;
+}
+
+// Anchor sides: the nav menu drops left of its trigger, the right-aligned
+// menus (Sign in, user menu) drop right.
+.layout-navmenu-list {
+  left: 0;
+}
+
+.layout-signin-menu {
+  right: 0;
+}
+
+// Compact navbar (narrow viewports): the superuser links fold into this
+// native <details> dropdown.
+.layout-navmenu {
+  position: relative;
+}
+
+// Anonymous navbar: one Sign-in button opening a native <details> dropdown
+// of the configured login providers (Layout.vue closes it on outside
+// clicks / Escape).
+.layout-signin {
+  position: relative;
+}
+
+// Signed-in navbar: the username + badge button opening the user dropdown
+// (UserMenu.vue).
+.layout-user-menu {
+  position: relative;
+}
+
+// The icon-only trigger: no outline-button chrome — icon, badge, and caret
+// sit in one flex row with breathing room.
+.layout-user-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.3rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.layout-user-menu summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.layout-user-caret {
+  margin-left: 0.25rem; // + the summary's 0.4rem gap = the badge→caret space
+}
+
+// RepoNav (the Code sub-nav): plain bootstrap .nav ships no active state
+// (only the nav-tabs/pills variants style .active), so the current section
+// highlights itself — link-colored, bold, underlined off the baseline.
+// Scoped to .repo-nav so a future bootstrap .nav elsewhere stays unstyled.
+.repo-nav .nav-link.active {
+  color: var(--bs-primary-text-emphasis);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.3em;
+}
+
+.back-to-top {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 1rem;
+  padding: 0;
+  background: none;
+  border: none;
+  color: var(--bs-primary-text-emphasis);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.back-to-top-arrow {
+  margin-right: 0.35rem;
+  font-weight: 700;
+}
+
+// HumanizedTime — a reusable component (not file-browser specific), so it lives
+// here rather than under /files styling. Reads as plain text; click flips
+// relative ↔ absolute.
+.humanized-time {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.humanized-time:hover {
+  text-decoration: underline dotted;
+}
+
+// Heading tools: permalink to the section + jump to page top. Always
+// visible (hover is useless on mobile), muted to stay behind the text.
+.heading-tools {
+  display: inline;
+  margin-left: 0.5em;
+
+  a {
+    text-decoration: none;
+    font-weight: normal;
+    font-size: 0.8em;
+    color: var(--bs-secondary-color);
+    // Bigger tap target than the bare glyph; the opacity lift covers hover
+    // AND keyboard focus (touch keeps the faded state by design).
+    padding: 0.25em;
+    opacity: 0.6;
+
+    &:hover,
+    &:focus-visible {
+      opacity: 0.95;
+    }
+  }
+}
+
+// The absolute view is muted throughout (see .humanized-time-absolute); the
+// time + tz smalls are smaller still, spaced by margin (inline flow).
+.humanized-time small {
+  margin-left: 0.3em;
+  font-size: 0.8em;
+}
+
+// Absolute view: the whole value reads muted — an exact timestamp is
+// reference detail, not content.
+.humanized-time-absolute {
+  color: var(--bs-secondary-color);
+}
+
+// Calendar hint beside the relative label (the base .lucide-icon margin
+// spaces it).
+.humanized-time-icon {
+  width: 0.9em;
+  height: 0.9em;
+}
+
+// Changed-files tree (FileTree.vue on the git pages): each nesting level
+// draws its own guide rail (border-left on the nested list), so depth reads
+// as lines — no counting indents.
+.file-tree ul {
+  padding-left: 0.75rem;
+  margin-left: 0.5rem;
+  border-left: 1px solid var(--bs-border-color);
+}
+
+.git-folder {
+  margin: 0.15rem 0;
+}
+
+// The folder row is a button (fold/unfold). Unstyled to read like the label
+// it replaces: full-strength name, muted count, rotating caret.
+.git-folder-toggle {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: $font-family-monospace;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+// The caret IS the LucideIcon span (chevron-right collapsed / chevron-down
+// expanded), centered against the label — baseline alignment would park the
+// empty span's bottom edge (its synthesized baseline) on the text baseline,
+// riding the chevron high.
+.git-folder-caret {
+  color: var(--bs-secondary-color);
+  font-size: 0.75rem;
+  align-self: center;
+}
+
+// The toggle's flex gap (0.25rem) already spaces the caret — don't double it.
+.git-folder-toggle .lucide-icon {
+  margin-right: 0;
+}
+
+// Folder names read at full strength (they anchor the group next to the
+// colored status words); only the count stays muted.
+.git-folder-name {
+  font-weight: 600;
+  color: var(--bs-body-color);
+}
+
+.git-folder-count {
+  font-weight: 400;
+  color: var(--bs-secondary-color);
+}
+
+// /git lists: the new/mod/del status icon
+.git-status {
+  display: inline-block;
+  min-width: 1.4em;
+  margin-right: 0.5rem;
+  font-weight: 600;
+}
+
+// The status slot's own margin spaces the icon — don't double it.
+.git-status .lucide-icon {
+  margin-right: 0;
+}
+
+.git-file-link {
+  font-size: 0.85rem;
+}
+
+// Diff viewer (SplitDiff.vue → diff2html): one container per outputFormat,
+// side-by-side ≥768px / line-by-line below — CSS-only switching, no resize
+// listeners. diff2html's own CSS arrives with its lazy chunk; the overrides
+// below align its GitHub-ish defaults with the app's type + colors.
+.diff-view {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+[data-split-diff-side] {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  [data-split-diff-side] {
+    display: block;
+  }
+
+  [data-split-diff-unified] {
+    display: none;
+  }
+}
+
+// diff2html adjustments: app monospace stack + the app's red/green row tints.
+.diff-view .d2h-wrapper {
+  font-family: $font-family-monospace;
+  font-size: 0.85rem;
+}
+
+.diff-view .d2h-code-line,
+.diff-view .d2h-code-side-line {
+  font-family: $font-family-monospace;
+}
+
+// Restore in-flow linenumber cells (diff2html overlays them absolutely,
+// with huge compensating paddings on the line divs): Firefox paints the
+// absolute cells' background shorter than the row, leaving page-background
+// bands under the lines. The rule applies in every browser — Chromium's
+// rendering was already tight and stays so with the simpler layout.
+.diff-view td.d2h-code-linenumber,
+.diff-view td.d2h-code-side-linenumber {
+  position: static;
+  display: table-cell;
+  vertical-align: top;
+}
+
+.diff-view .d2h-code-line,
+.diff-view .d2h-code-side-line {
+  padding: 0 0.5em;
+  width: auto;
+}
+
+// App red/green row tints for LIGHT mode. Dark mode is handled natively:
+// the container carries d2h-auto-color-scheme, whose variable set
+// (d2h-dark-*) flips under prefers-color-scheme: dark — no manual reskin.
+@media (prefers-color-scheme: light) {
+  .diff-view .d2h-ins {
+    background-color: #e6ffec;
+  }
+
+  .diff-view .d2h-del {
+    background-color: #ffebe9;
+  }
+
+  .diff-view .d2h-ins.d2h-change,
+  .diff-view .d2h-del.d2h-change {
+    background-color: #fff5b1;
+  }
+}
+
+.diff-view .d2h-file-diff {
+  // The page provides surrounding chrome; keep the inner table tight.
+  margin: 0;
+}
+
+// diff2html's dark surfaces are GitHub navy; theme tokens instead. Native
+// dark linenumber ink is light-theme grey — the compound selector
+// out-specifies the package css (loaded later).
+@media (prefers-color-scheme: dark) {
+  // The container itself, for the error/loading states the wrapper doesn't
+  // cover (package default stays navy there).
+  .diff-view.d2h-auto-color-scheme {
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+  }
+
+  .diff-view.d2h-auto-color-scheme .d2h-file-wrapper {
+    background: var(--bs-body-bg);
+    border-color: var(--bs-border-color);
+  }
+
+  .diff-view.d2h-auto-color-scheme .d2h-file-header {
+    background: var(--bs-secondary-bg);
+    border-bottom-color: var(--bs-border-color);
+  }
+
+  .diff-view.d2h-auto-color-scheme .d2h-code-linenumber,
+  .diff-view.d2h-auto-color-scheme .d2h-code-side-linenumber {
+    background: var(--bs-tertiary-bg);
+    color: #8b949e;
+  }
+}

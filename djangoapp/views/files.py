@@ -283,7 +283,7 @@ def _browse(request: HttpRequest, rel: str) -> HttpResponseBase:
         )
         return InertiaResponse(
             request,
-            "FileBrowser",
+            "system/files/FileBrowser",
             {"props": props.model_dump()},
         )
 
@@ -308,7 +308,7 @@ def _browse(request: HttpRequest, rel: str) -> HttpResponseBase:
         file_viewer.kind = "markdown" if target.is_markdown() else "text"
     return InertiaResponse(
         request,
-        "FileViewer",
+        "system/files/FileViewer",
         {"props": file_viewer.model_dump()},
     )
 

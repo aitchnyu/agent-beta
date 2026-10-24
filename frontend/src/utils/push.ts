@@ -7,12 +7,8 @@
 // (Session → UserSessionIndex → PushSubscription), and the one-shot
 // just_logged_in flag drives rebindAfterLogin() on the next landing.
 
-import { z } from "zod"
 import { deleteJSON, postJSON } from "./http"
-
-const SubscribeResponseSchema = z.object({
-  subscribed: z.boolean(),
-})
+import { SubscribeResponseSchema } from "../system/schemas/notifications"
 
 // Vite copies frontend/public/ verbatim under the static root (vite.config
 // base) — the SW lives at a stable, unhashed URL.

@@ -331,7 +331,7 @@ def models_page(request: HttpRequest) -> HttpResponse:
         for m in _ourapp_models()
     ]
     props = ModelListProps(models=items)
-    return InertiaResponse(request, "ModelList", {"props": props.model_dump()})
+    return InertiaResponse(request, "system/manage/ModelList", {"props": props.model_dump()})
 
 
 @manage_router.get("/models/{model_name}/list", response=None)
@@ -373,7 +373,7 @@ def model_rows_page(
         ),
         filters=RowListFilters(per_page=filters.per_page, page=page_obj.number, sort=sort),
     )
-    return InertiaResponse(request, "ModelRows", {"props": props.model_dump()})
+    return InertiaResponse(request, "system/manage/ModelRows", {"props": props.model_dump()})
 
 
 @manage_router.get("/models/{model_name}/id/{public_id}", response=None)
@@ -418,7 +418,7 @@ def row_detail_page(
     # hand-rolled client-side onMounted router.reload handshake.
     return InertiaResponse(
         request,
-        "RowDetail",
+        "system/manage/RowDetail",
         {
             "props": core,
             "logs": defer(lambda: _row_logs(model_cls, instance.pk)),

@@ -1,6 +1,6 @@
 """Todos feature — a single-page todo list owned by the signed-in user.
 
-Endpoints (all under ``/todos``, one Inertia page ``ours/TodosPage``):
+Endpoints (all under ``/todos``, one Inertia page ``TodosPage``):
 - GET  /todos                    — the user's todos (404 when anonymous)
 - POST /todos/create             — add a todo (audit-logged) → TodoOutSchema
 - POST /todos/{public_id}/toggle — flip completion (audit-logged) → TodoOutSchema
@@ -73,12 +73,12 @@ def _todo_or_404(public_id: str, owner: User) -> Todo:
 
 @router.get("/todos", response=None)
 def todos_page(request: HttpRequest) -> InertiaResponse:
-    """Render the signed-in user's todos (component ``ours/TodosPage``)."""
+    """Render the signed-in user's todos (component ``TodosPage``)."""
     user = user_or_404(request)
     todos = Todo.objects.active_for(user)
     return InertiaResponse(
         request,
-        "ours/TodosPage",
+        "TodosPage",
         {"props": {"todos": [_todo_out(t).model_dump() for t in todos]}},
     )
 

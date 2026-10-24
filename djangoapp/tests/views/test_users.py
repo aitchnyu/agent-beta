@@ -66,7 +66,7 @@ class UserListViewTests(QueryBudgetInertiaTestCase):
         """Superuser gets 200 rendering the UserList component."""
         self.client.force_login(self.superuser)
         self.client.get("/users/list")
-        self.assertComponentUsed("UserList")
+        self.assertComponentUsed("system/users/UserList")
 
     def test_list_includes_admin_fields(self) -> None:
         """Superuser sees email/public/staff/superuser/active in each list row."""
@@ -426,7 +426,7 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
         """Superuser GET renders the UserEdit form with the target's editable fields."""
         self.client.force_login(self.superuser)
         self.client.get(f"/users/edit/{self.target.public_id}")
-        self.assertComponentUsed("UserEdit")
+        self.assertComponentUsed("system/users/UserEdit")
         target = self.props()["props"]["target"]
         self.assertEqual(target["username"], "target")
         self.assertEqual(target["first_name"], "Old")
@@ -577,7 +577,7 @@ class UserHistoryViewTests(QueryBudgetInertiaTestCase):
         )
         self.client.force_login(self.superuser)
         self.client.get(f"/users/history/{self.target.public_id}")
-        self.assertComponentUsed("UserHistory")
+        self.assertComponentUsed("system/users/UserHistory")
         props = self.props()["props"]
         self.assertEqual(props["target_public_id"], self.target.public_id)
         entries = props["entries"]

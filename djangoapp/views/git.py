@@ -110,7 +110,7 @@ def git_uncommitted_list(request: HttpRequest) -> HttpResponseBase:
     )
     return InertiaResponse(
         request,
-        "GitUncommitted",
+        "system/git/GitUncommitted",
         {"props": props.model_dump(mode="json")},
     )
 
@@ -137,7 +137,7 @@ def git_uncommitted_diff(request: HttpRequest, worktree: str, rel: str) -> HttpR
     props = GitDiffProps(title=f"Uncommitted ({worktree}): {path}", diff=diff)
     return InertiaResponse(
         request,
-        "GitDiff",
+        "system/git/GitDiff",
         {"props": props.model_dump(mode="json")},
     )
 
@@ -150,7 +150,7 @@ def git_commit_list(request: HttpRequest) -> HttpResponseBase:
     props = GitCommitListProps(commits=commits, pagination=pagination)
     return InertiaResponse(
         request,
-        "GitCommitList",
+        "system/git/GitCommitList",
         {"props": props.model_dump(mode="json")},
     )
 
@@ -163,7 +163,7 @@ def git_commit_file_list(request: HttpRequest, commit_id: str) -> HttpResponseBa
     props = GitCommitProps(commit=summary, files=files)
     return InertiaResponse(
         request,
-        "GitCommit",
+        "system/git/GitCommit",
         {"props": props.model_dump(mode="json")},
     )
 
@@ -180,7 +180,7 @@ def git_commit_file_diff(request: HttpRequest, commit_id: str, rel: str) -> Http
     props = GitDiffProps(title=f"{commit_id}: {path}", diff=diff)
     return InertiaResponse(
         request,
-        "GitDiff",
+        "system/git/GitDiff",
         {"props": props.model_dump(mode="json")},
     )
 

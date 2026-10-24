@@ -32,7 +32,7 @@ class FactsViewTests(BaseTestCase):
     def test_facts_page_renders_with_fact(self) -> None:
         """GET /facts renders FactsPage with one fact + topics (pk-free)."""
         page = self.client.get("/facts", HTTP_X_INERTIA="true").json()
-        self.assertEqual(page["component"], "ours/FactsPage")
+        self.assertEqual(page["component"], "FactsPage")
         props = page["props"]["props"]
         self.assertEqual(props["fact"]["public_id"], self.fact.public_id)
         self.assertEqual(props["fact"]["text"], self.fact.text)
@@ -57,7 +57,7 @@ class FactsViewTests(BaseTestCase):
     def test_fact_topic_page_renders(self) -> None:
         """GET /facts/<slug> renders FactTopicPage scoped to the topic (pk-free)."""
         page = self.client.get("/facts/cars", HTTP_X_INERTIA="true").json()
-        self.assertEqual(page["component"], "ours/FactTopicPage")
+        self.assertEqual(page["component"], "FactTopicPage")
         props = page["props"]["props"]
         self.assertEqual(props["topic"]["slug"], "cars")
         self.assertEqual(props["fact"]["public_id"], self.fact.public_id)
@@ -75,7 +75,7 @@ class FactsViewTests(BaseTestCase):
         page = self.client.get(
             f"/fact/{self.fact.public_id}", HTTP_X_INERTIA="true"
         ).json()
-        self.assertEqual(page["component"], "ours/FactPage")
+        self.assertEqual(page["component"], "FactPage")
         props = page["props"]["props"]
         self.assertEqual(props["fact"]["public_id"], self.fact.public_id)
         self.assertEqual(props["fact"]["text"], self.fact.text)

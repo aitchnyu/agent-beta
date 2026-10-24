@@ -1,0 +1,88 @@
+// App-specific styles, kept with the app under styles/.
+// Imported as a side-effect by the page components (`import "../styles/app.scss"`),
+// so the app is self-contained and needs no edit to the system stylesheet.
+
+.home-container {
+  max-width: 32rem;
+}
+
+.home-feature-nav {
+  margin: 1rem 0;
+  display: flex;
+  gap: 1rem;
+}
+
+.home-feature-link {
+  font-weight: 600;
+}
+
+.home-fact-of-day {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background-color: #f9fafb;
+}
+
+.home-login-link {
+  display: inline-block;
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: var(--bs-blue, #2563eb);
+  color: #ffffff;
+  border: none;
+  border-radius: 0.375rem;
+  text-decoration: none;
+  cursor: pointer;
+  font: inherit;
+}
+
+// ---- Facts + Todos ----
+
+.ours-facts-page,
+.ours-todos-page {
+  max-width: 48rem;
+}
+
+.ours-fact-text {
+  font-size: 1.15rem;
+}
+
+.ours-topics-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+}
+
+.ours-todos-list {
+  list-style: none;
+  padding: 0;
+}
+
+.ours-todo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.ours-todo-completed span {
+  text-decoration: line-through;
+  color: #888;
+}
+
+// The black stripes vanish on the dark surface — flip to white there.
+@media (prefers-color-scheme: dark) {
+  .mockup::before {
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.07) 0,
+      rgba(255, 255, 255, 0.07) 6px,
+      transparent 6px,
+      transparent 14px
+    );
+  }
+}

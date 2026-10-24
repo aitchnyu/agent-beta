@@ -79,8 +79,8 @@ use, and `choose_for_today()` is the only mutator.
 - Seed: `management/commands/seedfacts.py` (the `FACTS` data is inlined at
   the top).
 - Views: `views/facts.py` (`/facts`, `/facts/<slug>`, `/fact/<public_id>`).
-- Frontend: `ours/pages/{Home,FactsPage,FactTopicPage,FactPage}.vue` (each
+- Frontend: `pages/{Home,FactsPage,FactTopicPage,FactPage}.vue` (each
   page declares its own props schema inline), shared `TopicSchema`/
-  `FactSchema` in `ours/factsSchemas.ts`.
+  `FactSchema` in `src/schemas/facts.ts`.
 - Tests: `tests/test_facts_{models,views,commands,tasks,playwright}.py`,
   plus `tests/test_home_views.py` (the daily fact on home).

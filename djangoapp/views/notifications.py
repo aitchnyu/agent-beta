@@ -191,7 +191,9 @@ def notifications_page(
         kind=params.kind,
         has_more=len(rows) > PAGE_SIZE,
     )
-    return InertiaResponse(request, "Notifications", {"props": props.model_dump()})
+    return InertiaResponse(
+        request, "system/notifications/Notifications", {"props": props.model_dump()}
+    )
 
 
 @router.post("/api/read-all", response=CountResponse)

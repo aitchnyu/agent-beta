@@ -69,7 +69,7 @@ class FilesViewTests(BaseInertiaTestCase):
         """/files (rel=None) serves the browse-root listing (BASE_DIR.parent)."""
         self.client.force_login(self.superuser)
         self.client.get("/files")
-        self.assertComponentUsed("FileBrowser")
+        self.assertComponentUsed("system/files/FileBrowser")
         props = self.props()["props"]
         names = {e["name"] for e in props["entries"]}
         self.assertIn("main", names)  # the repo dir (BASE_DIR.name)
@@ -114,7 +114,7 @@ class FilesViewTests(BaseInertiaTestCase):
         """Text file returns kind=text with content inlined."""
         self.client.force_login(self.superuser)
         self.client.get(f"/files/{_TEXT_FILE}")
-        self.assertComponentUsed("FileViewer")
+        self.assertComponentUsed("system/files/FileViewer")
         props = self.props()["props"]
         self.assertEqual(props["kind"], "text")
         self.assertIn("BaseModel", props["text"])
@@ -223,7 +223,7 @@ class FilesViewTests(BaseInertiaTestCase):
         ):
             (Path(d) / "pic.png").write_bytes(b"\x89PNG\r\n\x1a\n")
             self.client.get("/files/pic.png")
-            self.assertComponentUsed("FileViewer")
+            self.assertComponentUsed("system/files/FileViewer")
             self.assertEqual(self.props()["props"]["kind"], "image")
 
     def test_hostile_paths_404(self) -> None:

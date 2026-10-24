@@ -173,8 +173,8 @@ If you want to look around:
   frontend-reported errors (`/client-errors`, rate-limited via Redis), all
   `jq`-filterable. See [Logging](#logging).
 - **Single-page Inertia + Vue frontend** — one build, sourcemaps emitted for
-  offline row:col resolution; framework pages under `frontend/src/pages/`, the
-  app's own under `frontend/src/ours/`.
+  offline row:col resolution; the app's pages under `frontend/src/pages/`,
+  framework pages under `frontend/src/system/pages/`.
 - **Design mockups** — throwaway superuser-only `/mockup/<page>` pages with
   a crosshatch overlay let you review a UI before it's built
   (the convention lives in `agentconfig/steer.md`; `/mockup/MockupTodos` ships as the
@@ -400,7 +400,7 @@ split into modules (one per feature), never stuffed into one file:
 - **API** (`ourapp/views/`): one django-ninja `Router` per feature
   (`views/<feature>.py`); `views/__init__.py` owns the single `NinjaAPI` and
   registers every router. Page responses render via Inertia
-  (`InertiaResponse(request, "ours/<Page>", {"props": …})`), data responses are
+  (`InertiaResponse(request, "<Page>", {"props": …})`), data responses are
   pydantic schemas.
 - **URLs** (`ourapp/urls.py`): mounts the ninja API at the project root, so each
   route is served at its literal URL — **including the landing page `/`**, which
@@ -412,8 +412,9 @@ split into modules (one per feature), never stuffed into one file:
   Playwright files are tagged so `./run test` skips them and `./run playwrighttest`
   runs them.
 - **Frontend**: one Vue+Inertia app. App pages live in
-  `frontend/src/ours/pages/<Name>.vue` (component name `ours/<Name>`); shared
-  components in `frontend/src/ours/components/`.
+  `frontend/src/pages/<Name>.vue` (component name = path, e.g. `Home`);
+  shared components in `frontend/src/components/`, shared zod modules in
+  `frontend/src/schemas/`. Framework code lives under `frontend/src/system/`.
 
 The app also has its own `README.md` (a brief feature catalog) and `docs/`
 (one markdown file per feature, linked from the README). See
@@ -505,11 +506,12 @@ change:
    `./run` (it refuses)**. The check battery: ruff + mypy + `ourapp` tests +
    frontend lint/type-check/build (the fast loop: the framework suite and
    Playwright stay in `main/`; frontend/docs-only diffs skip the backend
-   battery — lint/build + d2 fence checks only). Must finish green.
-   When scratch edits touch
-   framework files (outside `ourapp/` + `frontend/src/ours/`), it also runs
-   the tagged `scratch-test-subset` smoke tests. Run `checkframework1` in
-   `main/` for the full gate.
+    battery — lint/build + d2 fence checks only). Must finish green.
+    When scratch edits touch
+    framework files (outside `ourapp/` + the app's
+    `frontend/src/{pages,components,schemas,styles}/`), it also runs
+    the tagged `scratch-test-subset` smoke tests. Run `checkframework1` in
+    `main/` for the full gate.
 4. the same command's tail — deploy `../scratch/` into `main/` (never
    overwriting `main/.env`; on the VM: backup + migrate + granian/huey
    restart when backend code changed, collectstatic when the bundle
@@ -740,8 +742,10 @@ creates what, when) lives in `deploy/inside-vm.sh`'s header.
 │   │   │   └── urls.py apps.py migrations/ tests/ docs/
 │   │   ├── frontend/              Vue 3 + Inertia SPA (vite build → djangoapp/static)
 │   │   │   ├── src/main.ts        entry: Inertia + router + push service wiring
-│   │   │   └── src/ours/          YOUR pages (ours/pages/**/*.vue auto-globbed into
-│   │   │                          the bundle) + your style.scss
+│   │   │   ├── src/pages/         YOUR pages (auto-globbed; component name = path)
+│   │   │   ├── src/components/    YOUR components; src/schemas/ YOUR shared zod
+│   │   │   ├── src/styles/        YOUR app.scss (side-effect-imported)
+│   │   │   └── src/system/        framework pages/components/schemas/styles/icons
 │   │   ├── agentconfig/           steering documents the pi agent reads
 │   │   ├── .pi/                   pi CLI config: permissions allowlist, extensions
 │   │   ├── deploy/                guest-side scripts (gate.sh, inside-vm.sh, …)
@@ -766,7 +770,8 @@ Three tiers:
     frontend lint/type-check/build — unless the diff is frontend/docs-only,
     which takes the fast path (lint/build + d2 fence checks)
   - skips the framework suite and Playwright (those run in `main/`) — unless
-    the edit touches framework files (outside `ourapp/` + `frontend/src/ours/`),
+    the edit touches framework files (outside `ourapp/` + the app's
+    `frontend/src/{pages,components,schemas,styles}/`),
     which adds the tagged `scratch-test-subset` smoke tests
 - **`checkframework1`** — the full gate, run in `main/`. ruff + mypy + the whole backend
   suite + frontend lint/type-check + Playwright, then two scratch-overlay cycles —

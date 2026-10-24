@@ -375,5 +375,5 @@
   <text x="44" y="820" font-size="11" fill="#6b6656">neutrals: border #d8d2c0 · muted #6b6656 · focus #a4b83a</text>
   <text x="44" y="838" font-size="11" fill="#6b6656">status trio: danger dark · success mid · warning light — deutan-safe</text>
   <text x="44" y="856" font-size="11" fill="#6b6656">wheel rules: docs/golden-theme.md</text>
-  <text x="44" y="874" font-size="11" fill="#6b6656">assets: desmodium-logo.svg (this dir) · djangoapp/static/favicon.svg · frontend/src/icons/leaf.svg</text>
+  <text x="44" y="874" font-size="11" fill="#6b6656">assets: desmodium-logo.svg (this dir) · djangoapp/static/favicon.svg · frontend/src/system/icons/leaf.svg</text>
 </svg>

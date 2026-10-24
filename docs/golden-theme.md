@@ -80,4 +80,4 @@ Derived from this theme and shipped with the app:
 - logo — [`desmodium-logo.svg`](./desmodium-logo.svg)
 - favicon — `djangoapp/static/favicon.svg` (gold leaf on the deep-gold badge, linked from every
   shell template)
-- home-button icon — `frontend/src/icons/leaf.svg`
+- home-button icon — `frontend/src/system/icons/leaf.svg`

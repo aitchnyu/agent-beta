@@ -45,7 +45,7 @@ class ManageModelsViewTests(BaseInertiaTestCase):
         """/manage/models renders ModelList with a list of models (empty in checkframework1)."""
         self.client.force_login(self.superuser)
         self.client.get("/manage/models")
-        self.assertComponentUsed("ModelList")
+        self.assertComponentUsed("system/manage/ModelList")
         self.assertIsInstance(self.props()["props"]["models"], list)
 
     def test_unknown_model_list_404(self) -> None:

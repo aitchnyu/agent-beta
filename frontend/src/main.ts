@@ -2,7 +2,7 @@ import { createApp, h } from "vue"
 import type { App as VueApp, DefineComponent } from "vue"
 import { HttpResponseError } from "@inertiajs/core"
 import { createInertiaApp, router } from "@inertiajs/vue3"
-import Layout from "./components/Layout.vue"
+import Layout from "./system/components/Layout.vue"
 import {
   reportErrorEvent,
   reportRejection,
@@ -11,11 +11,11 @@ import {
 } from "./utils/clientError"
 import { showErrorToast } from "./utils/sweetalert"
 import { UserVisibleError } from "./utils/pydanticErrors"
-import "./main.scss"
+import "./system/styles/main.scss"
 import "vue-multiselect/dist/vue-multiselect.css"
 // Eager styles for the lazy JS chunks, otherwise these pages flash of unstyled content.
 import "quill/dist/quill.snow.css"
-import "./styles/hljs.scss"
+import "./system/styles/hljs.scss"
 
 // Re-entrancy latch for the error pipeline: reporting and toasting are
 // themselves fallible (the toast chunk is a network fetch), so without this
@@ -71,12 +71,16 @@ window.addEventListener(
   },
 )
 
-// Framework pages bundle from ./pages/; the user app's pages bundle from
-// ./ours/pages/ (Inertia component name "ours/<Name>"). Both eager into main.js
+// App pages bundle from ./pages/ (component name = path, e.g. "Home");
+// framework pages bundle from ./system/pages/ (component name prefixed
+// "system/", e.g. "system/users/UserList"). Both eager into main.js
 // (one entry, no per-page chunks).
-const pages = import.meta.glob(["./pages/**/*.vue", "./ours/pages/**/*.vue"], {
-  eager: true,
-}) as Record<string, { default: DefineComponent }>
+const pages = import.meta.glob(
+  ["./pages/**/*.vue", "./system/pages/**/*.vue"],
+  {
+    eager: true,
+  },
+) as Record<string, { default: DefineComponent }>
 
 createInertiaApp({
   // Required, not cosmetic: v3's built-in HTTP client defaults to Laravel's
@@ -91,9 +95,10 @@ createInertiaApp({
   // Default layout: every page renders inside Layout.vue (navbar + slot); reads shared props via usePage()
   layout: () => Layout,
   resolve: (name) => {
-    // "ours/<Name>" → ./ours/pages/<Name>.vue; everything else → ./pages/<name>.vue
-    const key = name.startsWith("ours/")
-      ? `./ours/pages/${name.slice("ours/".length)}.vue`
+    // "system/<feature>/<Name>" → ./system/pages/<feature>/<Name>.vue;
+    // app names → ./pages/<name>.vue
+    const key = name.startsWith("system/")
+      ? `./system/pages/${name.slice("system/".length)}.vue`
       : `./pages/${name}.vue`
     const mod = pages[key]
     if (!mod) {

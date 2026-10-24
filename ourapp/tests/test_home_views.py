@@ -11,14 +11,14 @@ from djangoapp.tests._base import BaseInertiaTestCase
 class HomeViewTests(BaseInertiaTestCase):
     """The landing page renders for anonymous and authenticated viewers (pk-free).
 
-    - test_anonymous_home, anon GET / has ours/Home component, no page props
+    - test_anonymous_home, anon GET / has Home component, no page props
     - test_authenticated_home, authed GET / carries identity via the shared user prop
     - test_home_issues_csrftoken_cookie, GET / sets a csrftoken cookie so logout can POST
     - test_no_integer_pk_in_props, public_id present but no integer id/pk leaks
     """
 
     def test_anonymous_home(self) -> None:
-        """Anon GET / has ours/Home with no page props (shared viewer anonymous)."""
+        """Anon GET / has Home with no page props (shared viewer anonymous)."""
         # Full payload for reference (not asserted — features add props):
         # {
         #     "props": {},
@@ -31,7 +31,7 @@ class HomeViewTests(BaseInertiaTestCase):
         #     "just_logged_in": False,
         # }
         self.inertia.get("/")
-        self.assertComponentUsed("ours/Home")
+        self.assertComponentUsed("Home")
         page = self.props()
         self.assertEqual(page["props"], {})
         self.assertIsNone(page["user"])
@@ -57,7 +57,7 @@ class HomeViewTests(BaseInertiaTestCase):
         )
         self.inertia.force_login(user)
         self.inertia.get("/")
-        self.assertComponentUsed("ours/Home")
+        self.assertComponentUsed("Home")
         page = self.props()
         self.assertEqual(page["props"], {})
         # The shared viewer prop carries the identity the page gates on.
@@ -91,7 +91,7 @@ class MockupTodosTests(BaseInertiaTestCase):
     """The permanent mockup demo route: superuser-only, no data plumbing.
 
     - test_superuser_sees_mockup, superuser GET /mockup/MockupTodos renders
-      ours/MockupTodos, empty props
+      MockupTodos, empty props
     - test_props_url_param_presets_props, ?props=<base64url JSON> becomes
       the page props
     - test_bad_props_param_is_422, a non-decodable props param is the standard 422
@@ -106,7 +106,7 @@ class MockupTodosTests(BaseInertiaTestCase):
         root = User.objects.create_user(username="root", password="pw", is_superuser=True)
         self.inertia.force_login(root)
         self.inertia.get("/mockup/MockupTodos")
-        self.assertComponentUsed("ours/MockupTodos")
+        self.assertComponentUsed("MockupTodos")
         self.assertEqual(self.props()["props"], {})
 
     def test_props_url_param_presets_props(self) -> None:

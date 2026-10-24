@@ -78,7 +78,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     def test_uncommitted_list(self) -> None:
         """``/git/uncommitted/`` lists main's + scratch's pending files."""
         self.client.get("/git/uncommitted/")
-        self.assertComponentUsed("GitUncommitted")
+        self.assertComponentUsed("system/git/GitUncommitted")
         props = self.props()["props"]
         main = {f["path"]: f["status"] for f in props["main_files"]}
         scratch = {f["path"]: f["status"] for f in props["scratch_files"]}
@@ -104,7 +104,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     def test_uncommitted_diff_tracked(self) -> None:
         """``/git/uncommitted/main/TodoApp/app.py`` serves the diff with the new line."""
         self.client.get("/git/uncommitted/main/TodoApp/app.py")
-        self.assertComponentUsed("GitDiff")
+        self.assertComponentUsed("system/git/GitDiff")
         props = self.props()["props"]
         self.assertIn('+    print("final")', props["diff"])
         self.assertEqual(props["title"], "Uncommitted (main): TodoApp/app.py")
@@ -112,7 +112,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     def test_uncommitted_diff_untracked(self) -> None:
         """``/git/uncommitted/main/TodoApp/notes.md`` serves the whole-file-added diff."""
         self.client.get("/git/uncommitted/main/TodoApp/notes.md")
-        self.assertComponentUsed("GitDiff")
+        self.assertComponentUsed("system/git/GitDiff")
         self.assertIn("+todo", self.props()["props"]["diff"])
 
     def test_uncommitted_diff_unknown(self) -> None:
@@ -125,7 +125,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     def test_uncommitted_scratch_diff(self) -> None:
         """``/git/uncommitted/scratch/TodoApp/scratch_only.py`` serves the scratch-repo diff."""
         self.client.get("/git/uncommitted/scratch/TodoApp/scratch_only.py")
-        self.assertComponentUsed("GitDiff")
+        self.assertComponentUsed("system/git/GitDiff")
         props = self.props()["props"]
         self.assertIn("+x = 1", props["diff"])
         self.assertEqual(props["title"], "Uncommitted (scratch): TodoApp/scratch_only.py")
@@ -134,7 +134,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     def test_commit_list(self) -> None:
         """``/git/commits`` lists 3 commits newest-first with pagination."""
         self.client.get("/git/commits")
-        self.assertComponentUsed("GitCommitList")
+        self.assertComponentUsed("system/git/GitCommitList")
         props = self.props()["props"]
         self.assertEqual(
             [c["subject"] for c in props["commits"]],
@@ -166,7 +166,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     def test_commit_list_bad_page(self) -> None:
         """A non-int ``?page=`` clamps to 1 (200), not an error."""
         self.client.get("/git/commits?page=abc")
-        self.assertComponentUsed("GitCommitList")
+        self.assertComponentUsed("system/git/GitCommitList")
         self.assertEqual(len(self.props()["props"]["commits"]), 3)
 
     def test_commit_files(self) -> None:
@@ -202,7 +202,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     def test_commit_file_diff(self) -> None:
         """``/git/commits/<sha>/<path>`` serves that file's diff in the commit."""
         self.client.get(f"/git/commits/{self.short_b}/TodoApp/app.py")
-        self.assertComponentUsed("GitDiff")
+        self.assertComponentUsed("system/git/GitDiff")
         self.assertIn("+    return x", self.props()["props"]["diff"])
 
     def test_commit_file_diff_root(self) -> None:
@@ -212,7 +212,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         stringified to its enum name → `fatal: bad revision` → 500.
         """
         self.client.get(f"/git/commits/{self.short_a}/TodoApp/app.py")
-        self.assertComponentUsed("GitDiff")
+        self.assertComponentUsed("system/git/GitDiff")
         diff = self.props()["props"]["diff"]
         self.assertIn("+def main():", diff)
         self.assertIn('+    print("hello")', diff)
@@ -222,7 +222,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     def test_commit_file_diff_deleted(self) -> None:
         """A diff for a file deleted in the commit shows the deletion."""
         self.client.get(f"/git/commits/{self.short_c}/TodoApp/endpoints.py")
-        self.assertComponentUsed("GitDiff")
+        self.assertComponentUsed("system/git/GitDiff")
         self.assertIn("-def greet(name):", self.props()["props"]["diff"])
 
     def test_commit_file_diff_unknown_path(self) -> None:

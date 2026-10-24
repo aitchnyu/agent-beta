@@ -10,7 +10,7 @@ from ourapp.models import Fact, FactOfTheDay, Topic
 class HomeViewTests(BaseInertiaTestCase):
     """The landing page renders for anonymous and authenticated viewers (pk-free).
 
-    - test_anonymous_home, anon GET / has ours/Home component, fact_of_day None
+    - test_anonymous_home, anon GET / has Home component, fact_of_day None
     - test_authenticated_home, authed GET / carries identity via the shared user prop
     - test_home_get_does_not_create_pick, GET / with facts but no cron write leaves fact_of_day None (GET never writes)
     - test_home_shows_fact_of_the_day, once the cron has picked, GET / carries it in props (pk-free)
@@ -19,9 +19,9 @@ class HomeViewTests(BaseInertiaTestCase):
     """
 
     def test_anonymous_home(self) -> None:
-        """Anon GET / has ours/Home with fact_of_day None and no other page props."""
+        """Anon GET / has Home with fact_of_day None and no other page props."""
         self.inertia.get("/")
-        self.assertComponentUsed("ours/Home")
+        self.assertComponentUsed("Home")
         self.assertHasExactProps(
             {
                 "props": {
@@ -45,7 +45,7 @@ class HomeViewTests(BaseInertiaTestCase):
         )
         self.inertia.force_login(user)
         self.inertia.get("/")
-        self.assertComponentUsed("ours/Home")
+        self.assertComponentUsed("Home")
         self.assertHasExactProps(
             {
                 "props": {

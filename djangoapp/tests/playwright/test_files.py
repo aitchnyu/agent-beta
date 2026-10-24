@@ -98,7 +98,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         appears as escaped text — never parsed into live DOM elements.
         """
         page = self.page
-        page.goto(self._files("main/frontend/src/pages/FileBrowser.vue"))
+        page.goto(self._files("main/frontend/src/system/pages/files/FileBrowser.vue"))
         # Same as test_text_file_preview: wait on component state, not content.
         page.wait_for_selector('[data-files-state="rendered"]')
         preview = page.locator(".files-code")
