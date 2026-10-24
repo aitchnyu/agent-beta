@@ -102,6 +102,17 @@ ignore = [
 "deploy/**/*.py" = [
     "INP001",  # deploy/ is a scripts directory, deliberately not a package
 ]
+# Endpoint validators raise PydanticCustomError with inline string
+# literals — that is the pydantic idiom (see steer.md § Forms &
+# validation errors), not a hot-path exception construction. Their
+# signatures are also pydantic-fixed: the validated value is a positional
+# bool for bool fields whether we like it or not.
+"ourapp/views/**/*.py" = [
+    "EM101",  # PydanticCustomError type/msg literals are the convention
+    "FBT001",  # field_validator signatures are dictated by pydantic
+]
+# MAINTAIN-CONSISTENCY pydantic-errors — the custom error types these
+# validators raise are catalogued in frontend/src/utils/pydanticErrors.ts.
 
 [tool.ruff.lint.pycodestyle]
 max-doc-length = 200

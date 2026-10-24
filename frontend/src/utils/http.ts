@@ -1,7 +1,8 @@
 import ky, { HTTPError, TimeoutError } from "ky"
 import type { Options } from "ky"
 import { HttpNetworkError, HttpResponseError } from "@inertiajs/core"
-
+import type { z } from "zod"
+import { type NinjaError, ninjaErrorFrom } from "./pydanticErrors"
 // One HTTP layer for every standalone (non-page-visit) request, on ky — a
 // zero-dependency fetch wrapper (~3KB gzip; axios would cost ~4x for features
 // this codebase doesn't use). Inertia page visits keep using Inertia's own
@@ -44,19 +45,14 @@ function csrfToken(): string | null {
 /** Rethrow a ky error as the ONE taxonomy (see header). Never resolves. */
 async function normalizeError(err: unknown): Promise<never> {
   if (err instanceof HTTPError) {
-    // HTTP-level failure: carry status + body + headers across (the body
-    // is what showErrorToast and /client-errors report show).
-    let body = ""
-    try {
-      body = await err.response.text()
-    } catch {
-      // body unreadable/already consumed — report empty
-    }
+    // ky already read the body into err.data when it built the error
+    // (parsed JSON for JSON responses, raw text otherwise) — the response
+    // stream is consumed, so err.response.text() would reject.
     throw new HttpResponseError(
       `Request failed with status ${err.response.status}`,
       {
         status: err.response.status,
-        data: body,
+        data: err.data,
         headers: Object.fromEntries(err.response.headers.entries()),
       },
       err.response.url,
@@ -80,10 +76,10 @@ async function normalizeError(err: unknown): Promise<never> {
   )
 }
 
-// Callers get `unknown` on purpose: every consumer feeds the result through a
-// zod schema (schemas.ts), which is where response shapes are declared. The
-// JSON string/number/boolean overloads exist for endpoints returning a bare
-// scalar (e.g. a count), which .json<T>() would otherwise type as never-ish.
+// Body comes back as `unknown` on purpose: callers parse it with a zod
+// schema (schemas.ts), which is where response shapes are declared. A 422
+// throws like any other error — use the ninja* helpers below when a form
+// needs the validation errors inline.
 
 export async function getJSON(
   url: string,
@@ -145,6 +141,7 @@ export async function deleteJSON(
  * SSE endpoints. Non-2xx rejects (normalized) before the body is touched;
  * the Response's `body` ReadableStream is consumed by the caller.
  */
+// TODO need this after web agent was removed?
 export async function streamPost(
   url: string,
   data: unknown,
@@ -160,4 +157,68 @@ export async function streamPost(
   } catch (err) {
     return normalizeError(err)
   }
+}
+
+// -- ninja helpers -----------------------------------------------------------
+//
+// Success is parsed by the schema; a 422 comes back as a NinjaError;
+// everything else throws like the plain helpers above.
+
+/** A 422 becomes a NinjaError; anything else rethrows via the taxonomy. */
+async function asNinjaErrorOrThrow(err: unknown): Promise<NinjaError> {
+  if (err instanceof HTTPError && err.response.status === 422) {
+    // ky already read the body into err.data (parsed JSON or raw text).
+    const ninja = ninjaErrorFrom(err.data)
+    if (ninja) return ninja
+  }
+  return normalizeError(err)
+}
+
+export async function ninjaPost<Schema extends z.ZodType>(
+  schema: Schema,
+  url: string,
+  data?: unknown,
+): Promise<z.infer<Schema> | NinjaError> {
+  const req: Options = {}
+  if (data !== undefined) req.json = data
+  let body: unknown
+  try {
+    body = await api.post(url, req).json()
+  } catch (err) {
+    return asNinjaErrorOrThrow(err)
+  }
+  return schema.parse(body) as z.infer<Schema>
+}
+
+export async function ninjaGet<Schema extends z.ZodType>(
+  schema: Schema,
+  url: string,
+  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
+): Promise<z.infer<Schema> | NinjaError> {
+  const req: Options = {}
+  if (opts.signal) req.signal = opts.signal
+  if (opts.timeoutMs) req.timeout = opts.timeoutMs
+  let body: unknown
+  try {
+    body = await api.get(url, req).json()
+  } catch (err) {
+    return asNinjaErrorOrThrow(err)
+  }
+  return schema.parse(body) as z.infer<Schema>
+}
+
+export async function ninjaDelete<Schema extends z.ZodType>(
+  schema: Schema,
+  url: string,
+  data?: unknown,
+): Promise<z.infer<Schema> | NinjaError> {
+  const req: Options = {}
+  if (data !== undefined) req.json = data
+  let body: unknown
+  try {
+    body = await api.delete(url, req).json()
+  } catch (err) {
+    return asNinjaErrorOrThrow(err)
+  }
+  return schema.parse(body) as z.infer<Schema>
 }
