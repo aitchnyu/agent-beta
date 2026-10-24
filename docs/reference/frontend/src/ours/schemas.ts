@@ -88,6 +88,9 @@ export const DownloadSchema = z.object({
 
 export type DownloadOut = z.infer<typeof DownloadSchema>
 
+// Delete reply — a body, not a bare 204, so JSON clients parse cleanly.
+export const DownloadDeletedSchema = z.object({ deleted: z.string() })
+
 export const DownloadsPagePropsSchema = z.object({
   downloads: DownloadSchema.array(),
 })

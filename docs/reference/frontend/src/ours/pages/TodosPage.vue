@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { computed, ref } from "vue"
+import { ref } from "vue"
 import { router } from "@inertiajs/vue3"
 import TodoForm from "../components/TodoForm.vue"
-import { TodosPagePropsSchema, type TodoOut } from "../schemas"
+import { TodoSchema, TodosPagePropsSchema, type TodoOut } from "../schemas"
 import { postJSON } from "../../utils/http"
 import { showErrorToast } from "../../utils/sweetalert"
 import "../style.scss"
 
 // Inertia wraps the page data under a `props` key (page.props.props); parse it.
 const props = defineProps<{ props: object }>()
-const todos = computed(() => TodosPagePropsSchema.parse(props.props).todos)
+// The list: page payload first, then each mutation's response (create prepends).
+const todos = ref(TodosPagePropsSchema.parse(props.props).todos)
 // Guard the toggle POST + reload so a double-click can't fire two toggles.
 const toggling = ref<string | null>(null)
 
@@ -22,8 +23,8 @@ async function reload() {
   }
 }
 
-function onCreated() {
-  void reload()
+function onCreated(todo: TodoOut) {
+  todos.value = [todo, ...todos.value]
 }
 
 async function toggle(todo: TodoOut) {

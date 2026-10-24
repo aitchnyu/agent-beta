@@ -874,6 +874,31 @@ hidden) or `maybe_user(request)` (returns `User | None`). Never sprinkle
 migration fields. `get_user_model()` is a runtime
 lookup that hides the concrete model from the type checker — don't reach for it.
 
+**Errors — one exception, one body shape.** Views raise
+`ApiError(status, *, type=…, msg=…, ctx=…)` (all extras optional,
+keyword-only) — never `HttpError` or message-carrying `Http404`:
+
+```python
+from djangoapp.ninja_api import ApiError
+
+raise ApiError(404)  # bare status is fine
+raise ApiError(
+    404,
+    type="user_not_found",
+    msg="This user may not be able to access this resource.",
+    ctx={"public_id": public_id},
+)
+```
+
+- the body is the top-level `{"type", "msg", "ctx"}` with unset keys
+  omitted — same shape from every handler (`Http404` →
+  `type="not_found"` + the path in ctx, `PermissionDenied` →
+  `type="forbidden"`, unexpected 500s → `type="internal_error"`);
+  ninja's own validation 422s are the only `detail` bodies left
+- `type` names the rule (snake_case); `ctx` carries machine data, never
+  copy; `msg` is user copy — the frontend toast shows it verbatim when
+  present, else plain status-based copy
+
 ### Checklist — every view (writes & transactions)
 - [ ] DB operations that must happen together are wrapped in one
       `transaction.atomic()` block (e.g. a create that also writes an audit log,
@@ -919,10 +944,10 @@ For every **Inertia page**, all five must hold:
 
 ### HTTP (frontend)
 There is no axios. Standalone JSON calls go through the framework's
-`utils/http.ts` (`postJSON`/`getJSON` — CSRF handled by a shared hook, errors
-normalized to `@inertiajs/core` classes so `showErrorToast` understands them),
-and the response is parsed with a zod schema. POST a JSON body to a ninja
-Schema endpoint:
+`utils/http.ts` (`postJSON`/`getJSON`/`deleteJSON` — CSRF handled by a
+shared hook, errors normalized to `@inertiajs/core` classes so
+`showErrorToast` understands them), and the response is parsed with a zod
+schema. POST a JSON body to a ninja Schema endpoint:
 
 ```typescript
     try {
@@ -935,8 +960,14 @@ Schema endpoint:
     }
 ```
 
-Streaming (SSE) responses use `streamPost` from the same module; form-shaped
-state may use Inertia v3's `useHttp`.
+When a FORM submits and needs validation errors inline, use the
+`ninja*` family (`ninjaPost`/`ninjaGet`/`ninjaDelete`) instead: the
+response zod schema comes first, success is parsed by it, and a 422 comes
+back as a returned `NinjaError` (§ Forms & validation errors) instead of
+a throw. Everything else behaves exactly like the plain helpers.
+
+Streaming (SSE) responses use `streamPost` from the same module; multipart
+uploads use `postForm`; form-shaped state may use Inertia v3's `useHttp`.
 
 ### Frontend
 One Vue+Inertia app. The user app's frontend is a self-contained module at
@@ -950,6 +981,89 @@ framework's `utils/http.ts` and wrap every call in `try/catch` +
 where possible** — keep the app out of the framework's `pages/`, `components/`,
 shared `schemas.ts`, and `styles/` (those hold framework code; the app's own
 schemas/styles live inside `ours/`).
+
+### Forms & validation errors
+Validation errors render inline, against the field that caused them —
+flagged red, one plain sentence. Toasts are for what no form can show
+(network, server errors). Canonical example:
+`docs/reference/frontend/src/ours/components/TodoForm.vue`.
+
+#### Backend — the validator writes the user copy
+
+```python
+from pydantic import ValidationInfo, field_validator
+from pydantic_core import PydanticCustomError
+
+
+@field_validator("end_date")
+@classmethod
+def validate_end_date(cls, value: date, info: ValidationInfo[None]) -> date:
+    start = info.data.get("start_date")
+    if start is not None and value <= start:
+        raise PydanticCustomError("end_date_before_start", "Pick a date after the start date")
+    return value
+```
+
+- msg is user copy, rendered verbatim — plain language, no `"<field>: "`
+  prefixes (the loc names the field for the frontend)
+- ctx carries values the copy interpolates server-side:
+  `PydanticCustomError("x_too_big", "At most {n}", {"n": 5})`
+- cross-field rules read `info.data` — declare fields context-first
+- never plain `ValueError` for user-reachable rules: the frontend masks
+  pydantic's generic `value_error` with "Check this value"
+
+#### Frontend — the submit handler
+
+It catches nothing: network and server failures fly to main.ts' central
+handlers, which toast and report them (client error handling is central,
+not per-form):
+
+```typescript
+const errors = ref<NinjaError | null>(null)   // cleared on edit
+
+const result = await ninjaPost(TodoSchema, "/todos/create", {
+  text: text.value,
+  expected_row_version: 0,
+})
+if (result instanceof NinjaError) {
+  errors.value = result.childForPath(["body", "payload"])
+  return
+}
+emit("created", result)   // parsed TodoOut
+```
+
+#### Template — flag the input, show the message under it
+
+```vue
+<input v-model="text"
+       :class="{ 'is-invalid': !!errors?.errorAtPath(['text']) }"
+       :aria-invalid="!!errors?.errorAtPath(['text'])"
+       @input="errors = null" />
+<FieldError :error="errors?.errorAtPath(['text'])" />
+```
+
+- pydantic built-ins show plain templates from `utils/pydanticErrors.ts`
+  ("Keep it under 200 characters"); custom types show the backend msg
+- checkbox groups have no input to flag — `<FieldError>` below the group,
+  skip `is-invalid`
+- list errors answer the list's own path (exact loc wins over an item's):
+
+```typescript
+errors.value.errorAtPath(["weekdays"])   // the whole rule OR a bad item
+// nested forms — scope a child to one item, then paths are relative:
+const item = result.childForPath(["body", "payload", "items", 1])
+```
+
+#### Copy override — FieldError's `message-for` prop
+
+Show friendlier messages when the built-in catalog can't:
+
+```vue
+<FieldError :error="errors.value.errorAtPath(['end_date'])"
+            :message-for="(type) => type === 'end_date_before_start' ? 'The end must come after the start' : ''" />
+```
+
+
 
 ### Icons
 Download from lucide —
