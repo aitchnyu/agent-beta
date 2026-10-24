@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import { Link, usePage } from "@inertiajs/vue3"
-import { SharedPropsSchema } from "../schemas"
+import { SharedPropsSchema } from "../utils/sharedProps"
 import HideOnScroll from "./HideOnScroll.vue"
 import UserMenu from "./UserMenu.vue"
 import LucideIcon from "./LucideIcon.vue"

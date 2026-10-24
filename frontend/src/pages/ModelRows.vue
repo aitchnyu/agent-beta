@@ -6,7 +6,7 @@ import LucideIcon from "../components/LucideIcon.vue"
 import PageTitle from "../components/PageTitle.vue"
 import RowCell from "../components/RowCell.vue"
 import cornerDownLeftIcon from "../icons/corner-down-left.svg"
-import { ModelRowsPropsSchema } from "../schemas"
+import { ModelRowsPropsSchema } from "../components/rowsSchemas"
 import { rowDetailUrl, rowListUrl } from "../utils/urls"
 
 const props = defineProps<{ props: object }>()

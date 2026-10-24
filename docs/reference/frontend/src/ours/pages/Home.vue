@@ -1,17 +1,27 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { Link, usePage } from "@inertiajs/vue3"
-import { HomePropsSchema, SharedViewerSchema } from "../schemas"
+import { z } from "zod"
+import { FactSchema } from "../factsSchemas"
+import { SharedPropsSchema } from "../../utils/sharedProps"
 // Side-effect import: the app ships its own styles from ours/style.scss, so the
 // feature is self-contained (no edit to the framework's main.scss).
 import "../style.scss"
 
+// The landing page's own props: the Fact of the Day (today's fixed pick,
+// chosen by a Huey daily cron, or null). Login state is the shared viewer
+// (`user`, injected on every page by SharedPropsMiddleware).
+const HomePropsSchema = z.object({
+  fact_of_day: FactSchema.nullable(),
+})
+
 // Inertia wraps the page data under a `props` key (page.props.props); parse it.
 const props = defineProps<{ props: object }>()
 const p = computed(() => HomePropsSchema.parse(props.props))
-// Shared viewer props sit at the TOP level of page props (middleware); the
-// superuser flag gates the Downloads manager link.
-const isSuperuser = computed(() => SharedViewerSchema.parse(usePage().props).viewer_is_superuser)
+const shared = computed(() => SharedPropsSchema.parse(usePage().props))
+const isAuthenticated = computed(() => shared.value.user !== null)
+// The superuser flag gates the Downloads manager link.
+const isSuperuser = computed(() => shared.value.viewer_is_superuser)
 </script>
 
 <template>
@@ -37,7 +47,7 @@ const isSuperuser = computed(() => SharedViewerSchema.parse(usePage().props).vie
 
       <!-- Auth chrome lives in the framework navbar (Layout's sign-in dropdown /
            user menu); the page itself only addresses anonymous visitors. -->
-      <p v-if="!p.is_authenticated" class="home-status home-status-signed-out">
+      <p v-if="!isAuthenticated" class="home-status home-status-signed-out">
         You are not signed in.
       </p>
 
@@ -45,7 +55,7 @@ const isSuperuser = computed(() => SharedViewerSchema.parse(usePage().props).vie
         <Link class="home-feature-link" href="/facts">Facts</Link>
         <!-- Todos is auth-required (anon GET /todos is 404), so only signed-in
              viewers see its link — never link a viewer into a page they can't open. -->
-        <a v-if="p.is_authenticated" class="home-feature-link" href="/todos">
+        <a v-if="isAuthenticated" class="home-feature-link" href="/todos">
           Todos
         </a>
         <!-- Downloads is the superuser-only upload manager (plain <a> like
@@ -58,7 +68,7 @@ const isSuperuser = computed(() => SharedViewerSchema.parse(usePage().props).vie
       <!-- Signed out: a generic sign-in link — the provider buttons live on
            the allauth login page (rendered from the configured SocialApps). -->
       <a
-        v-if="!p.is_authenticated"
+        v-if="!isAuthenticated"
         class="home-login-link"
         href="/accounts/login/"
       >

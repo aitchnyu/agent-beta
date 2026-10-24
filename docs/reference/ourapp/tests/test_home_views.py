@@ -10,24 +10,21 @@ from ourapp.models import Fact, FactOfTheDay, Topic
 class HomeViewTests(BaseInertiaTestCase):
     """The landing page renders for anonymous and authenticated viewers (pk-free).
 
-    - test_anonymous_home, anon GET / has ours/Home component, is_authenticated False
-    - test_authenticated_home, authed GET / has display_name and public_id set
-    - test_home_issues_csrftoken_cookie, GET / sets a csrftoken cookie so logout can POST
-    - test_no_integer_pk_in_props, public_id present but no integer id/pk leaks
+    - test_anonymous_home, anon GET / has ours/Home component, fact_of_day None
+    - test_authenticated_home, authed GET / carries identity via the shared user prop
     - test_home_get_does_not_create_pick, GET / with facts but no cron write leaves fact_of_day None (GET never writes)
     - test_home_shows_fact_of_the_day, once the cron has picked, GET / carries it in props (pk-free)
+    - test_home_issues_csrftoken_cookie, GET / sets a csrftoken cookie so logout can POST
+    - test_no_integer_pk_in_props, public_id present but no integer id/pk leaks
     """
 
     def test_anonymous_home(self) -> None:
-        """Anon GET / has ours/Home with is_authenticated False and empty display_name."""
+        """Anon GET / has ours/Home with fact_of_day None and no other page props."""
         self.inertia.get("/")
         self.assertComponentUsed("ours/Home")
         self.assertHasExactProps(
             {
                 "props": {
-                    "is_authenticated": False,
-                    "display_name": "",
-                    "public_id": "",
                     "fact_of_day": None,
                 },
                 # Shared viewer props (SharedPropsMiddleware) are anonymous here.
@@ -40,7 +37,7 @@ class HomeViewTests(BaseInertiaTestCase):
         )
 
     def test_authenticated_home(self) -> None:
-        """Authed GET / has display_name and public_id set."""
+        """Authed GET / carries identity via the shared user prop (pk-free)."""
         user = User.objects.create_user(
             username="alice",
             first_name="Alice",
@@ -52,9 +49,6 @@ class HomeViewTests(BaseInertiaTestCase):
         self.assertHasExactProps(
             {
                 "props": {
-                    "is_authenticated": True,
-                    "display_name": "Alice Smith",
-                    "public_id": user.public_id,
                     "fact_of_day": None,
                 },
                 "user": {"public_id": user.public_id, "title": "Alice Smith"},
@@ -83,10 +77,10 @@ class HomeViewTests(BaseInertiaTestCase):
         user = User.objects.create_user(username="alice")
         self.inertia.force_login(user)
         self.inertia.get("/")
-        page = self.props()["props"]
-        self.assertEqual(page["public_id"], user.public_id)
-        self.assertNotIn("id", page)
-        self.assertNotIn("pk", page)
+        viewer = self.props()["user"]
+        self.assertEqual(viewer["public_id"], user.public_id)
+        self.assertNotIn("id", viewer)
+        self.assertNotIn("pk", viewer)
 
     def test_home_shows_fact_of_the_day(self) -> None:
         """Once the cron has picked, GET / carries it as fact_of_day (pk-free)."""

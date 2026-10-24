@@ -25,7 +25,6 @@ Change only:
   - `pages/`
   - `components/`
   - `utils/`
-  - `schemas.ts`
   - `style.scss`
 
 ## Layout: main / scratch
@@ -833,8 +832,9 @@ Run through every box; the order is the order you build in.
           value, pk-free, 404 on missing/forbidden)
     - [ ] each command in `ourapp/tests/test_<feature>_commands.py`
     - [ ] every Inertia page end-to-end in `ourapp/tests/test_<feature>_playwright.py`
-- [ ] **Frontend** — page in `frontend/src/ours/pages/<Name>.vue`, a zod schema
-      in `ours/schemas.ts`, side-effect styles in `ours/style.scss`.
+- [ ] **Frontend** — page in `frontend/src/ours/pages/<Name>.vue` with its zod
+      schemas declared inline in the component, side-effect styles in
+      `ours/style.scss`.
 - [ ] **PageTitle** — the page renders `<PageTitle :value="…"/>` (import from
       `components/PageTitle.vue`); see "For every Inertia page" below.
 - [ ] **Toasts** — user feedback goes through the framework's toast helpers
@@ -972,15 +972,22 @@ uploads use `postForm`; form-shaped state may use Inertia v3's `useHttp`.
 ### Frontend
 One Vue+Inertia app. The user app's frontend is a self-contained module at
 `frontend/src/ours/`: pages in `ours/pages/<Name>.vue` (Inertia component name
-`ours/<Name>`), components in `ours/components/`, helpers in `ours/utils/`, zod
-sub-schemas in `ours/schemas.ts`, and styles in `ours/style.scss` (imported as a
-side-effect by the page component, so the feature is self-contained). Parse
-every server payload with a zod schema; make standalone HTTP calls via the
-framework's `utils/http.ts` and wrap every call in `try/catch` +
-`showErrorToast`. **Edit only `ours/`
-where possible** — keep the app out of the framework's `pages/`, `components/`,
-shared `schemas.ts`, and `styles/` (those hold framework code; the app's own
-schemas/styles live inside `ours/`).
+`ours/<Name>`), components in `ours/components/`, helpers in `ours/utils/`, and
+styles in `ours/style.scss` (imported as a side-effect by the page component,
+so the feature is self-contained). Parse every server payload with a zod
+schema; make standalone HTTP calls via the framework's `utils/http.ts` and
+wrap every call in `try/catch` + `showErrorToast`.
+
+Zod schemas live with their consumers:
+
+- one component → declare it inline (const, not exported)
+- several components of one feature → small sibling module (e.g.
+  `ours/factsSchemas.ts`)
+- shared framework shapes → next to their module (`utils/sharedProps.ts`,
+  `components/rowsSchemas.ts`)
+
+**Edit only `ours/` where possible** — keep the app out of the framework's
+`pages/`, `components/`, `utils/`, and `styles/` (those hold framework code).
 
 ### Forms & validation errors
 Validation errors render inline, against the field that caused them —

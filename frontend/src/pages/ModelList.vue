@@ -1,8 +1,18 @@
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
+import { z } from "zod"
 import PageTitle from "../components/PageTitle.vue"
-import { ModelListPropsSchema } from "../schemas"
 import { rowListUrl } from "../utils/urls"
+
+const ModelItemSchema = z.object({
+  name: z.string(),
+  docstring: z.string(),
+  row_count: z.number(),
+})
+
+const ModelListPropsSchema = z.object({
+  models: z.array(ModelItemSchema),
+})
 
 const props = defineProps<{ props: object }>()
 

@@ -30,11 +30,11 @@ router = Router()
 def home_page(request: HttpRequest) -> InertiaResponse:
     """Render the landing page (component ``ours/Home``).
 
-    Anonymous visitors get ``is_authenticated=False`` with empty identity
-    fields; an authenticated viewer gets their display name and ``public_id``.
-    Both also get the current Fact of the Day (``FactOfTheDay.current()``, a
-    read-only lookup — a GET never creates or mutates a row; ``None`` before the
-    first cron run / when the fact pool is empty).
+    The page's own props carry the current **Fact of the Day**
+    (``FactOfTheDay.current()``, a read-only lookup — a GET never creates or
+    mutates a row; ``None`` before the first cron run / when the fact pool is
+    empty). Login state is the shared viewer prop (``user``, injected on every
+    page by SharedPropsMiddleware).
     """
     user = maybe_user(request)
     # Example structured log lines (see agentconfig/steer.md § Logging). The
@@ -56,21 +56,4 @@ def home_page(request: HttpRequest) -> InertiaResponse:
         if daily is not None and daily.fact is not None
         else None
     )
-
-    base = {"fact_of_day": fact_of_day}
-    props = (
-        {
-            **base,
-            "is_authenticated": False,
-            "display_name": "",
-            "public_id": "",
-        }
-        if user is None
-        else {
-            **base,
-            "is_authenticated": True,
-            "display_name": user.display_name,
-            "public_id": user.public_id,
-        }
-    )
-    return InertiaResponse(request, "ours/Home", {"props": props})
+    return InertiaResponse(request, "ours/Home", {"props": {"fact_of_day": fact_of_day}})

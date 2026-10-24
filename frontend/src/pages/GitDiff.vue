@@ -10,7 +10,12 @@
 import PageTitle from "../components/PageTitle.vue"
 import RepoNav from "../components/RepoNav.vue"
 import SplitDiff from "../components/SplitDiff.vue"
-import { GitDiffPropsSchema } from "../schemas"
+import { z } from "zod"
+
+const GitDiffPropsSchema = z.object({
+  title: z.string(),
+  diff: z.string(),
+})
 
 const props = defineProps<{ props: object }>()
 const data = GitDiffPropsSchema.parse(props.props)

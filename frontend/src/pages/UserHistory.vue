@@ -1,9 +1,47 @@
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
+import { z } from "zod"
 import PageTitle from "../components/PageTitle.vue"
 import RichTextViewer from "../components/RichTextViewer.vue"
-import { UserHistoryPropsSchema } from "../schemas.ts"
 import { formatDateTime } from "../utils/time"
+
+const UserStringChangeSchema = z.object({ old: z.string(), new: z.string() })
+const UserBoolChangeSchema = z.object({ old: z.boolean(), new: z.boolean() })
+
+const UserHistoryChangesSchema = z.object({
+  first_name: UserStringChangeSchema.nullable(),
+  last_name: UserStringChangeSchema.nullable(),
+  email: UserStringChangeSchema.nullable(),
+  description: UserStringChangeSchema.nullable(),
+  has_public_profile: UserBoolChangeSchema.nullable(),
+  is_active: UserBoolChangeSchema.nullable(),
+  is_staff: UserBoolChangeSchema.nullable(),
+  is_superuser: UserBoolChangeSchema.nullable(),
+  // Admin-action payloads (login_link, logout_all), not field diffs.
+  login_link_minutes: z.number().nullable(),
+  logout_all_sessions: z.number().nullable(),
+})
+
+const UserHistoryEntrySchema = z.object({
+  public_id: z.string(),
+  action: z.enum([
+    "created",
+    "edited",
+    "deleted",
+    "login",
+    "login_link",
+    "logout_all",
+  ]),
+  time: z.string(),
+  changes: UserHistoryChangesSchema,
+})
+
+const UserHistoryPropsSchema = z.object({
+  path_prefix: z.string(),
+  target_public_id: z.string(),
+  target_title: z.string(),
+  entries: z.array(UserHistoryEntrySchema),
+})
 
 const props = defineProps<{
   props: object

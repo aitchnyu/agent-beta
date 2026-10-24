@@ -49,11 +49,27 @@
 
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
+import { z } from "zod"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import PageTitle from "../components/PageTitle.vue"
 import RepoNav from "../components/RepoNav.vue"
-import { GitCommitListPropsSchema } from "../schemas"
 import { shortSha } from "../utils/git"
+
+// List rows render subject + sha + date only
+const GitCommitListItemSchema = z.object({
+  sha: z.string(),
+  date: z.number(), // epoch ms — rendered via HumanizedTime
+  subject: z.string(),
+})
+
+const GitCommitListPropsSchema = z.object({
+  commits: z.array(GitCommitListItemSchema),
+  pagination: z.object({
+    page: z.number(),
+    total_pages: z.number(),
+    total_count: z.number(),
+  }),
+})
 
 const props = defineProps<{ props: object }>()
 const data = GitCommitListPropsSchema.parse(props.props)

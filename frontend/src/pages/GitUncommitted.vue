@@ -26,12 +26,22 @@
 
 <script setup lang="ts">
 import { computed } from "vue"
+import { z } from "zod"
 import FileTree from "../components/FileTree.vue"
 import RepoNav from "../components/RepoNav.vue"
 import PageTitle from "../components/PageTitle.vue"
-import { GitUncommittedPropsSchema } from "../schemas"
 import { buildFileTree } from "../utils/fileTree"
 import { fileUrl } from "../utils/files"
+
+const GitUncommittedFileSchema = z.object({
+  path: z.string(),
+  status: z.string(),
+})
+
+const GitUncommittedPropsSchema = z.object({
+  main_files: z.array(GitUncommittedFileSchema),
+  scratch_files: z.array(GitUncommittedFileSchema).nullable(),
+})
 
 const props = defineProps<{ props: object }>()
 const data = GitUncommittedPropsSchema.parse(props.props)

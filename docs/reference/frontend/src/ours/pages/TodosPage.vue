@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { ref } from "vue"
 import { router } from "@inertiajs/vue3"
+import { z } from "zod"
 import TodoForm from "../components/TodoForm.vue"
-import { TodoSchema, TodosPagePropsSchema, type TodoOut } from "../schemas"
+import { TodoSchema, type TodoOut } from "../todosSchemas"
 import { postJSON } from "../../utils/http"
 import { showErrorToast } from "../../utils/sweetalert"
 import "../style.scss"
+
+const TodosPagePropsSchema = z.object({
+  todos: TodoSchema.array(),
+})
 
 // Inertia wraps the page data under a `props` key (page.props.props); parse it.
 const props = defineProps<{ props: object }>()

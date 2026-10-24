@@ -1,8 +1,15 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { Link } from "@inertiajs/vue3"
-import { FactTopicPagePropsSchema } from "../schemas"
+import { z } from "zod"
+import { FactSchema, TopicSchema } from "../factsSchemas"
 import "../style.scss"
+
+const FactTopicPagePropsSchema = z.object({
+  topic: TopicSchema,
+  fact: FactSchema.nullable(),
+  topics: TopicSchema.array(),
+})
 
 // Inertia wraps the page data under a `props` key (page.props.props); parse it.
 const props = defineProps<{ props: object }>()

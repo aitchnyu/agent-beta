@@ -741,7 +741,7 @@ creates what, when) lives in `deploy/inside-vm.sh`'s header.
 │   │   ├── frontend/              Vue 3 + Inertia SPA (vite build → djangoapp/static)
 │   │   │   ├── src/main.ts        entry: Inertia + router + push service wiring
 │   │   │   └── src/ours/          YOUR pages (ours/pages/**/*.vue auto-globbed into
-│   │   │                          the bundle) + your schemas.ts/style.scss
+│   │   │                          the bundle) + your style.scss
 │   │   ├── agentconfig/           steering documents the pi agent reads
 │   │   ├── .pi/                   pi CLI config: permissions allowlist, extensions
 │   │   ├── deploy/                guest-side scripts (gate.sh, inside-vm.sh, …)

@@ -1,24 +1,25 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { Link } from "@inertiajs/vue3"
+import { Link, usePage } from "@inertiajs/vue3"
 // Framework layout sits at frontend/src/components/Layout.vue; from
 // src/ours/pages/ that is two levels up to src/ then into components/.
 import PageTitle from "../../components/PageTitle.vue"
 import { fileUrl } from "../../utils/files"
-import { HomePropsSchema } from "../schemas"
+import { SharedPropsSchema } from "../../utils/sharedProps"
 // Side-effect import: the app ships its own styles from ours/style.scss, so the
 // feature is self-contained (no edit to the framework's main.scss).
 import "../style.scss"
 
-// Inertia wraps the page data under a `props` key (page.props.props); parse it.
-const props = defineProps<{ props: object }>()
-const p = computed(() => HomePropsSchema.parse(props.props))
+// Login state is the shared viewer `user`, injected on every page by
+// SharedPropsMiddleware.
+const shared = computed(() => SharedPropsSchema.parse(usePage().props))
+const isAuthenticated = computed(() => shared.value.user !== null)
 </script>
 
 <template>
   <PageTitle />
   <div class="home-container">
-    <template v-if="p.is_authenticated">
+    <template v-if="isAuthenticated">
       <p class="home-placeholder-note text-muted">
         This is a placeholder app, not a finished product — add your features:
       </p>
@@ -33,7 +34,7 @@ const p = computed(() => HomePropsSchema.parse(props.props))
             ><code>frontend/src/ours/</code></Link
           >
           — the frontend: one Vue page per feature under pages/, plus the shared
-          props schemas and styles.
+          styles.
         </li>
         <li>
           <Link :href="fileUrl('main/docs/reference')"

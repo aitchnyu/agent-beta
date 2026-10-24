@@ -11,21 +11,17 @@ from djangoapp.tests._base import BaseInertiaTestCase
 class HomeViewTests(BaseInertiaTestCase):
     """The landing page renders for anonymous and authenticated viewers (pk-free).
 
-    - test_anonymous_home, anon GET / has ours/Home component, anonymous props
-    - test_authenticated_home, authed GET / has display_name and public_id set
+    - test_anonymous_home, anon GET / has ours/Home component, no page props
+    - test_authenticated_home, authed GET / carries identity via the shared user prop
     - test_home_issues_csrftoken_cookie, GET / sets a csrftoken cookie so logout can POST
     - test_no_integer_pk_in_props, public_id present but no integer id/pk leaks
     """
 
     def test_anonymous_home(self) -> None:
-        """Anon GET / has ours/Home with anonymous home-owned props."""
+        """Anon GET / has ours/Home with no page props (shared viewer anonymous)."""
         # Full payload for reference (not asserted — features add props):
         # {
-        #     "props": {
-        #         "is_authenticated": False,
-        #         "display_name": "",
-        #         "public_id": "",
-        #     },
+        #     "props": {},
         #     # Shared viewer props (SharedPropsMiddleware) are anonymous
         #     # here; no SocialApps configured → empty provider list.
         #     "user": None,
@@ -37,19 +33,14 @@ class HomeViewTests(BaseInertiaTestCase):
         self.inertia.get("/")
         self.assertComponentUsed("ours/Home")
         page = self.props()
-        self.assertIs(page["props"]["is_authenticated"], False)  # noqa: FBT003
-        self.assertEqual(page["props"]["display_name"], "")
-        self.assertEqual(page["props"]["public_id"], "")
+        self.assertEqual(page["props"], {})
+        self.assertIsNone(page["user"])
 
     def test_authenticated_home(self) -> None:
-        """Authed GET / has display_name and public_id set."""
+        """Authed GET / carries identity via the shared user prop (pk-free)."""
         # Full payload for reference (not asserted — features add props):
         # {
-        #     "props": {
-        #         "is_authenticated": True,
-        #         "display_name": "Alice Smith",
-        #         "public_id": "<url-safe public id>",
-        #     },
+        #     "props": {},
         #     "user": {"public_id": "<…>", "title": "Alice Smith"},
         #     "viewer_is_superuser": False,
         #     # Signed-in requests get null — no provider lookup runs.
@@ -68,12 +59,11 @@ class HomeViewTests(BaseInertiaTestCase):
         self.inertia.get("/")
         self.assertComponentUsed("ours/Home")
         page = self.props()
-        self.assertIs(page["props"]["is_authenticated"], True)  # noqa: FBT003
-        self.assertEqual(page["props"]["display_name"], "Alice Smith")
-        self.assertEqual(page["props"]["public_id"], user.public_id)
-        # Shared viewer props for the authed case: the navbar user + the
-        # one-shot rebind flag force_login produces.
+        self.assertEqual(page["props"], {})
+        # The shared viewer prop carries the identity the page gates on.
+        self.assertEqual(page["user"]["public_id"], user.public_id)
         self.assertEqual(page["user"]["title"], "Alice Smith")
+        # The one-shot rebind flag force_login produces.
         self.assertIs(page["just_logged_in"], True)  # noqa: FBT003
 
     def test_home_issues_csrftoken_cookie(self) -> None:
@@ -91,10 +81,10 @@ class HomeViewTests(BaseInertiaTestCase):
         user = User.objects.create_user(username="alice")
         self.inertia.force_login(user)
         self.inertia.get("/")
-        page = self.props()["props"]
-        self.assertEqual(page["public_id"], user.public_id)
-        self.assertNotIn("id", page)
-        self.assertNotIn("pk", page)
+        viewer = self.props()["user"]
+        self.assertEqual(viewer["public_id"], user.public_id)
+        self.assertNotIn("id", viewer)
+        self.assertNotIn("pk", viewer)
 
 
 class MockupTodosTests(BaseInertiaTestCase):

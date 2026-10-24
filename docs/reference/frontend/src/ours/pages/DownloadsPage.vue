@@ -1,11 +1,29 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
 import { router } from "@inertiajs/vue3"
+import { z } from "zod"
 import PageTitle from "../../components/PageTitle.vue"
-import { DownloadsPagePropsSchema, type DownloadOut } from "../schemas"
 import { postForm, postJSON } from "../../utils/http"
 import { showErrorToast } from "../../utils/sweetalert"
 import "../style.scss"
+
+const DownloadSchema = z.object({
+  public_id: z.string(),
+  // What the uploader called it (what clients see); stored_name is the
+  // storage path (downloads/<name>) — it IS the anonymous download URL.
+  original_name: z.string(),
+  stored_name: z.string(),
+  expires_at: z.string(),
+  is_expired: z.boolean(),
+  // Optimistic-lock echo for replace (deletes carry no version).
+  row_version: z.number().int().nonnegative(),
+})
+
+type DownloadOut = z.infer<typeof DownloadSchema>
+
+const DownloadsPagePropsSchema = z.object({
+  downloads: DownloadSchema.array(),
+})
 
 // Inertia wraps the page data under a `props` key (page.props.props); parse it.
 const props = defineProps<{ props: object }>()

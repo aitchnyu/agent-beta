@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
+import { z } from "zod"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import LucideIcon from "../components/LucideIcon.vue"
 import PageTitle from "../components/PageTitle.vue"
@@ -9,8 +10,29 @@ import fileIcon from "../icons/file.svg"
 import fileImageIcon from "../icons/file-image.svg"
 import fileTextIcon from "../icons/file-text.svg"
 import folderIcon from "../icons/folder.svg"
-import { FileBrowserPropsSchema } from "../schemas"
 import { detectLanguage, fileUrl, formatSize } from "../utils/files"
+
+const FileBrowserPropsSchema = z.object({
+  rel: z.string(),
+  breadcrumb: z.array(
+    z.object({
+      label: z.string(),
+      rel: z.string(),
+    }),
+  ),
+  parent: z.string().nullable(),
+  entries: z.array(
+    z.object({
+      name: z.string(),
+      is_dir: z.boolean(),
+      is_image: z.boolean(),
+      size: z.number(), // bytes — formatted client-side (humanized)
+      // epoch ms — formatted client-side in the local timezone
+      mtime: z.number(),
+    }),
+  ),
+  contains_hidden_entries: z.boolean(),
+})
 
 const props = defineProps<{ props: object }>()
 

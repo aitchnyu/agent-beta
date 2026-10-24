@@ -1,14 +1,48 @@
 <script setup lang="ts">
 import { Link, router, useHttp } from "@inertiajs/vue3"
 import { computed, onMounted, ref } from "vue"
+import { z } from "zod"
 import Multiselect from "vue-multiselect"
 import PageTitle from "../components/PageTitle.vue"
 import { showErrorToast } from "../utils/sweetalert"
-import {
-  UserListPropsSchema,
-  UserSearchResponseSchema,
-  type UserSearchItem,
-} from "../schemas.ts"
+
+const UserListItemSchema = z.object({
+  public_id: z.string(),
+  first_name: z.string(),
+  last_name: z.string(),
+  username: z.string(),
+  email: z.string(),
+  has_public_profile: z.boolean(),
+  is_active: z.boolean(),
+  is_staff: z.boolean(),
+  is_superuser: z.boolean(),
+})
+
+const UserListPropsSchema = z.object({
+  path_prefix: z.string(),
+  users: z.array(UserListItemSchema),
+  pagination: z.object({
+    page: z.number(),
+    total_pages: z.number(),
+    total_count: z.number(),
+  }),
+  filters: z.object({
+    page: z.number(),
+    q: z.string(),
+  }),
+})
+
+const UserSearchItemSchema = z.object({
+  public_id: z.string(),
+  username: z.string(),
+  title: z.string(),
+})
+
+const UserSearchResponseSchema = z.object({
+  users: z.array(UserSearchItemSchema),
+})
+
+type UserSearchItem = z.infer<typeof UserSearchItemSchema>
 
 const props = defineProps<{
   props: object

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
-import { FkValueSchema, UserSchema, type RowListColumnDef } from "../schemas"
+import { type RowListColumnDef, FkValueSchema } from "./rowsSchemas"
+import { UserSchema } from "../utils/sharedProps"
 import { formatDateTime } from "../utils/time"
 
 // Renders a single cell value for the row list/detail pages, keyed off the

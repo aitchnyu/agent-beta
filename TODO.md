@@ -1,3 +1,10 @@
+Dont mention Huey, mention its a cron. 
+do we need ours/? Have pages/system. Move schemas to shared modules like files etc.
+New mypy and other stuff
+deployscratch error - specify which test to do
+
+Decentralize schemas
+
 __root__ error rendering
 raise ApiError(403, "CSRF verification failed.") - can take dict/string/any
 
@@ -100,10 +107,6 @@ Remove the ssh port forward `ssh -N -L 8000:localhost:443 ubuntu@192.168.1.56`
 local-vm setupalogin
 local-vm portforward
 Update docs for adding users and login links
-
-Dont mention Huey, mention its a cron.  
-do we need ours/
-deployscratch error - specify which test to do
 
 threeflet
 Desec dns docs

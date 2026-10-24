@@ -5,10 +5,10 @@ import BackToTopLink from "../components/BackToTopLink.vue"
 import PageTitle from "../components/PageTitle.vue"
 import RowCell from "../components/RowCell.vue"
 import {
+  type UpdateLogEntryItem,
   RowDetailPropsSchema,
   UpdateLogEntryItemSchema,
-  type UpdateLogEntryItem,
-} from "../schemas"
+} from "../components/rowsSchemas"
 import { formatDateTime } from "../utils/time"
 import { rowListUrl } from "../utils/urls"
 

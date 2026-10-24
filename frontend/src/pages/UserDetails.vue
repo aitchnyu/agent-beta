@@ -1,18 +1,39 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
-import type { z } from "zod"
+import { z } from "zod"
 import { Link, usePage } from "@inertiajs/vue3"
 import PageTitle from "../components/PageTitle.vue"
 import RichTextViewer from "../components/RichTextViewer.vue"
 import { postJSON } from "../utils/http"
 import { confirmAction, showErrorToast, showToast } from "../utils/sweetalert"
+import { SharedPropsSchema } from "../utils/sharedProps"
 import { formatDateTime } from "../utils/time"
-import {
-  LoginLinkResponseSchema,
-  LogoutResponseSchema,
-  SharedPropsSchema,
-  UserDetailsPropsSchema,
-} from "../schemas.ts"
+
+const UserDetailsPropsSchema = z.object({
+  path_prefix: z.string(),
+  public_id: z.string(),
+  first_name: z.string(),
+  last_name: z.string(),
+  username: z.string().nullable(),
+  description: z.string().nullable(),
+  is_owner: z.boolean(),
+  email: z.string().nullable(),
+  has_public_profile: z.boolean(),
+  is_active: z.boolean(),
+  is_staff: z.boolean(),
+  is_superuser: z.boolean(),
+  history_count: z.number(),
+  // Admin-only (superuser viewers): null when not populated.
+  last_login: z.string().nullable(),
+  session_count: z.number(),
+})
+
+const LoginLinkResponseSchema = z.object({
+  url: z.string(),
+  expires_at: z.string(),
+})
+
+const LogoutResponseSchema = z.object({ sessions: z.number() })
 
 const props = defineProps<{
   props: object

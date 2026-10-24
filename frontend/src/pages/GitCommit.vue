@@ -23,14 +23,31 @@
 
 <script setup lang="ts">
 import { computed } from "vue"
+import { z } from "zod"
 import FileTree from "../components/FileTree.vue"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import PageTitle from "../components/PageTitle.vue"
 import RepoNav from "../components/RepoNav.vue"
-import { GitCommitPropsSchema } from "../schemas"
 import { buildFileTree, type FileTreeFolder } from "../utils/fileTree"
 import { fileUrl } from "../utils/files"
 import { shortSha } from "../utils/git"
+
+const GitCommitSummarySchema = z.object({
+  sha: z.string(),
+  author: z.string(),
+  date: z.number(), // epoch ms — rendered via HumanizedTime
+  subject: z.string(),
+})
+
+const GitCommitPropsSchema = z.object({
+  commit: GitCommitSummarySchema,
+  files: z.array(
+    z.object({
+      path: z.string(),
+      status: z.string(),
+    }),
+  ),
+})
 
 const props = defineProps<{ props: object }>()
 const data = GitCommitPropsSchema.parse(props.props)

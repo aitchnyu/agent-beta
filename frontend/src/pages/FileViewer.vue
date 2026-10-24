@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue"
 import { Link } from "@inertiajs/vue3"
+import { z } from "zod"
 import HumanizedTime from "../components/HumanizedTime.vue"
 import MarkdownView from "../components/MarkdownView.vue"
 import PageTitle from "../components/PageTitle.vue"
 import RepoNav from "../components/RepoNav.vue"
-import { FileViewerPropsSchema } from "../schemas"
 import {
   detectLanguage,
   downloadUrl,
@@ -13,6 +13,22 @@ import {
   formatSize,
   rawUrl,
 } from "../utils/files"
+
+const FileViewerPropsSchema = z.object({
+  rel: z.string(),
+  breadcrumb: z.array(
+    z.object({
+      label: z.string(),
+      rel: z.string(),
+    }),
+  ),
+  parent: z.string(),
+  name: z.string(),
+  size: z.number(),
+  mtime: z.number(), // epoch ms — formatted client-side in the local timezone
+  kind: z.enum(["text", "image", "binary", "markdown"]),
+  text: z.string().default(""),
+})
 
 const props = defineProps<{ props: object }>()
 // Parsed once, non-reactively: file→file navigation is always a full page

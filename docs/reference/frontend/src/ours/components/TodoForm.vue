@@ -3,7 +3,7 @@ import { ref } from "vue"
 import FieldError from "../../components/FieldError.vue"
 import { NinjaError } from "../../utils/pydanticErrors"
 import { ninjaPost } from "../../utils/http"
-import { TodoSchema, type TodoOut } from "../schemas"
+import { TodoSchema, type TodoOut } from "../todosSchemas"
 
 // Create mode (no `todo` prop): POST /todos/create, then emit "created"
 // with the todo the endpoint returns.

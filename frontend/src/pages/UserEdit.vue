@@ -1,10 +1,30 @@
 <script setup lang="ts">
 import { defineAsyncComponent, reactive, ref } from "vue"
+import { z } from "zod"
 import { router } from "@inertiajs/vue3"
 import PageTitle from "../components/PageTitle.vue"
 import { showErrorToast } from "../utils/sweetalert"
 import { postJSON } from "../utils/http"
-import { MessageResponseSchema, UserEditPropsSchema } from "../schemas.ts"
+
+const MessageResponseSchema = z.object({ id: z.string() })
+
+const UserEditItemSchema = z.object({
+  public_id: z.string(),
+  username: z.string(),
+  first_name: z.string(),
+  last_name: z.string(),
+  email: z.string(),
+  description: z.string(),
+  has_public_profile: z.boolean(),
+  is_active: z.boolean(),
+  is_staff: z.boolean(),
+  is_superuser: z.boolean(),
+})
+
+const UserEditPropsSchema = z.object({
+  path_prefix: z.string(),
+  target: UserEditItemSchema,
+})
 
 // Quill ships in its own lazy chunk (RichTextEditor + quill); the async
 // component resolves it on first mount of this page.

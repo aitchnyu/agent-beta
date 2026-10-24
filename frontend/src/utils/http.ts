@@ -77,9 +77,9 @@ async function normalizeError(err: unknown): Promise<never> {
 }
 
 // Body comes back as `unknown` on purpose: callers parse it with a zod
-// schema (schemas.ts), which is where response shapes are declared. A 422
-// throws like any other error — use the ninja* helpers below when a form
-// needs the validation errors inline.
+// schema declared next to its consumer. A 422 throws like any other error —
+// use the ninja* helpers below when a form needs the validation errors
+// inline.
 
 export async function getJSON(
   url: string,
