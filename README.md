@@ -502,15 +502,14 @@ change:
 2. Edit `../scratch/` — then review the changes against `main/` in the
    [code viewer](#code-viewer-superuser) (its uncommitted page shows both
    worktrees side by side).
-3. `./run deployscratch` — **run from `main/`, never from scratch's own
-   `./run` (it refuses)**. The check battery: ruff + mypy + `ourapp` tests +
-   frontend lint/type-check/build (the fast loop: the framework suite and
-   Playwright stay in `main/`; frontend/docs-only diffs skip the backend
+ 3. `./run deployscratch` — **run from `main/`, never from scratch's own
+    `./run` (it refuses)**. The check battery: ruff + mypy + `ourapp` tests +
+    frontend lint/type-check/build (the fast loop: the framework suite and
+    Playwright stay in `main/`; frontend/docs-only diffs skip the backend
     battery — lint/build + d2 fence checks only). Must finish green.
-    When scratch edits touch
-    framework files (outside `ourapp/` + the app's
-    `frontend/src/{pages,components,schemas,styles}/`), it also runs
-    the tagged `scratch-test-subset` smoke tests. Run `checkframework1` in
+    When scratch edits touch framework files (outside `ourapp/` + the app's
+    `frontend/src/{pages,components,schemas,styles}/`), it also runs the
+    tagged `scratch-test-subset` smoke tests. Run `checkframework1` in
     `main/` for the full gate.
 4. the same command's tail — deploy `../scratch/` into `main/` (never
    overwriting `main/.env`; on the VM: backup + migrate + granian/huey

@@ -319,7 +319,9 @@ may hold uncommitted work from a prior task; `./run cleanscratch` wipes it).
   lint/type-check/build (framework suite + Playwright stay in `main/`'s
   `checkframework1`). Framework-file edits (outside `ourapp/` + the app's
   `frontend/src/{pages,components,schemas,styles}/`) add the
-  `scratch-test-subset` smoke tests.
+  `scratch-test-subset` smoke tests. A failed step prints the command that
+  re-runs just that step in scratch — fix, verify alone, then
+  `./run deployscratch` again to save time.
 - **Fast path**: changes only under `frontend/**` +
   `ourapp/docs/*.md` → lint/build + d2 fence validation, no backend
   battery. Nothing deploys red.

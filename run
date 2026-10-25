@@ -449,23 +449,39 @@ _scratch_changed_files() { # <dir>
   } | sort -u
 }
 
+# Print the failed step + its manual re-run; return nonzero so `… || _step_failed`
+# aborts deployscratch under set -e. The step text is read from the caller's
+# own source line — keep `cmd || _step_failed` on ONE line — and @P-expanded so
+# $VARS print as values (bash ≥4.4 to run; deployscratch is VM-only).
+_step_failed() {
+  local _raw _cmd
+  _raw=$(sed -n "${BASH_LINENO[0]}p" "${BASH_SOURCE[1]}" \
+    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*||.*//')
+  _cmd=${_raw@P}
+  echo "" >&2
+  echo "Step failed: $_cmd" >&2
+  echo "Iterate to fix it and run only that step, not the time-consuming deployscratch." >&2
+  echo "then re-run: ./run deployscratch (from main/)" >&2
+  return 1
+}
+
 # The scratch/ fast loop: the agent's edits checked without the unchanged
 # framework suite or the slow browser pass — those stay in main/'s
 # checkframework1.
 _scratch_checks() {
   echo "Running ruff format --check (formatting drift)"
-  uv run ruff format $_RUFF_COLOR --check
+  uv run ruff format $_RUFF_COLOR --check || _step_failed
   echo "Running ruff check (lint)"
-  uv run ruff check $_RUFF_COLOR
+  uv run ruff check $_RUFF_COLOR || _step_failed
   echo "Running mypy for type checking"
-  uv run mypy $_MYPY_COLOR .
+  uv run mypy $_MYPY_COLOR . || _step_failed
   echo "Running ourapp tests (scoped; the framework suite runs in main/)"
-  test ourapp --noinput
+  ./run test ourapp --noinput || _step_failed
   cd frontend
   echo "Running frontend linting"
-  npm run lint
+  npm run lint || _step_failed
   echo "Running frontend build (type-check + vite in one pass)"
-  npm run build
+  npm run build || _step_failed
   cd ..
   # Framework-file watch: edits outside the app surface (ourapp/ + the
   # app-side frontend dirs) mean framework code changed → run the
@@ -478,7 +494,7 @@ _scratch_checks() {
     echo "=== framework files changed — running scratch-test-subset smoke tests ==="
     printf '  %s\n' $(grep -c . <<<"$outside") files:
     printf '  %s\n' $outside
-    uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=scratch-test-subset
+    uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=scratch-test-subset || _step_failed
   else
     echo "No framework-file changes (outside the app surface) — skipping scratch-test-subset smoke."
   fi
@@ -648,10 +664,13 @@ deployscratch() {
     echo "Fast path: frontend/docs-only changes — no backend checks, backup, migrate, or restarts."
     if $frontend_changed; then
       # Lint + build the SPA in scratch; the bundle rides the rsync.
-      ( cd "$_SCRATCH_DIR/frontend" && npm run lint && npm run build )
-      # Real pages in a real browser — lint and build cannot catch
-      # runtime breakage; this can.
-      ( cd "$_SCRATCH_DIR" && uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=scratch-test-subset )
+      ( cd "$_SCRATCH_DIR/frontend"
+        npm run lint || _step_failed
+        npm run build || _step_failed )
+      # Real pages in a real browser — lint and build cannot catch runtime
+      # breakage; the smoke pass can.
+      ( cd "$_SCRATCH_DIR"
+        uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=scratch-test-subset || _step_failed )
     fi
     # Design docs: validate every d2 fence in each changed file.
     local md_file
@@ -659,8 +678,8 @@ deployscratch() {
       # Deleted/renamed-away paths list here too — nothing to validate,
       # rsync --delete carries the removal.
       [ -f "$_SCRATCH_DIR/$md_file" ] || continue
-      node "$_MAIN_DIR/deploy/checkmarkdownd2.mjs" "$_SCRATCH_DIR/$md_file" || return 1
-    done <<<"$(grep -E '^ourapp/docs/[^/]+\.md$' <<<"$changed_files")"
+      node "$_MAIN_DIR/deploy/checkmarkdownd2.mjs" "$_SCRATCH_DIR/$md_file" || _step_failed
+    done <<<"$(grep -E '^ourapp/docs/[^/]+\.md$' <<<"$changed_files" || true)"
     _banner "check battery (fast)"
   else
     ( cd "$_SCRATCH_DIR" && _scratch_checks )
