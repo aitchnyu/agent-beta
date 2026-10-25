@@ -20,13 +20,13 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-import redis
 from django.http import HttpRequest, HttpResponse
 from ninja import Router
 from pydantic import BaseModel, ConfigDict, Field
 
 from djangoapp.logging import get_logger
 from djangoapp.ninja_api import make_ninja_api
+from djangoapp.redis_client import redis_client
 from djangoapp.shortcuts import maybe_user
 
 if TYPE_CHECKING:
@@ -34,10 +34,6 @@ if TYPE_CHECKING:
 
 logger = get_logger("client")
 
-# Redis is required (rate limiting is mandatory, not best-effort). Defaults to
-# the local redis; redis-py connects lazily, so constructing at import is safe.
-_REDIS_URL = os.environ.get("REDIS_URL", "redis://127.0.0.1:6379/0")
-_redis_client: redis.Redis = redis.Redis.from_url(_REDIS_URL, decode_responses=True)
 # Max reports per hour per authenticated user; all anonymous reporters
 # share ONE bucket combined. Mandatory — no silent default: the anonymous,
 # CSRF-exempt sink's only abuse bound must be present, a valid int, and
@@ -97,9 +93,11 @@ def _rate_limited(user: User | None) -> bool:
 
     Raises ``RedisError`` if redis is unreachable — the caller lets it propagate
     to the global exception handler (fail closed: 500, report not accepted).
+    ``redis_client()`` reads settings per call, so override_settings and the
+    run script's test-redis export both steer it.
     """
     bucket = "client-errors:anon" if user is None else f"client-errors:user:{user.pk}"
-    pipe = _redis_client.pipeline()
+    pipe = redis_client().pipeline()
     pipe.incr(bucket)
     pipe.expire(bucket, _WINDOW_SECS, nx=True)
     result = pipe.execute()  # raises RedisError if redis is down

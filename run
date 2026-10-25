@@ -275,9 +275,20 @@ pi() {
   command pi --approve "$@"
 }
 
+# Test runs point redis at an isolated DB (not the live DB 0) so tests can
+# flush it freely; exported AFTER setenv, which re-sources the live value.
+_TEST_REDIS_URL="redis://127.0.0.1:6379/2"
+
+# The test-process redis environment, applied as one word: the isolated
+# URL plus the marker clear_redis requires before flushing (so a bare
+# manage.py test, which sees the live DB 0, refuses loudly instead).
+_with_test_redis() {
+  REDIS_URL="$_TEST_REDIS_URL" DESMO_TEST_REDIS=1 "$@"
+}
+
 test() {
   setenv
-  uv run manage.py test $_DJANGO_NO_COLOR --exclude-tag playwright "$@"
+  _with_test_redis uv run manage.py test $_DJANGO_NO_COLOR --exclude-tag playwright "$@"
 }
 
 typecheck() {
@@ -293,7 +304,7 @@ playwrighttest() {
   # Forwards args like test(): `./run playwrighttest
   # ourapp.tests.test_chores_playwright` runs just that module (Django
   # intersects the label with --tag playwright). No args = full suite.
-  uv run manage.py test $_DJANGO_NO_COLOR --tag playwright --noinput "$@"
+  _with_test_redis uv run manage.py test $_DJANGO_NO_COLOR --tag playwright --noinput "$@"
 }
 
 screenshots() {
@@ -305,7 +316,7 @@ screenshots() {
   # self-gates on GENERATE_SCREENSHOTS (tests skip without it). The models-management
   # shots additionally need the testapp overlay — see
   # docs/screenshots/README.md for the manual overlay recipe.
-  GENERATE_SCREENSHOTS=1 uv run manage.py test $_DJANGO_NO_COLOR --tag screenshots --noinput "$@"
+  GENERATE_SCREENSHOTS=1 _with_test_redis uv run manage.py test $_DJANGO_NO_COLOR --tag screenshots --noinput "$@"
 }
 
 checkmarkdownd2() {
@@ -351,7 +362,7 @@ checkframework1() {
   echo "Running mypy for type checking"
   uv run mypy $_MYPY_COLOR .
   echo "Running test under coverage (stage 1/4: unit suite)"
-  uv run coverage run --parallel-mode --source=djangoapp,ourapp \
+  _with_test_redis uv run coverage run --parallel-mode --source=djangoapp,ourapp \
     manage.py test $_DJANGO_NO_COLOR --exclude-tag playwright --noinput
   cd frontend
   echo "Running frontend linting"
@@ -360,7 +371,7 @@ checkframework1() {
   npm run build
   cd ..
   echo "Running Playwright tests under coverage (stage 2/4)"
-  uv run coverage run --parallel-mode --source=djangoapp,ourapp \
+  _with_test_redis uv run coverage run --parallel-mode --source=djangoapp,ourapp \
     manage.py test $_DJANGO_NO_COLOR --tag playwright --noinput
 
   echo "=== stage 3/4: project tests over the test app (scratch copy) ==="
@@ -372,7 +383,7 @@ checkframework1() {
     # typecheck only — lintfix would rewrite files and corrupt the
     # merged line data (main already ran the ruff gates).
     ./run typecheck
-    RUN_PROJECT_TESTS=1 uv run coverage run --parallel-mode --source=djangoapp \
+    RUN_PROJECT_TESTS=1 _with_test_redis uv run coverage run --parallel-mode --source=djangoapp \
       manage.py test $_DJANGO_NO_COLOR --exclude-tag playwright --noinput
   )
   # Stage the fragments out — the next create_new_scratch wipes scratch.
@@ -494,7 +505,7 @@ _scratch_checks() {
     echo "=== framework files changed — running scratch-test-subset smoke tests ==="
     printf '  %s\n' $(grep -c . <<<"$outside") files:
     printf '  %s\n' $outside
-    uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=scratch-test-subset || _step_failed
+    _with_test_redis uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=scratch-test-subset || _step_failed
   else
     echo "No framework-file changes (outside the app surface) — skipping scratch-test-subset smoke."
   fi
@@ -670,7 +681,7 @@ deployscratch() {
       # Real pages in a real browser — lint and build cannot catch runtime
       # breakage; the smoke pass can.
       ( cd "$_SCRATCH_DIR"
-        uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=scratch-test-subset || _step_failed )
+        _with_test_redis uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=scratch-test-subset || _step_failed )
     fi
     # Design docs: validate every d2 fence in each changed file.
     local md_file

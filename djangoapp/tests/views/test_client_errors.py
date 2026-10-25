@@ -8,21 +8,16 @@ import logging
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
-import redis
-from django.test import Client, tag
+from django.test import Client, override_settings, tag
 
 from djangoapp.logging import json_formatter
 from djangoapp.models import User
-from djangoapp.tests._base import BaseTestCase
+from djangoapp.redis_client import clear_redis
+from djangoapp.tests._base import BaseTestCase, FreshRedisBuckets
 from djangoapp.views import client_errors
 
 if TYPE_CHECKING:
     from collections.abc import Generator
-
-
-# Real redis on an isolated DB (not the app's DB 0), so the 429 test exercises the
-# actual INCR/EXPIRE/count path with no hand-rolled fake. Redis is always present.
-_TEST_REDIS_URL = "redis://127.0.0.1:6379/2"
 
 
 def _payload(**overrides: object) -> dict[str, object]:
@@ -58,7 +53,7 @@ def _ndjson(buf: io.StringIO) -> list[dict[str, object]]:
     return [json.loads(line) for line in buf.getvalue().splitlines() if line.strip()]
 
 
-class ClientErrorViewTests(BaseTestCase):
+class ClientErrorViewTests(FreshRedisBuckets, BaseTestCase):
     """Server-side behaviour of POST /client-errors (no browser involved).
 
     These POST directly (``self.client.post``) and assert on the resulting
@@ -137,12 +132,11 @@ class ClientErrorViewTests(BaseTestCase):
 
         alice and bob each get their own bucket (bob is NOT 429'd by alice's
         spend); anonymous reporters all draw from one shared bucket, so a
-        second anon client finds it already spent.
+        second anon client finds it already spent. The process already
+        points at the test redis (run's export); this test just resets the
+        buckets and tightens the cap.
         """
-        test_redis = redis.Redis.from_url(_TEST_REDIS_URL, decode_responses=True)
-        test_redis.flushdb()
-        original = client_errors._redis_client
-        client_errors._redis_client = test_redis
+        clear_redis()
         original_limit = client_errors._RATE_LIMIT
         client_errors._RATE_LIMIT = 2
         try:
@@ -175,9 +169,7 @@ class ClientErrorViewTests(BaseTestCase):
                 "/client-errors", data=_payload(), content_type="application/json"
             ).status_code
         finally:
-            client_errors._redis_client = original
             client_errors._RATE_LIMIT = original_limit
-            test_redis.flushdb()
         # Per user: 204, 204, then 429. Anon: shared → 204, 204, 429, and the
         # second anon client gets 429 immediately.
         self.assertEqual(alice_statuses, [204, 204, 429])
@@ -189,18 +181,13 @@ class ClientErrorViewTests(BaseTestCase):
         """A dead-redis endpoint → 500 (fail closed; report not accepted).
 
         ``_rate_limited`` lets the redis error propagate to ninja's global
-        handler. Points redis-py at a dead port so ``execute()`` raises a real
-        ``ConnectionError`` — no fake needed.
+        handler. override_settings points the view at a dead port so
+        ``execute()`` raises a real ``ConnectionError`` — no fake needed.
         """
-        dead = redis.Redis.from_url("redis://127.0.0.1:1/0", socket_connect_timeout=0.25)
-        original = client_errors._redis_client
-        client_errors._redis_client = dead
-        try:
+        with override_settings(REDIS_URL="redis://127.0.0.1:1/0"):
             response = self.client.post(
                 "/client-errors", data=_payload(), content_type="application/json"
             )
-        finally:
-            client_errors._redis_client = original
         self.assertEqual(response.status_code, 500)
 
     def test_client_body_cannot_forge_log_fields(self) -> None:

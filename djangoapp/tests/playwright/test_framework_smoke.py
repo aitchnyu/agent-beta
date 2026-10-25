@@ -21,18 +21,22 @@ from django.test import tag
 from playwright.sync_api import expect
 
 from djangoapp.models import User
+from djangoapp.tests._base import FreshRedisBuckets
 from djangoapp.tests._git_fixtures import GitRepoMixin
 from djangoapp.tests.playwright._base import BasePlaywrightTestCase
 
 
 @tag("scratch-test-subset")
-class FrameworkSmokeE2e(GitRepoMixin, BasePlaywrightTestCase):
+class FrameworkSmokeE2e(GitRepoMixin, FreshRedisBuckets, BasePlaywrightTestCase):
     """One smoke per framework feature, one browser launch (superuser session).
 
     - test_homepage_smoke, the homepage loads (status 200) for a session
     - test_users_edit_smoke, the superuser edit form renders (users feature)
     - test_git_commits_smoke, /git/commits lists the fixture's commits (git feature)
     - test_client_errors_smoke, an uncaught error POSTs to /client-errors (error pipeline)
+
+    FreshRedisBuckets keeps the smoke's client-error POSTs on fresh
+    buckets (see _base.py).
     """
 
     def setUp(self) -> None:

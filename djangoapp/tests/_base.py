@@ -17,6 +17,8 @@ from __future__ import annotations
 from django.test import TestCase, override_settings
 from inertia.test import InertiaTestCase
 
+from djangoapp.redis_client import clear_redis
+
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
 class BaseTestCase(TestCase):
@@ -25,3 +27,23 @@ class BaseTestCase(TestCase):
 
 class BaseInertiaTestCase(BaseTestCase, InertiaTestCase):  # type: ignore[misc]
     """Same, for inertia-prop view tests — the one lineage-merge point."""
+
+
+class FreshRedisBuckets:
+    """Fresh client-error rate-limit buckets per test class.
+
+    Object-rooted ON PURPOSE: consumers span both lineages (TestCase and
+    the Transaction-rooted playwright base) — rooting here would pull the
+    transaction-wrapping semantics into classes that must not have them.
+
+    Clears the test redis on class start (earlier runs may have spent the
+    shared anon budget within the hourly window) and leaves it clean for
+    whichever class runs next. run points the whole test process at DB 2 —
+    see clear_redis (djangoapp/redis_client).
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        clear_redis()
+        cls.addClassCleanup(clear_redis)

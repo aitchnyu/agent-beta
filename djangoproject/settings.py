@@ -31,6 +31,9 @@ SECRET_KEY = os.environ["SECRET_KEY"]
 
 DEBUG = os.environ["DEBUG"] == "True"
 
+# huey's queue, rate limiter etc
+REDIS_URL = os.environ["REDIS_URL"]
+
 if not DEBUG and SECRET_KEY == "fake":  # noqa: S105
     msg = "Do not use `fake` secret key in production"
     raise ValueError(msg)
@@ -343,5 +346,5 @@ HUEY = {
     "store_none": False,
     "immediate": False,
     "utc": False,
-    "connection": {"url": os.environ["REDIS_URL"]},
+    "connection": {"url": REDIS_URL},
 }
