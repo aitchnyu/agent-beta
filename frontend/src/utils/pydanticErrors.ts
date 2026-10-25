@@ -36,7 +36,7 @@ export type ErrorDetail = {
   ctx?: Record<string, unknown>
 }
 
-// Every pydantic (v2.13) built-in validation error type. The catalog
+// Every pydantic (v2.14) built-in validation error type. The catalog
 // mirrors the pinned pydantic version — recheck
 // https://docs.pydantic.dev/latest/errors/validation_errors/ on upgrade.
 const BUILTIN_TYPES = [
@@ -134,6 +134,7 @@ const BUILTIN_TYPES = [
   "time_type",
   "timezone_aware",
   "timezone_naive",
+  "timezone_offset",
   "too_long",
   "too_short",
   "tuple_type",
@@ -217,6 +218,9 @@ const BUILTIN_MESSAGES: Record<string, string | ((_: CtxBag) => string)> = {
   time_type: "Enter a time",
   timezone_aware: "Enter a time with a time zone",
   timezone_naive: "Enter a time without a time zone",
+  // Registered in pydantic-core but undocumented on the errors page —
+  // reachable via a custom datetime_schema(tz_constraint=...).
+  timezone_offset: "Enter a time with a valid time zone",
   too_long: (ctx) => `Keep it under ${num(ctx, "max_length")} items`,
   too_short: (ctx) => `Use at least ${num(ctx, "min_length")} items`,
   url_parsing: "Enter a valid web address",

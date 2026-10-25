@@ -100,7 +100,7 @@ class PushSubscriptionSchema(PydanticBaseModel):
         """https-only scheme check: endpoints are capability URLs stored VERBATIM.
 
         pydantic's URL types normalize (append a trailing slash to a bare
-        host, lowercase it — verified against 2.13) and would corrupt the
+        host, lowercase it — verified against 2.14) and would corrupt the
         subscription's identity, so a plain string + scheme check is all
         the validation that is safe to do. https-only (never plain http):
         every real push service is TLS, this server POSTs payloads to the

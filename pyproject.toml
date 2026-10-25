@@ -12,7 +12,7 @@ dependencies = [
     "huey>=2.5", # Redis-backed background tasks + cron (RedisHuey via the existing redis dep)
     "inertia-django>=2.0.0", # Inertia.js backend (v3 protocol)
     "nh3>=0.2.21", # HTML sanitization
-    "psycopg2-binary>=2.9.10", # Postgres driver
+    "psycopg[binary,pool]>=3.3,<4", # Postgres driver (Django 6 prefers psycopg 3)
     "pydantic>=2.11.10",
     "python-dateutil>=2.9.0.post0",
     "pywebpush>=2.5.0", # Web Push delivery (RFC 8291/8292) for notifications
@@ -123,6 +123,8 @@ exclude = [".venv"]
 
 [tool.mypy]
 strict = true
+# mypy 2.4: parallel checking with the native parser (≤5x with 8 workers).
+num_workers = "auto"
 # Local PEP 561 stub overlays (stubs/huey; the inertia ones went away with
 # inertia-django 2.0 shipping py.typed).
 mypy_path = "stubs"

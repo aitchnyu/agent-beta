@@ -5,7 +5,7 @@
   "type": "module",
   "devDependencies": {
     "@eslint/js": "^10.0.0",
-    "@types/node": "^25.2.3",
+    "@types/node": "^26.6.5",
     "@typescript-eslint/eslint-plugin": "^8.55.0",
     "@typescript-eslint/parser": "^8.55.0",
     "@vitejs/plugin-vue": "^6.0.8",
@@ -45,7 +45,7 @@
     "diff2html": "^3.4.56",
     "dompurify": "^3.4.12",
     "highlight.js": "^11.11.1",
-    "ky": "^2.0.2",
+    "ky": "^2.2.0",
     "marked": "^18.0.6",
     "marked-highlight": "^2.2.4",
     "quill": "^2.0.3",
