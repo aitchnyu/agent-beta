@@ -241,13 +241,13 @@ command in chat. **`git -C <dir> …` is DENIED** — `cd` into the directory in
 
 ```bash
 # BAD — one unreadable line
-cd ../scratch && ./run lintfix && ./run test ourapp.tests.test_chores && git status --short && ./run deployscratch
+cd ../scratch && ./run lintfix && ./run test ourapp.tests.test_home_views && git status --short && ./run deployscratch
 
 # BAD — git -C (DENIED by the guard)
 git -C ../scratch diff
 
 # GOOD — one command per line, \\ continuations for chains
-cd ../scratch && ./run lintfix && ./run test ourapp.tests.test_chores \
+cd ../scratch && ./run lintfix && ./run test ourapp.tests.test_home_views \
   && git status --short && ./run deployscratch
 
 # GOOD — cd, then plain git
@@ -276,7 +276,7 @@ git diff
 git log --oneline -3
 ./run djangomanage createuser you@example.com --first-name You --last-name Name
 ./run djangomanage makeloginlink you@example.com   # operator login handoff (user-admin verbs: unblocked)
-./run playwrighttest ourapp.tests.test_chores_playwright   # e2e debugging ONLY (operator-asked); a green deployscratch needs no post-deploy e2e
+./run playwrighttest djangoapp.tests.playwright.test_framework_smoke   # e2e debugging ONLY (operator-asked); a green deployscratch needs no post-deploy e2e
 
 # BAD — near-misses and raw tools: blocked every time (or denied)
 ./run djangomanage test --tag=foo   # not an allowlisted subcommand
@@ -426,7 +426,7 @@ Choose
 - **T1 — mockups**
   - [ ] one line of intent
   - [ ] mockup links, each labeled `(mockup quality)`
-        (e.g. `[chores (mockup quality)](<base>/mockup/MockupChores)`)
+        (e.g. `[todos (mockup quality)](<base>/mockup/MockupTodos)`)
   - [ ] what's interactive (state, cross-page links), if any
   - [ ] bundled workflow questions, if any (one round)
   - [ ] menu: 1. revise mockups 2. write down design docs — then `Choose`
@@ -544,7 +544,7 @@ deployed links in chat immediately after each deploy via
     `ourapp/` when a feature graduates) — framework files stay relatively
     pristine so upstream changes still merge cleanly even after years.
   - The hatch route in `home.py` serves `<page>` verbatim at
-    `/mockup/<page>`. `/mockup/MockupChores` → `MockupChores.vue`.
+    `/mockup/<page>`. `/mockup/MockupTodos` → `MockupTodos.vue`.
   - URL params preset a mockup's state:
     `/mockup/<Name>?props=<base64url-encoded JSON object>` — the hatch
     passes the decoded object as the page props.
@@ -682,16 +682,16 @@ them with pan/zoom controls.
   `shape: sql_table` (columns with types), written for laymen:
   - types in plain words — `true/false`, `text`, `date`, `date+time`,
     `list of X`
-  - choices render inline — `schedule: weekdays | interval`
-  - optional columns get `?` — `completed_by: User?`
-  - references are model names, not integer columns — `chore: Chore`
-    (not `chore_id int`); the arrow starts at that row
+  - choices render inline — `status: todo | done`
+  - optional columns get `?` — `completed_at: date+time?`
+  - references are model names, not integer columns — `todo: Todo`
+    (not `todo_id int`); the arrow starts at that row
   - no surrogate `id` PK row, no BaseModel audit columns
     (`created_by/at`, `last_updated_*`) — include an actor/time column
     only when the feature's story turns on it
   - Every connection carries a plain-language description AND the
-    cardinality — e.g. `chores -> user: "belongs to (N..1)"`,
-    `user -> chores: "owns (1..N)"`. Delete rules as further labels
+    cardinality — e.g. `todos -> user: "belongs to (N..1)"`,
+    `user -> todos: "owns (1..N)"`. Delete rules as further labels
     (`on delete RESTRICT`).
 - **State diagrams** — when a row kind changes state: states as shapes,
   transitions as labeled arrows, the initial/final states as small
@@ -1064,7 +1064,7 @@ emit("created", result)   // parsed TodoOut
 - list errors answer the list's own path (exact loc wins over an item's):
 
 ```typescript
-errors.value.errorAtPath(["weekdays"])   // the whole rule OR a bad item
+errors.value.errorAtPath(["tags"])   // the whole rule OR a bad item
 // nested forms — scope a child to one item, then paths are relative:
 const item = result.childForPath(["body", "payload", "items", 1])
 ```

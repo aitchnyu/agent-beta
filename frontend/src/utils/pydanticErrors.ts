@@ -313,7 +313,7 @@ export class NinjaError extends Error {
   /**
    * The error at `path` (relative to this error's scope), or null.
    * An exact-loc entry wins; otherwise the first entry at-or-under the
-   * path answers — a bad list item answers errorAtPath(["weekdays"]).
+   * path answers — a bad list item answers errorAtPath(["items"]).
    */
   errorAtPath(path: readonly LocSegment[]): ErrorDetail | null {
     const scope = [...this.prefix, ...path]

@@ -302,8 +302,8 @@ playwrighttest() {
   npm run build
   cd ..
   # Forwards args like test(): `./run playwrighttest
-  # ourapp.tests.test_chores_playwright` runs just that module (Django
-  # intersects the label with --tag playwright). No args = full suite.
+  # djangoapp.tests.playwright.test_framework_smoke` runs just that module
+  # (Django intersects the label with --tag playwright). No args = full suite.
   _with_test_redis uv run manage.py test $_DJANGO_NO_COLOR --tag playwright --noinput "$@"
 }
 
