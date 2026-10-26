@@ -10,6 +10,18 @@ https://localhost:8000/git/commits/2e44fdb/ourapp/docs/screenshots/chore_detail.
 in files, default is files, then diff (muted text)
 move utils to same module as pages/components?
 
+Agent to draw images
+layout is too frameworky to an agent trying to modify the layout and add menu buttons. It should be a simple
+
+<Navbar>
+    <NavbarItem href=...>Models</NavbarItem>
+    <NavbarMenu>
+        Code
+        <NavbarMenuItem>Models</NavbarMenuItem>
+        <NavbarMenuItem>...</NavbarMenuItem>
+    <NavbarMenu>
+...
+
 Dont mention Huey, mention its a cron. 
 do we need ours/? Have pages/system. Move schemas to shared modules like files etc.
 deployscratch error - specify which test to do

@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import re
 
+from allauth.socialaccount.models import SocialApp
+from django.conf import settings
+from django.contrib.sites.models import Site
 from playwright.sync_api import expect
 
 from djangoapp.models import User
@@ -22,6 +25,11 @@ class NavbarE2e(BasePlaywrightTestCase):
     - test_home_link_present, Home is the first nav link for a signed-in user
     - test_wide_viewport_shows_flat_links, at 1280px the superuser links render flat
     - test_narrow_viewport_collapses_links_to_menu, at 375px they fold into the Menu dropdown
+    - test_narrow_viewport_anonymous_renders_no_menu, at 375px an anonymous viewer gets no Menu
+    - test_escape_closes_innermost_dropdown_first, Escape closes the nested Code dropdown
+      before the compact Menu (one hit each)
+    - test_signin_dropdown_closes_on_outside_click_and_escape, the anonymous Sign-in
+      dropdown folds on outside click and Escape (CollapsibleButton's contract)
     - test_user_badge_stays_outside_collapse, the badge button renders in narrow mode too
     - test_navbar_hides_on_scroll_down_and_returns, scrolling down hides the bar; up restores it
     - test_user_menu_logout_flow, the user menu's logout POSTs allauth and lands signed-out
@@ -103,6 +111,60 @@ class NavbarE2e(BasePlaywrightTestCase):
         page.click(".layout-navmenu summary")
         expect(page.get_by_role("link", name="Models", exact=True)).to_be_visible()
         expect(page.get_by_role("link", name="Uncommitted", exact=True)).to_be_hidden()
+
+    def test_narrow_viewport_anonymous_renders_no_menu(self) -> None:
+        """At 375px an anonymous viewer gets no empty Menu.
+
+        The compact Menu renders only when the entries slot has real
+        content (Navbar's hasItems walk) — an anonymous viewer has no nav
+        entries, so no Menu.
+        """
+        with self.anon_page() as page:
+            page.set_viewport_size({"width": 375, "height": 800})
+            page.goto(f"{self.live_server_url}/")
+            # No login providers are configured in this suite — the
+            # disabled Sign in button anchors the anonymous navbar.
+            page.wait_for_selector(".layout-navbar button[disabled]")
+            expect(page.locator(".layout-navmenu")).to_have_count(0)
+
+    def test_escape_closes_innermost_dropdown_first(self) -> None:
+        """Escape closes the nested Code dropdown before the compact Menu."""
+        page = self.page
+        self._set_viewport(375)
+        page.goto(f"{self.live_server_url}/")
+        page.click(".layout-navmenu summary")
+        page.locator("summary", has_text="Code").click()
+        expect(page.get_by_role("link", name="Uncommitted", exact=True)).to_be_visible()
+        # Hit 1: the inner Code dropdown folds; the Menu stays open.
+        page.keyboard.press("Escape")
+        expect(page.get_by_role("link", name="Uncommitted", exact=True)).to_be_hidden()
+        expect(page.get_by_role("link", name="Models", exact=True)).to_be_visible()
+        # Hit 2: the Menu folds.
+        page.keyboard.press("Escape")
+        expect(page.get_by_role("link", name="Models", exact=True)).to_be_hidden()
+
+    def test_signin_dropdown_closes_on_outside_click_and_escape(self) -> None:
+        """The anonymous Sign-in dropdown folds on outside click (or Escape).
+
+        Moved from test_signin.py: the closing machinery is CollapsibleButton's
+        (navbar-owned), only the provider listing stayed with the signin suite.
+        """
+        app = SocialApp.objects.create(
+            provider="google", name="Google", client_id="client-abc", secret="secret"
+        )
+        app.sites.add(Site.objects.get(pk=settings.SITE_ID))
+        with self.anon_page() as page:
+            page.goto(f"{self.live_server_url}/")
+            page.locator(".layout-signin summary").click()
+            page.locator(".layout-signin-menu").wait_for(state="visible")
+            # Home's signed-out notice sits well clear of the navbar dropdown.
+            page.get_by_text("You are not logged in.").click()
+            page.locator(".layout-signin-menu").wait_for(state="hidden")
+            # Escape folds it too.
+            page.locator(".layout-signin summary").click()
+            page.locator(".layout-signin-menu").wait_for(state="visible")
+            page.keyboard.press("Escape")
+            page.locator(".layout-signin-menu").wait_for(state="hidden")
 
     def test_user_badge_stays_outside_collapse(self) -> None:
         """The user badge button renders in narrow mode, outside the menu."""

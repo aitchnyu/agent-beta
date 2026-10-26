@@ -84,7 +84,7 @@ body {
 
 // ── Navbar dropdown panels ────────────────────────────────────────────────
 // One shared shape for the native-<details> menus. DropdownMenu.vue renders .layout-dropdown + .layout-menu-panel;
-// Layout's hand-rolled menus reuse the same panel classes.
+// the navbar components' menus reuse the same panel classes.
 .layout-dropdown {
   position: relative;
 }
@@ -185,8 +185,7 @@ summary.layout-menu-link::-webkit-details-marker {
 }
 
 // Anonymous navbar: one Sign-in button opening a native <details> dropdown
-// of the configured login providers (Layout.vue closes it on outside
-// clicks / Escape).
+// of the configured login providers (CollapsibleButton owns its closing).
 .layout-signin {
   position: relative;
 }

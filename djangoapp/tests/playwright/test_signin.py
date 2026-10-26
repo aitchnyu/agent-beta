@@ -13,12 +13,12 @@ class SignInDropdownTests(BasePlaywrightTestCase):
 
     Shared ``login_providers`` drives the menu (see SharedPropsMiddleware);
     these tests pin the interactive half the backend tests can't: opening
-    the button reveals the configured provider as a link, and clicking
-    anywhere outside folds the menu away (the link itself is NOT followed —
-    it would leave for Google's OAuth handshake).
+    the button reveals the configured provider as a link (the link itself
+    is NOT followed — it would leave for Google's OAuth handshake). The
+    dropdown's closing behaviour lives with the navbar e2e
+    (test_navbar.py — NavbarE2e).
 
     - test_signin_dropdown_lists_provider, opening shows Google with its login URL
-    - test_signin_dropdown_closes_on_outside_click, a click elsewhere folds the menu
     """
 
     def setUp(self) -> None:
@@ -40,13 +40,3 @@ class SignInDropdownTests(BasePlaywrightTestCase):
             expect(link).to_be_visible()
             expect(link).to_have_attribute("href", "/accounts/google/login/")
             expect(link).to_have_text("Google")
-
-    def test_signin_dropdown_closes_on_outside_click(self) -> None:
-        """Clicking outside the open dropdown folds it away."""
-        with self.anon_page() as page:
-            page.goto(f"{self.live_server_url}/")
-            page.locator(".layout-signin summary").click()
-            page.locator(".layout-signin-menu").wait_for(state="visible")
-            # Home's signed-out notice sits well clear of the navbar dropdown.
-            page.get_by_text("You are not logged in.").click()
-            page.locator(".layout-signin-menu").wait_for(state="hidden")
