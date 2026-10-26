@@ -1,6 +1,5 @@
 <template>
   <PageTitle value="Uncommitted changes" />
-  <RepoNav />
   <h3>Uncommitted changes</h3>
   <section v-if="data.scratch_files" class="mb-4" data-tree-section="scratch">
     <h4 class="h6 mb-1">scratch</h4>
@@ -27,11 +26,10 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import FileTree from "../../components/git/FileTree.vue"
-import RepoNav from "../../components/RepoNav.vue"
 import PageTitle from "../../components/PageTitle.vue"
 import { GitUncommittedPropsSchema } from "../../schemas/git"
-import { buildFileTree } from "../../utils/fileTree"
-import { fileUrl } from "../../utils/files"
+import { buildFileTree } from "../../components/git/fileTree"
+import { fileUrl } from "../files/files"
 
 const props = defineProps<{ props: object }>()
 const data = GitUncommittedPropsSchema.parse(props.props)

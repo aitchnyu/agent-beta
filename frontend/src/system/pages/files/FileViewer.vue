@@ -4,7 +4,6 @@ import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../../components/HumanizedTime.vue"
 import MarkdownView from "../../components/files/MarkdownView.vue"
 import PageTitle from "../../components/PageTitle.vue"
-import RepoNav from "../../components/RepoNav.vue"
 import { FileViewerPropsSchema } from "../../schemas/files"
 import {
   detectLanguage,
@@ -12,7 +11,7 @@ import {
   fileUrl,
   formatSize,
   rawUrl,
-} from "../../utils/files"
+} from "./files"
 
 const props = defineProps<{ props: object }>()
 // Parsed once, non-reactively: file→file navigation is always a full page
@@ -40,7 +39,7 @@ const filesState = computed(() =>
 onMounted(async () => {
   if (!codeLang) return
   // filePreview (hljs/marked) is a lazy chunk; it resolves on first visit.
-  const { highlightCode } = await import("../../utils/filePreview")
+  const { highlightCode } = await import("./filePreview")
   rendered.value = highlightCode(p.text, codeLang)
   previewReady.value = true
 })
@@ -49,7 +48,6 @@ onMounted(async () => {
 <template>
   <PageTitle :value="p.name" />
   <div :data-files-state="filesState" :aria-busy="filesState === 'loading'">
-    <RepoNav />
     <nav class="files-breadcrumb">
       <template v-for="c in p.breadcrumb" :key="c.rel">
         <Link class="files-crumb" :href="fileUrl(c.rel)">{{ c.label }}</Link>

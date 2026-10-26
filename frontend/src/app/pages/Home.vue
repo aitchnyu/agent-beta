@@ -2,7 +2,7 @@
 import { computed } from "vue"
 import { Link, usePage } from "@inertiajs/vue3"
 import PageTitle from "../../system/components/PageTitle.vue"
-import { fileUrl } from "../../system/utils/files"
+import { fileUrl } from "../../system/pages/files/files"
 import { SharedPropsSchema } from "../../system/schemas/sharedProps"
 // Side-effect import: the app ships its own styles from styles/app.scss, so
 // the app is self-contained (no edit to the system stylesheet).

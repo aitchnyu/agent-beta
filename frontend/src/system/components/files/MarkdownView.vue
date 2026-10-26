@@ -26,7 +26,7 @@ const outline = ref<{ level: number; text: string; id: string }[]>([])
 onMounted(async () => {
   // filePreview (hljs/marked) is a lazy chunk; it resolves on first visit.
   const { highlightCode, renderMarkdown } =
-    await import("../../utils/filePreview")
+    await import("../../pages/files/filePreview")
   rendered.value = renderMarkdown(props.text, props.rel)
   raw.value = highlightCode(props.text, "markdown")
   // Parse the rendered (sanitized) HTML — outline entries mirror what's on

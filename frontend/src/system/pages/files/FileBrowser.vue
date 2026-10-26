@@ -3,14 +3,13 @@ import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../../components/HumanizedTime.vue"
 import LucideIcon from "../../components/LucideIcon.vue"
 import PageTitle from "../../components/PageTitle.vue"
-import RepoNav from "../../components/RepoNav.vue"
 import fileCodeIcon from "../../icons/file-code.svg"
 import fileIcon from "../../icons/file.svg"
 import fileImageIcon from "../../icons/file-image.svg"
 import fileTextIcon from "../../icons/file-text.svg"
 import folderIcon from "../../icons/folder.svg"
 import { FileBrowserPropsSchema } from "../../schemas/files"
-import { detectLanguage, fileUrl, formatSize } from "../../utils/files"
+import { detectLanguage, fileUrl, formatSize } from "./files"
 
 const props = defineProps<{ props: object }>()
 
@@ -44,7 +43,6 @@ function entryIcon(e: {
 <template>
   <PageTitle value="Files" />
   <div>
-    <RepoNav />
     <h3>Files</h3>
     <div class="files-crumbs-row">
       <nav class="files-breadcrumb">

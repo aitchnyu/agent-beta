@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { marked } from "marked"
-import { sanitizeHtml } from "../utils/html"
-import { renderDiagram, makeDiagramZoomable } from "../utils/d2"
+import { sanitizeHtml } from "./html"
+import { renderDiagram, makeDiagramZoomable } from "./d2"
 
 interface Props {
   html?: string | null

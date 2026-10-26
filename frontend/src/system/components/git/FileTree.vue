@@ -7,11 +7,7 @@ import chevronRightIcon from "../../icons/chevron-right.svg"
 import filePenIcon from "../../icons/file-pen.svg"
 import filePlus2Icon from "../../icons/file-plus-2.svg"
 import fileXIcon from "../../icons/file-x.svg"
-import type {
-  FileTreeEntry,
-  FileTreeFolder,
-  PathLinkBuilder,
-} from "../../utils/fileTree"
+import type { FileTreeEntry, FileTreeFolder, PathLinkBuilder } from "./fileTree"
 
 // Recursive changed-files tree shared by the uncommitted and commit pages.
 // The pages supply the two link builders — routes AND worktree prefixes

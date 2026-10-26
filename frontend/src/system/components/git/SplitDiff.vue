@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue"
 import type { Diff2HtmlUIConfig } from "diff2html/lib-esm/ui/js/diff2html-ui-base.js"
-import { EXTENSION_TO_LANGUAGE } from "../../utils/files"
+import { EXTENSION_TO_LANGUAGE } from "../../pages/files/files"
 
 const props = defineProps<{ diff: string }>()
 
@@ -21,7 +21,7 @@ onMounted(async () => {
   try {
     const [{ Diff2HtmlUI }, { getHighlighter }] = await Promise.all([
       import("diff2html/lib-esm/ui/js/diff2html-ui-base.js"),
-      import("../../utils/filePreview"),
+      import("../../pages/files/filePreview"),
       import("diff2html/bundles/css/diff2html.min.css"),
     ])
     const base: Diff2HtmlUIConfig = {

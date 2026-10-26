@@ -2,7 +2,6 @@
   <PageTitle
     :value="'Commit ' + shortSha(data.commit.sha) + ' ' + data.commit.subject"
   />
-  <RepoNav />
   <h3>
     <code>{{ shortSha(data.commit.sha) }}</code> {{ data.commit.subject }}
   </h3>
@@ -26,11 +25,13 @@ import { computed } from "vue"
 import FileTree from "../../components/git/FileTree.vue"
 import HumanizedTime from "../../components/HumanizedTime.vue"
 import PageTitle from "../../components/PageTitle.vue"
-import RepoNav from "../../components/RepoNav.vue"
 import { GitCommitPropsSchema } from "../../schemas/git"
-import { buildFileTree, type FileTreeFolder } from "../../utils/fileTree"
-import { fileUrl } from "../../utils/files"
-import { shortSha } from "../../utils/git"
+import {
+  buildFileTree,
+  type FileTreeFolder,
+} from "../../components/git/fileTree"
+import { fileUrl } from "../files/files"
+import { shortSha } from "./git"
 
 const props = defineProps<{ props: object }>()
 const data = GitCommitPropsSchema.parse(props.props)

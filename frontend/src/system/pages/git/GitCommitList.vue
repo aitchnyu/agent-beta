@@ -1,6 +1,5 @@
 <template>
   <PageTitle value="Commits" />
-  <RepoNav />
   <h3>Commits</h3>
   <p v-if="!data.commits.length" class="text-muted">No commits.</p>
   <ul v-else class="list-group">
@@ -51,9 +50,8 @@
 import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../../components/HumanizedTime.vue"
 import PageTitle from "../../components/PageTitle.vue"
-import RepoNav from "../../components/RepoNav.vue"
 import { GitCommitListPropsSchema } from "../../schemas/git"
-import { shortSha } from "../../utils/git"
+import { shortSha } from "./git"
 
 const props = defineProps<{ props: object }>()
 const data = GitCommitListPropsSchema.parse(props.props)

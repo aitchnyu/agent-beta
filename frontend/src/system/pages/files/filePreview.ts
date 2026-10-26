@@ -22,8 +22,8 @@ import plaintext from "highlight.js/lib/languages/plaintext"
 import { marked } from "marked"
 import { markedHighlight } from "marked-highlight"
 
-import { sanitizeHtml } from "./html"
-import { assignHeadingIds } from "./markdown"
+import { sanitizeHtml } from "../../components/html"
+import { assignHeadingIds } from "../../components/markdown"
 
 for (const [name, def] of [
   ["python", python],
