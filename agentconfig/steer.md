@@ -988,15 +988,19 @@ Streaming (SSE) responses use `streamPost` from the same module; multipart
 uploads use `postForm`; form-shaped state may use Inertia v3's `useHttp`.
 
 ### Frontend
-One Vue+Inertia app. The app's frontend lives at the plain paths of
-`frontend/src/` — pages in `pages/<Name>.vue` (Inertia component name =
-path, e.g. `Home`), components in `components/`, shared zod modules in
-`schemas/`, styles in `styles/app.scss` (imported as a side-effect by the
-page component, so the app is self-contained). Framework code lives under
-`frontend/src/system/` with the same subdirs plus `icons/`; generic helpers
-live in `src/utils/`. Parse every server payload with a zod schema; make
-standalone HTTP calls via `utils/http.ts` and wrap every call in
-`try/catch` + `showErrorToast`.
+- One Vue+Inertia app. The app's frontend lives at the plain paths of
+  `frontend/src/` — pages in `pages/<Name>.vue` (Inertia component name =
+  path, e.g. `Home`), components in `components/`, shared zod modules in
+  `schemas/`, styles in `styles/app.scss` (imported as a side-effect by
+  the page component, so the app is self-contained).
+- Framework code lives under `frontend/src/system/` with the same subdirs
+  plus `icons/`.
+- Module-owned helpers colocate with their pages/components (git utils in
+  `pages/git/`, file utils in `pages/files/`); only cross-module helpers
+  stay in `utils/`.
+- Parse every server payload with a zod schema; make standalone HTTP
+  calls via `utils/http.ts` and wrap every call in `try/catch` +
+  `showErrorToast`.
 
 Zod schemas live with their consumers:
 

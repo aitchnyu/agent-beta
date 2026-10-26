@@ -120,15 +120,20 @@ const fileName = (entry: FileTreeEntry) =>
       </span>
       <Link
         :class="{ 'text-decoration-line-through': entry.status === 'deleted' }"
-        :href="props.diffHref(entry.path)"
+        :href="
+          entry.status === 'deleted'
+            ? props.diffHref(entry.path)
+            : props.fileHref(entry.path)
+        "
         ><code>{{ fileName(entry) }}</code></Link
       >
-      <!-- No "file" link for deleted paths — /files/<worktree>/<path> would 404. -->
+      <!-- Muted diff companion to the file-view name link. Deleted paths
+           only have the diff — the name IS the diff link, no duplicate. -->
       <Link
         v-if="entry.status !== 'deleted'"
         class="git-file-link ms-2"
-        :href="props.fileHref(entry.path)"
-        >file</Link
+        :href="props.diffHref(entry.path)"
+        >diff</Link
       >
     </li>
   </ul>

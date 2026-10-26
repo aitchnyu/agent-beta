@@ -65,6 +65,9 @@ class GitUncommittedProps(BaseModel):
 class GitDiffProps(BaseModel):
     title: str
     diff: str
+    # The path's file-view URL — the muted link beside the diff title.
+    # None when the path has no file to view (deleted).
+    file_url: str | None
 
 
 class GitCommitListProps(BaseModel):
@@ -134,7 +137,14 @@ def git_uncommitted_diff(request: HttpRequest, worktree: str, rel: str) -> HttpR
     diff = git_data.diff_uncommitted(path, worktree)
     if diff is None:
         raise Http404
-    props = GitDiffProps(title=f"Uncommitted ({worktree}): {path}", diff=diff)
+    props = GitDiffProps(
+        title=f"Uncommitted ({worktree}): {path}",
+        diff=diff,
+        # The tree suppresses the file link for deleted paths; the diff
+        # page must too — a deleted file has nothing to view (the files
+        # browser serves on-disk existence only).
+        file_url=f"/files/{worktree}/{path}" if (root / path).exists() else None,
+    )
     return InertiaResponse(
         request,
         "system/git/GitDiff",
@@ -177,7 +187,16 @@ def git_commit_file_diff(request: HttpRequest, commit_id: str, rel: str) -> Http
     diff = git_data.diff_commit(commit_id, path)
     if diff is None:
         raise Http404
-    props = GitDiffProps(title=f"{commit_id}: {path}", diff=diff)
+    props = GitDiffProps(
+        title=f"{commit_id}: {path}",
+        diff=diff,
+        # Per the approved tradeoff: the worktree's CURRENT state, not the
+        # commit's blob (exact at HEAD, approximate for history). Null when
+        # the path no longer exists on disk (deleted) — nothing to view.
+        file_url=(
+            f"/files/main/{path}" if (git_data.worktree_root("main") / path).exists() else None
+        ),
+    )
     return InertiaResponse(
         request,
         "system/git/GitDiff",

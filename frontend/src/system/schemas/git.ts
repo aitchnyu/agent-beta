@@ -6,6 +6,9 @@ import { z } from "zod"
 export const GitDiffPropsSchema = z.object({
   title: z.string(),
   diff: z.string(),
+  // The diff path's file-view URL (/files/<worktree>/<path>) — muted
+  // link; null when the path has no file to view (deleted).
+  file_url: z.string().nullable(),
 })
 
 // A changed file in a commit or the working tree (status: git's letter code).

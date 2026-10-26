@@ -108,12 +108,16 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         props = self.props()["props"]
         self.assertIn('+    print("final")', props["diff"])
         self.assertEqual(props["title"], "Uncommitted (main): TodoApp/app.py")
+        self.assertEqual(props["file_url"], "/files/main/TodoApp/app.py")
 
     def test_uncommitted_diff_untracked(self) -> None:
         """``/git/uncommitted/main/TodoApp/notes.md`` serves the whole-file-added diff."""
         self.client.get("/git/uncommitted/main/TodoApp/notes.md")
         self.assertComponentUsed("system/git/GitDiff")
-        self.assertIn("+todo", self.props()["props"]["diff"])
+        props = self.props()["props"]
+        self.assertIn("+todo", props["diff"])
+        # Untracked files exist on disk — the file link is live.
+        self.assertEqual(props["file_url"], "/files/main/TodoApp/notes.md")
 
     def test_uncommitted_diff_unknown(self) -> None:
         """An uncommitted diff for a path that isn't uncommitted → 404."""
@@ -129,6 +133,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         props = self.props()["props"]
         self.assertIn("+x = 1", props["diff"])
         self.assertEqual(props["title"], "Uncommitted (scratch): TodoApp/scratch_only.py")
+        self.assertEqual(props["file_url"], "/files/scratch/TodoApp/scratch_only.py")
 
     @tag("scratch-test-subset")
     def test_commit_list(self) -> None:
@@ -203,7 +208,11 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         """``/git/commits/<sha>/<path>`` serves that file's diff in the commit."""
         self.client.get(f"/git/commits/{self.short_b}/TodoApp/app.py")
         self.assertComponentUsed("system/git/GitDiff")
-        self.assertIn("+    return x", self.props()["props"]["diff"])
+        props = self.props()["props"]
+        self.assertIn("+    return x", props["diff"])
+        # The muted file link targets the worktree's CURRENT state (exact at
+        # HEAD, approximate for history) — not a commit-pinned blob.
+        self.assertEqual(props["file_url"], "/files/main/TodoApp/app.py")
 
     def test_commit_file_diff_root(self) -> None:
         """A root commit's file diff goes against the empty tree (all adds).
@@ -223,7 +232,10 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         """A diff for a file deleted in the commit shows the deletion."""
         self.client.get(f"/git/commits/{self.short_c}/TodoApp/endpoints.py")
         self.assertComponentUsed("system/git/GitDiff")
-        self.assertIn("-def greet(name):", self.props()["props"]["diff"])
+        props = self.props()["props"]
+        self.assertIn("-def greet(name):", props["diff"])
+        # Deleted at HEAD too — no on-disk file to view, so no link.
+        self.assertIsNone(props["file_url"])
 
     def test_commit_file_diff_unknown_path(self) -> None:
         """A diff for a path not in the commit → 404."""

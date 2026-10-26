@@ -32,17 +32,17 @@ _VALID_MANIFEST: dict[str, dict[str, object]] = {
         "src": "src/main.ts",
         "isEntry": True,
         "imports": ["_rolldown-runtime-x.js"],
-        "dynamicImports": ["src/utils/filePreview.ts"],
+        "dynamicImports": ["src/pages/files/filePreview.ts"],
         "css": ["assets/main-css456.css"],
     },
     "_rolldown-runtime-x.js": {
         "file": "assets/rolldown-runtime-x.js",
         "name": "rolldown-runtime",
     },
-    "src/utils/filePreview.ts": {
+    "src/pages/files/filePreview.ts": {
         "file": "assets/filePreview-y.js",
         "name": "filePreview",
-        "src": "src/utils/filePreview.ts",
+        "src": "src/pages/files/filePreview.ts",
         "isDynamicEntry": True,
     },
 }
@@ -173,7 +173,7 @@ class HashedEntryTests(SimpleTestCase):
                 "imports": [
                     "_gone.js",
                     "_rolldown-runtime-x.js",
-                    "src/utils/filePreview.ts",
+                    "src/pages/files/filePreview.ts",
                     "_transitively-lazy.js",
                 ],
             },

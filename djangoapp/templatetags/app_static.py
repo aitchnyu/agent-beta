@@ -24,7 +24,7 @@ class _ManifestEntry(pydantic.BaseModel):
         {"file": "main-51Hqz-kE.js", "name": "main", "src": "src/main.ts",
          "isEntry": true,
          "imports": ["_rolldown-runtime-*.js", "src/main.ts"],
-         "dynamicImports": ["src/utils/filePreview.ts", ...],
+         "dynamicImports": ["src/pages/files/filePreview.ts", ...],
          "css": ["assets/main-*.css"]}
 
     and chunk records keyed by hashed chunk name (``"d2-*.js"``,

@@ -5,7 +5,7 @@
 //
 // Only specific languages are registered (not the full `highlight.js`, which bundles
 // ~190 languages ≈ 1 MB): the extensions classified by `detectLanguage` (in
-// `utils/files.ts`) plus a few more likely to appear in markdown fenced blocks.
+// the same-dir `files.ts`) plus a few more likely to appear in markdown fenced blocks.
 import hljs from "highlight.js/lib/core"
 import python from "highlight.js/lib/languages/python"
 import xml from "highlight.js/lib/languages/xml"

@@ -67,15 +67,17 @@ class NavbarE2e(BasePlaywrightTestCase):
         expect(first).to_have_attribute("href", "/")
 
     def test_wide_viewport_shows_flat_links(self) -> None:
-        """At desktop width the superuser links render as flat nav links."""
+        """At desktop width Models and Users render flat; Code is a dropdown."""
         page = self.page
         self._set_viewport(1280, 800)
         page.goto(f"{self.live_server_url}/")
         page.wait_for_selector(".layout-navbar")
         expect(page.get_by_role("link", name="Models", exact=True)).to_be_visible()
-        expect(page.get_by_role("link", name="Code", exact=True)).to_be_visible()
         expect(page.get_by_role("link", name="Users", exact=True)).to_be_visible()
-        expect(page.locator(".layout-navmenu")).to_have_count(0)
+        code = page.locator(".layout-navbar summary", has_text="Code")
+        expect(code).to_be_visible()
+        code.click()
+        expect(page.get_by_role("link", name="Uncommitted", exact=True)).to_be_visible()
 
     def test_narrow_viewport_collapses_links_to_menu(self) -> None:
         """Below the breakpoint the links fold into the Menu dropdown."""
@@ -85,9 +87,22 @@ class NavbarE2e(BasePlaywrightTestCase):
         page.wait_for_selector(".layout-navmenu")
         expect(page.get_by_role("link", name="Models", exact=True)).to_have_count(0)
         page.click(".layout-navmenu summary")
-        expect(page.locator(".layout-navmenu-link")).to_have_count(3)
+        # 6 links: Models, the Code summary, Users + the three inside Code.
+        expect(page.locator(".layout-navmenu-link")).to_have_count(6)
         page.click(".layout-navmenu-link >> nth=0")
         page.wait_for_url("**/manage/models")
+        # A Code link inside the Menu collapses BOTH dropdowns on navigate.
+        page.go_back()
+        page.click(".layout-navmenu summary")
+        page.locator("summary", has_text="Code").click()
+        page.get_by_role("link", name="Uncommitted", exact=True).click()
+        page.wait_for_url("**/git/uncommitted/")
+        expect(page.get_by_role("link", name="Models", exact=True)).to_be_hidden()
+        # The Code dropdown itself closed too (not just its parent Menu):
+        # reopening the Menu shows Code collapsed — its links stay hidden.
+        page.click(".layout-navmenu summary")
+        expect(page.get_by_role("link", name="Models", exact=True)).to_be_visible()
+        expect(page.get_by_role("link", name="Uncommitted", exact=True)).to_be_hidden()
 
     def test_user_badge_stays_outside_collapse(self) -> None:
         """The user badge button renders in narrow mode, outside the menu."""

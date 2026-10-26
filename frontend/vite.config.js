@@ -3,7 +3,7 @@ import vue from "@vitejs/plugin-vue"
 
 // One lazy d2 bundle + one small eager shared chunk:
 //   d2 — @d2lang/d2 (WASM renderer, web worker, fonts) + @panzoom in a
-//     SINGLE chunk that loads on the first diagram render; utils/d2.ts's
+//     SINGLE chunk that loads on the first diagram render; components/d2.ts's
 //     `import("@d2lang/d2")` is the lazy boundary.
 //   vendor-shared — packages and bundler helpers that BOTH the entry and
 //     d2 need (dompurify, lodash-*, dayjs, es-toolkit, khroma, …, plus

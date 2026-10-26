@@ -30,9 +30,8 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
     - test_diff_split_and_unified_by_viewport — side-by-side wide, line-by-line narrow
     - test_diff_opens_via_click — a commit file-diff link clicked (Inertia swap) renders
     - test_commit_navigation — the commits → files → diff link chain works
-    - test_repo_subnav_highlights_section — the Code sub-nav (Uncommitted /
-      Commits / Files) marks the URL's section with aria-current across git
-      and files pages
+    - test_navbar_code_menu — the navbar Code dropdown links all three
+      sections
     - test_non_superuser_404 — an anonymous viewer of /git gets 404
     """
 
@@ -77,31 +76,34 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         expect(main.locator('[data-tree-toggle="TodoApp"]')).to_contain_text("TodoApp/ (3)")
         expect(main.locator('[data-tree-toggle="TodoApp/Docs"]')).to_contain_text("Docs/ (1)")
         expect(scratch.locator('[data-tree-toggle="TodoApp"]')).to_contain_text("TodoApp/ (2)")
-        # app.py's link lives INSIDE main's TodoApp folder li (nesting).
+        # app.py's muted diff link lives INSIDE main's TodoApp folder li
+        # (nesting).
         expect(
             main.locator(
                 '[data-tree-folder="TodoApp"] a[href="/git/uncommitted/main/TodoApp/app.py"]'
             )
         ).to_have_count(1)
 
-        # -- file (diff) links keep the worktree in the path --
+        # -- file NAME links are the file view (browse root = repo parent) --
         expect(page.get_by_role("link", name="app.py")).to_have_attribute(
-            "href", "/git/uncommitted/main/TodoApp/app.py"
+            "href", "/files/main/TodoApp/app.py"
         )
         expect(page.get_by_role("link", name="scratch_only.py")).to_have_attribute(
-            "href", "/git/uncommitted/scratch/TodoApp/scratch_only.py"
+            "href", "/files/scratch/TodoApp/scratch_only.py"
         )
 
-        # -- secondary links point at the file url (browse root = repo parent) --
-        expect(page.locator('a[href="/files/main/TodoApp/app.py"]')).to_have_count(1)
-        expect(page.locator('a[href="/files/scratch/TodoApp/scratch_only.py"]')).to_have_count(1)
+        # -- muted diff companions keep the worktree in the path --
+        expect(page.locator('a[href="/git/uncommitted/main/TodoApp/app.py"]')).to_have_count(1)
+        expect(
+            page.locator('a[href="/git/uncommitted/scratch/TodoApp/scratch_only.py"]')
+        ).to_have_count(1)
 
         # Rendered shape per file row:
         #   <span class="git-status text-warning" role="img"
         #         aria-label="modified" title="modified">
         #     <span class="lucide-icon" aria-hidden="true"></span>
         #   </span>
-        #   <a href="/git/uncommitted/main/TodoApp/app.py">app.py</a>
+        #   <a href="/files/main/TodoApp/app.py">app.py</a>
         for path, status in (
             ("main/TodoApp/app.py", "modified"),
             ("main/TodoApp/notes.md", "untracked"),
@@ -111,11 +113,11 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
             ("scratch/TodoApp/scratch_notes.md", "untracked"),
         ):
             # span.git-status:has(+ a[href=…]) — the status span whose
-            # immediate next sibling is THAT file's link; folder li's
+            # immediate next sibling is THAT file's name link; folder li's
             # nest files, so li:has(a[href=…]) would match every
             # ancestor instead.
             expect(
-                page.locator(f'span.git-status:has(+ a[href="/git/uncommitted/{path}"])')
+                page.locator(f'span.git-status:has(+ a[href="/files/{path}"])')
             ).to_have_attribute("aria-label", status)
         expect(page.locator(".git-status .lucide-icon")).to_have_count(6)
         expect(page.locator(".git-status.text-success")).to_have_count(4)
@@ -140,9 +142,9 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         docs_toggle = main.locator('[data-tree-toggle="Docs"]')
         todoapp_toggle = main.locator('[data-tree-toggle="TodoApp"]')
         nested_toggle = main.locator('[data-tree-toggle="TodoApp/Docs"]')
-        idea_link = page.locator('a[href="/git/uncommitted/main/Docs/idea.md"]')
-        nested_link = page.locator('a[href="/git/uncommitted/main/TodoApp/Docs/x.md"]')
-        app_link = page.locator('a[href="/git/uncommitted/main/TodoApp/app.py"]')
+        idea_link = page.locator('a[href="/files/main/Docs/idea.md"]')
+        nested_link = page.locator('a[href="/files/main/TodoApp/Docs/x.md"]')
+        app_link = page.locator('a[href="/files/main/TodoApp/app.py"]')
 
         # -- a11y wiring: expanded by default, toggle names its subtree --
         expect(docs_toggle).to_have_attribute("aria-expanded", "true")
@@ -236,8 +238,16 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         # Land on the commit's file list (loads the Inertia app + main.js).
         page.goto(f"{self.live_server_url}/git/commits/{self.short_b}")
         page.get_by_role("link", name="endpoints.py").wait_for(state="visible")
-        # Click the file link — a client-side Inertia swap to GitDiff.
-        page.get_by_role("link", name="endpoints.py").click()
+        # The name is the FILE-VIEW link now…
+        expect(page.get_by_role("link", name="endpoints.py")).to_have_attribute(
+            "href", "/files/main/TodoApp/endpoints.py"
+        )
+        # …so click the muted diff companion — a client-side Inertia swap
+        # to GitDiff. The row's title attribute is the full path (unique;
+        # has_text would also match the enclosing folder rows).
+        page.locator('li[title="TodoApp/endpoints.py"]').get_by_role(
+            "link", name="diff", exact=True
+        ).click()
         # The URL advances (no rollback), and the diff renders (insert rows +
         # the ADDED file tag diff2html derives from "new file mode").
         page.wait_for_url(f"**/git/commits/{self.short_b}/TodoApp/endpoints.py")
@@ -257,9 +267,12 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         page.goto(f"{self.live_server_url}/git/commits")
         page.get_by_role("link", name="Add create endpoint").wait_for(state="visible")
         expect(page.locator("body")).to_contain_text("Add delete endpoint")
-        # The commit page links to each changed file.
+        # The commit page links each changed file to its file view.
         page.goto(f"{self.live_server_url}/git/commits/{self.short_b}")
         page.get_by_role("link", name="endpoints.py").wait_for(state="visible")
+        expect(page.get_by_role("link", name="endpoints.py")).to_have_attribute(
+            "href", "/files/main/TodoApp/endpoints.py"
+        )
         expect(page.locator("body")).to_contain_text("Add create endpoint")
         # The file's diff renders (insert rows + the ADDED tag for a new file).
         page.goto(f"{self.live_server_url}/git/commits/{self.short_b}/TodoApp/endpoints.py")
@@ -267,51 +280,30 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         diff = page.locator("[data-split-diff]")
         expect(diff).to_contain_text("ADDED")
         expect(diff).to_contain_text("TodoApp/endpoints.py")
+        # A DELETED file's tree row (commit_c deletes endpoints.py): the
+        # name stays on the diff — no file view exists — and no muted
+        # companion link renders for it.
+        page.goto(f"{self.live_server_url}/git/commits/{self.short_c}")
+        deleted = page.locator('li[title="TodoApp/endpoints.py"]')
+        expect(deleted.locator("a")).to_have_count(1)
+        expect(deleted.get_by_role("link", name="diff", exact=True)).to_have_count(0)
+        expect(deleted.locator("a")).to_have_attribute(
+            "href", f"/git/commits/{self.short_c}/TodoApp/endpoints.py"
+        )
 
-    def test_repo_subnav_highlights_section(self) -> None:
-        """The Code sub-nav links all three sections and marks the active one.
-
-        Every code-viewer page (git + files) renders the same sub-nav; the
-        active tab derives from the URL prefix (uncommitted pages →
-        Uncommitted, commit pages → Commits, files pages → Files) and is the
-        one link carrying ``aria-current="page"``.
-        """
+    def test_navbar_code_menu(self) -> None:
+        """The navbar Code dropdown holds the three section links."""
         page = self.page
-        subnav = page.get_by_role("navigation", name="Code views")
-
-        def assert_active(label: str) -> None:
-            links = subnav.get_by_role("link")
-            expect(links).to_have_count(3)
-            # One name→aria-current map: exactly `label` carries "page"
-            current = {
-                (link.text_content() or "").strip(): link.get_attribute("aria-current")
-                for link in links.all()
-            }
-            self.assertEqual(
-                current,
-                {
-                    name: ("page" if name == label else None)
-                    for name in ("Uncommitted", "Commits", "Files")
-                },
-            )
-
-        # The merged navbar entry lands on the default section (Uncommitted).
+        summary = page.locator(".layout-navbar summary", has_text="Code")
         page.goto(f"{self.live_server_url}/git/uncommitted/")
         page.get_by_role("link", name="app.py").wait_for(state="visible")
-        expect(page.get_by_role("link", name="Code", exact=True)).to_have_attribute(
-            "href", "/git/uncommitted/"
-        )
-        assert_active("Uncommitted")
-
-        # A commit's file-diff page still reads as the Commits section.
-        page.goto(f"{self.live_server_url}/git/commits/{self.short_b}/TodoApp/endpoints.py")
-        page.wait_for_selector("[data-split-diff] .d2h-ins")
-        assert_active("Commits")
-
-        # The files browser shares the sub-nav, with Files current.
-        page.goto(f"{self.live_server_url}/files/main/ourapp")
-        page.get_by_role("link", name="urls.py").wait_for(state="visible")
-        assert_active("Files")
+        summary.click()
+        for name, href in [
+            ("Uncommitted", "/git/uncommitted/"),
+            ("Commits", "/git/commits"),
+            ("Files", "/files/main/ourapp"),
+        ]:
+            expect(page.get_by_role("link", name=name, exact=True)).to_have_attribute("href", href)
 
     def test_non_superuser_404(self) -> None:
         """An anonymous viewer of the git viewer gets a 404 (the gate holds over HTTP)."""

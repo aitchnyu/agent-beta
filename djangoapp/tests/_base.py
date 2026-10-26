@@ -44,6 +44,8 @@ class FreshRedisBuckets:
 
     @classmethod
     def setUpClass(cls) -> None:
-        super().setUpClass()
+        # Both attributes come from the TestCase lineages consuming this
+        # mixin; the object root keeps the lineages untangled for mypy.
+        super().setUpClass()  # type: ignore[misc]
         clear_redis()
-        cls.addClassCleanup(clear_redis)
+        cls.addClassCleanup(clear_redis)  # type: ignore[attr-defined]

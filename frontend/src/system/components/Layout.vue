@@ -2,11 +2,13 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import { Link, usePage } from "@inertiajs/vue3"
 import { SharedPropsSchema } from "../schemas/sharedProps"
+import CollapsibleButton from "./CollapsibleButton.vue"
 import HideOnScroll from "./HideOnScroll.vue"
 import UserMenu from "./UserMenu.vue"
 import LucideIcon from "./LucideIcon.vue"
 import leafIcon from "../icons/leaf.svg"
 import logInIcon from "../icons/log-in.svg"
+import { fileUrl } from "../pages/files/files"
 
 // The signed-in viewer's profile + superuser flag are Inertia shared props,
 // injected for every page by SharedPropsMiddleware (not threaded per-view).
@@ -17,12 +19,19 @@ const isSuperuser = computed(() => shared.value.viewer_is_superuser)
 const loginProviders = computed(() => shared.value.login_providers)
 
 // The superuser nav links, rendered flat on wide viewports and inside the
-// "Menu" dropdown on narrow ones (one source of truth for both shapes).
-const navLinks = computed(() =>
+// "Menu" dropdown on narrow ones (one source of truth for both shapes). An
+// entry with children (Code) renders as its own dropdown in both shapes.
+const codeLinks = [
+  { href: "/git/uncommitted/", label: "Uncommitted" },
+  { href: "/git/commits", label: "Commits" },
+  { href: fileUrl("main/ourapp"), label: "Files" },
+]
+type NavEntry = { href: string; label: string; children?: typeof codeLinks }
+const navLinks = computed<NavEntry[]>(() =>
   isSuperuser.value
     ? [
         { href: "/manage/models", label: "Models" },
-        { href: "/git/uncommitted/", label: "Code" },
+        { href: "/git/uncommitted/", label: "Code", children: codeLinks },
         { href: "/users/list", label: "Users" },
       ]
     : [],
@@ -41,11 +50,10 @@ function onMediaChange(event: MediaQueryListEvent): void {
 onMounted(() => navMedia.addEventListener("change", onMediaChange))
 onBeforeUnmount(() => navMedia.removeEventListener("change", onMediaChange))
 
-// Native <details> dropdowns (Sign in, the compact nav Menu): close on any
-// outside click — they would otherwise stay open; links inside navigate
-// away, closing them. UserMenu carries the same handling for its own
-// dropdown. Escape closes too (the disclosure pattern's keyboard contract;
-// outside-click alone is mouse-only).
+// Native <details> dropdowns Layout owns directly (Sign in, the compact
+// Menu): close on outside click and Escape — links inside navigate away,
+// closing them. The Code dropdown is a CollapsibleButton that manages its
+// own closing.
 const signin = ref<HTMLDetailsElement>()
 const navMenu = ref<HTMLDetailsElement>()
 function closeMenus(): void {
@@ -78,27 +86,45 @@ onBeforeUnmount(() => {
         ><img :src="leafIcon" alt="" class="home-leaf-icon" />
       </Link>
       <template v-if="!navCompact">
-        <Link
-          v-for="link in navLinks"
-          :key="link.href"
-          class="nav-link"
-          :href="link.href"
-          >{{ link.label }}</Link
-        >
+        <template v-for="link in navLinks" :key="link.href">
+          <CollapsibleButton
+            v-if="link.children"
+            class="layout-navmenu"
+            :label="link.label"
+            :links="link.children"
+            summary-class="nav-link layout-menu-summary layout-navmenu-summary"
+            panel-class="layout-menu-panel layout-navmenu-list"
+            link-class="layout-menu-link layout-navmenu-link"
+          />
+          <Link v-else class="nav-link" :href="link.href">{{
+            link.label
+          }}</Link>
+        </template>
       </template>
       <details v-else-if="navLinks.length" ref="navMenu" class="layout-navmenu">
         <summary class="nav-link layout-menu-summary layout-navmenu-summary">
           Menu
         </summary>
         <div class="layout-menu-panel layout-navmenu-list">
-          <Link
-            v-for="link in navLinks"
-            :key="link.href"
-            class="layout-menu-link layout-navmenu-link"
-            :href="link.href"
-            @click="closeMenus"
-            >{{ link.label }}</Link
-          >
+          <template v-for="link in navLinks" :key="link.href">
+            <CollapsibleButton
+              v-if="link.children"
+              class="layout-navmenu"
+              :label="link.label"
+              :links="link.children"
+              summary-class="layout-menu-link layout-navmenu-link"
+              panel-class="layout-menu-panel layout-navmenu-list"
+              link-class="layout-menu-link layout-navmenu-link"
+              @linkclick="closeMenus"
+            />
+            <Link
+              v-else
+              class="layout-menu-link layout-navmenu-link"
+              :href="link.href"
+              @click="closeMenus"
+              >{{ link.label }}</Link
+            >
+          </template>
         </div>
       </details>
       <template v-if="user">
