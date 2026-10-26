@@ -3,7 +3,7 @@ import { computed } from "vue"
 import { Link, usePage } from "@inertiajs/vue3"
 import { z } from "zod"
 import { FactSchema } from "../schemas/facts"
-import { SharedPropsSchema } from "../system/schemas/sharedProps"
+import { SharedPropsSchema } from "../../system/schemas/sharedProps"
 // Side-effect import: the app ships its own styles from styles/app.scss, so the
 // feature is self-contained (no edit to the framework's main.scss).
 import "../styles/app.scss"

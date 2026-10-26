@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { ref } from "vue"
-import FieldError from "../system/components/FieldError.vue"
-import { NinjaError } from "../utils/pydanticErrors"
-import { ninjaPost } from "../utils/http"
+import FieldError from "../../system/components/FieldError.vue"
+import { NinjaError } from "../../system/utils/pydanticErrors"
+import { ninjaPost } from "../../system/utils/http"
 import { TodoSchema, type TodoOut } from "../schemas/todos"
 
 // Create mode (no `todo` prop): POST /todos/create, then emit "created"

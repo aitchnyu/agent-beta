@@ -393,11 +393,12 @@ checkframework1() {
   create_new_scratch
   overlay_app "$_MAIN_DIR/docs/reference"
   # The reference app ships its own app-side frontend (pages, components,
-  # schemas, styles); overlay them so its pages are in the built bundle
-  # (same as the old checkproject cycle 2). System files stay the tree's own.
+  # schemas, styles); overlay them INTO the scratch's app/ tree so its
+  # pages are in the built bundle (same as the old checkproject cycle 2).
+  # System files stay the tree's own.
   for _dir in pages components schemas styles; do
     rsync -a "$_MAIN_DIR/docs/reference/frontend/src/$_dir/" \
-      "$_SCRATCH_DIR/frontend/src/$_dir/"
+      "$_SCRATCH_DIR/frontend/src/app/$_dir/"
   done
   ( cd "$_SCRATCH_DIR"
     ( cd frontend && npm run build )
@@ -460,6 +461,13 @@ _scratch_changed_files() { # <dir>
   } | sort -u
 }
 
+# Filter a changed-file listing to its framework files — lines outside
+# the app surface (`ourapp/` + `frontend/src/app/`). Shared by
+# _scratch_checks' framework watch and the deployscratch fast path.
+_framework_files() { # <changed-files listing on stdin>
+  grep -vE '^(ourapp/|frontend/src/app/)' || true
+}
+
 # Print the failed step + its manual re-run; return nonzero so `… || _step_failed`
 # aborts deployscratch under set -e. The step text is read from the caller's
 # own source line — keep `cmd || _step_failed` on ONE line — and @P-expanded so
@@ -494,13 +502,11 @@ _scratch_checks() {
   echo "Running frontend build (type-check + vite in one pass)"
   npm run build || _step_failed
   cd ..
-  # Framework-file watch: edits outside the app surface (ourapp/ + the
-  # app-side frontend dirs) mean framework code changed → run the
-  # scratch-test-subset smoke (an early-warning fraction of
-  # checkframework1; the full suite still gates in main/).
+  # Framework-file watch: edits outside the app surface (_framework_files)
+  # → run the scratch-test-subset smoke; checkframework1 still gates in main/.
   local changed_files outside
   changed_files=$(_scratch_changed_files "$_SCRATCH_DIR") || return 1
-  outside=$(grep -vE '^(ourapp/|frontend/src/(pages|components|schemas|styles)/)' <<<"$changed_files" || true)
+  outside=$(_framework_files <<<"$changed_files")
   if [ -n "$outside" ]; then
     echo "=== framework files changed — running scratch-test-subset smoke tests ==="
     printf '  %s\n' $(grep -c . <<<"$outside") files:
@@ -638,7 +644,8 @@ _banner() { # <label>
 # then rsync → main/ (.git + gitignored dirs excluded), pre-migration backup,
 # migrate, collectstatic + restart granian/huey so deploys go LIVE.
 # Fast path: frontend/docs-only diffs skip the backend battery, backup,
-# migrate and restarts (lint + build + smoke pass / d2 fence validation).
+# migrate and restarts (lint + build, plus the smoke when framework
+# frontend files changed / d2 fence validation).
 # VM ONLY — the scratch loop is the agent's edit cycle and the agent
 # lives in the VM; a dev Mac has none of it (no pgbackrest, no units).
 # Never commits.
@@ -660,15 +667,26 @@ deployscratch() {
   fi
 
   # Fast path — every changed file is one of:
-  #   - frontend/**       → lint + build + scratch-test-subset smoke pass
+  #   - frontend/**       → lint + build (+ the scratch-test-subset smoke
+  #                         when framework frontend files changed)
   #   - ourapp/docs/*.md  → d2 fence validation
   # No backend files change → no backend battery, backup, migrate, restarts.
-  local changed_files docs_or_frontend_only=false frontend_changed=false
+  local changed_files
+  local docs_or_frontend_only=false
+  local frontend_changed=false
+  local frontend_framework_changed=false
   changed_files=$(_scratch_changed_files "$_SCRATCH_DIR") || return 1
   # docs_or_frontend_only = the set is nonempty and every line matches the safe set.
   if [ -n "$changed_files" ] && ! grep -vqE '^(frontend/|ourapp/docs/[^/]+\.md$)' <<<"$changed_files"; then
     docs_or_frontend_only=true
     if grep -q '^frontend/' <<<"$changed_files"; then frontend_changed=true; fi
+    # Framework frontend edits keep the browser smoke (its assertions
+    # only cover framework surfaces); app-surface-only diffs skip it.
+    local frontend_outside
+    frontend_outside=$(_framework_files <<<"$changed_files" | grep '^frontend/' || true)
+    if [ -n "$frontend_outside" ]; then
+      frontend_framework_changed=true
+    fi
   fi
 
   if $docs_or_frontend_only; then
@@ -679,9 +697,14 @@ deployscratch() {
         npm run lint || _step_failed
         npm run build || _step_failed )
       # Real pages in a real browser — lint and build cannot catch runtime
-      # breakage; the smoke pass can.
-      ( cd "$_SCRATCH_DIR"
-        _with_test_redis uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=scratch-test-subset || _step_failed )
+      # breakage; the smoke pass can (kept for framework frontend edits —
+      # the app-surface classification above decides).
+      if $frontend_framework_changed; then
+        ( cd "$_SCRATCH_DIR"
+          _with_test_redis uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=scratch-test-subset || _step_failed )
+      else
+        echo "No framework-file changes (outside the app surface) — skipping scratch-test-subset smoke."
+      fi
     fi
     # Design docs: validate every d2 fence in each changed file.
     local md_file
@@ -717,7 +740,10 @@ deployscratch() {
   #     postgres and refuses root); "-path <dir> -prune" is find's
   #     skip, cutting the subtree so the -exec beyond -o never fires
   #     inside it
-  sudo find "$_MAIN_DIR" -path "$_MAIN_DIR/dbbackups" -prune -o -exec chown desmo:desmo {} +
+  #   - .venv/ + frontend/node_modules/: PRUNED — they never ride the
+  #     deploy rsync (gitignore-derived excludes), so sweeping them
+  #     re-owns ~50k files of build state no deploy changed
+  sudo find "$_MAIN_DIR" \( -path "$_MAIN_DIR/dbbackups" -o -path "$_MAIN_DIR/.venv" -o -path "$_MAIN_DIR/frontend/node_modules" \) -prune -o -exec chown desmo:desmo {} +
   # Group-write the tree:
   #   - main tree: chown alone leaves rsync-created 644/755 files
   #     without g+w — the next build as the default user then dies on
@@ -725,7 +751,9 @@ deployscratch() {
   #     playwright wall)
   #   - dbbackups/: PRUNED — the repo stays mode 700; g+w would open
   #     it to the desmo group
-  sudo find "$_MAIN_DIR" -path "$_MAIN_DIR/dbbackups" -prune -o -exec chmod g+w {} +
+  #   - .venv/ + frontend/node_modules/: PRUNED — same reasoning as the
+  #     chown sweep above
+  sudo find "$_MAIN_DIR" \( -path "$_MAIN_DIR/dbbackups" -o -path "$_MAIN_DIR/.venv" -o -path "$_MAIN_DIR/frontend/node_modules" \) -prune -o -exec chmod g+w {} +
   _banner "own"
   # Backup + migrate only when backend code changed; collectstatic when the
   # bundle changed; restart only for backend — static chunks and
@@ -796,7 +824,7 @@ ${H}Development${R}
 
 ${H}Checks${R}
   ${C}lintfix${R}             ruff format + ruff check, eslint (writes)
-  ${C}typecheck${R}           mypy (backend) + vue-tsc (frontend)
+  ${C}typecheck${R}           mypy (backend); the frontend type-check (vue-tsgo) rides npm run build
   ${C}checkmarkdownd2${R} [file.md]
                         validate every d2 fence in file(s) (first broken
                         block + error, exit 1); no args on a TTY →
@@ -813,7 +841,8 @@ ${H}Scratch (the agent edit loop)${R}
   ${C}createscratch${R}       copy main/ → scratch/ + tag scratch-baseline
   ${C}deployscratch${R}       checks, then deploy scratch/ → main/ (VM only). Full path:
                        battery, backup, migrate, restarts; frontend/docs-only
-                       diffs take a fast path (lint/build + smoke, or fence checks)
+                       diffs take a fast path (lint/build, + smoke if framework
+                       files changed, or fence checks)
   ${C}cleanscratch${R}        remove scratch/
 
 ${H}Backups (pgbackrest — docs/backups.md)${R}

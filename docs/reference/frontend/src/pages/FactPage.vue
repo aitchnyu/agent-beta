@@ -2,7 +2,7 @@
 import { computed } from "vue"
 import { Link } from "@inertiajs/vue3"
 import { z } from "zod"
-import PageTitle from "../system/components/PageTitle.vue"
+import PageTitle from "../../system/components/PageTitle.vue"
 import { FactSchema, TopicSchema } from "../schemas/facts"
 import "../styles/app.scss"
 

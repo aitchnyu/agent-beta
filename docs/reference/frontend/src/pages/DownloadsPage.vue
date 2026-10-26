@@ -2,9 +2,9 @@
 import { computed, ref } from "vue"
 import { router } from "@inertiajs/vue3"
 import { z } from "zod"
-import PageTitle from "../system/components/PageTitle.vue"
-import { postForm, postJSON } from "../utils/http"
-import { showErrorToast } from "../utils/sweetalert"
+import PageTitle from "../../system/components/PageTitle.vue"
+import { postForm, postJSON } from "../../system/utils/http"
+import { showErrorToast } from "../../system/utils/sweetalert"
 import "../styles/app.scss"
 
 const DownloadSchema = z.object({

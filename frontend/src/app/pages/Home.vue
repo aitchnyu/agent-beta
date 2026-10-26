@@ -28,8 +28,8 @@ const isAuthenticated = computed(() => shared.value.user !== null)
           (Django models, Ninja endpoints, Huey tasks).
         </li>
         <li>
-          <Link :href="fileUrl('main/frontend/src/pages')"
-            ><code>frontend/src/pages/</code></Link
+          <Link :href="fileUrl('main/frontend/src/app/pages')"
+            ><code>frontend/src/app/pages/</code></Link
           >
           — the frontend: one Vue page per feature under pages/, plus the shared
           styles.

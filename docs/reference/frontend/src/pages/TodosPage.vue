@@ -4,8 +4,8 @@ import { router } from "@inertiajs/vue3"
 import { z } from "zod"
 import TodoForm from "../components/TodoForm.vue"
 import { TodoSchema, type TodoOut } from "../schemas/todos"
-import { postJSON } from "../utils/http"
-import { showErrorToast } from "../utils/sweetalert"
+import { postJSON } from "../../system/utils/http"
+import { showErrorToast } from "../../system/utils/sweetalert"
 import "../styles/app.scss"
 
 const TodosPagePropsSchema = z.object({

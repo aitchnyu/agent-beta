@@ -1,4 +1,14 @@
+Why last session 18 secs for 3 tests. Fail faster?
+`page.goto(f"{self.live_server_url}/chores", wait_until="networkidle")`
+sed and python3?
 New mypy and other system upgrades
+How to be safely run keepdb
+Review with same agents
+
+code shortcut menu 
+https://localhost:8000/git/commits/2e44fdb/ourapp/docs/screenshots/chore_detail.png - link to file
+in files, default is files, then diff (muted text)
+move utils to same module as pages/components?
 
 Dont mention Huey, mention its a cron. 
 do we need ours/? Have pages/system. Move schemas to shared modules like files etc.
@@ -109,10 +119,12 @@ local-vm setupalogin
 local-vm portforward
 Update docs for adding users and login links
 
+Test dbs get backed up
+Run the uv, npm, playwright installs in parallel?
 threeflet
 Desec dns docs
 org/reponame with main thing, landing page
-Features - file section with git etc. Readme is crap.
+Features - file section with git etc. Readme is crap. Gantt of scout, main work and reviewer prewarm and reviewer action, rework
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 UserHistory.record_created(user, user, user.snapshot()) is a mess

@@ -740,10 +740,9 @@ creates what, when) lives in `deploy/inside-vm.sh`'s header.
 │   │   │   └── urls.py apps.py migrations/ tests/ docs/
 │   │   ├── frontend/              Vue 3 + Inertia SPA (vite build → djangoapp/static)
 │   │   │   ├── src/main.ts        entry: Inertia + router + push service wiring
-│   │   │   ├── src/pages/         YOUR pages (auto-globbed; component name = path)
-│   │   │   ├── src/components/    YOUR components; src/schemas/ YOUR shared zod
-│   │   │   ├── src/styles/        YOUR app.scss (side-effect-imported)
-│   │   │   └── src/system/        framework pages/components/schemas/styles/icons
+│   │   │   ├── src/app/           YOUR tree: pages/ (auto-globbed; component
+│   │   │   │                      name = path), components/, styles/app.scss
+│   │   │   └── src/system/        framework pages/components/schemas/styles/icons/utils
 │   │   ├── agentconfig/           steering documents the pi agent reads
 │   │   ├── .pi/                   pi CLI config: permissions allowlist, extensions
 │   │   ├── deploy/                guest-side scripts (gate.sh, inside-vm.sh, …)
@@ -768,8 +767,7 @@ Three tiers:
     frontend lint/type-check/build — unless the diff is frontend/docs-only,
     which takes the fast path (lint/build + d2 fence checks)
   - skips the framework suite and Playwright (those run in `main/`) — unless
-    the edit touches framework files (outside `ourapp/` + the app's
-    `frontend/src/{pages,components,schemas,styles}/`),
+    the edit touches framework files (outside `ourapp/` + `frontend/src/app/`),
     which adds the tagged `scratch-test-subset` smoke tests
 - **`checkframework1`** — the full gate, run in `main/`. ruff + mypy + the whole backend
   suite + frontend lint/type-check + Playwright, then two scratch-overlay cycles —

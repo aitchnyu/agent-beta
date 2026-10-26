@@ -37,7 +37,7 @@ A/B are soft, D/E full-saturation, F the palest.
 
 ## Contrast rules (WCAG AA)
 
-As applied in the app (`frontend/src/styles/_bootstrap.scss`):
+As applied in the app (`frontend/src/system/styles/_bootstrap.scss`):
 
 - Gold primaries take **dark ink**; buttons/badges use the deepened same-hue tone for white text.
 - Status trio separates by **lightness, not hue** (deutan-safe): `$danger` dark red — `#861c0b`

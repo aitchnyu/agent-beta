@@ -23,9 +23,11 @@
     "prettier": "^3.8.1",
     "sass": "^1.99.0",
     "typescript": "~6.0.3",
+    "typescript7": "npm:typescript@^7.0.2",
     "vite": "^8.0.0",
-    "vue-eslint-parser": "^10.2.0",
-    "vue-tsc": "^3.2.4"
+    "vue-eslint-parser": "^10.4.1",
+    "vue-tsc": "^3.3.13",
+    "vue-tsgo": "^0.3.0"
   },
   "scripts": {
     "build": "run-p type-check \"build-only {@}\" --",
@@ -34,7 +36,8 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "preview": "vite preview",
-    "type-check": "vue-tsc --noEmit"
+    "type-check": "vue-tsgo --tsdk typescript7",
+    "type-check:tsc": "vue-tsc --noEmit"
   },
   "dependencies": {
     "@d2lang/d2": "^0.1.34",

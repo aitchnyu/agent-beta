@@ -1,7 +1,7 @@
 """Scratch-subset browser smoke — the deployscratch extra pass.
 
 When scratch/ edits touch framework files (anything outside ``ourapp/`` and
-the app's ``frontend/src/{pages,components,schemas,styles}/``),
+``frontend/src/app/``),
 ``./run deployscratch`` runs the
 ``scratch-test-subset``-tagged tests: the tagged view methods plus this ONE
 browser class — a single browser launch (~5-10s total) proving the

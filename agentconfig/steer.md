@@ -108,6 +108,11 @@ lives in [Stage messages](#stage-messages):
   - After any write batch — review fixes included — run
     `cd ../scratch && ./run lintfix` first (seconds, allowlisted,
     repo-wide). DJ001-class errors die there, not in the battery.
+  - Edits go through the `edit` tool, one surgical diff per spot — never
+    python/bash script batches (arbitrary code the operator must review
+    and approve per use) and never a wholesale rewrite of an existing
+    file (the model repays the whole authoring cost). Extra edit
+    round-trips are the cheaper tax.
   - Edit → `./run deployscratch` from `main/` **once per edit batch** —
     every green batch goes LIVE (migrate/restarts folded in when backend
     code changed). Run it straight through; don't stop to report progress.
@@ -136,6 +141,12 @@ lives in [Stage messages](#stage-messages):
         uncommitted)
   - [ ] single sentence report to user — the whole close-out is one line:
         what shipped, where it lives, that the checklist is green.
+
+**One turn through [3]→[5].** Code, deploy, review, triage/fixes, and doc
+updates run as ONE batch ending at the T5 offer — never stop between them
+to report, and never sit on completed reviewer results; process them
+before the turn ends. Only T1/T2 gates, a genuine question, or the
+round-2 bound pause for the operator.
 
 **Review with prewarmed agents (stage 3 → 4).** Prewarm reviewers in the
 background while you code; resume them for the review instead of spawning
@@ -317,13 +328,14 @@ may hold uncommitted work from a prior task; `./run cleanscratch` wipes it).
 
 - **Battery**: ruff + mypy + **ourapp's own tests** + frontend
   lint/type-check/build (framework suite + Playwright stay in `main/`'s
-  `checkframework1`). Framework-file edits (outside `ourapp/` + the app's
-  `frontend/src/{pages,components,schemas,styles}/`) add the
+  `checkframework1`). Framework-file edits (outside `ourapp/` +
+  `frontend/src/app/`) add the
   `scratch-test-subset` smoke tests. A failed step prints the command that
   re-runs just that step in scratch — fix, verify alone, then
   `./run deployscratch` again to save time.
 - **Fast path**: changes only under `frontend/**` +
-  `ourapp/docs/*.md` → lint/build + d2 fence validation, no backend
+  `ourapp/docs/*.md` → lint/build + d2 fence validation (the smoke only
+  when framework frontend files changed), no backend
   battery. Nothing deploys red.
 - **Tail**: rsync → `main/` `--delete` (`.git`/`.env` never overwritten);
   on the VM: backup + `migrate` + granian/huey restart for backend diffs,
@@ -1351,48 +1363,61 @@ these, and read
   `PASSWORD_HASHERS` override that `test_test_conventions` enforces on every
   test class; a plain `TestCase` subclass fails that guard. Seed inside the
   test; assert state and endpoint return values (pk-free).
-- **Playwright e2e tests** cover a feature end-to-end (real browser + live
-  server). The framework's own e2e lives in `djangoapp/tests/playwright/` (tagged
-  `playwright`). **Per-app e2e for `ourapp` lives in
-  `ourapp/tests/test_<feature>_playwright.py`.**
-  Assert the response of a mutating request or a seeded render, not cumulative
-  state across requests.
-  - **Always subclass `BasePlaywrightTestCase`** (from
-    `djangoapp.tests.playwright._base`).
-    That single base is where the `playwright` tag **and** the browser harness
-    (live server, `self.logged_in_page`, console-error `tearDown`) come from.
-  - **Do NOT** hand-add `@tag("playwright")`, and **do NOT** subclass a plain
-    `TestCase`/`StaticLiveServerTestCase` for e2e — the first double-tags without
-    a harness (no live server/page → the test breaks), the second leaves the test
-    untagged so `./run playwrighttest` skips it silently.
-    - **Verify** it's collected: `./run playwrighttest ourapp.tests -v 2` must
-      list your `ourapp.tests.test_*_playwright` tests.
-- **Playwright locators** — query the accessibility tree or a test id, never copy
-  or CSS. Use `page.get_by_role("button", name="Start")`,
-  `page.get_by_label("Title")`, or `page.get_by_test_id("start")` (give volatile
-  elements a `data-testid`). Avoid text engines and CSS selectors — they couple
-  the test to UI copy/style and break on every redesign:
-  - ✗ `button:has-text('Start')` — substring match on any button containing the
-    word; breaks if the copy changes.
-  - ✗ `.ours-note-form input[placeholder*='title']` — couples to a class
-    name + placeholder text; breaks on either change.
-- **Playwright assertions** — assert page state with web-first
-  `expect(locator).to_be_visible()/to_have_text()/to_have_count()/…`
-  (`from playwright.sync_api import expect`), NOT Django-style snapshots of page
-  values. `expect` retries until the condition holds (or times out), so async
-  Inertia renders don't flake, and the assertion reads as a claim about the
-  page rather than about Python values:
-  - ✗ `self.assertEqual(page.locator(".x").count(), 1)` — instant snapshot;
-    races the render.
-  - ✓ `expect(page.locator(".x")).to_have_count(1)`
-  - `assertTrue(loc.is_visible())` → `expect(loc).to_be_visible()`
-    (`assertFalse` → `to_be_hidden()`); `assertIn(t, loc.inner_text())` →
-    `expect(loc).to_contain_text(t)`; `assertEqual(loc.get_attribute("k"), v)`
-    → `expect(loc).to_have_attribute("k", v)`; `assertIn(s, page.url)` →
-    `expect(page).to_have_url(re.compile(re.escape(s)))`.
-  - Python-side values keep `self.assert*`: response statuses, request JSON
-    bodies, ORM state, and page comparisons `expect()` can't express
-    (bounding-box geometry, `> N` counts, token-list class checks).
+
+### Playwright e2e tests
+Real browser + live server. The framework's own e2e lives in
+`djangoapp/tests/playwright/` (tagged `playwright`); per-app e2e lives in
+`ourapp/tests/test_<feature>_playwright.py`. Assert a mutating request's
+response or a seeded render — never cumulative state across requests.
+
+Checklist for every e2e file:
+- [ ] subclass `BasePlaywrightTestCase` (`djangoapp.tests.playwright._base`)
+      — the one base carrying the `playwright` tag AND the harness (live
+      server, `logged_in_page`, console-error tearDown)
+- [ ] no hand-added `@tag("playwright")`, no plain
+      `TestCase`/`StaticLiveServerTestCase` parents — the first double-tags
+      without a harness, the second goes untagged and
+      `./run playwrighttest` skips it silently
+- [ ] collected: `./run playwrighttest ourapp.tests -v 2` lists your tests
+
+#### Locators
+- Do: `get_by_role("button", name="Start")`, `get_by_label("Title")`,
+  `get_by_test_id("start")`
+- Don't: text engines (`button:has-text('Start')`) — substring match on
+  copy
+- Don't: CSS/class selectors (`.x input[placeholder*='title']`) — couples
+  to class names and copy, breaks on redesign
+- Reaching for either usually means the element is crap — fix the page,
+  not the locator: semantic markup (real button/label/accessible name),
+  or a `data-testid` on volatile elements, so locators can query the
+  accessibility tree
+
+#### Assertions
+Web-first `expect` (retries, so async Inertia renders don't flake), not
+instant snapshots. One import per file:
+`from playwright.sync_api import expect`.
+- Do: `expect(locator).to_be_visible()/to_have_text()/to_have_count()`
+- Do: convert — `assertTrue(loc.is_visible())` → `to_be_visible()`
+  (`assertFalse` → `to_be_hidden()`);
+  `assertIn(t, loc.inner_text())` → `to_contain_text(t)`;
+  `assertEqual(loc.get_attribute("k"), v)` → `to_have_attribute("k", v)`;
+  `assertIn(s, page.url)` → `expect(page).to_have_url(re.compile(re.escape(s)))`
+- Don't: `self.assertEqual(page.locator(".x").count(), 1)` — instant
+  snapshot, races the render
+- Python-side values keep `self.assert*`: statuses, request JSON, ORM
+  state, and what `expect()` can't express (geometry, `> N` counts,
+  token-list class checks)
+
+#### Waits
+Content, not the network:
+- Do: bare `page.goto(url)` (default `load`), then wait on something
+  specific (`expect(...)`, a locator action, `wait_for_selector`)
+- Don't: `wait_until="networkidle"` on pages with background traffic —
+  passing visits pay the settle window (~0.8s each; test_client_errors
+  dropped it for `expect_request`) and failing tests time
+  through networkidle + timeout chains
+- Keep timeouts small — the base's 2s default is deliberate; 5s only for
+  Inertia reload chains
 
 ### Checklist — every test class
 Every test class documents itself in its **class docstring**: a brief one-line
@@ -1426,7 +1451,7 @@ there instead).
 Permissions are enforced by @gotgenes/pi-permission-system
 (`.pi/extensions/pi-permission-system/config.json` — the versioned policy).
 Three verdicts: it allows the allowlisted, denies the denied (perl/
-git -C — the denial carries the reason and the passing form), and asks
+sed -i/ git -C — the denial carries the reason and the passing form), and asks
 the operator for everything else.
 **Prefer the allowlisted commands** — they run with no approval round-trip;
 anything else pauses the turn for the operator. Map your intent onto them (e.g. `./run deployscratch`,
