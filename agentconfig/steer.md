@@ -307,6 +307,238 @@ and command substitution bolted onto otherwise-allowed commands —
 full tool output (stderr included), discarding buys nothing, and an
 avoidable `2>/dev/null` turns an allowlisted line into a block.
 
+
+### Mockups
+Stages 1–2's artifacts live in **files**, not chat: mockups are real deployed
+pages. Everything lives in `../scratch/` and reaches `main/` only via
+`deployscratch` — allowlisted, so mockup deploys run unblocked; share the
+deployed links in chat immediately after each deploy via
+[Stage messages](#stage-messages).
+
+- **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
+  deploy as `/files/main/ourapp/docs/<feature>.md`. Structure and writing
+  rules: [Feature docs](#feature-docs).
+- **Mockups — one file: `frontend/src/app/pages/Mockup<Name>.vue`.**
+  - The objective: zero backend changes — backend edits drag in the slow
+    full battery and service restarts; while a feature is a mockup, python
+    stays untouched.
+  - Confine changes to the app side of `frontend/src/` (backend only in
+    `ourapp/` when a feature graduates) — framework files stay relatively
+    pristine so upstream changes still merge cleanly even after years.
+  - The hatch route in `home.py` serves `<page>` verbatim at
+    `/mockup/<page>`. `/mockup/MockupTodos` → `MockupTodos.vue`.
+  - URL params preset a mockup's state:
+    `/mockup/<Name>?props=<base64url-encoded JSON object>` — the hatch
+    passes the decoded object as the page props.
+  - No route, view, or registration — frontend-only changes deploy fast.
+  - Static first: hardcoded markup, no props. Then client-side state.
+  - Nothing ever saves: no writes, DB, models, migrations, or endpoints.
+  - Superuser-only (404 otherwise).
+  - Wrap in `div.mockup` — one `::before` crosshatch overlay from
+    `styles/app.scss`; hatch the wrapper only.
+  - No tests; the real feature writes them.
+  - Editing existing code is normal work — just not part of adding a
+    mockup.
+- **Becoming real (stage 3)** — build the feature at its real URL with
+  real props/endpoints. DELETE the `Mockup<Name>.vue` + its homepage link
+  in the same change. (Abandoned: delete the files; the next
+  `deployscratch`'s rsync `--delete` retires them from `main/`.)
+
+### Feature docs
+
+Every feature gets one doc: `ourapp/docs/<feature>.md`.
+
+#### The doc's life
+It is drafted in `../scratch/` at stage 2, so it reaches
+`main/` with the first deployscratch. It is updated at stage 4 to match the
+code. From then on it is kept current with every change, diagrams included.
+In chat, link it as `<base>/files/main/ourapp/docs/<feature>.md`.
+
+#### Two audiences, one file
+The front of the doc, however long the plain language needs — is the feature in plain
+language; the owner or a new contributor reads only that far. The later
+sections ("For developers") are the reference for people who will touch the
+code. Wrap every line at ~80 characters — long lines are hard to reread and
+diff. Keep sentences under ~120 characters too; when a sentence runs long,
+split it into points.
+
+#### The premise
+Framed around the data — what is stored, how it changes,
+and how it is presented — the app is understandable to both audiences. Data
+diagrams therefore belong up front with the plain language; dev jargon
+comes later.
+
+#### The spine: the data and how it changes
+Organize everything around what
+is stored and every way it changes. Pages, features, and diagrams hang off
+that.
+
+Every rule for these docs lives here. The workflow stages and the feature
+checklist point to this section and restate nothing.
+
+#### The outline — in order
+Skip a section that doesn't apply; never pad one.
+
+1. **Title + one short paragraph.** What the feature does, and for whom. No
+   implementation words.
+2. **Who can do what.** One or more `usecase-beta` diagrams (see Diagrams
+   below) — split them by page or area when a single one would crowd. Plus:
+   - actors are roles — people, and system actors like schedulers or crons;
+     `--|>` marks role inheritance
+   - boundaries are pages or areas of the app
+   - permission rules ride the diagram; anonymous behavior is a note
+     ("gets a 404 — the feature is hidden")
+   - a `json` code block can show a payload shape worth seeing (the
+     homepage summary counts)
+3. **The data.** Each model in plain words first ("a dish is the menu item;
+   an order is one concrete meal"), then the data diagram. Translate every
+   relationship into behavior: "RESTRICT = a dish with orders can never be
+   deleted".
+4. **How the data changes.** Every modification the feature makes —
+   change, made by, what exactly happens — as a tight table or bullets,
+   opened with the promise "if a change isn't listed here, the feature
+   doesn't make it". Then:
+   - a state diagram when one row kind has a lifecycle
+   - the safety rails as bullets (uniqueness, version checks, atomicity,
+     clamping)
+5. **What you see.** The UI walkthrough — pages, groups, buttons, feedback.
+   - Embed each screen's generated screenshot (the screenshot suite writes
+     them to `docs/screenshots/`).
+6. **History (optional).** Notable behavior changes over time — a
+   capability added or removed, a rule changed. A first release skips this.
+7. **For developers.** Field rules, algorithm internals, the endpoints,
+   frontend files, tests. Everything framework-flavored —
+   Django, ninja, Inertia, zod, code paths — lives here and only here.
+
+#### Writing rules
+
+- The plain sections must stand alone: no framework names, no field names,
+  no SQL. The developer sections map each plain claim to its field,
+  endpoint, or file.
+- The change list covers every modification the feature makes today. A
+  new capability adds a line; changed behavior edits it in place. The doc
+  is wrong if the code makes a modification the list doesn't cover — or
+  the list one the code no longer makes. (Removed or replaced behavior
+  goes to History, not the list.)
+- State bounds in human terms up front ("N is 1–365"); put exact validation
+  in the developer sections.
+- The title is just the feature name. No process narration (session
+  history, mockup archaeology) scattered through the doc — history, when
+  worth recording, lives in its own section.
+- A feature with no stored data folds sections 3–4 into a brief
+  "Behaviour".
+- `ourapp/README.md` stays one or two lines (what + URLs) and links the
+  doc. The doc carries the detail, never the README.
+
+### Diagrams
+D2, in fenced ` ```d2 ` blocks — the /files viewer renders
+them with pan/zoom controls.
+
+- **Use-case diagrams** — composed from D2 primitives, one statement per
+  line:
+  - actors — `shape: person`, declared explicitly, pinned to
+    `width: 180; height: 160` so every actor renders identically
+  - use cases — `shape: oval`, fixed `width: 240` regardless of label
+    length; a generous radius when drawn as a box instead
+    (`style.border-radius: 24`)
+  - the system boundary — a container
+  - associations — `->`; include/extend — dashed labeled arrows
+    (`{style.stroke-dash: 3}`)
+- **Stack vertically — both tools serve the same goal: phones scroll
+  vertically, and horizontal layouts force side scrolling.**
+  - `direction: down` at the TOP LEVEL of every fence.
+  - The engine ignores `direction` inside containers (inner flows never
+    reorient), so for members that must stack inside a container, use the
+    grid instead: `grid-rows: N; grid-columns: 1` — works everywhere.
+  - When a container outgrows the screen, split the concept into another
+    fence (also `direction: down`).
+- Diagrams are per screen/page and chained — a→b→c flows, never flat
+  one-level lists.
+- Keep boundaries narrow — few ovals per row.
+- Icons stay local: copy a lucide SVG (grep
+  `frontend/node_modules/lucide-static/icons/`) to
+  `djangoapp/static/icons/` with a concrete stroke hex, reference
+  `icon: /static/icons/<name>-<hex>.svg`.
+- **MANDATORY: validate after writing a diagram** — run
+  `./run checkmarkdownd2 <file.md>` on the doc you touched; an
+  unvalidated diagram is user-visible raw source. The validator catches
+  grammar, not semantics: an undeclared actor is just a shape — declare
+  every actor as `shape: person` yourself. The docs fast path re-checks
+  changed files at deploy time automatically.
+- **Data diagrams** — whenever models exist: entities as
+  `shape: sql_table` (columns with types), written for laymen:
+  - types in plain words — `true/false`, `text`, `date`, `date+time`,
+    `list of X`
+  - choices render inline — `status: todo | done`
+  - optional columns get `?` — `completed_at: date+time?`
+  - references are model names, not integer columns — `todo: Todo`
+    (not `todo_id int`); the arrow starts at that row
+  - no surrogate `id` PK row, no BaseModel audit columns
+    (`created_by/at`, `last_updated_*`) — include an actor/time column
+    only when the feature's story turns on it
+  - Every connection carries a plain-language description AND the
+    cardinality — e.g. `todos -> user: "belongs to (N..1)"`,
+    `user -> todos: "owns (1..N)"`. Delete rules as further labels
+    (`on delete RESTRICT`).
+- **State diagrams** — when a row kind changes state: states as shapes,
+  transitions as labeled arrows, the initial/final states as small
+  circles.
+- Full skeletons, worked examples, and the icon workflow:
+  `docs/d2.md` — read it before your first d2 diagram in a session.
+
+### Checklist — adding or changing a feature
+Run through every box; the order is the order you build in.
+
+- [ ] **README** — update `ourapp/README.md` to describe the feature (what it
+      does, its URLs/pages), not its internal implementation. One or two lines.
+- [ ] **Feature doc** — the design doc written in stage 2
+      (`ourapp/docs/<feature>.md`) follows [Feature docs](#feature-docs) and
+      stays current (diagrams included); link it from the README.
+- [ ] **Model module** — `ourapp/models/<feature>.py`, wired into
+      `ourapp/models/`:
+    - [ ] subclass `BaseModel`, give it a docstring
+    - [ ] import it in `ourapp/models/__init__.py`, **adding each name to
+          `__all__`** there — mypy runs with `--no-implicit-reexport`, so
+          `from ourapp.models import <Model>` errors with `module does not
+          explicitly export attribute` unless `<Model>` is in `__all__`
+          (or imported `as <Model>`)
+    - [ ] `./run djangomanage makemigrations ourapp`
+    - [ ] every `ForeignKey` sets `on_delete=models.RESTRICT` (deviate only
+          with a comment)
+    - [ ] money is `models.DecimalField(max_digits=…, decimal_places=…)` —
+          never `FloatField` (binary-float rounding corrupts sums)
+    - [ ] a `FileField` gets a **unique-enough folder** as its `upload_to`
+          (e.g. `"one_time_downloads"`, not `"files"`): `media/` is shared by every
+          app and feature, filenames stay original, and two features in one
+          folder would interleave same-name files into an indistinguishable
+          pile. One folder per feature; Django picks the filename (see
+          [File uploads](#file-uploads)).
+- [ ] **View module** — add `ourapp/views/<feature>.py` with a `Router`, wire
+      **every** API endpoint (pages + data) there, and register it in
+      `ourapp/views/__init__.py` via `api.add_router("/", <feature>.router)`.
+- [ ] **Tests** — one file per layer, flat under `ourapp/tests/`:
+    - [ ] model/manager behaviour in `ourapp/tests/test_<feature>_models.py`
+    - [ ] every endpoint in `ourapp/tests/test_<feature>_views.py` (state + return
+          value, pk-free, 404 on missing/forbidden)
+    - [ ] each command in `ourapp/tests/test_<feature>_commands.py`
+    - [ ] every Inertia page end-to-end in `ourapp/tests/test_<feature>_playwright.py`
+- [ ] **Frontend** — page in `frontend/src/app/pages/<Name>.vue` with its zod
+      schemas declared inline in the component (shared shapes in
+      `frontend/src/system/schemas/<feature>.ts`), side-effect styles in
+      `app/styles/app.scss`.
+- [ ] **PageTitle** — the page renders `<PageTitle :value="…"/>` (import from
+      `system/components/PageTitle.vue`); see "For every Inertia page" below.
+- [ ] **Toasts** — user feedback goes through the framework's toast helpers
+      (`frontend/src/system/utils/sweetalert.ts`): a mutating action that succeeds
+      confirms with `showToast("success", …)`; failures follow the HTTP
+      convention's `showErrorToast(e, fallback)` — never a silent catch.
+- [ ] **Home navigation (ask first)** — during planning, **ask how the feature
+      surfaces on the landing page**: a link, a summary/card, or reached from
+      another page (e.g. listed inside a related feature). Then add that to
+      `frontend/src/app/pages/Home.vue`, shown only when this viewer can use it
+      (hide an auth-required feature from an anonymous visitor). A feature that's
+      reachable but unlinked is as good as missing — don't assume a plain link.
+
 ## The scratch workflow
 You never edit `main/` directly — the [Feature workflow](#feature-workflow)
 stages drive the sequence; these are the mechanics of the commands (run from
@@ -538,178 +770,8 @@ Read code in this priority order:
 3. **The framework only as reference** — `djangoapp/` is there to understand
    behaviour, not to rework. Change it only when the user explicitly asks.
 
-### Mockups
-Stages 1–2's artifacts live in **files**, not chat: mockups are real deployed
-pages. Everything lives in `../scratch/` and reaches `main/` only via
-`deployscratch` — allowlisted, so mockup deploys run unblocked; share the
-deployed links in chat immediately after each deploy via
-[Stage messages](#stage-messages).
 
-- **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
-  deploy as `/files/main/ourapp/docs/<feature>.md`. Structure and writing
-  rules: [Feature docs](#feature-docs).
-- **Mockups — one file: `frontend/src/app/pages/Mockup<Name>.vue`.**
-  - The objective: zero backend changes — backend edits drag in the slow
-    full battery and service restarts; while a feature is a mockup, python
-    stays untouched.
-  - Confine changes to the app side of `frontend/src/` (backend only in
-    `ourapp/` when a feature graduates) — framework files stay relatively
-    pristine so upstream changes still merge cleanly even after years.
-  - The hatch route in `home.py` serves `<page>` verbatim at
-    `/mockup/<page>`. `/mockup/MockupTodos` → `MockupTodos.vue`.
-  - URL params preset a mockup's state:
-    `/mockup/<Name>?props=<base64url-encoded JSON object>` — the hatch
-    passes the decoded object as the page props.
-  - No route, view, or registration — frontend-only changes deploy fast.
-  - Static first: hardcoded markup, no props. Then client-side state.
-  - Nothing ever saves: no writes, DB, models, migrations, or endpoints.
-  - Superuser-only (404 otherwise).
-  - Wrap in `div.mockup` — one `::before` crosshatch overlay from
-    `styles/app.scss`; hatch the wrapper only.
-  - No tests; the real feature writes them.
-  - Editing existing code is normal work — just not part of adding a
-    mockup.
-- **Becoming real (stage 3)** — build the feature at its real URL with
-  real props/endpoints. DELETE the `Mockup<Name>.vue` + its homepage link
-  in the same change. (Abandoned: delete the files; the next
-  `deployscratch`'s rsync `--delete` retires them from `main/`.)
-
-### Feature docs
-
-Every feature gets one doc: `ourapp/docs/<feature>.md`.
-
-**The doc's life.** It is drafted in `../scratch/` at stage 2, so it reaches
-`main/` with the first deployscratch. It is updated at stage 4 to match the
-code. From then on it is kept current with every change, diagrams included.
-In chat, link it as `<base>/files/main/ourapp/docs/<feature>.md`.
-
-**Two audiences, one file.** The front of the doc, however long the plain language needs — is the feature in plain
-language; the owner or a new contributor reads only that far. The later
-sections ("For developers") are the reference for people who will touch the
-code. Wrap every line at ~80 characters — long lines are hard to reread and
-diff. Keep sentences under ~120 characters too; when a sentence runs long,
-split it into points.
-
-**The premise.** Framed around the data — what is stored, how it changes,
-and how it is presented — the app is understandable to both audiences. Data
-diagrams therefore belong up front with the plain language; dev jargon
-comes later.
-
-**The spine: the data and how it changes.** Organize everything around what
-is stored and every way it changes. Pages, features, and diagrams hang off
-that.
-
-Every rule for these docs lives here. The workflow stages and the feature
-checklist point to this section and restate nothing.
-
-**The outline** — in order. Skip a section that doesn't apply; never pad one.
-
-1. **Title + one short paragraph.** What the feature does, and for whom. No
-   implementation words.
-2. **Who can do what.** One or more `usecase-beta` diagrams (see Diagrams
-   below) — split them by page or area when a single one would crowd. Plus:
-   - actors are roles — people, and system actors like schedulers or crons;
-     `--|>` marks role inheritance
-   - boundaries are pages or areas of the app
-   - permission rules ride the diagram; anonymous behavior is a note
-     ("gets a 404 — the feature is hidden")
-   - a `json` code block can show a payload shape worth seeing (the
-     homepage summary counts)
-3. **The data.** Each model in plain words first ("a dish is the menu item;
-   an order is one concrete meal"), then the data diagram. Translate every
-   relationship into behavior: "RESTRICT = a dish with orders can never be
-   deleted".
-4. **How the data changes.** Every modification the feature makes —
-   change, made by, what exactly happens — as a tight table or bullets,
-   opened with the promise "if a change isn't listed here, the feature
-   doesn't make it". Then:
-   - a state diagram when one row kind has a lifecycle
-   - the safety rails as bullets (uniqueness, version checks, atomicity,
-     clamping)
-5. **What you see.** The UI walkthrough — pages, groups, buttons, feedback.
-   - Embed each screen's generated screenshot (the screenshot suite writes
-     them to `docs/screenshots/`).
-6. **History (optional).** Notable behavior changes over time — a
-   capability added or removed, a rule changed. A first release skips this.
-7. **For developers.** Field rules, algorithm internals, the endpoints,
-   frontend files, tests. Everything framework-flavored —
-   Django, ninja, Inertia, zod, code paths — lives here and only here.
-
-**Writing rules.**
-
-- The plain sections must stand alone: no framework names, no field names,
-  no SQL. The developer sections map each plain claim to its field,
-  endpoint, or file.
-- The change list covers every modification the feature makes today. A
-  new capability adds a line; changed behavior edits it in place. The doc
-  is wrong if the code makes a modification the list doesn't cover — or
-  the list one the code no longer makes. (Removed or replaced behavior
-  goes to History, not the list.)
-- State bounds in human terms up front ("N is 1–365"); put exact validation
-  in the developer sections.
-- The title is just the feature name. No process narration (session
-  history, mockup archaeology) scattered through the doc — history, when
-  worth recording, lives in its own section.
-- A feature with no stored data folds sections 3–4 into a brief
-  "Behaviour".
-- `ourapp/README.md` stays one or two lines (what + URLs) and links the
-  doc. The doc carries the detail, never the README.
-
-### Diagrams
-D2, in fenced ` ```d2 ` blocks — the /files viewer renders
-them with pan/zoom controls.
-
-- **Use-case diagrams** — composed from D2 primitives, one statement per
-  line:
-  - actors — `shape: person`, declared explicitly, pinned to
-    `width: 180; height: 160` so every actor renders identically
-  - use cases — `shape: oval`, fixed `width: 240` regardless of label
-    length; a generous radius when drawn as a box instead
-    (`style.border-radius: 24`)
-  - the system boundary — a container
-  - associations — `->`; include/extend — dashed labeled arrows
-    (`{style.stroke-dash: 3}`)
-- **Stack vertically — both tools serve the same goal: phones scroll
-  vertically, and horizontal layouts force side scrolling.**
-  - `direction: down` at the TOP LEVEL of every fence.
-  - The engine ignores `direction` inside containers (inner flows never
-    reorient), so for members that must stack inside a container, use the
-    grid instead: `grid-rows: N; grid-columns: 1` — works everywhere.
-  - When a container outgrows the screen, split the concept into another
-    fence (also `direction: down`).
-- Diagrams are per screen/page and chained — a→b→c flows, never flat
-  one-level lists.
-- Keep boundaries narrow — few ovals per row.
-- Icons stay local: copy a lucide SVG (grep
-  `frontend/node_modules/lucide-static/icons/`) to
-  `djangoapp/static/icons/` with a concrete stroke hex, reference
-  `icon: /static/icons/<name>-<hex>.svg`.
-- **MANDATORY: validate after writing a diagram** — run
-  `./run checkmarkdownd2 <file.md>` on the doc you touched; an
-  unvalidated diagram is user-visible raw source. The validator catches
-  grammar, not semantics: an undeclared actor is just a shape — declare
-  every actor as `shape: person` yourself. The docs fast path re-checks
-  changed files at deploy time automatically.
-- **Data diagrams** — whenever models exist: entities as
-  `shape: sql_table` (columns with types), written for laymen:
-  - types in plain words — `true/false`, `text`, `date`, `date+time`,
-    `list of X`
-  - choices render inline — `status: todo | done`
-  - optional columns get `?` — `completed_at: date+time?`
-  - references are model names, not integer columns — `todo: Todo`
-    (not `todo_id int`); the arrow starts at that row
-  - no surrogate `id` PK row, no BaseModel audit columns
-    (`created_by/at`, `last_updated_*`) — include an actor/time column
-    only when the feature's story turns on it
-  - Every connection carries a plain-language description AND the
-    cardinality — e.g. `todos -> user: "belongs to (N..1)"`,
-    `user -> todos: "owns (1..N)"`. Delete rules as further labels
-    (`on delete RESTRICT`).
-- **State diagrams** — when a row kind changes state: states as shapes,
-  transitions as labeled arrows, the initial/final states as small
-  circles.
-- Full skeletons, worked examples, and the icon workflow:
-  `docs/d2.md` — read it before your first d2 diagram in a session.
+## Backend
 
 ### Models
 Concrete models live in `ourapp/models/<feature>.py` (imported in
@@ -811,60 +873,10 @@ request, call a model/manager method, return a schema — never encode the rules
   Playwright files subclass `BasePlaywrightTestCase` (tagged `playwright`), so
   `./run test` skips them and `./run playwrighttest` runs them.
 
-### Checklist — adding or changing a feature
-Run through every box; the order is the order you build in.
-
-- [ ] **README** — update `ourapp/README.md` to describe the feature (what it
-      does, its URLs/pages), not its internal implementation. One or two lines.
-- [ ] **Feature doc** — the design doc written in stage 2
-      (`ourapp/docs/<feature>.md`) follows [Feature docs](#feature-docs) and
-      stays current (diagrams included); link it from the README.
-- [ ] **Model module** — `ourapp/models/<feature>.py`, wired into
-      `ourapp/models/`:
-    - [ ] subclass `BaseModel`, give it a docstring
-    - [ ] import it in `ourapp/models/__init__.py`, **adding each name to
-          `__all__`** there — mypy runs with `--no-implicit-reexport`, so
-          `from ourapp.models import <Model>` errors with `module does not
-          explicitly export attribute` unless `<Model>` is in `__all__`
-          (or imported `as <Model>`)
-    - [ ] `./run djangomanage makemigrations ourapp`
-    - [ ] every `ForeignKey` sets `on_delete=models.RESTRICT` (deviate only
-          with a comment)
-    - [ ] money is `models.DecimalField(max_digits=…, decimal_places=…)` —
-          never `FloatField` (binary-float rounding corrupts sums)
-    - [ ] a `FileField` gets a **unique-enough folder** as its `upload_to`
-          (e.g. `"one_time_downloads"`, not `"files"`): `media/` is shared by every
-          app and feature, filenames stay original, and two features in one
-          folder would interleave same-name files into an indistinguishable
-          pile. One folder per feature; Django picks the filename (see
-          [File uploads](#file-uploads)).
-- [ ] **View module** — add `ourapp/views/<feature>.py` with a `Router`, wire
-      **every** API endpoint (pages + data) there, and register it in
-      `ourapp/views/__init__.py` via `api.add_router("/", <feature>.router)`.
-- [ ] **Tests** — one file per layer, flat under `ourapp/tests/`:
-    - [ ] model/manager behaviour in `ourapp/tests/test_<feature>_models.py`
-    - [ ] every endpoint in `ourapp/tests/test_<feature>_views.py` (state + return
-          value, pk-free, 404 on missing/forbidden)
-    - [ ] each command in `ourapp/tests/test_<feature>_commands.py`
-    - [ ] every Inertia page end-to-end in `ourapp/tests/test_<feature>_playwright.py`
-- [ ] **Frontend** — page in `frontend/src/app/pages/<Name>.vue` with its zod
-      schemas declared inline in the component (shared shapes in
-      `frontend/src/system/schemas/<feature>.ts`), side-effect styles in
-      `app/styles/app.scss`.
-- [ ] **PageTitle** — the page renders `<PageTitle :value="…"/>` (import from
-      `system/components/PageTitle.vue`); see "For every Inertia page" below.
-- [ ] **Toasts** — user feedback goes through the framework's toast helpers
-      (`frontend/src/system/utils/sweetalert.ts`): a mutating action that succeeds
-      confirms with `showToast("success", …)`; failures follow the HTTP
-      convention's `showErrorToast(e, fallback)` — never a silent catch.
-- [ ] **Home navigation (ask first)** — during planning, **ask how the feature
-      surfaces on the landing page**: a link, a summary/card, or reached from
-      another page (e.g. listed inside a related feature). Then add that to
-      `frontend/src/app/pages/Home.vue`, shown only when this viewer can use it
-      (hide an auth-required feature from an anonymous visitor). A feature that's
-      reachable but unlinked is as good as missing — don't assume a plain link.
-
 ### APIs & pages
+The frontend half of this contract — HTTP helpers, forms, NinjaError
+consumption — lives in the [Frontend](#frontend) section
+([HTTP](#http-frontend), [Forms & validation errors](#forms--validation-errors)).
 Prefer a django-ninja API: each feature exposes a `Router` in
 `ourapp/views/<feature>.py`, and `ourapp/views/__init__.py` owns the single
 `NinjaAPI` and registers every router (`api.add_router("/", <feature>.router)`);
@@ -960,7 +972,253 @@ For every **Inertia page**, all five must hold:
 - **views** — bullet points of **all** endpoints.
 - **tests** — bullet points of **each** test and what it is checking.
 
+### Notifications (framework)
+Every user has a notifications feature for free (framework, `djangoapp`):
+the bell + `/notifications` page (rows live until deleted) and Web Push
+delivery to the user's subscribed browsers. To notify a user from Python —
+a view, a Huey task, a management command, anywhere:
+
+```python
+from djangoapp.models import Notification
+
+Notification.record(recipient=user, kind="todo.created", body="…", url="/todos")
+```
+
+Parameters (all keyword-only):
+- `recipient` — the `User` being notified; the row and every push target
+  are theirs alone (other users never see it).
+- `kind` — short dotted bucket (`todo.created`, `import.finished`) shown
+  as the row's badge label; free-form, no central registry — mint your own.
+- `body` — the human sentence shown in the bell list AND the OS toast;
+  keep it plain text (no HTML) and under ~120 chars before OS ellipsis.
+- `url` — optional deep link the toast and the list row open; omit when
+  nothing specific to show.
+
+**Call it inside the transaction, and only after commit does the user hear
+about it.** `record` stores the row and schedules the push fan-out as a
+Huey task on `transaction.on_commit` — so:
+
+- Wrap multi-write work (data + its notification) in one
+  `transaction.atomic()` block; `record` belongs INSIDE it. If anything
+  rolls back, no row and no push — the user is never told about data that
+  doesn't exist. (Example: the reference app's todo create,
+  `docs/reference/ourapp/views/todos.py`.)
+- Delivery is async by design — no request ever waits on push-service
+  HTTP; without a running consumer, rows still store and the bell works.
+- `url` is the deep link the push toast and the list row open — make it
+  PERTINENT to the message: land the user on the thing the notification
+  is about (a project notification links to that project, a comment to
+  the comment's hash anchor within it, e.g. `/projects/abc#comment-42`),
+  not a generic page. When there is nothing specific to show, omit it.
+
+### File uploads
+Upload UI conventions ride the [Frontend](#frontend) HTTP + forms rules.
+Uploaded files (FileField storage) live in `media/` (`MEDIA_ROOT`, repo
+root) — never in the repo, never in git. Three rules own everything:
+
+- **One folder per feature, Django chooses the filename** —
+  `upload_to="downloads"`-style; the storage keeps the original name and
+  adds a random suffix on collision (same-name uploads coexist).
+- **File cleanup rides the tracked pair — there is no separate cleanup
+  call to remember or forget:**
+  ```python
+  # replacing a field's file is just an assignment: save_plus reads the
+  # pre-edit name under lock and deletes the OLD file after the commit
+  # (a rollback keeps both the edit and the old file)
+  doc.file = new_upload
+  doc.save_plus(actor=user, expected_row_version=doc.row_version)
+
+  # removing a row takes its files with it: row + audit log + files
+  doc.delete_plus(actor=user)
+  ```
+  With a bare `.save()`/`.delete()` — or a queryset `.update()` that swaps
+  a file column — the old file stays on disk with nothing pointing at it.
+  Bulk deletes orphan just the same: a queryset `.delete()` and FK cascade
+  deletes (Django's collector) never call `delete_plus`, so sweep such rows
+  per-row through it if their bytes must go (the pattern
+  `Download.delete_expired` uses).
+- **Serving goes through `serve_file`** (`djangoapp.media`), so the app
+  gates every download instead of a proxy serving files blindly:
+  ```python
+  return serve_file(request, doc.file.name, download_name=doc.basename)
+  ```
+  Mount it in YOUR URL pattern with YOUR gating (expiry/ownership) first —
+  there is no global open media route on purpose. How it streams: a Django
+  `FileResponse` for direct requests; behind the reverse proxy (detected
+  per-request via `X-Forwarded-For`) the empty `X-Accel-Redirect` reply
+  hands the bytes to the Caddyfile's interception — briefly.
+- **The files and folders:**
+  - `media/` — the runtime storage root (gitignored; excluded from the
+    scratch rsync like `staticfiles/`)
+  - `djangoapp/media.py` — `serve_file`, the one serving seam
+  - `deploy/Caddyfile.site.in` — the `@accel` response interception that
+    streams from `media/` behind the proxy
+  - the reference app's Downloads feature (`docs/reference/ourapp/` —
+    `models/downloads.py`, `views/downloads.py`, `tasks/downloads.py`,
+    `docs/downloads.md`): admin upload → anonymous download until expiry
+    → daily sweep removes row + files
+
+### Logging
+**Try to log problems; don't swallow them.** A caught-and-recovered exception
+that isn't logged is invisible in prod. The whole app emits one JSON-per-line
+stream — never `print()` for diagnostics.
+
+- **Backend** — get the logger from `djangoapp.logging`, never import `structlog`
+  directly. Pass **key/value fields**, not an f-string, so each line stays
+  `jq`-filterable. Per-request fields (`user_public_id`, `username`, `method`,
+  `path`) are already bound by `LoggingContextMiddleware` — don't repeat them on the call.
+  Pick the level by what the line is:
+
+  ```python
+  from djangoapp.logging import get_logger
+
+  logger = get_logger(__name__)
+
+  # info — a normal, interesting milestone (a step completing, not per-row churn).
+  logger.info("git index built", count=commits.count(), repo=repo_path)
+
+  # warning — something unexpected that you recovered from; the user keeps going,
+  # but it deserves a look. THIS is "logging problems": catch → log → fall back.
+  try:
+      resp = httpx.get(url)
+  except httpx.HTTPError as exc:
+      logger.warning("files fetch failed", path=path, error=str(exc))
+      return _safe_fallback()
+
+  # error — something is wrong and the operation failed (not just degraded);
+  # log it even if you also return a clean error to the user.
+  logger.error("audit log missing", model=type(instance).__name__, public_id=instance.public_id)
+
+  # exception — inside an `except` you can't recover from; attaches a structured
+  # traceback automatically (don't pass exc_info yourself).
+  except Exception:
+      logger.exception("unhandled", method=request.method)
+      raise
+
+  # debug — noisy detail for local diagnosis; filtered out below INFO in prod.
+  logger.debug("http call", url=url, method=method, ms=elapsed)
+  ```
+
+  The event string is a short human phrase with **spaces** (not snake_case) —
+  `logger.info("todo created", ...)` not `"todo_created"` — aim for uniqueness. Reach for `.warning`/`.error` whenever you
+  catch something; a silent catch is a
+  prod-invisible problem.
+
+- **Frontend** — keep the app HTTP convention (`utils/http.ts` + zod parse,
+  `try/catch` + `showErrorToast`;
+  above) for failures you handle. Anything you don't catch is captured by the
+  global handlers (`window error` / `unhandledrejection` / Vue `errorHandler`) and
+  POSTed to `/client-errors` via `frontend/src/system/utils/clientError.ts`, landing on
+  the `client` log. So don't add a `console.error`-then-ignore — either handle it
+  (toast) or let the global net catch it; both end up observable.
+- When **updating an existing app**, route its diagnostics through this logging
+  instead of leaving silent catches or `print`s behind.
+
+### Searching error logs
+Backend errors, huey failures, and frontend (`client`) errors are all captured
+as NDJSON in the journal. When a question is answerable from logs — what
+errors a user encountered, tracing their requests, grouping errors by
+stacktrace or user, decoding a minified frontend stack — query them instead
+of guessing. Verified commands live in **docs/logging.md** (read it first);
+run the queries inside the VM (`multipass exec desmo -- …`).
+
+### Writing tests
+Playwright e2e below covers the frontend too; the unit bullet covers
+[Backend](#backend) models/views.
+- **Unit tests** cover **models and views** in `ourapp/tests/`, one file per
+  feature + layer (`test_<feature>_models.py`, `test_<feature>_views.py`,
+  `test_<feature>_commands.py`). Subclass the framework's bases —
+  `djangoapp.tests._base.BaseTestCase` (plain views) or
+  `BaseInertiaTestCase` (inertia-prop assertions) — they carry the fast MD5
+  `PASSWORD_HASHERS` override that `test_test_conventions` enforces on every
+  test class; a plain `TestCase` subclass fails that guard. Seed inside the
+  test; assert state and endpoint return values (pk-free).
+
+#### Playwright e2e tests
+Real browser + live server. The framework's own e2e lives in
+`djangoapp/tests/playwright/` (tagged `playwright`); per-app e2e lives in
+`ourapp/tests/test_<feature>_playwright.py`. Assert a mutating request's
+response or a seeded render — never cumulative state across requests.
+
+Checklist for every e2e file:
+- [ ] subclass `BasePlaywrightTestCase` (`djangoapp.tests.playwright._base`)
+      — the one base carrying the `playwright` tag AND the harness (live
+      server, `logged_in_page`, console-error tearDown)
+- [ ] no hand-added `@tag("playwright")`, no plain
+      `TestCase`/`StaticLiveServerTestCase` parents — the first double-tags
+      without a harness, the second goes untagged and
+      `./run playwrighttest` skips it silently
+- [ ] collected: `./run playwrighttest ourapp.tests -v 2` lists your tests
+
+#### Locators
+- Do: `get_by_role("button", name="Start")`, `get_by_label("Title")`,
+  `get_by_test_id("start")`
+- Don't: text engines (`button:has-text('Start')`) — substring match on
+  copy
+- Don't: CSS/class selectors (`.x input[placeholder*='title']`) — couples
+  to class names and copy, breaks on redesign
+- Reaching for either usually means the element is crap — fix the page,
+  not the locator: semantic markup (real button/label/accessible name),
+  or a `data-testid` on volatile elements, so locators can query the
+  accessibility tree
+
+#### Assertions
+Web-first `expect` (retries, so async Inertia renders don't flake), not
+instant snapshots. One import per file:
+`from playwright.sync_api import expect`.
+- Do: `expect(locator).to_be_visible()/to_have_text()/to_have_count()`
+- Do: convert — `assertTrue(loc.is_visible())` → `to_be_visible()`
+  (`assertFalse` → `to_be_hidden()`);
+  `assertIn(t, loc.inner_text())` → `to_contain_text(t)`;
+  `assertEqual(loc.get_attribute("k"), v)` → `to_have_attribute("k", v)`;
+  `assertIn(s, page.url)` → `expect(page).to_have_url(re.compile(re.escape(s)))`
+- Don't: `self.assertEqual(page.locator(".x").count(), 1)` — instant
+  snapshot, races the render
+- Python-side values keep `self.assert*`: statuses, request JSON, ORM
+  state, and what `expect()` can't express (geometry, `> N` counts,
+  token-list class checks)
+
+#### Waits
+Content, not the network:
+- Do: bare `page.goto(url)` (default `load`), then wait on something
+  specific (`expect(...)`, a locator action, `wait_for_selector`)
+- Don't: `wait_until="networkidle"` on pages with background traffic —
+  passing visits pay the settle window (~0.8s each; test_client_errors
+  dropped it for `expect_request`) and failing tests time
+  through networkidle + timeout chains
+- Keep timeouts small — the base's 2s default is deliberate; 5s only for
+  Inertia reload chains
+
+#### Checklist — every test class
+Every test class documents itself in its **class docstring**: a brief one-line
+description of what the class covers, then a bullet per test method naming it
+and the single thing it asserts (so the suite reads like a spec). Keep the
+module docstring to a one-line label; the detail lives on the class.
+
+```python
+class FactsViewTests(BaseTestCase):
+    """The /facts pages: random fact + topic list, plus per-topic random fact.
+
+    - test_facts_page_renders_with_fact, GET /facts renders FactsPage with one fact + topics
+    - test_facts_page_empty_fact_none, GET /facts with no facts has fact null
+    - test_facts_page_lists_topics, GET /facts props carry every topic (pk-free)
+    - test_fact_topic_page_renders, GET /facts/<slug> renders FactTopicPage scoped to the topic
+    - test_fact_topic_page_missing_is_404, GET /facts/<bad-slug> is 404
+    """
+```
+- [ ] **Class docstring** — first line: one brief sentence naming what the class
+      tests; no body repeat of the file/module.
+- [ ] **Test-method bullets** — one `- test_<name>, <what it asserts>` per
+      method, in declaration order; `<what it asserts>` is the single assertion
+      in plain English (e.g. "anon GET /todos is 404 (private)"), not a restate
+      of the method name.
+
+
+## Frontend
+
 ### HTTP (frontend)
+The backend contract these calls rely on: [APIs & pages](#apis--pages)
+in the [Backend](#backend) section.
 There is no axios. Standalone JSON calls go through the framework's
 `utils/http.ts` (`postJSON`/`getJSON`/`deleteJSON` — CSRF handled by a
 shared hook, errors normalized to `@inertiajs/core` classes so
@@ -1014,6 +1272,8 @@ Zod schemas live with their consumers:
 and `utils/` (those hold framework code).
 
 ### Forms & validation errors
+The error contract this consumes (ApiError, PydanticCustomError):
+[APIs & pages](#apis--pages) in the [Backend](#backend) section.
 Validation errors render inline, against the field that caused them —
 flagged red, one plain sentence. Toasts are for what no form can show
 (network, server errors). Canonical example:
@@ -1135,154 +1395,6 @@ Static server-rendered HTML (Django templates outside the Inertia app) can
 download and render the same way without the build step: inline the svg in
 the template and set `stroke="currentColor"` so it themes with the text.
 
-### Notifications (framework)
-Every user has a notifications feature for free (framework, `djangoapp`):
-the bell + `/notifications` page (rows live until deleted) and Web Push
-delivery to the user's subscribed browsers. To notify a user from Python —
-a view, a Huey task, a management command, anywhere:
-
-```python
-from djangoapp.models import Notification
-
-Notification.record(recipient=user, kind="todo.created", body="…", url="/todos")
-```
-
-Parameters (all keyword-only):
-- `recipient` — the `User` being notified; the row and every push target
-  are theirs alone (other users never see it).
-- `kind` — short dotted bucket (`todo.created`, `import.finished`) shown
-  as the row's badge label; free-form, no central registry — mint your own.
-- `body` — the human sentence shown in the bell list AND the OS toast;
-  keep it plain text (no HTML) and under ~120 chars before OS ellipsis.
-- `url` — optional deep link the toast and the list row open; omit when
-  nothing specific to show.
-
-**Call it inside the transaction, and only after commit does the user hear
-about it.** `record` stores the row and schedules the push fan-out as a
-Huey task on `transaction.on_commit` — so:
-
-- Wrap multi-write work (data + its notification) in one
-  `transaction.atomic()` block; `record` belongs INSIDE it. If anything
-  rolls back, no row and no push — the user is never told about data that
-  doesn't exist. (Example: the reference app's todo create,
-  `docs/reference/ourapp/views/todos.py`.)
-- Delivery is async by design — no request ever waits on push-service
-  HTTP; without a running consumer, rows still store and the bell works.
-- `url` is the deep link the push toast and the list row open — make it
-  PERTINENT to the message: land the user on the thing the notification
-  is about (a project notification links to that project, a comment to
-  the comment's hash anchor within it, e.g. `/projects/abc#comment-42`),
-  not a generic page. When there is nothing specific to show, omit it.
-
-### File uploads
-Uploaded files (FileField storage) live in `media/` (`MEDIA_ROOT`, repo
-root) — never in the repo, never in git. Three rules own everything:
-
-- **One folder per feature, Django chooses the filename** —
-  `upload_to="downloads"`-style; the storage keeps the original name and
-  adds a random suffix on collision (same-name uploads coexist).
-- **File cleanup rides the tracked pair — there is no separate cleanup
-  call to remember or forget:**
-  ```python
-  # replacing a field's file is just an assignment: save_plus reads the
-  # pre-edit name under lock and deletes the OLD file after the commit
-  # (a rollback keeps both the edit and the old file)
-  doc.file = new_upload
-  doc.save_plus(actor=user, expected_row_version=doc.row_version)
-
-  # removing a row takes its files with it: row + audit log + files
-  doc.delete_plus(actor=user)
-  ```
-  With a bare `.save()`/`.delete()` — or a queryset `.update()` that swaps
-  a file column — the old file stays on disk with nothing pointing at it.
-  Bulk deletes orphan just the same: a queryset `.delete()` and FK cascade
-  deletes (Django's collector) never call `delete_plus`, so sweep such rows
-  per-row through it if their bytes must go (the pattern
-  `Download.delete_expired` uses).
-- **Serving goes through `serve_file`** (`djangoapp.media`), so the app
-  gates every download instead of a proxy serving files blindly:
-  ```python
-  return serve_file(request, doc.file.name, download_name=doc.basename)
-  ```
-  Mount it in YOUR URL pattern with YOUR gating (expiry/ownership) first —
-  there is no global open media route on purpose. How it streams: a Django
-  `FileResponse` for direct requests; behind the reverse proxy (detected
-  per-request via `X-Forwarded-For`) the empty `X-Accel-Redirect` reply
-  hands the bytes to the Caddyfile's interception — briefly.
-- **The files and folders:**
-  - `media/` — the runtime storage root (gitignored; excluded from the
-    scratch rsync like `staticfiles/`)
-  - `djangoapp/media.py` — `serve_file`, the one serving seam
-  - `deploy/Caddyfile.site.in` — the `@accel` response interception that
-    streams from `media/` behind the proxy
-  - the reference app's Downloads feature (`docs/reference/ourapp/` —
-    `models/downloads.py`, `views/downloads.py`, `tasks/downloads.py`,
-    `docs/downloads.md`): admin upload → anonymous download until expiry
-    → daily sweep removes row + files
-
-### Logging
-**Try to log problems; don't swallow them.** A caught-and-recovered exception
-that isn't logged is invisible in prod. The whole app emits one JSON-per-line
-stream — never `print()` for diagnostics.
-
-- **Backend** — get the logger from `djangoapp.logging`, never import `structlog`
-  directly. Pass **key/value fields**, not an f-string, so each line stays
-  `jq`-filterable. Per-request fields (`user_public_id`, `username`, `method`,
-  `path`) are already bound by `LoggingContextMiddleware` — don't repeat them on the call.
-  Pick the level by what the line is:
-
-  ```python
-  from djangoapp.logging import get_logger
-
-  logger = get_logger(__name__)
-
-  # info — a normal, interesting milestone (a step completing, not per-row churn).
-  logger.info("git index built", count=commits.count(), repo=repo_path)
-
-  # warning — something unexpected that you recovered from; the user keeps going,
-  # but it deserves a look. THIS is "logging problems": catch → log → fall back.
-  try:
-      resp = httpx.get(url)
-  except httpx.HTTPError as exc:
-      logger.warning("files fetch failed", path=path, error=str(exc))
-      return _safe_fallback()
-
-  # error — something is wrong and the operation failed (not just degraded);
-  # log it even if you also return a clean error to the user.
-  logger.error("audit log missing", model=type(instance).__name__, public_id=instance.public_id)
-
-  # exception — inside an `except` you can't recover from; attaches a structured
-  # traceback automatically (don't pass exc_info yourself).
-  except Exception:
-      logger.exception("unhandled", method=request.method)
-      raise
-
-  # debug — noisy detail for local diagnosis; filtered out below INFO in prod.
-  logger.debug("http call", url=url, method=method, ms=elapsed)
-  ```
-
-  The event string is a short human phrase with **spaces** (not snake_case) —
-  `logger.info("todo created", ...)` not `"todo_created"` — aim for uniqueness. Reach for `.warning`/`.error` whenever you
-  catch something; a silent catch is a
-  prod-invisible problem.
-
-- **Frontend** — keep the app HTTP convention (`utils/http.ts` + zod parse,
-  `try/catch` + `showErrorToast`;
-  above) for failures you handle. Anything you don't catch is captured by the
-  global handlers (`window error` / `unhandledrejection` / Vue `errorHandler`) and
-  POSTed to `/client-errors` via `frontend/src/system/utils/clientError.ts`, landing on
-  the `client` log. So don't add a `console.error`-then-ignore — either handle it
-  (toast) or let the global net catch it; both end up observable.
-- When **updating an existing app**, route its diagnostics through this logging
-  instead of leaving silent catches or `print`s behind.
-
-### Searching error logs
-Backend errors, huey failures, and frontend (`client`) errors are all captured
-as NDJSON in the journal. When a question is answerable from logs — what
-errors a user encountered, tracing their requests, grouping errors by
-stacktrace or user, decoding a minified frontend stack — query them instead
-of guessing. Verified commands live in **docs/logging.md** (read it first);
-run the queries inside the VM (`multipass exec desmo -- …`).
 ## Background tasks (Huey)
 Huey (Redis-backed) runs background + cron tasks. It's enabled framework-wide via
 `huey.contrib.djhuey` (see `HUEY` in `djangoproject/settings.py`), which
@@ -1357,95 +1469,6 @@ these, and read
   11): read `sudo journalctl -u desmo_pgbackrest -o cat`, fix, then
   prove the fix with `./run backupdb` +
   `sudo -u postgres pgbackrest --stanza=desmo check`.
-
-## Writing tests
-- **Unit tests** cover **models and views** in `ourapp/tests/`, one file per
-  feature + layer (`test_<feature>_models.py`, `test_<feature>_views.py`,
-  `test_<feature>_commands.py`). Subclass the framework's bases —
-  `djangoapp.tests._base.BaseTestCase` (plain views) or
-  `BaseInertiaTestCase` (inertia-prop assertions) — they carry the fast MD5
-  `PASSWORD_HASHERS` override that `test_test_conventions` enforces on every
-  test class; a plain `TestCase` subclass fails that guard. Seed inside the
-  test; assert state and endpoint return values (pk-free).
-
-### Playwright e2e tests
-Real browser + live server. The framework's own e2e lives in
-`djangoapp/tests/playwright/` (tagged `playwright`); per-app e2e lives in
-`ourapp/tests/test_<feature>_playwright.py`. Assert a mutating request's
-response or a seeded render — never cumulative state across requests.
-
-Checklist for every e2e file:
-- [ ] subclass `BasePlaywrightTestCase` (`djangoapp.tests.playwright._base`)
-      — the one base carrying the `playwright` tag AND the harness (live
-      server, `logged_in_page`, console-error tearDown)
-- [ ] no hand-added `@tag("playwright")`, no plain
-      `TestCase`/`StaticLiveServerTestCase` parents — the first double-tags
-      without a harness, the second goes untagged and
-      `./run playwrighttest` skips it silently
-- [ ] collected: `./run playwrighttest ourapp.tests -v 2` lists your tests
-
-#### Locators
-- Do: `get_by_role("button", name="Start")`, `get_by_label("Title")`,
-  `get_by_test_id("start")`
-- Don't: text engines (`button:has-text('Start')`) — substring match on
-  copy
-- Don't: CSS/class selectors (`.x input[placeholder*='title']`) — couples
-  to class names and copy, breaks on redesign
-- Reaching for either usually means the element is crap — fix the page,
-  not the locator: semantic markup (real button/label/accessible name),
-  or a `data-testid` on volatile elements, so locators can query the
-  accessibility tree
-
-#### Assertions
-Web-first `expect` (retries, so async Inertia renders don't flake), not
-instant snapshots. One import per file:
-`from playwright.sync_api import expect`.
-- Do: `expect(locator).to_be_visible()/to_have_text()/to_have_count()`
-- Do: convert — `assertTrue(loc.is_visible())` → `to_be_visible()`
-  (`assertFalse` → `to_be_hidden()`);
-  `assertIn(t, loc.inner_text())` → `to_contain_text(t)`;
-  `assertEqual(loc.get_attribute("k"), v)` → `to_have_attribute("k", v)`;
-  `assertIn(s, page.url)` → `expect(page).to_have_url(re.compile(re.escape(s)))`
-- Don't: `self.assertEqual(page.locator(".x").count(), 1)` — instant
-  snapshot, races the render
-- Python-side values keep `self.assert*`: statuses, request JSON, ORM
-  state, and what `expect()` can't express (geometry, `> N` counts,
-  token-list class checks)
-
-#### Waits
-Content, not the network:
-- Do: bare `page.goto(url)` (default `load`), then wait on something
-  specific (`expect(...)`, a locator action, `wait_for_selector`)
-- Don't: `wait_until="networkidle"` on pages with background traffic —
-  passing visits pay the settle window (~0.8s each; test_client_errors
-  dropped it for `expect_request`) and failing tests time
-  through networkidle + timeout chains
-- Keep timeouts small — the base's 2s default is deliberate; 5s only for
-  Inertia reload chains
-
-### Checklist — every test class
-Every test class documents itself in its **class docstring**: a brief one-line
-description of what the class covers, then a bullet per test method naming it
-and the single thing it asserts (so the suite reads like a spec). Keep the
-module docstring to a one-line label; the detail lives on the class.
-
-```python
-class FactsViewTests(BaseTestCase):
-    """The /facts pages: random fact + topic list, plus per-topic random fact.
-
-    - test_facts_page_renders_with_fact, GET /facts renders FactsPage with one fact + topics
-    - test_facts_page_empty_fact_none, GET /facts with no facts has fact null
-    - test_facts_page_lists_topics, GET /facts props carry every topic (pk-free)
-    - test_fact_topic_page_renders, GET /facts/<slug> renders FactTopicPage scoped to the topic
-    - test_fact_topic_page_missing_is_404, GET /facts/<bad-slug> is 404
-    """
-```
-- [ ] **Class docstring** — first line: one brief sentence naming what the class
-      tests; no body repeat of the file/module.
-- [ ] **Test-method bullets** — one `- test_<name>, <what it asserts>` per
-      method, in declaration order; `<what it asserts>` is the single assertion
-      in plain English (e.g. "anon GET /todos is 404 (private)"), not a restate
-      of the method name.
 
 ## Commands, tools & permissions
 You may read any file in the project and edit files under `../scratch/`. All

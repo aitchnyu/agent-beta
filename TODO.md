@@ -1,3 +1,5 @@
+`## Working on the app` - split into fe and be
+
 Why last session 18 secs for 3 tests. Fail faster?
 `page.goto(f"{self.live_server_url}/chores", wait_until="networkidle")`
 sed and python3?
