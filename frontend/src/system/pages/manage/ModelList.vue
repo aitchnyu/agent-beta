@@ -2,7 +2,7 @@
 import { Link } from "@inertiajs/vue3"
 import PageTitle from "../../components/PageTitle.vue"
 import { ModelListPropsSchema } from "../../schemas/manage"
-import { rowListUrl } from "../../../utils/urls"
+import { rowListUrl } from "../../utils/urls"
 
 const props = defineProps<{ props: object }>()
 

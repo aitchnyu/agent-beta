@@ -19,7 +19,7 @@ The landing page — plus the generic mockup route every mockup page serves from
 - Authenticated viewer: the shared `user` prop carries their display name and
   `public_id` (never the integer `pk`); the page shows the placeholder's
   feature pointers as explained
-  points — `ourapp/` (backend), `frontend/src/pages/` (frontend),
+  points — `ourapp/` (backend), `frontend/src/app/` (frontend),
   `docs/reference/` (the complete worked example).
 - `/mockup/MockupTodos` renders a static todo list mirroring the reference app's
   todos page under the `div.mockup` crosshatch wrapper — the shipped example
@@ -32,8 +32,8 @@ The landing page — plus the generic mockup route every mockup page serves from
 
 - Model: none.
 - View: `views/home.py` (`router`, mounted at `/` — owns both routes).
-- Frontend: `frontend/src/pages/Home.vue`,
-  `frontend/src/pages/MockupTodos.vue` (no schemas of their own — the
+- Frontend: `frontend/src/app/pages/Home.vue`,
+  `frontend/src/app/pages/MockupTodos.vue` (no schemas of their own — the
   page reads the shared viewer props via `system/schemas/sharedProps.ts`).
 - Tests: `tests/test_home_views.py` (the page's own e2e module was retired
   with the auth chrome: the anon landing elements are exercised by the

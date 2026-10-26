@@ -536,7 +536,7 @@ deployed links in chat immediately after each deploy via
 - **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
   deploy as `/files/main/ourapp/docs/<feature>.md`. Structure and writing
   rules: [Feature docs](#feature-docs).
-- **Mockups — one file: `frontend/src/pages/Mockup<Name>.vue`.**
+- **Mockups — one file: `frontend/src/app/pages/Mockup<Name>.vue`.**
   - The objective: zero backend changes — backend edits drag in the slow
     full battery and service restarts; while a feature is a mockup, python
     stays untouched.
@@ -835,20 +835,20 @@ Run through every box; the order is the order you build in.
           value, pk-free, 404 on missing/forbidden)
     - [ ] each command in `ourapp/tests/test_<feature>_commands.py`
     - [ ] every Inertia page end-to-end in `ourapp/tests/test_<feature>_playwright.py`
-- [ ] **Frontend** — page in `frontend/src/pages/<Name>.vue` with its zod
+- [ ] **Frontend** — page in `frontend/src/app/pages/<Name>.vue` with its zod
       schemas declared inline in the component (shared shapes in
-      `frontend/src/schemas/<feature>.ts`), side-effect styles in
-      `styles/app.scss`.
+      `frontend/src/system/schemas/<feature>.ts`), side-effect styles in
+      `app/styles/app.scss`.
 - [ ] **PageTitle** — the page renders `<PageTitle :value="…"/>` (import from
       `system/components/PageTitle.vue`); see "For every Inertia page" below.
 - [ ] **Toasts** — user feedback goes through the framework's toast helpers
-      (`frontend/src/utils/sweetalert.ts`): a mutating action that succeeds
+      (`frontend/src/system/utils/sweetalert.ts`): a mutating action that succeeds
       confirms with `showToast("success", …)`; failures follow the HTTP
       convention's `showErrorToast(e, fallback)` — never a silent catch.
 - [ ] **Home navigation (ask first)** — during planning, **ask how the feature
       surfaces on the landing page**: a link, a summary/card, or reached from
       another page (e.g. listed inside a related feature). Then add that to
-      `frontend/src/pages/Home.vue`, shown only when this viewer can use it
+      `frontend/src/app/pages/Home.vue`, shown only when this viewer can use it
       (hide an auth-required feature from an anonymous visitor). A feature that's
       reachable but unlinked is as good as missing — don't assume a plain link.
 
@@ -1092,7 +1092,7 @@ function endDateMessage(type: string): string | undefined {
 ```
 
 <!-- MAINTAIN-CONSISTENCY pydantic-errors — this section documents the
-     convention the catalog (frontend/src/utils/pydanticErrors.ts) and the
+     convention the catalog (frontend/src/system/utils/pydanticErrors.ts) and the
      ruff ignores (pyproject.toml) implement; change all three together. -->
 
 
@@ -1254,7 +1254,7 @@ stream — never `print()` for diagnostics.
   `try/catch` + `showErrorToast`;
   above) for failures you handle. Anything you don't catch is captured by the
   global handlers (`window error` / `unhandledrejection` / Vue `errorHandler`) and
-  POSTed to `/client-errors` via `frontend/src/utils/clientError.ts`, landing on
+  POSTed to `/client-errors` via `frontend/src/system/utils/clientError.ts`, landing on
   the `client` log. So don't add a `console.error`-then-ignore — either handle it
   (toast) or let the global net catch it; both end up observable.
 - When **updating an existing app**, route its diagnostics through this logging

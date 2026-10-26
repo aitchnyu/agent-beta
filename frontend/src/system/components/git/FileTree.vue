@@ -11,7 +11,7 @@ import type {
   FileTreeEntry,
   FileTreeFolder,
   PathLinkBuilder,
-} from "../../../utils/fileTree"
+} from "../../utils/fileTree"
 
 // Recursive changed-files tree shared by the uncommitted and commit pages.
 // The pages supply the two link builders — routes AND worktree prefixes

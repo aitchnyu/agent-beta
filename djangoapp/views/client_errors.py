@@ -48,7 +48,7 @@ _WINDOW_SECS = 3600
 # Parse cap (pydantic) vs. log cap. The model accepts more than we keep, so the
 # view's truncation is meaningful: a client can send up to _MAX_STACK_INPUT, but
 # only _MAX_STACK_CHARS reaches the log line. The frontend caps to this too
-# (frontend/src/utils/clientError.ts MAX_STACK_CHARS) so a long browser stack
+# (frontend/src/system/utils/clientError.ts MAX_STACK_CHARS) so a long browser stack
 # doesn't 422.
 _MAX_STACK_CHARS = 500
 _MAX_STACK_INPUT = 5000

@@ -10,7 +10,7 @@ import fileImageIcon from "../../icons/file-image.svg"
 import fileTextIcon from "../../icons/file-text.svg"
 import folderIcon from "../../icons/folder.svg"
 import { FileBrowserPropsSchema } from "../../schemas/files"
-import { detectLanguage, fileUrl, formatSize } from "../../../utils/files"
+import { detectLanguage, fileUrl, formatSize } from "../../utils/files"
 
 const props = defineProps<{ props: object }>()
 

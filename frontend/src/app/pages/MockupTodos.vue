@@ -8,7 +8,7 @@
 // a real feature page as it looks under the overlay. The demo also doubles
 // as the mockup↔final contrast for the README: ?final=1 drops the crosshatch
 // wrapper so the same markup shows its "graduated" look.
-import PageTitle from "../system/components/PageTitle.vue"
+import PageTitle from "../../system/components/PageTitle.vue"
 // Side-effect import: the .mockup crosshatch + the mirrored todos styles
 // live in styles/app.scss.
 import "../styles/app.scss"

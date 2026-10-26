@@ -9,7 +9,7 @@ import {
   UserSearchItemSchema,
   UserSearchResponseSchema,
 } from "../../schemas/users"
-import { showErrorToast } from "../../../utils/sweetalert"
+import { showErrorToast } from "../../utils/sweetalert"
 
 type UserSearchItem = z.infer<typeof UserSearchItemSchema>
 

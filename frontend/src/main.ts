@@ -8,9 +8,9 @@ import {
   reportRejection,
   reportVueError,
   reportVisitError,
-} from "./utils/clientError"
-import { showErrorToast } from "./utils/sweetalert"
-import { UserVisibleError } from "./utils/pydanticErrors"
+} from "./system/utils/clientError"
+import { showErrorToast } from "./system/utils/sweetalert"
+import { UserVisibleError } from "./system/utils/pydanticErrors"
 import "./system/styles/main.scss"
 import "vue-multiselect/dist/vue-multiselect.css"
 // Eager styles for the lazy JS chunks, otherwise these pages flash of unstyled content.
@@ -71,12 +71,12 @@ window.addEventListener(
   },
 )
 
-// App pages bundle from ./pages/ (component name = path, e.g. "Home");
+// App pages bundle from ./app/pages/ (component name = path, e.g. "Home");
 // framework pages bundle from ./system/pages/ (component name prefixed
 // "system/", e.g. "system/users/UserList"). Both eager into main.js
 // (one entry, no per-page chunks).
 const pages = import.meta.glob(
-  ["./pages/**/*.vue", "./system/pages/**/*.vue"],
+  ["./app/pages/**/*.vue", "./system/pages/**/*.vue"],
   {
     eager: true,
   },
@@ -96,10 +96,10 @@ createInertiaApp({
   layout: () => Layout,
   resolve: (name) => {
     // "system/<feature>/<Name>" → ./system/pages/<feature>/<Name>.vue;
-    // app names → ./pages/<name>.vue
+    // app names → ./app/pages/<name>.vue
     const key = name.startsWith("system/")
       ? `./system/pages/${name.slice("system/".length)}.vue`
-      : `./pages/${name}.vue`
+      : `./app/pages/${name}.vue`
     const mod = pages[key]
     if (!mod) {
       // Stale links land here (retired mockups, renamed pages, old

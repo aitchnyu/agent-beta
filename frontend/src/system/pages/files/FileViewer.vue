@@ -12,7 +12,7 @@ import {
   fileUrl,
   formatSize,
   rawUrl,
-} from "../../../utils/files"
+} from "../../utils/files"
 
 const props = defineProps<{ props: object }>()
 // Parsed once, non-reactively: file→file navigation is always a full page
@@ -40,7 +40,7 @@ const filesState = computed(() =>
 onMounted(async () => {
   if (!codeLang) return
   // filePreview (hljs/marked) is a lazy chunk; it resolves on first visit.
-  const { highlightCode } = await import("../../../utils/filePreview")
+  const { highlightCode } = await import("../../utils/filePreview")
   rendered.value = highlightCode(p.text, codeLang)
   previewReady.value = true
 })

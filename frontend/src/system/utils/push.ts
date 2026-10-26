@@ -8,7 +8,7 @@
 // just_logged_in flag drives rebindAfterLogin() on the next landing.
 
 import { deleteJSON, postJSON } from "./http"
-import { SubscribeResponseSchema } from "../system/schemas/notifications"
+import { SubscribeResponseSchema } from "../schemas/notifications"
 
 // Vite copies frontend/public/ verbatim under the static root (vite.config
 // base) — the SW lives at a stable, unhashed URL.

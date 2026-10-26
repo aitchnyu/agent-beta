@@ -3,7 +3,7 @@ import { Link } from "@inertiajs/vue3"
 import PageTitle from "../../components/PageTitle.vue"
 import RichTextViewer from "../../components/RichTextViewer.vue"
 import { UserHistoryPropsSchema } from "../../schemas/users"
-import { formatDateTime } from "../../../utils/time"
+import { formatDateTime } from "../../utils/time"
 
 const props = defineProps<{
   props: object

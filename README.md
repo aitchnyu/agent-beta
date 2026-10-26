@@ -173,7 +173,7 @@ If you want to look around:
   frontend-reported errors (`/client-errors`, rate-limited via Redis), all
   `jq`-filterable. See [Logging](#logging).
 - **Single-page Inertia + Vue frontend** — one build, sourcemaps emitted for
-  offline row:col resolution; the app's pages under `frontend/src/pages/`,
+  offline row:col resolution; the app's tree under `frontend/src/app/`,
   framework pages under `frontend/src/system/pages/`.
 - **Design mockups** — throwaway superuser-only `/mockup/<page>` pages with
   a crosshatch overlay let you review a UI before it's built
@@ -411,10 +411,9 @@ split into modules (one per feature), never stuffed into one file:
   (`test_<feature>_<layer>.py`; layer = `models`/`views`/`commands`/`playwright`).
   Playwright files are tagged so `./run test` skips them and `./run playwrighttest`
   runs them.
-- **Frontend**: one Vue+Inertia app. App pages live in
-  `frontend/src/pages/<Name>.vue` (component name = path, e.g. `Home`);
-  shared components in `frontend/src/components/`, shared zod modules in
-  `frontend/src/schemas/`. Framework code lives under `frontend/src/system/`.
+- **Frontend**: one Vue+Inertia app. App code lives under
+  `frontend/src/app/` (pages in `app/pages/<Name>.vue`, component name =
+  path, e.g. `Home`); framework code lives under `frontend/src/system/`.
 
 The app also has its own `README.md` (a brief feature catalog) and `docs/`
 (one markdown file per feature, linked from the README). See
@@ -644,7 +643,7 @@ jq 'select(.event=="http request" and .user_public_id=="<id>")'
 ### Frontend errors
 
 Uncaught browser errors are captured globally (`window error`,
-`unhandledrejection`, Vue `errorHandler`) by `frontend/src/utils/clientError.ts`
+`unhandledrejection`, Vue `errorHandler`) by `frontend/src/system/utils/clientError.ts`
 and POSTed (async, `await`ed) to `/client-errors`, which logs them on the
 **`client`** logger (`source=client`). Each report carries the browser source
 location (`client_filename`/`client_lineno`/`client_colno`, resolvable against

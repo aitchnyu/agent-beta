@@ -6,7 +6,7 @@ import {
   messageFor as catalogMessageFor,
   tryMessageFor,
   type ErrorDetail,
-} from "../../utils/pydanticErrors"
+} from "../utils/pydanticErrors"
 
 // message-for supplies copy the catalog doesn't resolve; return
 // undefined to pass through to the catalog/backend fallback.

@@ -30,8 +30,8 @@ import FileTree from "../../components/git/FileTree.vue"
 import RepoNav from "../../components/RepoNav.vue"
 import PageTitle from "../../components/PageTitle.vue"
 import { GitUncommittedPropsSchema } from "../../schemas/git"
-import { buildFileTree } from "../../../utils/fileTree"
-import { fileUrl } from "../../../utils/files"
+import { buildFileTree } from "../../utils/fileTree"
+import { fileUrl } from "../../utils/files"
 
 const props = defineProps<{ props: object }>()
 const data = GitUncommittedPropsSchema.parse(props.props)

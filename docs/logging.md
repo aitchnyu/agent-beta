@@ -223,7 +223,7 @@ node frontend/scripts/decode-stack.mjs https://localhost/static/djangoapp/main-B
 
 ```
 main-B07sfg8A.js:67:21008
-  → frontend/src/pages/Home.vue:22:14
+  → frontend/src/app/pages/Home.vue:22:14
 ```
 
 The tool searches **only the current dist** (`djangoapp/static/djangoapp/`).

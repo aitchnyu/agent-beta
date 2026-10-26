@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, usePage } from "@inertiajs/vue3"
-import { fileUrl } from "../../utils/files"
+import { fileUrl } from "../utils/files"
 
 // The one sub-nav shared by every Code page (git + files viewers). The active
 // tab derives from the current URL, so client-side Inertia swaps keep it right.

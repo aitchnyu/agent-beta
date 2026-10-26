@@ -53,7 +53,7 @@ import HumanizedTime from "../../components/HumanizedTime.vue"
 import PageTitle from "../../components/PageTitle.vue"
 import RepoNav from "../../components/RepoNav.vue"
 import { GitCommitListPropsSchema } from "../../schemas/git"
-import { shortSha } from "../../../utils/git"
+import { shortSha } from "../../utils/git"
 
 const props = defineProps<{ props: object }>()
 const data = GitCommitListPropsSchema.parse(props.props)

@@ -2,7 +2,7 @@
 import { Link } from "@inertiajs/vue3"
 import { type RowListColumnDef, FkValueSchema } from "../../schemas/manage"
 import { UserSchema } from "../../schemas/sharedProps"
-import { formatDateTime } from "../../../utils/time"
+import { formatDateTime } from "../../utils/time"
 
 // Renders a single cell value for the row list/detail pages, keyed off the
 // column's type: user cells link to the profile, foreign_key cells link to the

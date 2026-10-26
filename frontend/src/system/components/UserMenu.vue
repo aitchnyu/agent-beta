@@ -7,14 +7,14 @@
 // - push SW registration + the one-shot post-login subscription rebind
 import { computed, onBeforeUnmount, onMounted } from "vue"
 import { Link, router, usePage } from "@inertiajs/vue3"
-import { getCsrfToken } from "../../utils/csrf"
+import { getCsrfToken } from "../utils/csrf"
 import { type User, SharedPropsSchema } from "../schemas/sharedProps"
 import DropdownMenu from "./DropdownMenu.vue"
 import LucideIcon from "./LucideIcon.vue"
 import chevronDownIcon from "../icons/chevron-down.svg"
 import circleUserIcon from "../icons/circle-user.svg"
 import logOutIcon from "../icons/log-out.svg"
-import { registerPushSW, rebindAfterLogin } from "../../utils/push"
+import { registerPushSW, rebindAfterLogin } from "../utils/push"
 
 defineProps<{
   user: User

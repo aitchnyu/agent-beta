@@ -6,8 +6,8 @@ import {
   UserEditPropsSchema,
   UserMessageResponseSchema,
 } from "../../schemas/users"
-import { showErrorToast } from "../../../utils/sweetalert"
-import { postJSON } from "../../../utils/http"
+import { showErrorToast } from "../../utils/sweetalert"
+import { postJSON } from "../../utils/http"
 
 // Quill ships in its own lazy chunk (RichTextEditor + quill); the async
 // component resolves it on first mount of this page.

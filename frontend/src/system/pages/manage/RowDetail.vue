@@ -9,8 +9,8 @@ import {
   RowDetailPropsSchema,
   UpdateLogEntryItemSchema,
 } from "../../schemas/manage"
-import { formatDateTime } from "../../../utils/time"
-import { rowListUrl } from "../../../utils/urls"
+import { formatDateTime } from "../../utils/time"
+import { rowListUrl } from "../../utils/urls"
 
 // `props` is the row's core (model_name/columns/values); `logs` is a separate
 // deferred Inertia prop — undefined on first paint, then fetched automatically

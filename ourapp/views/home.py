@@ -79,7 +79,7 @@ def mockup_page(
 
     - The URL carries the component name verbatim:
       ``/mockup/MockupTodos`` → ``MockupTodos``
-    - adding a mockup is a single ``frontend/src/pages/<name>.vue`` —
+    - adding a mockup is a single ``frontend/src/app/pages/<name>.vue`` —
       the backend never changes and ``./run deployscratch`` takes the fast
       deploy path
     - mockups keep the three markers from ``agentconfig/steer.md``

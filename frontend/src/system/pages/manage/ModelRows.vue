@@ -7,7 +7,7 @@ import PageTitle from "../../components/PageTitle.vue"
 import RowCell from "../../components/manage/RowCell.vue"
 import cornerDownLeftIcon from "../../icons/corner-down-left.svg"
 import { ModelRowsPropsSchema } from "../../schemas/manage"
-import { rowDetailUrl, rowListUrl } from "../../../utils/urls"
+import { rowDetailUrl, rowListUrl } from "../../utils/urls"
 
 const props = defineProps<{ props: object }>()
 

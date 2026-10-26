@@ -10,13 +10,13 @@ import {
   UserDetailsPropsSchema,
 } from "../../schemas/users"
 import { SharedPropsSchema } from "../../schemas/sharedProps"
-import { postJSON } from "../../../utils/http"
+import { postJSON } from "../../utils/http"
 import {
   confirmAction,
   showErrorToast,
   showToast,
-} from "../../../utils/sweetalert"
-import { formatDateTime } from "../../../utils/time"
+} from "../../utils/sweetalert"
+import { formatDateTime } from "../../utils/time"
 
 const props = defineProps<{
   props: object

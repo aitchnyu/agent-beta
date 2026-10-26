@@ -12,14 +12,14 @@ import {
   NotificationsPagePropsSchema,
   SelectedIdsSchema,
 } from "../../schemas/notifications"
-import { getJSON, postJSON } from "../../../utils/http"
-import { showToast, confirmAction } from "../../../utils/sweetalert"
+import { getJSON, postJSON } from "../../utils/http"
+import { showToast, confirmAction } from "../../utils/sweetalert"
 import {
   disablePush,
   enablePush,
   isPushSubscribed,
   resubscribePush,
-} from "../../../utils/push"
+} from "../../utils/push"
 
 const props = defineProps<{
   props: object
