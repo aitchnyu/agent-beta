@@ -83,7 +83,7 @@ agent-scratch-create() {
   # Postcondition 1: the scratch tree exists
   test -d /srv/desmo/scratch
   # Postcondition 2: the frozen baseline ref the framework-file watch and
-  # _scratch_checks diff against actually resolves (default-user-owned git)
+  # the check battery diff against actually resolves (default-user-owned git)
   git -C /srv/desmo/scratch rev-parse --verify scratch-baseline >/dev/null
   echo "agent createscratch OK"
 }
@@ -303,8 +303,8 @@ gate() {
   # ── Assert 7: createscratch as the agent (the default cloud user). The
   # agent's whole edit
   # loop rides the scratch cycle; the fresh VM is the only place its
-  # VM-only paths run (protected-hardlink fallback in _link_or_copy_tree,
-  # operator-owned scratch git).
+  # VM-only paths run (protected-hardlink fallback in ops/scratch.py's
+  # _link_or_copy_tree, operator-owned scratch git).
   echo; echo "=== Assert 7: agent createscratch ==="
   # Postcondition 1: deployscratch without scratch/ refuses
   gate-expect-refusal gate-as-default-user agent-scratch-deploy

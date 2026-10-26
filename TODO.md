@@ -132,6 +132,8 @@ Remove the ssh port forward `ssh -N -L 8000:localhost:443 ubuntu@192.168.1.56`
 local-vm setupalogin
 local-vm portforward
 Update docs for adding users and login links
+Can choose multiple machines, no more init and dev in run, slim down pi command
+convert checkframework1 and gate to python script
 
 Test dbs get backed up
 Run the uv, npm, playwright installs in parallel?

@@ -377,7 +377,7 @@ checkframework1() {
   echo "=== stage 3/4: project tests over the test app (scratch copy) ==="
   # The overlay replaces ourapp/ wholesale with fixture code — measure
   # --source=djangoapp only (never that ourapp/).
-  create_new_scratch
+  _ops_cli createscratch
   overlay_app "$_MAIN_DIR/djangoapp/tests/testapp"
   ( cd "$_SCRATCH_DIR"
     # typecheck only — lintfix would rewrite files and corrupt the
@@ -386,11 +386,11 @@ checkframework1() {
     RUN_PROJECT_TESTS=1 _with_test_redis uv run coverage run --parallel-mode --source=djangoapp \
       manage.py test $_DJANGO_NO_COLOR --exclude-tag playwright --noinput
   )
-  # Stage the fragments out — the next create_new_scratch wipes scratch.
+  # Stage the fragments out — the next createscratch wipes scratch.
   mv "$_SCRATCH_DIR"/.coverage.* "$_MAIN_DIR/.coverage-stage/"
 
   echo "=== stage 4/4: reference app's own tests (scratch copy; not measured) ==="
-  create_new_scratch
+  _ops_cli createscratch
   overlay_app "$_MAIN_DIR/docs/reference"
   # The reference app ships its own app-side frontend (pages, components,
   # schemas, styles); overlay them INTO the scratch's app/ tree so its
@@ -447,76 +447,6 @@ checkframework2() {
   multipass exec desmo -- sudo bash /srv/desmo/main/deploy/gate.sh gate
 }
 
-# Changed-set vs the frozen scratch-baseline + untracked files (one path per
-# line) — one listing for both the fast-path gate and the framework watch.
-_scratch_changed_files() { # <dir>
-  local baseline
-  baseline=$(git -C "$1" rev-parse --verify scratch-baseline 2>/dev/null) \
-    || { echo "REFUSING: no scratch-baseline ref — re-run ./run createscratch" >&2; return 1; }
-  {
-    git -C "$1" diff --name-only "$baseline" \
-      || { echo "REFUSING: git diff failed in $1 — no deploy on a partial changed-set." >&2; return 1; }
-    git -C "$1" ls-files --others --exclude-standard \
-      || { echo "REFUSING: git ls-files failed in $1 — no deploy on a partial changed-set." >&2; return 1; }
-  } | sort -u
-}
-
-# Filter a changed-file listing to its framework files — lines outside
-# the app surface (`ourapp/` + `frontend/src/app/`). Shared by
-# _scratch_checks' framework watch and the deployscratch fast path.
-_framework_files() { # <changed-files listing on stdin>
-  grep -vE '^(ourapp/|frontend/src/app/)' || true
-}
-
-# Print the failed step + its manual re-run; return nonzero so `… || _step_failed`
-# aborts deployscratch under set -e. The step text is read from the caller's
-# own source line — keep `cmd || _step_failed` on ONE line — and @P-expanded so
-# $VARS print as values (bash ≥4.4 to run; deployscratch is VM-only).
-_step_failed() {
-  local _raw _cmd
-  _raw=$(sed -n "${BASH_LINENO[0]}p" "${BASH_SOURCE[1]}" \
-    | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*||.*//')
-  _cmd=${_raw@P}
-  echo "" >&2
-  echo "Step failed: $_cmd" >&2
-  echo "Iterate to fix it and run only that step, not the time-consuming deployscratch." >&2
-  echo "then re-run: ./run deployscratch (from main/)" >&2
-  return 1
-}
-
-# The scratch/ fast loop: the agent's edits checked without the unchanged
-# framework suite or the slow browser pass — those stay in main/'s
-# checkframework1.
-_scratch_checks() {
-  echo "Running ruff format --check (formatting drift)"
-  uv run ruff format $_RUFF_COLOR --check || _step_failed
-  echo "Running ruff check (lint)"
-  uv run ruff check $_RUFF_COLOR || _step_failed
-  echo "Running mypy for type checking"
-  uv run mypy $_MYPY_COLOR . || _step_failed
-  echo "Running ourapp tests (scoped; the framework suite runs in main/)"
-  ./run test ourapp --noinput || _step_failed
-  cd frontend
-  echo "Running frontend linting"
-  npm run lint || _step_failed
-  echo "Running frontend build (type-check + vite in one pass)"
-  npm run build || _step_failed
-  cd ..
-  # Framework-file watch: edits outside the app surface (_framework_files)
-  # → run the scratch-test-subset smoke; checkframework1 still gates in main/.
-  local changed_files outside
-  changed_files=$(_scratch_changed_files "$_SCRATCH_DIR") || return 1
-  outside=$(_framework_files <<<"$changed_files")
-  if [ -n "$outside" ]; then
-    echo "=== framework files changed — running scratch-test-subset smoke tests ==="
-    printf '  %s\n' $(grep -c . <<<"$outside") files:
-    printf '  %s\n' $outside
-    _with_test_redis uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=scratch-test-subset || _step_failed
-  else
-    echo "No framework-file changes (outside the app surface) — skipping scratch-test-subset smoke."
-  fi
-}
-
 lintfix() {
   setenv
   uv run ruff format $_RUFF_COLOR
@@ -525,94 +455,14 @@ lintfix() {
   npm run lint:fix
 }
 
-# The scratch rsyncs' exclude set, derived from .gitignore at call time:
-# keeping a new junk/artifact/runtime dir out of the scratch loop is a
-# .gitignore-only change. (The permission ledger rides like any tracked
-# file — the policy is never edited mid-run.)
-scratch_excluded_files() { # scratch_excluded_files <egrep -v filter> <dir>...
-  # <filter> drops the directional carries from the listing:
-  #   djangoapp/static/  always — the built bundle rides both ways
-  #                      (.gitignore says the opposite: don't commit it)
-  #   ^\.env$            createscratch-ward — the deploy re-excludes it
-  local filter=$1
-  shift
-  local d tmp
-  tmp=$(mktemp)
-  # BOTH trees, not just the sender: plain --delete never removes excluded
-  # files on the receiver, so main-only runtime data (media/, dbbackups/,
-  # staticfiles/) survives the deploy only if MAIN's listing carries the
-  # exclude — scratch never contains those dirs to list them.
-  # (--directory also sweeps in fully-untracked dirs whose contents are
-  # all ignored — djangoapp/apps/ — intended: generated
-  # output, never source.)
-  for d in "$@"; do
-    # Command-substitution subshells don't inherit errexit, so a git
-    # failure must RETURN out of the function — else the caller's set -e
-    # never fires and the rsync proceeds with an empty exclude list.
-    git -C "$d" ls-files --others --ignored --exclude-standard --directory >>"$tmp" \
-      || { rm -f "$tmp"; echo "REFUSING: git ls-files failed in $d — no rsync without excludes." >&2; return 1; }
-  done
-  # Drop lines rsync would misparse (rule prefixes "- ", "+ ", "! ",
-  # comments "; "/"#", glob metachars * ? [): a hostile ignored name must
-  # ride as harmless junk, never silently exclude an unrelated tracked
-  # file. (`|| true`: a fresh clone has nothing gitignored yet — an
-  # empty exclude list is correct there.)
-  { grep -Ev "$filter" "$tmp" || true; } \
-    | grep -vE '^[-+!;#] |[*?[]' >"$tmp.f" && mv "$tmp.f" "$tmp"
-  printf '%s' "$tmp"
-}
-
 # main/ is this script's dir; scratch/ is its sibling (both under parent/).
-# Resolved once at load time so createscratch/deployscratch stay free of path
-# boilerplate.
+# Resolved once at load time so the scratch-lifecycle commands and
+# checkframework1's overlay stages stay free of path boilerplate.
 _MAIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _SCRATCH_DIR="$(dirname "$_MAIN_DIR")/scratch"
 
-# Build a fresh scratch/ from main/: tree rsync INCLUDING .git (shared
-# history), main's HEAD frozen as the `scratch-baseline` ref, and .venv +
-# node_modules hardlink-copied so the bootstrap runs incremental.
-# Hardlink-copy when the OS allows it (dev on the Mac: same owner —
-# instant, zero extra disk); plain copy otherwise. On the VM main/ is
-# desmo-owned and Linux's protected_hardlinks blocks the default user
-# from hardlinking files it can only read — bare cp -al dies "Operation
-# not permitted" halfway and leaves a HOLLOW .venv that uv then refuses
-# ("no Python executable"), which cost a session an hour of venv
-# archaeology. The fallback copies fully; uv sync stays incremental.
-_link_or_copy_tree() {
-  if ! cp -al "$1" "$2" 2>/dev/null; then
-    rm -rf "$2"
-    cp -a "$1" "$2"
-  fi
-}
-
-create_new_scratch() {
-  rm -rf "$_SCRATCH_DIR"
-  # Sender-only excludes (no --delete here; the receiver was just wiped).
-  # The filter keeps .env and the built bundle riding to scratch — the
-  # deploy re-excludes .env.
-  local excluded_files
-  excluded_files=$(scratch_excluded_files '^\.env$|^djangoapp/static/' "$_MAIN_DIR")
-  rsync -a --exclude-from="$excluded_files" "$_MAIN_DIR/" "$_SCRATCH_DIR/"
-  rm -f "$excluded_files"
-  git -C "$_SCRATCH_DIR" tag -f scratch-baseline HEAD >/dev/null
-  # npm install rewrites package-lock format-normalized — it reads as a
-  # diff vs the baseline, tripping the framework-file watch. Restore from
-  # HEAD.
-  git -C "$_SCRATCH_DIR" checkout -- frontend/package-lock.json 2>/dev/null || true
-  [ -d "$_MAIN_DIR/.venv" ] && _link_or_copy_tree "$_MAIN_DIR/.venv" "$_SCRATCH_DIR/.venv"
-  [ -d "$_MAIN_DIR/frontend/node_modules" ] \
-    && _link_or_copy_tree "$_MAIN_DIR/frontend/node_modules" "$_SCRATCH_DIR/frontend/node_modules"
-  ( cd "$_SCRATCH_DIR"
-    uv sync
-    cd frontend
-    npm install
-  )
-  # npm install may still touch the lock (format normalization) — pin it back
-  # AFTER install so the baseline stays clean.
-  git -C "$_SCRATCH_DIR" checkout -- frontend/package-lock.json 2>/dev/null || true
-}
-
-# Overlay an app's ourapp/ onto scratch/ourapp/ (full replace).
+# Overlay an app's ourapp/ onto scratch/ourapp/ (full replace) —
+# checkframework1's stage-3/4 fixtures ride this.
 overlay_app() {
   rsync -a --delete "$1/ourapp/" "$_SCRATCH_DIR/ourapp/"
 }
@@ -627,184 +477,20 @@ _require_main_run() {
   fi
 }
 
-createscratch() {
-  # Fresh scratch/ of main/ (shared git history + frozen baseline ref, hardlinked
-  # env) for the agent to edit + diff.
-  _require_main_run createscratch || return 1
-  create_new_scratch
-  echo "scratch/ ready at $_SCRATCH_DIR. Edit there, then deploy with: ./run deployscratch (from main/)"
+# The scratch lifecycle trio lives in ops/ (Python; ops/scratch.py).
+# These wrappers keep the ./run surface — same command names, args, exit
+# codes — and checkframework1 builds its stage-3/4 scratch copies through
+# the same CLI.
+_ops_cli() { # <command> [args…]
+  PYTHONUNBUFFERED=1 PYTHONPATH="$_MAIN_DIR${PYTHONPATH:+:$PYTHONPATH}" \
+    uv run python -m ops.cli "$@"
 }
 
-# Wall-clock stamp for the just-finished deploy step (absolute, rounded to the second).
-_banner() { # <label>
-  echo "    [$1 $(date +%T)]"
-}
+createscratch() { _ops_cli createscratch "$@"; }
 
-# The ONE command: the check battery in scratch (nothing deploys red),
-# then rsync → main/ (.git + gitignored dirs excluded), pre-migration backup,
-# migrate, collectstatic + restart granian/huey so deploys go LIVE.
-# Fast path: frontend/docs-only diffs skip the backend battery, backup,
-# migrate and restarts (lint + build, plus the smoke when framework
-# frontend files changed / d2 fence validation).
-# VM ONLY — the scratch loop is the agent's edit cycle and the agent
-# lives in the VM; a dev Mac has none of it (no pgbackrest, no units).
-# Never commits.
-deployscratch() {
-  setenv
-  _require_main_run deployscratch || return 1
-  if ! is_running_on_vm; then
-    echo "Refusing: deployscratch deploys the VM's main." >&2
-    return 1
-  fi
-  [ -d "$_SCRATCH_DIR" ] || { echo "Refusing: $_SCRATCH_DIR not found. Run createscratch first." >&2; return 1; }
+deployscratch() { _ops_cli deployscratch "$@"; }
 
-  # Refuse the moment a backup is in flight (_backup_running —
-  # pgbackrest's own lock report): the pre-migration backup below
-  # would COALESCE with it (the safety copy silently never runs).
-  if _backup_running; then
-    echo "Refusing: a backup is running — let it finish, then re-run deployscratch." >&2
-    return 1
-  fi
-
-  # Fast path — every changed file is one of:
-  #   - frontend/**       → lint + build (+ the scratch-test-subset smoke
-  #                         when framework frontend files changed)
-  #   - ourapp/docs/*.md  → d2 fence validation
-  # No backend files change → no backend battery, backup, migrate, restarts.
-  local changed_files
-  local docs_or_frontend_only=false
-  local frontend_changed=false
-  local frontend_framework_changed=false
-  changed_files=$(_scratch_changed_files "$_SCRATCH_DIR") || return 1
-  # docs_or_frontend_only = the set is nonempty and every line matches the safe set.
-  if [ -n "$changed_files" ] && ! grep -vqE '^(frontend/|ourapp/docs/[^/]+\.md$)' <<<"$changed_files"; then
-    docs_or_frontend_only=true
-    if grep -q '^frontend/' <<<"$changed_files"; then frontend_changed=true; fi
-    # Framework frontend edits keep the browser smoke (its assertions
-    # only cover framework surfaces); app-surface-only diffs skip it.
-    local frontend_outside
-    frontend_outside=$(_framework_files <<<"$changed_files" | grep '^frontend/' || true)
-    if [ -n "$frontend_outside" ]; then
-      frontend_framework_changed=true
-    fi
-  fi
-
-  if $docs_or_frontend_only; then
-    echo "Fast path: frontend/docs-only changes — no backend checks, backup, migrate, or restarts."
-    if $frontend_changed; then
-      # Lint + build the SPA in scratch; the bundle rides the rsync.
-      ( cd "$_SCRATCH_DIR/frontend"
-        npm run lint || _step_failed
-        npm run build || _step_failed )
-      # Real pages in a real browser — lint and build cannot catch runtime
-      # breakage; the smoke pass can (kept for framework frontend edits —
-      # the app-surface classification above decides).
-      if $frontend_framework_changed; then
-        ( cd "$_SCRATCH_DIR"
-          _with_test_redis uv run manage.py test $_DJANGO_NO_COLOR --noinput --tag=scratch-test-subset || _step_failed )
-      else
-        echo "No framework-file changes (outside the app surface) — skipping scratch-test-subset smoke."
-      fi
-    fi
-    # Design docs: validate every d2 fence in each changed file.
-    local md_file
-    while IFS= read -r md_file; do
-      # Deleted/renamed-away paths list here too — nothing to validate,
-      # rsync --delete carries the removal.
-      [ -f "$_SCRATCH_DIR/$md_file" ] || continue
-      node "$_MAIN_DIR/deploy/checkmarkdownd2.mjs" "$_SCRATCH_DIR/$md_file" || _step_failed
-    done <<<"$(grep -E '^ourapp/docs/[^/]+\.md$' <<<"$changed_files" || true)"
-    _banner "check battery (fast)"
-  else
-    ( cd "$_SCRATCH_DIR" && _scratch_checks )
-    _banner "check battery"
-  fi
-
-  echo "Deploying $_SCRATCH_DIR/ → $_MAIN_DIR/ (--delete, excluding .git + gitignored/runtime dirs)…"
-  # - sudo rsync: non-root can't preserve attrs on desmo-owned files
-  #   (exit 23), and scratch's files are default-user-owned.
-  # - re-own to desmo AND re-add g+w after — chown alone leaves rsync's
-  #   644/755 without g+w; the next default-user build dies (EACCES
-  #   rmdir .vite, a real playwright wall).
-  # - `.git` never rides a deploy: scratch only borrowed main's history
-  #   (git never lists it, so no derived exclude covers it).
-  local excluded_files
-  excluded_files=$(scratch_excluded_files '^djangoapp/static/' "$_SCRATCH_DIR" "$_MAIN_DIR")
-  sudo rsync -a --delete --exclude='.git/' \
-    --exclude-from="$excluded_files" "$_SCRATCH_DIR/" "$_MAIN_DIR/"
-  rm -f "$excluded_files"
-  _banner "rsync"
-  # Own the tree as desmo (scratch's files arrive default-user-owned):
-  #   - main tree: the agent's user edits it (builds, git resets)
-  #   - dbbackups/: PRUNED — stays postgres-owned (pgbackrest runs as
-  #     postgres and refuses root); "-path <dir> -prune" is find's
-  #     skip, cutting the subtree so the -exec beyond -o never fires
-  #     inside it
-  #   - .venv/ + frontend/node_modules/: PRUNED — they never ride the
-  #     deploy rsync (gitignore-derived excludes), so sweeping them
-  #     re-owns ~50k files of build state no deploy changed
-  sudo find "$_MAIN_DIR" \( -path "$_MAIN_DIR/dbbackups" -o -path "$_MAIN_DIR/.venv" -o -path "$_MAIN_DIR/frontend/node_modules" \) -prune -o -exec chown desmo:desmo {} +
-  # Group-write the tree:
-  #   - main tree: chown alone leaves rsync-created 644/755 files
-  #     without g+w — the next build as the default user then dies on
-  #     desmo-owned dirs (EACCES rmdir .vite, a real session's
-  #     playwright wall)
-  #   - dbbackups/: PRUNED — the repo stays mode 700; g+w would open
-  #     it to the desmo group
-  #   - .venv/ + frontend/node_modules/: PRUNED — same reasoning as the
-  #     chown sweep above
-  sudo find "$_MAIN_DIR" \( -path "$_MAIN_DIR/dbbackups" -o -path "$_MAIN_DIR/.venv" -o -path "$_MAIN_DIR/frontend/node_modules" \) -prune -o -exec chmod g+w {} +
-  _banner "own"
-  # Backup + migrate only when backend code changed; collectstatic when the
-  # bundle changed; restart only for backend — static chunks and
-  # tree-served docs need no service restart.
-  if ! $docs_or_frontend_only; then
-    # Pre-migration snapshot through the real unit — the DB state to
-    # restore to if this deploy's migrate goes wrong.
-    sudo systemctl start desmo_pgbackrest.service
-    _banner "backup"
-    ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py migrate --noinput )
-    _banner "migrate"
-  fi
-  if ! $docs_or_frontend_only || $frontend_changed; then
-    echo "collectstatic…"
-    ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py collectstatic --noinput --clear )
-    _banner "collectstatic"
-  fi
-  if ! $docs_or_frontend_only; then
-    echo "restarting services…"
-    # Huey's unit always exists on provisioned VMs (HUEY_WORKERS ≥ 1 is
-    # enforced at provisioning).
-    sudo systemctl daemon-reload
-    sudo systemctl restart desmo_granian.service desmo_huey.service
-    _banner "restart"
-  fi
-  # Share-URL base — never a hardcoded one. The FIRST BASE_URLS entry is
-  # the link base (the same rule makeloginlink uses); it keeps scheme and
-  # port, so nothing is prefixed here.
-  _SHARE_BASE="${BASE_URLS%%,*}"   # first origin of the comma list
-  _SHARE_BASE="${_SHARE_BASE// /}" # tolerate spaces around the commas
-  _SHARE_BASE="${_SHARE_BASE%/}"   # drop a trailing slash — the links below add their own
-  echo "App is available under:"
-  ( cd "$_MAIN_DIR" && uv run --no-sync python manage.py baseurls )
-  _banner "baseurls"
-  echo "Deployed scratch/ → main/ (uncommitted, services live). Commit in main/ when ready."
-  echo "Share absolute URLs you verified exist in main/ at the BOTTOM of your message (with the summary):"
-  echo "  docs: ${_SHARE_BASE}/files/main/ourapp/docs/<feature>.md · pages: ${_SHARE_BASE}/<page-url>"
-}
-
-cleanscratch() {
-  # Remove scratch/ outright (discard the scratch tree). Portable: uses
-  # _SCRATCH_DIR (../scratch relative to this script), so the agent calls
-  # `./run cleanscratch` from the repo without computing an absolute path —
-  # an absolute `rm -rf /…/scratch` isn't allowlisted and prompts.
-  if [ -d "$_SCRATCH_DIR" ]; then
-    rm -rf "$_SCRATCH_DIR"
-    echo "Removed $_SCRATCH_DIR."
-  else
-    echo "No scratch/ at $_SCRATCH_DIR to remove."
-  fi
-}
+cleanscratch() { _ops_cli cleanscratch "$@"; }
 
 help() {
   # Colored in a real terminal, plain when captured (pipes, agent logs) —

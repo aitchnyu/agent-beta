@@ -72,6 +72,7 @@ ignore = [
     "D203",  # 1 blank line required before class docstring (incompatible with D211)
     "D213",  # Multi-line docstring summary should start at the second line (incompatible with D212)
     "DJ008",  # django-model-without-dunder-str
+    "E501",  # line-too-long — ruff format already wraps everything breakable; what remains is unbreakable atoms (byte-exact message strings, URLs)
     "ERA001", # commented-out-code
     "FIX002",  # line-contains-todo
     "PT009", # Use a regular `assert` instead of unittest-style `assert*`
@@ -101,6 +102,26 @@ ignore = [
 # deploy/ holds executable tooling, not an importable package.
 "deploy/**/*.py" = [
     "INP001",  # deploy/ is a scripts directory, deliberately not a package
+]
+# ops/ is CLI tooling: stdout/stderr print output IS the product, and
+# every child process is a literal argv list built in-repo.
+"ops/*.py" = [
+    "T201",  # print found — print is the CLI's output channel
+    "S603",  # subprocess call: check for execution of untrusted input — argv is literal, built in-repo
+    "S607",  # subprocess call with partial executable path — PATH lookup is the point (uv, npm, git…)
+]
+# FastPath's positional booleans are the dataclass's shape.
+"ops/tests/**/*.py" = [
+    "FBT003",  # boolean positional value in call — FastPath(True, False, False); the literal IS the assertion
+]
+# deployscratch/createscratch are single linear pipelines by design —
+# section comments carry the phases; a helper per phase would be
+# single-caller fragmentation.
+"ops/scratch.py" = [
+    "C901",  # function too complex (McCabe) — the deploy pipeline reads linearly, top to bottom
+    "PLR0912",  # too many branches — each branch IS a deploy phase
+    "PLR0915",  # too many statements — statement count is pipeline length, not complexity
+    "PLW0603",  # global statement usage — configure_output() assigns the module-level color flags once at startup
 ]
 # Endpoint validators raise PydanticCustomError with inline string
 # literals — that is the pydantic idiom (see steer.md § Forms &
