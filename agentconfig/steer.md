@@ -465,6 +465,24 @@ them with pan/zoom controls.
   grammar, not semantics: an undeclared actor is just a shape — declare
   every actor as `shape: person` yourself. The docs fast path re-checks
   changed files at deploy time automatically.
+- **Fresh eyes: the `diagram-reviewer` subagent** — one reviewer for
+  the whole change: collect every doc whose fences you generated or
+  edited and spawn a single run over all of them — not one spawn per
+  doc (`.pi/agents/diagram-reviewer.md`).
+  - Its prompt carries: the doc path, the `checkmarkdownd2` output, and
+    a capture dir — per fence, screenshots of the rendered diagram in
+    the /files viewer (column + phone, light + dark) plus the svg
+    viewBox numbers. The capture recipe lives in the agent file.
+  - It judges the captures against the diagram rules: concept
+    fidelity, width, visual quality, cross-doc consistency — per-fence
+    findings with suggested diffs. If it cannot view images, it says so
+    and reviews source + metrics only.
+  - The report must pass to the active agent (paste it into the working
+    prompt): that agent applies what holds, re-validates, and folds
+    recurring fixes into this rulebook so they stop recurring.
+<!-- MAINTAIN-CONSISTENCY diagram-review — this bullet restates
+     .pi/agents/diagram-reviewer.md's capture contract and image-first
+     rule; change both together. -->
 - **Data diagrams** — whenever models exist: entities as
   `shape: sql_table` (columns with types), written for laymen:
   - types in plain words — `true/false`, `text`, `date`, `date+time`,

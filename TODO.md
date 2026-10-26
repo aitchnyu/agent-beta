@@ -119,7 +119,7 @@ How to track time taken for provisioning
 Remove https://localhost:8000/accounts/login/, show items in dropdown only. 
 User view form should be single column, each checkbox in own line. Describe each field and checkbox
 
-Lets make a chore tracker. We should have chores which have a repetition schedule. It shows instances of the chore on a list. The logged in user can complete an instance.  
+Lets make a chore tracker. We should have chores which have a repetition schedule. It shows chores from earliest to latest due date. The logged in user can complete an instance.  
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
 How to document system changes when agent modifies system? Write down scripts?
 List backups and time travel
