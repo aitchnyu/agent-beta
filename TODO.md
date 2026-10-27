@@ -148,7 +148,8 @@ TUI for config, vapid script could be in Python
 
 ## Upgrades
 Bootstrap 6, with dialog element
-TSC7 if compatible, Vue vapor
+Vue vapor
+Substitute Eslint for Oxlint, Nov 2026
 
 ## Future
 Have a sequence generator for tables

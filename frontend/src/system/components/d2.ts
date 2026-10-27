@@ -77,7 +77,7 @@ export async function renderDiagram(source: string): Promise<string> {
 
 function isDiagramError(error: unknown): boolean {
   const raw = error instanceof Error ? error.message : String(error)
-  if (/^render failed:/.test(raw)) return true
+  if (raw.startsWith('render failed:')) return true
   try {
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) && parsed[0]?.errmsg !== undefined

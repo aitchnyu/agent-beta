@@ -451,7 +451,7 @@ checkframework2() {
 lintfix() {
   setenv
   uv run ruff format $_RUFF_COLOR
-  uv run ruff check $_RUFF_COLOR --fix --unsafe-fixes
+  uv run ruff check $_RUFF_COLOR --fix --unsafe-fixes --show-fixes
   cd frontend
   npm run lint:fix
 }
@@ -510,7 +510,7 @@ ${H}Development${R}
   ${C}pi${R}                  the pi coding-agent TUI (scratch-driven edit → deploy loop)
 
 ${H}Checks${R}
-  ${C}lintfix${R}             ruff format + ruff check, eslint (writes)
+  ${C}lintfix${R}             ruff format + ruff check, oxlint + eslint (vue templates) (writes)
   ${C}typecheck${R}           mypy (backend); the frontend type-check (vue-tsgo) rides npm run build
   ${C}checkmarkdownd2${R} [file.md]
                         validate every d2 fence in file(s) (first broken

@@ -1,0 +1,14 @@
+{
+  "$schema": "./node_modules/oxlint/configuration.schema.json",
+  "env": {
+    "browser": true
+  },
+  "globals": {
+    "self": "readonly"
+  },
+  "ignorePatterns": ["dist"],
+  "rules": {
+    "no-debugger": "off",
+    "typescript/no-unused-vars": ["error", { "argsIgnorePattern": "^_$" }]
+  }
+}

@@ -65,12 +65,12 @@ request
   |
   v
 [1] MOCKUPS             /mockup/<page>, static or interactive, no props
-  |   share links (T1) --> user picks:
+  |   share links (MockupGate) --> user picks:
   |      revise ......... back to [1]
   |      write docs ........... to [2]
   v
 [2] DESIGN DOCS          use cases, data + its changes, dev reference
-  |   share doc + mockup links (T2) --> user picks:
+  |   share doc + mockup links (DocsGate) --> user picks:
   |      revise docs/mockups ... back as directed
   |      approved ............... to [3]
   v
@@ -80,7 +80,7 @@ request
 [4] AGENT REVIEW + design-doc updates
   |
   v
-[5] OFFER TO COMMIT      T5 — commits stay the human's call
+[5] OFFER TO COMMIT      CommitOffer — commits stay the human's call
   |
   v
 [6] FINAL CHECKLIST      clean tree, one commit, migrations run, scratch gone,
@@ -98,18 +98,32 @@ lives in [Stage messages](#stage-messages):
   links BETWEEN mockup pages are fine from the start — still no backend
   API calls, nothing saves. Frontend-only edits keep the battery light —
   build something you can think up and test FAST. Bundle the workflow
-  questions into T1 (one round).
+  questions into MockupGate (one round).
 - **[2] Design docs** — the design doc (per the [Feature docs](#feature-docs)
-  outline) joins the mockups; share doc + mockup links via T2. First thing
+  outline) joins the mockups; share doc + mockup links via DocsGate. First thing
   in the stage, BEFORE writing any fence: launch the reviewer prewarm(s)
   in background (see [Review with prewarmed agents](#review-with-prewarmed-agents-stage-2--4))
   — their rulebook study overlaps your writing, and the diagram renders
   land in a warm reviewer's lap the moment you validate.
-- **[3] Code — only after explicit approval.** The stage-2 prewarm(s) keep
-  running in background (spawn now if this session has none — e.g. a
-  resumed session or a docs-less change). Continue in the SAME
-  `../scratch/` (no second `createscratch` unless sent back). Then, per
-  edit batch:
+- **[3] Code — only after explicit approval.** Execute the stage in a
+  FRESH stage subagent — your context stays the gates and summaries;
+  the subagent's transcript holds the probes, logs, and deploys. The
+  stage-2 prewarm(s) keep running in background (spawn now if this
+  session has none — e.g. a resumed session or a docs-less change).
+  Continue in the SAME `../scratch/` (no second `createscratch`
+  unless sent back). The spawn prompt is the handoff:
+  - one-line mission — batches of edit → `./run lintfix` →
+    `./run deployscratch`, stop at a green battery;
+  - pointers, not content: `agentconfig/steer.md` (tell it to read
+    that FIRST — subagents get no steer injection), the design doc,
+    mockup URLs, reviewer map paths in `/tmp`;
+  - my stage decisions verbatim, one line each; scratch state and
+    entry-point files;
+  - a compact-result contract: it ends with ONLY the FinalReport checklist,
+    files changed, and last deploy status — a full subagent
+    transcript dumped into your context defeats the point.
+  Then, per edit batch (the subagent reads these in steer.md; a fix
+  round RESUMES the same subagent, not a fresh spawn):
   - After any write batch — review fixes included — run
     `cd ../scratch && ./run lintfix` first (seconds, allowlisted,
     repo-wide). DJ001-class errors die there, not in the battery.
@@ -132,7 +146,7 @@ lives in [Stage messages](#stage-messages):
     has none — to re-read the diff against the requirement
   - triage findings per the rules below
   - update the design doc to match the code
-- **[5] Offer to commit** — T5; never commit unasked.
+- **[5] Offer to commit** — CommitOffer; never commit unasked.
 - **[6] Final checklist** — after the commit lands, audit the job yourself
   (the operator's recurring catches — never make them catch one again),
   then close out with ONE sentence:
@@ -148,10 +162,19 @@ lives in [Stage messages](#stage-messages):
         what shipped, where it lives, that the checklist is green.
 
 **One turn through [3]→[5].** Code, deploy, review, triage/fixes, and doc
-updates run as ONE batch ending at the T5 offer — never stop between them
-to report, and never sit on completed reviewer results; process them
-before the turn ends. Only T1/T2 gates, a genuine question, or the
-round-2 bound pause for the operator.
+updates run as ONE batch ending at the CommitOffer. From your seat:
+
+1. spawn the stage subagent;
+2. collect its compact result;
+3. run the reviewer round;
+4. resume the subagent for fixes;
+5. make the CommitOffer.
+
+Never stop between them to report, and never sit on completed reviewer
+results; process them before the turn ends. Only MockupGate/DocsGate
+gates, a genuine question (a subagent returns one as its result — relay
+it, send my answer back on resume), or the round-2 bound pause for the
+operator.
 
 ### Review with prewarmed agents (stage 2 → 4)
 
@@ -239,12 +262,12 @@ succeeds** — the actual call runs and returns (the endpoint responds, the
 command exits 0). "The code looks right" is not done; verify by executing it.
 
 **Escalate instead of spinning.** If the **same** error recurs 2–3 times,
-stop and report via [T3](#stage-messages) — you're missing something
+stop and report via [BlockerAsk](#stage-messages) — you're missing something
 fundamental (e.g. a `from __future__ import annotations` schema needing
 `model_rebuild()`), and another retry won't fix it. Don't reason in circles
 silently, so I never have to ask "are you stuck". **Infra is mine, not
 yours**: when `createscratch`/`deployscratch` mechanics fail (venv errors,
-rsync exit 23, permission denied), report (T3) and STOP — never repair repo
+rsync exit 23, permission denied), report (BlockerAsk) and STOP — never repair repo
 tooling, venvs, or file ownership by hand; a hand-repaired deploy is a
 deploy nobody can reproduce.
 
@@ -634,7 +657,7 @@ deployed-but-uncommitted changes. Before each `./run deployscratch`, check
 dirty file in `main/` must ALSO be pending in scratch (the normal loop —
 a previous deploy put it there). A file dirty in `main/` but untouched in
 scratch is an operator hotfix or hand-edit the rsync would silently
-overwrite or delete — STOP and report it (T3) instead of deploying.
+overwrite or delete — STOP and report it (BlockerAsk) instead of deploying.
 
 **A deploy is for a change worth showing** — a substantive edit batch or a
 stage boundary. Formatting/lint/mypy fixes are NOT deploy points: fold them
@@ -692,10 +715,10 @@ summary in exactly this shape:
 Keep it tight. For a trivial change a single sentence is enough; don't pad.
 
 ### Stage messages
-Every approval-gated stage transition (the mockup/doc gates — T1, T2 —
-and the commit gate — T5) ends with a **choice menu** — the concrete options as the message's
+Every approval-gated stage transition (the mockup/doc gates — MockupGate, DocsGate —
+and the commit gate — CommitOffer) ends with a **choice menu** — the concrete options as the message's
 LAST lines — never advance such a stage without my explicit reply matching
-an option. (T3/T4 are report-and-continue stages — no gate menu, but when
+an option. (BlockerAsk/FinalReport are report-and-continue stages — no gate menu, but when
 their verdict line ASKS for a decision it uses the same numbered shape; a
 pure report closes on a plain statement.)
 Verify every link's file exists in `main/` before sharing (see
@@ -718,7 +741,7 @@ We need to do this. Here are your choices
 Choose
 ```
 
-- **T1 — mockups**
+- **MockupGate — mockups**
   - [ ] one line of intent
   - [ ] mockup links, each labeled `(mockup quality)`
         (e.g. `[todos (mockup quality)](<base>/mockup/MockupTodos)`)
@@ -726,27 +749,27 @@ Choose
   - [ ] bundled workflow questions, if any (one round)
   - [ ] menu: 1. revise mockups 2. write down design docs — then `Choose`
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
-- **T2 — design docs**
+- **DocsGate — design docs**
   - [ ] models-first plan digest
   - [ ] design-doc link + mockup links
   - [ ] menu: 1. revise docs 2. revise mockups 3. approved — code — then
         `Choose`
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
-- **T3 — blocker**
+- **BlockerAsk — blocker**
   - [ ] what failed
   - [ ] what you tried
   - [ ] what you need from me — as numbered choices + `Choose` (it's an ask)
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
-- **T4 — final summary**
+- **FinalReport — final summary**
   - [ ] the Requirement / What changed / Endpoints / Tests / Links checklist
         in [Message structure](#message-structure-the-single-rule)
-- **T5 — offer to commit**
-  - [ ] the T4 checklist
+- **CommitOffer — offer to commit**
+  - [ ] the FinalReport checklist
   - [ ] files-to-commit list
   - [ ] menu: 1. commit 2. hold — then `Choose` (commits stay the human's
         call)
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
-- **T6 — final checklist close-out** (stage [6]; no menu — it runs after the
+- **CloseOut — final checklist close-out** (stage [6]; no menu — it runs after the
   commit lands): the checklist itself (clean tree, single feature commit,
   migrations + production scripts executed, scratch gone), then the
   ONE-sentence report.
@@ -776,7 +799,9 @@ and the three rule-focused reviewers); use it for
 genuinely parallel independent research (parallel mode), and to **review
 your work** — before reporting done, spawn the reviewer to re-read the
 diff against the requirement and catch what you missed. Not for a single
-lookup (do that yourself). Subagents run under the SAME permission policy,
+lookup (do that yourself). Subagents also EXECUTE the code stage per
+[Feature workflow](#feature-workflow) [3] — fresh spawn, compact result.
+Subagents run under the SAME permission policy,
 and their `ask` decisions are FORWARDED to the operator's TUI — in headless
 runs (no UI anywhere) asks are denied, so keep subagent tasks allowlist-clean.
 
@@ -1607,7 +1632,7 @@ deploys (stages 1–2) run unblocked so the demo loop
 stays fast; the compensating rule is that every deploy's links are shared
 in chat immediately via [Stage messages](#stage-messages). The REAL
 feature's deploys (stage 3) stay gated conversationally: only after the
-T2 "approved" choice.
+DocsGate "approved" choice.
 
 `./run checkframework1` (the **full gate**: lint + types + the four test tiers
 under one merged coverage report) is deliberately NOT in that list — it's a
@@ -1621,6 +1646,13 @@ speculating about static-file serving, caching, or shadow paths — the error
 message names the fix. To confirm which file a static URL actually resolves to,
 `./run djangomanage findstatic <name>` (e.g. `findstatic djangoapp/main.js`)
 prints the exact on-disk path.
+
+When a deploy or battery fails on infrastructure — postgres "is shutting
+down", connection refused, service unavailable — **diagnose and retry once
+before reporting it**: `pg_isready`, `systemctl status postgresql@18-main`
+(read-only), then re-run the failed command. Transient states (a restart
+landing mid-deploy) clear themselves; only report a blocker that survives
+a retry.
 
 Anything else — including any git on `main/` — needs approval; for
 read/list/search, use the `read`/`glob`/`grep` tools instead of

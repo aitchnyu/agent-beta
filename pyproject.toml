@@ -135,6 +135,15 @@ ignore = [
 # MAINTAIN-CONSISTENCY pydantic-errors — the custom error types these
 # validators raise are catalogued in frontend/src/utils/pydanticErrors.ts.
 
+# Schema annotations are data: pydantic/ninja read them at runtime, so the
+# imports behind them must stay out of TYPE_CHECKING — ruff's TC rules
+# otherwise move them there. typing/typing_extensions keep ruff's default
+# exemption (overriding this list drops it); datetime is exempt because
+# Django imports it anyway.
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["ninja.Schema", "pydantic.BaseModel"]
+exempt-modules = ["typing", "typing_extensions", "datetime"]
+
 [tool.ruff.lint.pycodestyle]
 max-doc-length = 200
 ignore-overlong-task-comments = true
