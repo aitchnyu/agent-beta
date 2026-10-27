@@ -45,7 +45,7 @@ SCRATCH_DIR = MAIN_DIR.parent / "scratch"
 
 # Agent scratch space outside the repo: d2 renders (checkmarkdownd2) and
 # parked oversized bash output (tool-output-cap). Wiped with the tree.
-AGENT_TMP_DIR = Path("/tmp/desmo")
+AGENT_TMP_DIR = Path("/tmp/desmo")  # noqa: S108 — the fixed path IS the contract (permission-allowlisted, lifecycle-wiped)
 
 VM_ENV_FILE = Path("/etc/credentials/desmo/.env.vm")
 TEST_REDIS_URL = "redis://127.0.0.1:6379/2"
@@ -299,8 +299,10 @@ def createscratch() -> None:
 
 
 def cleanscratch() -> None:
-    """Remove scratch/ outright (discard the scratch tree) — and its
-    /tmp/desmo render dirs with it (scratch-scoped, like the tree)."""
+    """Remove scratch/ outright, plus its /tmp/desmo contents.
+
+    Both are scratch-scoped: neither outlives the tree.
+    """
     if SCRATCH_DIR.is_dir():
         shutil.rmtree(SCRATCH_DIR)
         print(f"Removed {SCRATCH_DIR}.")

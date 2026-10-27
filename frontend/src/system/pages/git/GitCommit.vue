@@ -16,6 +16,7 @@
         (path: string) => `/git/commits/${shortSha(data.commit.sha)}/${path}`
       "
       :file-href="(path: string) => fileUrl(`main/${path}`)"
+      :dir-href="(path: string) => fileUrl(`main/${path}`)"
     />
   </div>
 </template>

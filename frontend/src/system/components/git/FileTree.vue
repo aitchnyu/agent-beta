@@ -10,7 +10,7 @@ import fileXIcon from "../../icons/file-x.svg"
 import type { FileTreeEntry, FileTreeFolder, PathLinkBuilder } from "./fileTree"
 
 // Recursive changed-files tree shared by the uncommitted and commit pages.
-// The pages supply the two link builders — routes AND worktree prefixes
+// The pages supply the three link builders — routes AND worktree prefixes
 // differ (uncommitted links carry the worktree, commit links read main/);
 // the status icons/colors live HERE, one mapping instead of the two per-page
 // copies this replaces. Fold state is per-FOLDER (a Set of sibling names —
@@ -22,6 +22,7 @@ const props = defineProps<{
   node: FileTreeFolder
   diffHref: PathLinkBuilder
   fileHref: PathLinkBuilder
+  dirHref: PathLinkBuilder
   /** id for this instance's root <ul> — the parent's toggle points at it
    *  via aria-controls (ids must be unique across the whole page, which
    *  same-named folders in sibling sections otherwise break). */
@@ -70,32 +71,39 @@ const fileName = (entry: FileTreeEntry) =>
       class="git-folder"
       :data-tree-folder="folder.path"
     >
-      <button
-        class="git-folder-toggle"
-        type="button"
-        :data-tree-toggle="folder.path"
-        :aria-expanded="!collapsedFolders.has(folder.name)"
-        :aria-controls="subtreeId(folder.name)"
-        @click="toggleFolder(folder.name)"
-      >
-        <LucideIcon
-          class="git-folder-caret"
-          :src="
-            collapsedFolders.has(folder.name)
-              ? chevronRightIcon
-              : chevronDownIcon
-          "
-        />
-        <span class="git-folder-name"
-          >{{ folder.name }}/
-          <span class="git-folder-count">({{ folder.count }})</span></span
+      <div class="d-flex align-items-baseline">
+        <button
+          class="git-folder-toggle"
+          type="button"
+          :data-tree-toggle="folder.path"
+          :aria-expanded="!collapsedFolders.has(folder.name)"
+          :aria-controls="subtreeId(folder.name)"
+          :aria-label="`fold ${folder.path}/`"
+          @click="toggleFolder(folder.name)"
         >
-      </button>
+          <LucideIcon
+            class="git-folder-caret"
+            :src="
+              collapsedFolders.has(folder.name)
+                ? chevronRightIcon
+                : chevronDownIcon
+            "
+          />
+        </button>
+        <!-- The title visits the dir in /files — the LIVE tree, so a dir
+             deleted after this commit 404s (accepted, same tradeoff as
+             the nulled-out file links in git.py); the caret alone folds. -->
+        <Link class="git-folder-name" :href="props.dirHref(folder.path)"
+          >{{ folder.name }}/
+          <span class="git-folder-count">({{ folder.count }})</span></Link
+        >
+      </div>
       <FileTree
         v-show="!collapsedFolders.has(folder.name)"
         :node="folder"
         :diff-href="props.diffHref"
         :file-href="props.fileHref"
+        :dir-href="props.dirHref"
         :ul-id="subtreeId(folder.name)"
       />
     </li>

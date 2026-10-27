@@ -1,7 +1,5 @@
 groundwork argv boot-resume guard (.pi/extensions/groundwork/index.ts) — drop when pi fires reason resume/previousSessionFile for `pi -c`/`--session` boot continues (checked 1.0.0-1.4.0: still broken)
 
-Diff file tree - I can click on dirs and go to its /files url to open that dir
-
 `## Working on the app` - split into fe and be
 
 Why last session 18 secs for 3 tests. Fail faster?
@@ -86,12 +84,6 @@ have usecase diagrams in first place? We were stuck with mermaid which forced us
 direction: down direction is applicable to inner containers? The top level thing directs blocks downward. Seems inner blocks scroll horizontally.
 
 each line in md is around 80 chars wide for readability. Update steer.md with this.
-
-d2 layout engine
-d2 theme
-d2 auto dark mode?
-
-scroll to top and permalinks?
 
 md - overflow scroll, show absolute time
 Then tell me in which contexts we use relative times.

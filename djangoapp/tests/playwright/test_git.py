@@ -60,22 +60,18 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         ):
             expect(page.locator("body")).to_contain_text(name)
 
-        # -- folder rows: main's Docs/ + TodoApp/ (+ nested TodoApp/Docs/),
-        #    then scratch's TodoApp/ — selected by full-dir-path attribute,
-        #    scoped to each worktree's section container --
+        # -- folder rows: caret-only fold toggle + the TITLE as the dir
+        #    link (href = worktree-prefixed full dir path, so the nested
+        #    TodoApp/Docs is distinct from its root sibling "Docs") --
         main = page.locator('[data-tree-section="main"]')
-        scratch = page.locator('[data-tree-section="scratch"]')
         expect(page.locator("[data-tree-folder]")).to_have_count(4)
-        # to_contain_text (not a raw text_content assert): the caret/name/
-        # count spans sit on one button and innerText splits them by layout —
+        # to_contain_text (not a raw text_content assert): the name/count
+        # spans sit on one link and innerText splits them by layout —
         # Playwright normalizes the whitespace, so they match again.
-        # Attribute values are full dir paths — the DISPLAY text is the bare
-        # segment, so the nested TodoApp/Docs/ shows "Docs/ (1)" like its root
-        # sibling; the attribute is what disambiguates them.
-        expect(main.locator('[data-tree-toggle="Docs"]')).to_contain_text("Docs/ (1)")
-        expect(main.locator('[data-tree-toggle="TodoApp"]')).to_contain_text("TodoApp/ (3)")
-        expect(main.locator('[data-tree-toggle="TodoApp/Docs"]')).to_contain_text("Docs/ (1)")
-        expect(scratch.locator('[data-tree-toggle="TodoApp"]')).to_contain_text("TodoApp/ (2)")
+        expect(page.locator('a[href="/files/main/Docs"]')).to_contain_text("Docs/ (1)")
+        expect(page.locator('a[href="/files/main/TodoApp"]')).to_contain_text("TodoApp/ (3)")
+        expect(page.locator('a[href="/files/main/TodoApp/Docs"]')).to_contain_text("Docs/ (1)")
+        expect(page.locator('a[href="/files/scratch/TodoApp"]')).to_contain_text("TodoApp/ (2)")
         # app.py's muted diff link lives INSIDE main's TodoApp folder li
         # (nesting).
         expect(

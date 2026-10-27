@@ -9,6 +9,7 @@
         :node="scratchTree"
         :diff-href="(path: string) => `/git/uncommitted/scratch/${path}`"
         :file-href="(path: string) => fileUrl(`scratch/${path}`)"
+        :dir-href="(path: string) => fileUrl(`scratch/${path}`)"
       />
       <p v-else class="text-muted mb-0">No changes.</p>
     </section>
@@ -19,6 +20,7 @@
         :node="mainTree"
         :diff-href="(path: string) => `/git/uncommitted/main/${path}`"
         :file-href="(path: string) => fileUrl(`main/${path}`)"
+        :dir-href="(path: string) => fileUrl(`main/${path}`)"
       />
       <p v-else class="text-muted mb-0">No changes.</p>
     </section>
