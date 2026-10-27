@@ -1,26 +1,28 @@
 <template>
   <PageTitle value="Uncommitted changes" />
   <h3>Uncommitted changes</h3>
-  <section v-if="data.scratch_files" class="mb-4" data-tree-section="scratch">
-    <h4 class="h6 mb-1">scratch</h4>
-    <FileTree
-      v-if="data.scratch_files.length"
-      :node="scratchTree"
-      :diff-href="(path: string) => `/git/uncommitted/scratch/${path}`"
-      :file-href="(path: string) => fileUrl(`scratch/${path}`)"
-    />
-    <p v-else class="text-muted mb-0">No changes.</p>
-  </section>
-  <section class="mb-4" data-tree-section="main">
-    <h4 class="h6 mb-1">main</h4>
-    <FileTree
-      v-if="data.main_files.length"
-      :node="mainTree"
-      :diff-href="(path: string) => `/git/uncommitted/main/${path}`"
-      :file-href="(path: string) => fileUrl(`main/${path}`)"
-    />
-    <p v-else class="text-muted mb-0">No changes.</p>
-  </section>
+  <div class="git-uncommitted-trees">
+    <section v-if="data.scratch_files" class="mb-4" data-tree-section="scratch">
+      <h4 class="h6 mb-1">scratch</h4>
+      <FileTree
+        v-if="data.scratch_files.length"
+        :node="scratchTree"
+        :diff-href="(path: string) => `/git/uncommitted/scratch/${path}`"
+        :file-href="(path: string) => fileUrl(`scratch/${path}`)"
+      />
+      <p v-else class="text-muted mb-0">No changes.</p>
+    </section>
+    <section class="mb-4" data-tree-section="main">
+      <h4 class="h6 mb-1">main</h4>
+      <FileTree
+        v-if="data.main_files.length"
+        :node="mainTree"
+        :diff-href="(path: string) => `/git/uncommitted/main/${path}`"
+        :file-href="(path: string) => fileUrl(`main/${path}`)"
+      />
+      <p v-else class="text-muted mb-0">No changes.</p>
+    </section>
+  </div>
 </template>
 
 <script setup lang="ts">

@@ -134,6 +134,7 @@ local-vm portforward
 Update docs for adding users and login links
 Can choose multiple machines, no more init and dev in run, slim down pi command
 convert checkframework1 and gate to python script
+provision-full and delete-vm should have a prefix
 
 Test dbs get backed up
 Run the uv, npm, playwright installs in parallel?

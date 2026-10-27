@@ -252,8 +252,11 @@ def createscratch() -> None:
     _require_main_run("createscratch")
     # Fail fast if the old tree can't be wiped: proceeding would layer a
     # plain (no --delete) rsync over a half-wiped tree and call it "fresh".
+    # A missing scratch (fresh VM, first run) is the normal empty case.
     try:
         shutil.rmtree(SCRATCH_DIR)
+    except FileNotFoundError:
+        pass
     except OSError as error:
         shell.die(f"REFUSING: failed to wipe {SCRATCH_DIR} — {error}. Fix the cause, then re-run.")
     # Sender-only excludes (no --delete; the receiver was just wiped).

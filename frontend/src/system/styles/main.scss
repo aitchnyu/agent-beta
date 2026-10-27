@@ -370,6 +370,23 @@ summary.layout-menu-link::-webkit-details-marker {
   color: var(--bs-secondary-color);
 }
 
+// The uncommitted page's worktree sections (GitUncommitted.vue): stacked
+// by default; scratch beside main once the viewport fits both. 
+.git-uncommitted-trees {
+  display: grid;
+  gap: 0 2rem;
+}
+
+@media (min-width: 992px) {
+  .git-uncommitted-trees {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .git-uncommitted-trees > section:only-child {
+    grid-column: 1 / -1;
+  }
+}
+
 // Diff viewer (SplitDiff.vue → diff2html): one container per outputFormat,
 // side-by-side ≥768px / line-by-line below — CSS-only switching, no resize
 // listeners. diff2html's own CSS arrives with its lazy chunk; the overrides
