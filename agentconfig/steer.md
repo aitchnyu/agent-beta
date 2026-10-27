@@ -100,11 +100,16 @@ lives in [Stage messages](#stage-messages):
   build something you can think up and test FAST. Bundle the workflow
   questions into T1 (one round).
 - **[2] Design docs** — the design doc (per the [Feature docs](#feature-docs)
-  outline) joins the mockups; share doc + mockup links via T2.
-- **[3] Code — only after explicit approval.** First spawn the reviewer
-  prewarm(s) in background (one, or all three for a significant diff —
-  see below). Continue in the SAME `../scratch/` (no second
-  `createscratch` unless sent back). Then, per edit batch:
+  outline) joins the mockups; share doc + mockup links via T2. First thing
+  in the stage, BEFORE writing any fence: launch the reviewer prewarm(s)
+  in background (see [Review with prewarmed agents](#review-with-prewarmed-agents-stage-2--4))
+  — their rulebook study overlaps your writing, and the diagram renders
+  land in a warm reviewer's lap the moment you validate.
+- **[3] Code — only after explicit approval.** The stage-2 prewarm(s) keep
+  running in background (spawn now if this session has none — e.g. a
+  resumed session or a docs-less change). Continue in the SAME
+  `../scratch/` (no second `createscratch` unless sent back). Then, per
+  edit batch:
   - After any write batch — review fixes included — run
     `cd ../scratch && ./run lintfix` first (seconds, allowlisted,
     repo-wide). DJ001-class errors die there, not in the battery.
@@ -148,35 +153,48 @@ to report, and never sit on completed reviewer results; process them
 before the turn ends. Only T1/T2 gates, a genuine question, or the
 round-2 bound pause for the operator.
 
-**Review with prewarmed agents (stage 3 → 4).** Prewarm reviewers in the
-background while you code; resume them for the review instead of spawning
-fresh. How many:
+### Review with prewarmed agents (stage 2 → 4)
+
+Prewarm reviewers in the
+background while you write docs and code; resume them for the review
+instead of spawning fresh. How many:
 
 - **Significant diff** — touches backend AND frontend, any framework file,
   or more than ~10 files → prewarm all THREE rule-focused reviewers
   (`.pi/agents/`):
   - `reviewer-correctness` — spec-vs-code drift, API contract, edge cases
   - `reviewer-conventions` — doc-claims-vs-code, mirrors, naming,
-    comment style, TODO hygiene
+    comment style, TODO hygiene; carries the diagram pass when docs
+    changed
   - `reviewer-trace` — cross-layer wiring, render-vs-validate ground truth
-- **Small diff** — anything else: the single `reviewer`, as before.
+- **Small diff** — anything else: the single `reviewer`, as before — it
+  carries the diagram duty when docs changed (its agent file has the
+  contract).
 
 Prewarm + resume mechanics:
 
-- **Stage 3 start**, before the first edit batch: spawn each reviewer with
+- **Stage 2 start**, before the first fence is written: spawn each
+  reviewer with
   `subagent(subagent_type: <type>, run_in_background: true, prompt: …)` —
-  "Build a MAP, not a copy: <your rule domain's reference material — the
-  design doc, steer.md conventions, the layer wiring>. Read-only. Treat it
-  as a map that may be stale by review time — re-read any file you judge,
-  trust the file over your memory. Reply STORED." Hold the agent IDs.
+  "Build a MAP, not a copy: <your rule domain's reference material —
+  steer.md conventions, the Diagrams rulebook, the layer wiring>. Read
+  only. Treat it as a map that may be stale by review time — re-read any
+  file you judge, trust the file over your memory. Reply STORED." Hold
+  the agent IDs. (No docs in the change? Spawn at stage-3 start instead.)
+  The diff outgrew the prewarm — looked small, turned significant? Spawn
+  the missing reviewers at stage-3 start; they study while you edit.
+  A mid-session send-back recreates scratch and wipes /tmp/desmo —
+  parked-output pointers in context dangle; re-run the command.
 - **Stage 4**, resume them:
   `subagent(subagent_type: <type>, resume: <id>, prompt: …)` — the
   requirement + `git status --short` + touched files, labeled "changed
   since your study — re-read fresh."
   - Run the executable checks yourself FIRST — the feature's tests,
     `./run checkmarkdownd2`, quick fixture probes — and PASTE the
-    outputs into the resume prompts as evidence. Reviewers read results;
-    they never execute.
+    outputs into the resume prompts as evidence (the checkmarkdownd2
+    output names the fresh /tmp/desmo render dir — paste that path too;
+    the diagram-duty reviewer reads the fence<N>.svg files). Reviewers
+    read results; they never execute.
   - Resume right after the last edit batch's checks pass in scratch —
     before that batch's `deployscratch`
   - scratch is what the review reads; the deploy doesn't change it — so
@@ -455,6 +473,11 @@ them with pan/zoom controls.
 - Diagrams are per screen/page and chained — a→b→c flows, never flat
   one-level lists.
 - Keep boundaries narrow — few ovals per row.
+- **Visual faults to write against** — the review catches these in the
+  render, so never author them in: mismatched actor/oval sizes (the
+  pinned dimensions exist for uniformity), icons not rendering, label
+  or arrow collisions, clipped text, notes floating far from their
+  subject, illegible dark-mode contrast.
 - Icons stay local: copy a lucide SVG (grep
   `frontend/node_modules/lucide-static/icons/`) to
   `djangoapp/static/icons/` with a concrete stroke hex, reference
@@ -465,24 +488,34 @@ them with pan/zoom controls.
   grammar, not semantics: an undeclared actor is just a shape — declare
   every actor as `shape: person` yourself. The docs fast path re-checks
   changed files at deploy time automatically.
-- **Fresh eyes: the `diagram-reviewer` subagent** — one reviewer for
-  the whole change: collect every doc whose fences you generated or
-  edited and spawn a single run over all of them — not one spawn per
-  doc (`.pi/agents/diagram-reviewer.md`).
-  - Its prompt carries: the doc path, the `checkmarkdownd2` output, and
-    a capture dir — per fence, screenshots of the rendered diagram in
-    the /files viewer (column + phone, light + dark) plus the svg
-    viewBox numbers. The capture recipe lives in the agent file.
-  - It judges the captures against the diagram rules: concept
-    fidelity, width, visual quality, cross-doc consistency — per-fence
-    findings with suggested diffs. If it cannot view images, it says so
-    and reviews source + metrics only.
-  - The report must pass to the active agent (paste it into the working
-    prompt): that agent applies what holds, re-validates, and folds
-    recurring fixes into this rulebook so they stop recurring.
+- **Fresh eyes: the diagram pass rides the prewarmed reviewer** — no
+  dedicated spawn. Collect every doc whose fences you generated or edited;
+  the resume prompt for the diagram-duty reviewer (the single `reviewer`,
+  or `reviewer-conventions` in an all-three run) carries, per doc: the
+  doc path, the pasted `./run checkmarkdownd2` output, and the render dir
+  it printed — one `fence<N>.svg` per fence (engine-identical to the
+  viewer, own viewBox, dark theme embedded). The contract lives in the
+  reviewer agent file.
+  - It judges the renders against the diagram rules, per fence, with
+    suggested diffs in the findings:
+    - concept fidelity — every actor, oval, arrow, label, cardinality
+      and state maps to a plain-language doc claim
+    - width — viewBox aspect over ~1.3, direction down, vertical
+      stacking, narrow boundaries
+    - visual faults — actors at the pinned size, ovals at their fixed
+      width, icons rendering, size uniformity, label and arrow
+      collisions, clipped text, note placement, dark-mode contrast
+    - cross-doc consistency — the User actor identical, connection
+      phrasing, delete-rule labels, state circles
+  - If it cannot view images, it says so and reviews source + viewBox
+    only.
+  - Its findings join the review triage like any other: that agent
+    applies what holds, re-validates (the re-run prints a FRESH render
+    dir — paste it into the re-resume), and folds recurring fixes into
+    this rulebook so they stop recurring.
 <!-- MAINTAIN-CONSISTENCY diagram-review — this bullet restates
-     .pi/agents/diagram-reviewer.md's capture contract and image-first
-     rule; change both together. -->
+     .pi/agents/reviewer.md's capture contract (fence<N>.svg in a fresh
+     /tmp/desmo run dir) and image-first rule; change both together. -->
 - **Data diagrams** — whenever models exist: entities as
   `shape: sql_table` (columns with types), written for laymen:
   - types in plain words — `true/false`, `text`, `date`, `date+time`,

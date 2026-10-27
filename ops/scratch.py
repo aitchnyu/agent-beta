@@ -43,6 +43,10 @@ if TYPE_CHECKING:
 MAIN_DIR = Path(__file__).resolve().parent.parent
 SCRATCH_DIR = MAIN_DIR.parent / "scratch"
 
+# Agent scratch space outside the repo: d2 renders (checkmarkdownd2) and
+# parked oversized bash output (tool-output-cap). Wiped with the tree.
+AGENT_TMP_DIR = Path("/tmp/desmo")
+
 VM_ENV_FILE = Path("/etc/credentials/desmo/.env.vm")
 TEST_REDIS_URL = "redis://127.0.0.1:6379/2"
 
@@ -259,6 +263,9 @@ def createscratch() -> None:
         pass
     except OSError as error:
         shell.die(f"REFUSING: failed to wipe {SCRATCH_DIR} — {error}. Fix the cause, then re-run.")
+    # Agent tmp rides the lifecycle: a fresh session never inherits (or
+    # has a reviewer judge) stale renders and parked output.
+    shutil.rmtree(AGENT_TMP_DIR, ignore_errors=True)
     # Sender-only excludes (no --delete; the receiver was just wiped).
     # The filter keeps .env and the built bundle riding to scratch — the
     # deploy re-excludes .env.
@@ -292,12 +299,14 @@ def createscratch() -> None:
 
 
 def cleanscratch() -> None:
-    """Remove scratch/ outright (discard the scratch tree)."""
+    """Remove scratch/ outright (discard the scratch tree) — and its
+    /tmp/desmo render dirs with it (scratch-scoped, like the tree)."""
     if SCRATCH_DIR.is_dir():
         shutil.rmtree(SCRATCH_DIR)
         print(f"Removed {SCRATCH_DIR}.")
     else:
         print(f"No scratch/ at {SCRATCH_DIR} to remove.")
+    shutil.rmtree(AGENT_TMP_DIR, ignore_errors=True)
 
 
 # ── deployscratch ───────────────────────────────────────────────────────

@@ -19,5 +19,8 @@ execute anything.
   descriptive names, no duplicated comment blocks.
 - TODO.md: items implemented by this diff should not remain open; flag
   stale wording.
+- Diagram duty: in all-three runs YOU carry the d2-fence review — same
+  contract as `reviewer.md`'s "Diagram duty" section (inputs, image
+  rule, tags); rules in steer.md `### Diagrams`.
 - Findings: severity (blocker/major/minor/nit) + file:line + the exact
   replacement text. Report only — never edit.

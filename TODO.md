@@ -1,3 +1,7 @@
+groundwork argv boot-resume guard (.pi/extensions/groundwork/index.ts) — drop when pi fires reason resume/previousSessionFile for `pi -c`/`--session` boot continues (checked 1.0.0-1.4.0: still broken)
+
+Diff file tree - I can click on dirs and go to its /files url to open that dir
+
 `## Working on the app` - split into fe and be
 
 Why last session 18 secs for 3 tests. Fail faster?

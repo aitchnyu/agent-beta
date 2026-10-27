@@ -322,9 +322,10 @@ screenshots() {
 checkmarkdownd2() {
   # Validate EVERY ```d2 fence in one or more markdown files — the
   # first broken block is printed, then its compile error (exit 1).
-  # All ok → exit 0. No args on a TTY: scan every fence in the default
-  # docs (ourapp/docs/, ourapp/README.md, docs/d2.md,
-  # docs/reference/ourapp/docs/, agentconfig/steer.md).
+  # All ok → exit 0, and file args also render each fence to
+  # fence<N>.svg in a fresh /tmp/desmo/ dir. No args on a TTY: scan
+  # every fence in the default docs (ourapp/docs/, ourapp/README.md,
+  # docs/d2.md, docs/reference/ourapp/docs/, agentconfig/steer.md).
   _require_main_run checkmarkdownd2 || return 1
   node "$_MAIN_DIR/deploy/checkmarkdownd2.mjs" "$@"
 }
@@ -513,8 +514,9 @@ ${H}Checks${R}
   ${C}typecheck${R}           mypy (backend); the frontend type-check (vue-tsgo) rides npm run build
   ${C}checkmarkdownd2${R} [file.md]
                         validate every d2 fence in file(s) (first broken
-                        block + error, exit 1); no args on a TTY →
-                        scan every fence in the default docs
+                        block + error, exit 1); file args also render each
+                        fence to fence<N>.svg in a fresh /tmp/desmo/ dir;
+                        no args on a TTY → scan the default docs
   ${C}test${R} [args…]        Django test suite (args pass through to manage.py test)
   ${C}playwrighttest${R} …    Playwright e2e suite
   ${C}screenshots${R}         regenerate docs/screenshots via Playwright

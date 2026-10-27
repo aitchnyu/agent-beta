@@ -12,13 +12,15 @@
  * (p50 228 chars in the same session).
  */
 import * as fs from "node:fs";
-import * as os from "node:os";
 import * as path from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const MAX_CHARS = 6000;
 const EDGE_LINES = 20;
-const PARK_DIR = path.join(os.tmpdir(), "pi-tool-output");
+// Hardcoded to match checkmarkdownd2.mjs and ops/scratch.py's
+// AGENT_TMP_DIR: os.tmpdir() diverges from /tmp on macOS dev boxes,
+// parking output outside the allowlisted, wiped root.
+const PARK_DIR = "/tmp/desmo/tool-output";
 
 // Clamp one edge (head or tail) to half the budget — a few huge lines
 // must not slip the whole payload through.

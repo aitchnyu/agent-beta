@@ -1,9 +1,12 @@
 // Validate every ```d2 fence in the given markdown FILE(S): all fences
 // compile → one "ok <file> (N blocks)" line per file, exit 0. The FIRST
 // broken fence → print that block, then the compiler's error, exit 1.
+// With file args each validated fence ALSO renders into a fresh random
+// dir under /tmp/desmo/ (see the render step below).
 // No args on a TTY: scan every ```d2 fence in the default docs
 // (ourapp/docs/, ourapp/README.md, docs/d2.md, docs/reference/ourapp/docs/,
-// agentconfig/steer.md) and report ok/FAIL per fence.
+// agentconfig/steer.md) and report ok/FAIL per fence — validation only,
+// no renders.
 //
 // The engine is @d2lang/d2's isomorphic node build from frontend/node_modules
 // — the exact version the /files viewer renders with. The WASM engine is
@@ -126,8 +129,50 @@ if (!files.length && process.stdin.isTTY) {
 }
 
 if (!files.length) {
-  console.error('usage: checkmarkdownd2.mjs <file.md>… (no args on a TTY: scan the default docs)');
+  console.error('usage: checkmarkdownd2.mjs <file.md>… (no args on a TTY: scan the default docs; file args also render fences into a fresh /tmp/desmo/ dir)');
   process.exit(2);
+}
+
+// ── Render step ────────────────────────────────────────────────────────
+// Every validated fence also renders to an SVG file:
+//   /tmp/desmo/render-XXXX/<doc>/fence<N>.svg
+//
+// Why SVG: same engine and options as the /files viewer (d2.ts), so the
+// render is what users see — one scalable file per fence, viewBox in its
+// own header, dark theme embedded. No PNG rasterizing, no metrics.
+//
+// Why a fresh random dir per run: no collisions, and stale renders from
+// earlier runs stay unreachable — the reviewer only ever sees the dir
+// this run printed. /tmp/desmo is wiped by createscratch/cleanscratch.
+//
+// The spawning agent pastes the printed dir into the reviewer prompt.
+const RENDER_ROOT = '/tmp/desmo';
+let runDir;
+try {
+  fs.mkdirSync(RENDER_ROOT, { recursive: true });
+  runDir = fs.mkdtempSync(path.join(RENDER_ROOT, 'render-'));
+} catch (e) {
+  console.error(`checkmarkdownd2: cannot create render dir under ${RENDER_ROOT} (${e.code})`);
+  process.exit(2);
+}
+
+// Nest each doc's fences under the run dir by its argument path (leading
+// ../ stripped — a ../scratch/ doc simply nests under scratch/; the
+// random run dir already guarantees no clashes), extension dropped.
+// Distinct args can still strip to the same subdir (../x.md from a
+// child cwd + x.md) — de-dupe instead of overwriting.
+const usedSubdirs = new Set();
+function docSubdir(file) {
+  const rel = path
+    .relative(process.cwd(), path.resolve(file))
+    .replace(/^(\.\.\/)+/, '')
+    .replace(/^\/+/, '');
+  const base = rel.replace(/\.[^/.]+$/, '');
+  let sub = base;
+  let n = 2;
+  while (usedSubdirs.has(sub)) sub = `${base}-${n++}`;
+  usedSubdirs.add(sub);
+  return sub;
 }
 
 for (const f of files) {
@@ -139,9 +184,14 @@ for (const f of files) {
     process.exit(2);
   }
   const blocks = await collectD2Blocks(text, marked);
+  const dir = path.join(runDir, docSubdir(f));
+  fs.mkdirSync(dir, { recursive: true });
   for (const [i, block] of blocks.entries()) {
+    let result;
     try {
-      await d2.compile(block.text);
+      // Viewer parity (d2.ts): elk layout, Neutral Grey theme, dark
+      // auto-flip baked into the SVG. This compile IS the validation.
+      result = await d2.compile(block.text, { layout: 'elk', themeID: 1, darkThemeID: 200 });
     } catch (e) {
       console.error(`${f}:${block.fenceLine} — block ${i + 1} of ${blocks.length} does not compile:\n`);
       console.error('```d2');
@@ -150,8 +200,18 @@ for (const f of files) {
       console.error(firstD2Error(e));
       process.exit(1);
     }
+    let svg;
+    try {
+      svg = await d2.render(result.diagram, result.renderOptions);
+    } catch (e) {
+      console.error(`${f}:${block.fenceLine} — block ${i + 1} of ${blocks.length} does not render:`);
+      console.error(firstD2Error(e));
+      process.exit(1);
+    }
+    fs.writeFileSync(path.join(dir, `fence${i + 1}.svg`), svg);
   }
-  console.log(`ok   ${f} (${blocks.length} block${blocks.length === 1 ? '' : 's'})`);
+  const rendered = blocks.length ? ` → ${dir}` : '';
+  console.log(`ok   ${f} (${blocks.length} block${blocks.length === 1 ? '' : 's'})${rendered}`);
 }
 // The WASM worker keeps node alive past main — shut it down explicitly.
 await d2.dispose();

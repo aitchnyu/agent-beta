@@ -10,6 +10,15 @@
  *   carry previousSessionFile) and must never re-study. A transcript
  *   check CANNOT distinguish these: a fresh session already carries
  *   bootstrap entries at session_start (measured: 2).
+ * - no boot-resume flag in argv — `pi -c`/`-r`/`--resume`/`--session`/
+ *   `--session-id`/`--fork` open the EXISTING session before runtime
+ *   creation (`--session-id` creates when missing — that rare fresh
+ *   launch skips the kickoff, accepted), so the initial runtime still
+ *   fires the default startup event with NO previousSessionFile —
+ *   indistinguishable from a bare launch by the event alone. argv names
+ *   the flag, so the guard lives there.
+ *   TODO(upstream): drop this guard when pi emits reason:"resume" (or
+ *   sets previousSessionFile) for boot continues.
  * - session file outside .../tasks/ — subagent children ALSO load project
  *   extensions and fire session_start in-process; injecting there races
  *   the child's real task prompt ("Agent is already processing" — the
@@ -26,7 +35,7 @@
  *   model_change). Fresh VM: right after /model completes setup.
  * - The reviewer prewarm is deliberately NOT here — it only pays off
  *   inside a feature build, so agentconfig/steer.md's workflow triggers
- *   it at stage 4.
+ *   it at stage 2 (doc start).
  * - Design record: prompts/20261009-prewarm-groundwork-and-reviewer.md
  */
 
@@ -58,9 +67,29 @@ export default function (pi: ExtensionAPI) {
 	const isChildSession = (ctx: { sessionManager: { getSessionFile(): string } }) =>
 		ctx.sessionManager.getSessionFile().includes("/tasks/");
 
+	// The boot flags that resume/fork an existing session (see the guard
+	// list above). `--session=<path>` / `--session-id=<id>` value forms
+	// included via the startsWith checks.
+	const BOOT_RESUME_FLAGS = new Set([
+		"-c",
+		"--continue",
+		"-r",
+		"--resume",
+		"--session",
+		"--session-id",
+		"--fork",
+	]);
+	const isBootResume = process.argv.some(
+		(arg) =>
+			BOOT_RESUME_FLAGS.has(arg) ||
+			arg.startsWith("--session=") ||
+			arg.startsWith("--session-id="),
+	);
+
 	pi.on("session_start", async (event, ctx) => {
 		if (event.reason !== "startup") return;
 		if (event.previousSessionFile) return;
+		if (isBootResume) return;
 		if (!process.stdout.isTTY) return;
 		if (isChildSession(ctx)) return;
 		// ctx.model is undefined here even on configured launches (measured) —

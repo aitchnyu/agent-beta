@@ -39,7 +39,9 @@
       "/srv/desmo/main": "allow",
       "/srv/desmo/main/*": "allow",
       "..": "allow",
-      "../*": "allow"
+      "../*": "allow",
+      "/tmp/desmo": "allow",
+      "/tmp/desmo/*": "allow"
     },
     "bash": {
       "*": "ask",
