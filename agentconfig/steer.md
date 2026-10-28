@@ -101,29 +101,16 @@ lives in [Stage messages](#stage-messages):
   questions into MockupGate (one round).
 - **[2] Design docs** — the design doc (per the [Feature docs](#feature-docs)
   outline) joins the mockups; share doc + mockup links via DocsGate. First thing
-  in the stage, BEFORE writing any fence: launch the reviewer prewarm(s)
-  in background (see [Review with prewarmed agents](#review-with-prewarmed-agents-stage-2--4))
+  in the stage, BEFORE writing any fence: the reviewer-manager extension
+  spawns the reviewer prewarm(s) and keeps them alive (see
+  [Review with prewarmed agents](#review-with-prewarmed-agents-stage-2--4))
   — their rulebook study overlaps your writing, and the diagram renders
   land in a warm reviewer's lap the moment you validate.
-- **[3] Code — only after explicit approval.** Execute the stage in a
-  FRESH stage subagent — your context stays the gates and summaries;
-  the subagent's transcript holds the probes, logs, and deploys. The
-  stage-2 prewarm(s) keep running in background (spawn now if this
-  session has none — e.g. a resumed session or a docs-less change).
-  Continue in the SAME `../scratch/` (no second `createscratch`
-  unless sent back). The spawn prompt is the handoff:
-  - one-line mission — batches of edit → `./run lintfix` →
-    `./run deployscratch`, stop at a green battery;
-  - pointers, not content: `agentconfig/steer.md` (tell it to read
-    that FIRST — subagents get no steer injection), the design doc,
-    mockup URLs, reviewer map paths in `/tmp`;
-  - my stage decisions verbatim, one line each; scratch state and
-    entry-point files;
-  - a compact-result contract: it ends with ONLY the FinalReport checklist,
-    files changed, and last deploy status — a full subagent
-    transcript dumped into your context defeats the point.
-  Then, per edit batch (the subagent reads these in steer.md; a fix
-  round RESUMES the same subagent, not a fresh spawn):
+- **[3] Code — only after explicit approval.** YOU code directly — the
+  operator watches your every tool call live; no stage subagent, no
+  background spawner. The reviewer-manager keeps the prewarmed
+  reviewers alive while you work. Continue in the SAME `../scratch/`
+  (no second `createscratch` unless sent back). Per edit batch:
   - After any write batch — review fixes included — run
     `cd ../scratch && ./run lintfix` first (seconds, allowlisted,
     repo-wide). DJ001-class errors die there, not in the battery.
@@ -164,17 +151,20 @@ lives in [Stage messages](#stage-messages):
 **One turn through [3]→[5].** Code, deploy, review, triage/fixes, and doc
 updates run as ONE batch ending at the CommitOffer. From your seat:
 
-1. spawn the stage subagent;
-2. collect its compact result;
-3. run the reviewer round;
-4. resume the subagent for fixes;
+1. code + deploy per batch (the operator watches live);
+2. run the reviewer round (resume the manager's prewarmed reviewers);
+3. triage findings, fix, redeploy;
+4. update the docs;
 5. make the CommitOffer.
+
+Call the `compact` tool at stage boundaries (after DocsGate approval,
+after CommitOffer) — shed the finished stage's transcript to its
+decisions + summaries so the next stage starts lean; operator turns
+are never compacted away.
 
 Never stop between them to report, and never sit on completed reviewer
 results; process them before the turn ends. Only MockupGate/DocsGate
-gates, a genuine question (a subagent returns one as its result — relay
-it, send my answer back on resume), or the round-2 bound pause for the
-operator.
+gates or a genuine question pause for the operator.
 
 ### Review with prewarmed agents (stage 2 → 4)
 
@@ -196,18 +186,19 @@ instead of spawning fresh. How many:
 
 Prewarm + resume mechanics:
 
-- **Stage 2 start**, before the first fence is written: spawn each
-  reviewer with
-  `subagent(subagent_type: <type>, run_in_background: true, prompt: …)` —
-  "Build a MAP, not a copy: <your rule domain's reference material —
-  steer.md conventions, the Diagrams rulebook, the layer wiring>. Read
-  only. Treat it as a map that may be stale by review time — re-read any
-  file you judge, trust the file over your memory. Reply STORED." Hold
-  the agent IDs. (No docs in the change? Spawn at stage-3 start instead.)
-  The diff outgrew the prewarm — looked small, turned significant? Spawn
-  the missing reviewers at stage-3 start; they study while you edit.
-  A mid-session send-back recreates scratch and wipes /tmp/desmo —
-  parked-output pointers in context dangle; re-run the command.
+- **Stage 2 start**, before the first fence is written: YOU spawn each
+  reviewer with `subagent(subagent_type: <type>, run_in_background:
+  true, prompt: …)` — "Build a MAP, not a copy: <your rule domain's
+  reference material — steer.md conventions, the Diagrams rulebook,
+  the layer wiring>. Read only. Treat it as a map that may be stale by
+  review time — re-read any file you judge, trust the file over your
+  memory. Reply STORED." The reviewer-manager extension tracks them.
+  (No docs in the change? Spawn at stage-3 start instead.)
+- **Keepalive is not yours to remember** — call
+  `reviewers(refresh: true)` at DocsGate, at code-stage start, and
+  when the FinalReport lands; the tool resumes every held prewarm
+  with a keepalive so the pi-subagents retention window never expires
+  them while you code.
 - **Stage 4**, resume them:
   `subagent(subagent_type: <type>, resume: <id>, prompt: …)` — the
   requirement + `git status --short` + touched files, labeled "changed
@@ -326,7 +317,8 @@ it's there to clear.
 ./run lintfix
 git diff
 git log --oneline -3
-./run djangomanage createuser you@example.com --first-name You --last-name Name
+./run djangomanage createuser You Name you@example.com --superuser
+./run djangomanage listusers --page 1            # user table, 100/page
 ./run djangomanage makeloginlink you@example.com   # operator login handoff (user-admin verbs: unblocked)
 ./run playwrighttest djangoapp.tests.playwright.test_framework_smoke   # e2e debugging ONLY (operator-asked); a green deployscratch needs no post-deploy e2e
 
@@ -348,13 +340,44 @@ and command substitution bolted onto otherwise-allowed commands —
 full tool output (stderr included), discarding buys nothing, and an
 avoidable `2>/dev/null` turns an allowlisted line into a block.
 
+### Management commands (synced with djangoapp/management/commands/)
+
+Before improvising ANY shell/python for user or data admin, check this
+inventory — these are the allowlisted, no-prompt paths (a unit test
+keeps this list in sync with the commands dir; never let it drift):
+
+- `createuser <first> <last> <email> [--superuser]` — make a user
+  (first user must be a superuser); prints the makeloginlink hint.
+- `listusers [--page N] [--page-size N]` — the user table (first,
+  last, email, staff, superuser), 100 rows/page.
+- `makeloginlink <email>` — one-time login URL for an existing user.
+- `promotetosuperuser <email>` — grant staff + superuser.
+- `backupmarker <set|…>` — the backup-marker sentinel (the checkframework2
+  gate drives its backup round-trip through it).
+- `addoauth <provider> <client_id> <secret>` — register an OAuth login.
+- `makemigrations` / `migrate` — schema changes (via djangomanage).
+- `findstatic <name>` — which on-disk file a static URL resolves to.
+- `baseurls` — the app's base URLs (for absolute links).
+
+### Proposing scripts
+
+When you propose a script (shell or python) for the operator to run —
+or write one into a file — it must be reviewable at a glance:
+
+- a top comment explaining WHAT it does and WHY it's needed;
+- readable sections split by comments — double for write operations
+  (mark what each section mutates);
+- readable variable names — no cryptic one-letter holders.
 
 ### Mockups
 Stages 1–2's artifacts live in **files**, not chat: mockups are real deployed
 pages. Everything lives in `../scratch/` and reaches `main/` only via
 `deployscratch` — allowlisted, so mockup deploys run unblocked; share the
 deployed links in chat immediately after each deploy via
-[Stage messages](#stage-messages).
+[Stage messages](#stage-messages). **Verify every URL you announce** —
+one allowlisted `curl -sk -o /dev/null -w "%{http_code}" <url>` (read-only)
+before sharing it; a link that 404s costs the operator a bug report
+(a session once announced a live mockup whose hatch route never existed).
 
 - **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
   deploy as `/files/main/ourapp/docs/<feature>.md`. Structure and writing
@@ -848,6 +871,20 @@ Read code in this priority order:
 
 
 ## Backend
+
+### View/router shapes (checklist)
+
+The reference app **shows the way** — copy it, don't invent:
+`docs/reference/ourapp/` (views, urls, tests). Checklist:
+
+- [ ] **Inertia page** — a PLAIN Django view in `views/<feature>.py`,
+      routed by `path(...)` in `ourapp/urls.py`
+      (example: `docs/reference/ourapp/views/todos.py` `todos_page`)
+- [ ] **JSON/file endpoint** — on the feature's ninja `Router`,
+      registered on the NinjaAPI in `views/__init__.py`
+      (example: `create_todo` / the downloads serve route)
+- [ ] Never `@router.get` a page that renders Inertia; never a plain
+      view for a data endpoint.
 
 ### Models
 Concrete models live in `ourapp/models/<feature>.py` (imported in

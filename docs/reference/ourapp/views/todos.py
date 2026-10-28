@@ -10,6 +10,9 @@ Both mutating payloads carry ``expected_row_version`` — the row's
 ``save_plus`` raises ``Http404`` itself, so views stay happy-path.
 Create writes the todo + its notification in one ``transaction.atomic()``
 block; toggle is single-row. Data is pk-free (only ``public_id``).
+
+Shape: the Inertia page is a PLAIN Django view (routed in ``urls.py``);
+the two POST endpoints ride this module's ninja Router.
 """
 
 from __future__ import annotations
@@ -71,7 +74,7 @@ def _todo_or_404(public_id: str, owner: User) -> Todo:
         raise Http404 from exc
 
 
-@router.get("/todos", response=None)
+
 def todos_page(request: HttpRequest) -> InertiaResponse:
     """Render the signed-in user's todos (component ``TodosPage``)."""
     user = user_or_404(request)

@@ -2,7 +2,9 @@
 
 Owns the single public route ``/`` (rendered as the Inertia component
 ``Home``). It shows login state and links to the app's features; the
-integer ``pk`` is never exposed, only the ``public_id``.
+integer ``pk`` is never exposed, only the ``public_id``. Both routes
+are PLAIN Django views (pages never ride a ninja Router — that is for
+JSON APIs only; see steer.md § View/router shapes).
 """
 
 from __future__ import annotations
@@ -12,12 +14,11 @@ import json
 import typing
 from typing import TYPE_CHECKING
 
+from django.http import HttpResponseBase, JsonResponse
 from inertia import InertiaResponse
-from ninja import Router
 from pydantic import RootModel, ValidationError, model_validator
 
 from djangoapp.logging import get_logger
-from djangoapp.ninja_api import ApiError
 from djangoapp.shortcuts import maybe_user
 from djangoapp.views import require_superuser
 
@@ -25,8 +26,6 @@ if TYPE_CHECKING:
     from django.http import HttpRequest
 
 logger = get_logger(__name__)
-
-router = Router()
 
 
 class _B64JsonProps(RootModel[dict[str, typing.Any]]):
@@ -50,7 +49,6 @@ class _B64JsonProps(RootModel[dict[str, typing.Any]]):
             raise ValueError(msg) from exc
 
 
-@router.get("/", response=None)
 def home_page(request: HttpRequest) -> InertiaResponse:
     """Render the landing page (component ``Home``).
 
@@ -69,12 +67,7 @@ def home_page(request: HttpRequest) -> InertiaResponse:
     return InertiaResponse(request, "Home", {"props": {}})
 
 
-@router.get("/mockup/{page}", response=None)
-def mockup_page(
-    request: HttpRequest,
-    page: str,
-    props: str | None = None,
-) -> InertiaResponse:
+def mockup_page(request: HttpRequest, page: str) -> HttpResponseBase:
     """Render the Inertia component ``<page>`` — one route hosts every mockup.
 
     - The URL carries the component name verbatim:
@@ -86,16 +79,18 @@ def mockup_page(
       § Mockups: superuser-only route (404 otherwise), no data plumbing
       (no props, no DB), component wraps in ``div.mockup``
     - ``?props=<base64url JSON object>`` presets the page's props — deep-link
-      a mockup's client-side state (still nothing saves). Bound as a plain
-      string (ninja silently drops RootModel-typed query params), so the
-      schema runs in-view and a bad value is converted to a standard 422.
+      a mockup's client-side state (still nothing saves). The raw query
+      string is validated in-view by the schema; a bad value is a
+      standard 422.
     """
     require_superuser(request)
     page_props: dict[str, typing.Any] = {}
+    props = request.GET.get("props")
     if props is not None:
         try:
             page_props = _B64JsonProps.model_validate(props).root
         except ValidationError as exc:
             # A 422 like any other bad endpoint input.
-            raise ApiError(422, type="props_invalid", msg=exc.errors()[0]["msg"]) from exc
-    return InertiaResponse(request, f"{page}", {"props": page_props})
+            msg = exc.errors()[0]["msg"]
+            return JsonResponse({"detail": msg}, status=422)
+    return InertiaResponse(request, page, {"props": page_props})

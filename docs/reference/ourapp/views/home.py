@@ -4,6 +4,9 @@ Owns the single public route ``/`` (rendered as the Inertia component
 ``Home``). It shows login state, the current **Fact of the Day** (a singleton
 rotated daily by the Huey cron in ``ourapp/tasks/``), and links to the app's
 features; the integer ``pk`` is never exposed, only the ``public_id``.
+
+The route is a PLAIN Django view (routed in ``urls.py``) — pages never
+ride a ninja Router; that is for JSON/file endpoints only.
 """
 
 from __future__ import annotations
@@ -11,7 +14,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from inertia import InertiaResponse
-from ninja import Router
 
 from djangoapp.logging import get_logger
 from djangoapp.shortcuts import maybe_user
@@ -23,10 +25,7 @@ if TYPE_CHECKING:
 
 logger = get_logger(__name__)
 
-router = Router()
 
-
-@router.get("/", response=None)
 def home_page(request: HttpRequest) -> InertiaResponse:
     """Render the landing page (component ``Home``).
 

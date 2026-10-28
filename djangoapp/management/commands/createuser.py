@@ -8,18 +8,18 @@ from djangoapp.models import User
 
 
 class Command(BaseCommand):
-    """Create a user by email, optionally with names and superuser flags.
+    """Create a user by first/last name + email, optionally a superuser.
 
     Every creation is audited as a ``UserHistory`` "created" entry; with
     ``--superuser`` the entry carries the staff + superuser flags.
     """
 
-    help = "Create a user by email (optionally --first-name/--last-name/--superuser)."
+    help = "Create a user: createuser <first> <last> <email> [--superuser]."
 
     def add_arguments(self, parser: CommandParser) -> None:
+        parser.add_argument("first_name", type=str, help="First name.")
+        parser.add_argument("last_name", type=str, help="Last name.")
         parser.add_argument("email", type=str, help="Email (also the login identity).")
-        parser.add_argument("--first-name", type=str, default="", help="First name.")
-        parser.add_argument("--last-name", type=str, default="", help="Last name.")
         parser.add_argument(
             "--superuser",
             action="store_true",
@@ -42,6 +42,6 @@ class Command(BaseCommand):
         self.stdout.write(
             self.style.SUCCESS(
                 f"Created user '{user.username}' ({user.email}){flags}. "
-                "Sign in via: manage.py makeloginlink " + user.email
+                f"login link: ./run djangomanage makeloginlink {user.email}"
             )
         )

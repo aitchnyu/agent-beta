@@ -113,25 +113,49 @@ questions resolved with the operator one at a time.
 
 ## Implementation checklist
 
-1. `createuser <first> <last> <email> [--superuser]` — signature
-   change, first-user-superuser hint kept, login-link hint line; all
-   callers updated (gate.sh, README, docs).
-2. `listusers` — first/last/email/staff/superuser table, `--page N`,
-   100 rows default; allowlisted.
-3. steer.md: management-command inventory section (+ unit test that
-   syncs it against `djangoapp/management/commands/`); script-
-   proposal rules (top comment, sectioned comments, readable names);
-   view/router shape checklist; revert stage-subagent [3] → main
-   codes directly; reviewer round spawns at FinalReport via the
-   reviewer-manager extension.
-4. Allowlist trims (item 5 above) in .pi permission config.
-5. docs/reference/ chores-style copy-me trio (router-for-APIs +
-   plain-view-pages + inertia test idioms) — rides the router
-   refactor.
-6. Router refactor: page endpoints → plain Django views returning
-   inertia responses; ninja Router only for JSON APIs (ourapp home
-   first, then any other page routes).
-7. pi extensions: `compact` tool (agent-callable between stages;
-   rewrite transcript to a handoff note) and reviewer-manager
-   (spawn at docs entry, timed keepalive, reviewers() status tool).
-8. d2 prompt-file prewarm convention updated to match item 3.
+1. ✅ `createuser <first> <last> <email> [--superuser]` — signature
+   change, login-link hint line; callers updated (gate.sh, README).
+2. ✅ `listusers` — first/last/email/staff/superuser table, `--page`,
+   100 rows default; allowlisted; verified live in-VM.
+3. ✅ steer.md: management-command inventory (+ sync unit test that
+   caught `backupmarker` on first run); script-proposal rules;
+   view/router shape checklist pointing at the reference app;
+   stage-subagent reverted → main codes directly; reviewer round via
+   reviewer-manager.
+4. ✅ Allowlist trims (typecheck/listusers/makeloginlink/screenshots).
+5. ✅ Reference app refactored to the new shapes (home/facts/todos/
+   downloads pages as plain views, routers for data/file endpoints)
+   and gated green as the Books fixture — it IS the copy-me; steer's
+   checklist points at it.
+6. ✅ Router refactor: ourapp home + mockup hatch off the router,
+   live-verified (200/404/422 ordering through caddy).
+7. ✅ pi extensions (v1): `compact-tool` (registerTool → ctx.compact
+   with stage-boundary custom instructions) and `reviewer-manager`
+   (tracks background prewarm spawns from tool events; `reviewers`
+   tool reports status and `refresh: true` resumes each with a
+   keepalive via nested subagent calls — v1 keeps refresh
+   agent-initiated at the three checkpoints because pi exposes no
+   timer-driven tool execution; the "busy main can't ping" failure is
+   covered by piggybacking refresh on the checkpoint calls steer
+   already mandates). Verification: syntax-reviewed against pi's
+   ExtensionAPI types; live exercise rides the next real pi session
+   (headless pi on this VM cannot reach its provider).
+8. ✅ d2 prompt-file prewarm convention updated (reviewer-manager).
+
+## Post-review fixes (2026-10-28 evening, from the review handoff)
+
+- ✅ Red suite fixed: test_createuser rewritten for `<first> <last>
+  <email>` (duplicate test now exercises the real guard; hint-text
+  assertion updated). Full battery in-VM: 355 tests OK.
+- ✅ test_listusers added (columns, markers, page bounds + ordering,
+  past-last/zero-page refusals, empty table).
+- ✅ README sample output shows the new hint line.
+- ✅ reviewer-manager v1.1: tracks reviewer-type spawns only (scout
+  excluded), captures spawn prompts, and RESPAWNS a prewarm with its
+  original prompt when a refresh resume fails. Timer keepalive stays
+  v2 (pi exposes no tool execution outside a tool call).
+- ✅ steer: announced URLs must be curl-verified before sharing
+  (+ narrow `curl -sk -o /dev/null -w *` allowlist).
+- Still open (pi-core / design): surfaced pending permission prompts
+  (the 1h55m unanswered forward), end-turn enforcement after
+  CommitOffer.

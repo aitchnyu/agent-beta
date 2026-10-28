@@ -243,8 +243,8 @@ gate() {
   # overlaid code.
   echo; echo "=== Setup 2/3: migrate, create the smoke superuser ==="
   gate-as-desmo-user uv run --no-sync python manage.py migrate --noinput
-  gate-as-desmo-user uv run --no-sync python manage.py createuser framework@example.com \
-    --first-name Framework --last-name Smoke --superuser
+  gate-as-desmo-user uv run --no-sync python manage.py createuser \
+    Framework Smoke framework@example.com --superuser
   systemctl restart desmo_granian.service
 
   # ── Setup 3/3: issue the one-time superuser login link ─────────────────

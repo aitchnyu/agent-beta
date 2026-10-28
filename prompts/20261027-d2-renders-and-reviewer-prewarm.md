@@ -22,6 +22,9 @@ viewer, and the reviewer ran foreground with an ask per /tmp read.
 - **steer.md** — reviewer prewarm launches at stage-2 entry (docs-less
   changes: stage-3 start); stage-4 resume pastes the render dir.
   Supersedes 20261009's "stage [4]" prewarm timing.
+  (2026-10-28: the reviewer-manager pi extension now owns prewarm —
+  spawns at stage-2 entry + keepalive on its own timer, so prewarmed
+  reviewers never age out while main codes directly.)
 
 ## Verified
 

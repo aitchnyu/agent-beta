@@ -17,11 +17,10 @@ from __future__ import annotations
 
 from django.http import Http404, HttpRequest
 from inertia import InertiaResponse
-from ninja import Router, Schema
+from ninja import Schema
 
 from ourapp.models import Fact, Topic
 
-router = Router()
 
 
 class TopicOutSchema(Schema):
@@ -73,7 +72,7 @@ def _fact_or_404(public_id: str) -> Fact:
         raise Http404 from exc
 
 
-@router.get("/facts", response=None)
+
 def facts_page(request: HttpRequest) -> InertiaResponse:
     """Render a random fact (any topic) + the topic list (``FactsPage``)."""
     fact = Fact.objects.random()
@@ -89,7 +88,7 @@ def facts_page(request: HttpRequest) -> InertiaResponse:
     )
 
 
-@router.get("/facts/{slug}", response=None)
+
 def fact_topic_page(request: HttpRequest, slug: str) -> InertiaResponse:
     """Render a random fact in one topic, or 404 if the topic is gone.
 
@@ -111,7 +110,7 @@ def fact_topic_page(request: HttpRequest, slug: str) -> InertiaResponse:
     )
 
 
-@router.get("/fact/{public_id}", response=None)
+
 def fact_detail_page(request: HttpRequest, public_id: str) -> InertiaResponse:
     """Render one specific fact by public_id (component ``FactPage``).
 

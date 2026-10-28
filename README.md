@@ -29,8 +29,8 @@ the machine's prompt. The site is **https://your.domain/**. First login
 (no email/password signup — create the row + a one-time link):
 
 ```console
-$ desmo djangomanage createuser you@example.com --first-name You --last-name Name --superuser
-Created user 'you' (you@example.com) + superuser/staff. Sign in via: manage.py makeloginlink you@example.com
+$ desmo djangomanage createuser You Name you@example.com --superuser
+Created user 'you' (you@example.com) + superuser/staff. login link: ./run djangomanage makeloginlink you@example.com
 
 $ desmo djangomanage makeloginlink you@example.com
 One-time login for 'you' (valid 60 min, single use):
@@ -122,7 +122,7 @@ If you want to look around:
 - `./run dev` serves http://127.0.0.1:8000/ — `ourapp/` is a placeholder
   landing page; `docs/reference/` holds the copyable example app.
 - Sign in without email/password: create a row + a one-time link —
-  `./run djangomanage createuser you@example.com … --superuser`, then
+  `./run djangomanage createuser You Name you@example.com --superuser`, then
   `./run djangomanage makeloginlink you@example.com`.
 - Google login: `./run djangomanage addoauth google <client_id> <secret>`.
 - Agent: point it at `INSTRUCTIONS.md` (the operating manual); start it
@@ -592,7 +592,7 @@ App/dev via the `run` script: `init`, `runserver`, `dev`,
 plus `djangomanage`/`python` passthroughs (e.g.
 `./run djangomanage makemigrations`, `./run python manage.py …`).
 User/management commands (via the passthrough):
-`createuser <email> [--first-name …] [--last-name …] [--superuser]`,
+`createuser <first> <last> <email> [--superuser]`, `listusers [--page N]`,
 `makeloginlink <email>` (one-time login URL),
 `promotetosuperuser <email>`, `addoauth <provider> <client_id> <secret>`.
 

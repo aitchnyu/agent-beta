@@ -15,6 +15,9 @@ name is 404 (the daily sweep — ``tasks/downloads.py`` — deletes row + file
 soon after). Storage names are the original filenames (guessable), so the
 expiry date — not URL secrecy — is what guards a download. Mutating payloads
 echo ``expected_row_version`` like every tracked write.
+
+Shape: the Inertia page is a PLAIN Django view (routed in ``urls.py``);
+the POST endpoints and the file-serve ride this module's ninja Router.
 """
 
 from __future__ import annotations
@@ -91,7 +94,7 @@ def _parse_expiry(raw: str | None) -> datetime:
     return parsed
 
 
-@router.get("/downloads", response=None)
+
 def downloads_page(request: HttpRequest) -> InertiaResponse:
     """Render the superuser download manager (component ``DownloadsPage``)."""
     require_superuser(request)
