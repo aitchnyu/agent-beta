@@ -91,17 +91,20 @@ agent-scratch-create() {
 # Insert the deployscratch liveness marker into scratch's home view —
 # header-gated (exact-props tests never see it), inside ourapp/ (framework
 # watch quiet, battery-clean), grep-guarded (rerun no-ops). FIRST return
-# only (the 0,/re/ range): the view also ends with the mockup route's
-# return, and `props` exists only in home's scope. The sed:
+# only (the 0,/re/ range). The sed — self-contained against home_page's
+# literal `return InertiaResponse(request, "Home", {"props": {}})`, no
+# assumption about a props variable in scope:
 #   before:  ...  return InertiaResponse(...)
 #   after:   ...  if request.headers.get("X-Scratch-Probe"):
-#                 props["scratch_marker"] = "scratch-deploy-live"
+#                 return InertiaResponse(
+#                     request, "Home", {"props": {"scratch_marker": "scratch-deploy-live"}}
+#                 )
 #             return InertiaResponse(...)
 agent-scratch-edit() {
   _vm_env
   local home=/srv/desmo/scratch/ourapp/views/home.py
   grep -q scratch_marker "$home" \
-    || sed -i '0,/^    return InertiaResponse/s/^    return InertiaResponse/    if request.headers.get("X-Scratch-Probe"):\n        props["scratch_marker"] = "scratch-deploy-live"\n    return InertiaResponse/' "$home"
+    || sed -i '0,/^    return InertiaResponse/s|^    return InertiaResponse|    if request.headers.get("X-Scratch-Probe"):\n        return InertiaResponse(\n            request, "Home", {"props": {"scratch_marker": "scratch-deploy-live"}}\n        )\n    return InertiaResponse|' "$home"
   echo "agent scratch edit OK"
 }
 

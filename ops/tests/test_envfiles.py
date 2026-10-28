@@ -29,11 +29,17 @@ def _keys(path: Path) -> set[str]:
     }
 
 
+def _mandatory_settings_keys() -> set[str]:
+    """Return the keys settings.py reads with ``os.environ[...]`` — the hard-required set."""
+    source = (_REPO / "djangoproject" / "settings.py").read_text(encoding="utf-8")
+    return set(re.findall(r'os\.environ\["([A-Z][A-Z0-9_]*)"\]', source))
+
+
 class EnvParityTests(unittest.TestCase):
     """The two env templates.
 
     - test_dev_and_vm_templates_share_the_same_key_set, no key may exist in only one file
-    - test_known_required_keys_present, the keys settings reads unconditionally are there
+    - test_settings_mandatory_keys_are_in_both_templates, every os.environ[...] key settings reads is staged
     - test_vm_assignment_lines_are_bare, systemd EnvironmentFile parses them literally
     """
 
@@ -46,17 +52,15 @@ class EnvParityTests(unittest.TestCase):
             f"keys only in dev: {sorted(dev - vm)}; only in vm: {sorted(vm - dev)}",
         )
 
-    def test_known_required_keys_present(self) -> None:
-        for required in (
-            "LOG_LEVEL",
-            "SECRET_KEY",
-            "DB_PASSWORD",
-            "VAPID_PRIVATE_KEY",
-            "REDIS_URL",
-        ):
-            with self.subTest(key=required):
-                self.assertIn(required, _keys(_DEV_TEMPLATE))
-                self.assertIn(required, _keys(_VM_TEMPLATE))
+    def test_settings_mandatory_keys_are_in_both_templates(self) -> None:
+        required = _mandatory_settings_keys()
+        self.assertTrue(required, "no os.environ[...] reads found — the regex went stale")
+        for name, template in (("dev", _DEV_TEMPLATE), ("vm", _VM_TEMPLATE)):
+            with self.subTest(template=name):
+                missing = required - _keys(template)
+                self.assertFalse(
+                    missing, f"settings requires but template lacks: {sorted(missing)}"
+                )
 
     def test_vm_assignment_lines_are_bare(self) -> None:
         assignment = re.compile(r"^[A-Z][A-Z0-9_]*=")

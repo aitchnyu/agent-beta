@@ -1201,11 +1201,16 @@ run the queries inside the VM (`multipass exec desmo -- …`).
 ### Writing tests
 Playwright e2e below covers the frontend too; the unit bullet covers
 [Backend](#backend) models/views.
-- **Run scoped checks with `./run test <labels…>`** — quiet logs
-  (WARNING), `--failfast`, and `--keepdb` while the migrations
-  fingerprint is unchanged (a migration add/edit/delete forces a fresh
-  rebuild automatically). `./run test --full …` is the legacy full
-  run (fresh DB, full logs); the deploy/checkframework gates use it.
+- **Check your work with `./run test <labels…>`** — the quick way to run
+  a subset of the suite while editing:
+  - logs are quiet — failures stand out;
+  - the run stops at the first failure;
+  - the test database is reused between runs, so scoped checks take
+    under a second — and it is rebuilt automatically whenever a
+    migration changed, so it can never go stale.
+- **`./run test --full …`** is the complete, careful run — full logs,
+  every test, database rebuilt from scratch. That is how the gates run
+  it.
 - **Unit tests** cover **models and views** in `ourapp/tests/`, one file per
   feature + layer (`test_<feature>_models.py`, `test_<feature>_views.py`,
   `test_<feature>_commands.py`). Subclass the framework's bases —

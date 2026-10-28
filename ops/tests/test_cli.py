@@ -13,55 +13,58 @@ from ops import cli, scratch, testsuite
 class DispatchTests(unittest.TestCase):
     """main()'s dict dispatch.
 
-    - test_test_command_parses_full_and_labels, --full lands in is_full, labels pass through
+    - test_test_command_parses_full_and_labels, --full lands in args.full, labels pass through
     - test_full_flag_position_independent, --full works after the labels too
     - test_unknown_flags_become_extra, flags manage.py owns ride in extra
-    - test_scratch_trio_dispatches, createscratch reaches scratch.createscratch
-    - test_playwrighttest_and_screenshots_wiring, labels reach the suite functions
+    - test_scratch_trio_dispatches, createscratch reaches the Command's run
+    - test_playwrighttest_and_screenshots_wiring, labels + extra reach the suite commands
     - test_unknown_command_exits_with_usage, a bad name prints the command list and exits 1
     - test_no_command_exits_with_usage, bare invocation is also a usage error
     """
 
     def test_test_command_parses_full_and_labels(self) -> None:
-        calls: list[tuple[object, ...]] = []
-        with patch.object(testsuite, "test", lambda *a, **k: calls.append((*a, k))):
+        with patch.object(testsuite.Test, "run") as run:
             cli.main(["test", "--full", "ourapp", "djangoapp.tests.test_x"])
-        self.assertEqual(calls, [(["ourapp", "djangoapp.tests.test_x"], [], {"is_full": True})])
+        (args, extra), _kwargs = run.call_args
+        self.assertEqual(args.labels, ["ourapp", "djangoapp.tests.test_x"])
+        self.assertTrue(args.full)
+        self.assertEqual(extra, [])
 
     def test_full_flag_position_independent(self) -> None:
-        calls: list[tuple[object, ...]] = []
-        with patch.object(testsuite, "test", lambda *a, **k: calls.append((*a, k))):
+        with patch.object(testsuite.Test, "run") as run:
             cli.main(["test", "ourapp", "--full"])
-        self.assertEqual(calls, [(["ourapp"], [], {"is_full": True})])
+        (args, _extra), _kwargs = run.call_args
+        self.assertEqual(args.labels, ["ourapp"])
+        self.assertTrue(args.full)
 
     def test_unknown_flags_become_extra(self) -> None:
-        calls: list[tuple[object, ...]] = []
-        with patch.object(testsuite, "test", lambda *a, **k: calls.append((*a, k))):
+        with patch.object(testsuite.Test, "run") as run:
             cli.main(["test", "ourapp", "--noinput", "--parallel", "2"])
-        self.assertEqual(
-            calls, [(["ourapp"], ["--noinput", "--parallel", "2"], {"is_full": False})]
-        )
+        (args, extra), _kwargs = run.call_args
+        self.assertEqual(args.labels, ["ourapp"])
+        self.assertFalse(args.full)
+        self.assertEqual(extra, ["--noinput", "--parallel", "2"])
 
     def test_scratch_trio_dispatches(self) -> None:
-        for command, target in (
-            ("createscratch", "createscratch"),
-            ("deployscratch", "deployscratch"),
-            ("cleanscratch", "cleanscratch"),
+        for command, klass in (
+            ("createscratch", scratch.Createscratch),
+            ("deployscratch", scratch.Deployscratch),
+            ("cleanscratch", scratch.Cleanscratch),
         ):
-            with self.subTest(command=command):
-                with patch.object(scratch, target) as run:
-                    cli.main([command])
-                run.assert_called_once_with()
+            with self.subTest(command=command), patch.object(klass, "run") as run:
+                cli.main([command])
+            run.assert_called_once()
 
     def test_playwrighttest_and_screenshots_wiring(self) -> None:
-        for command, target in (
-            ("playwrighttest", "playwrighttest"),
-            ("screenshots", "screenshots"),
+        for command, klass in (
+            ("playwrighttest", testsuite.Playwrighttest),
+            ("screenshots", testsuite.Screenshots),
         ):
-            with self.subTest(command=command):
-                with patch.object(testsuite, target) as run:
-                    cli.main([command, "ourapp.tests.test_x"])
-                run.assert_called_once_with(["ourapp.tests.test_x"], [])
+            with self.subTest(command=command), patch.object(klass, "run") as run:
+                cli.main([command, "ourapp.tests.test_x"])
+            (args, extra), _kwargs = run.call_args
+            self.assertEqual(args.labels, ["ourapp.tests.test_x"])
+            self.assertEqual(extra, [])
 
     def test_unknown_command_exits_with_usage(self) -> None:
         stderr = io.StringIO()

@@ -119,23 +119,26 @@ diagram-reviewer tail of the same session is fixed separately in
   Keeps the main session at gates + summaries instead of the
   200k+ of probes/logs/deploys — the self-serve answer to the
   context-rent problem (no launcher automation needed).
-- **`./run test` fast default** (folded over a separate testq) —
-  quiet logs via new `LOG_LEVEL` settings knob, `--failfast`,
-  `--keepdb` gated by a migrations fingerprint (`_migrations_hash`:
-  paths+contents of both migration trees vs
-  `/tmp/desmo/test-migrations.sha`; drift or missing marker ⇒ fresh
-  create). `--full` = legacy full run (fresh DB, full logs, no
-  failfast); checkframework1 uses it (deployscratch invokes
-  manage.py test directly). Unknown flags pass through to
-  manage.py test (parse_known_args) and --noinput is always
-  passed. Playwright tag still excluded. Measured in-VM, 9-test module: ~0.6–0.7s scoped,
-  clean output. Persistent-process/pytest alternatives rejected:
-  boot is always post-edit in an agent loop (staleness), and pytest
-  doesn't touch the fixed costs. Logic lives in **ops/testsuite.py**
-  (Python port of test/playwrighttest/screenshots; run keeps thin
-  `setenv` + `_ops_cli` wrappers, cli.py now passes through args).
-  Verified in-VM: fast path 0.5–1.0s scoped, `--full` OK, ruff +
-  mypy clean over ops/ and the full repo.
+- **`./run test` — fast by default**; logic in ops/testsuite.py:
+  - quiet logs — the new mandatory `LOG_LEVEL` env key, WARNING for
+    the run process;
+  - `--failfast` — stop at the first failure;
+  - `--keepdb` — reuse the test DB while the migrations fingerprint
+    is unchanged (hash of both migration trees vs
+    `/tmp/desmo/test-migrations.sha`; drift or a missing marker ⇒
+    fresh rebuild);
+  - `--noinput` always on; unknown flags pass through to
+    manage.py test; the playwright tag stays excluded;
+  - `--full` = fresh DB, full logs, no failfast — checkframework1
+    uses it; the deployscratch battery invokes manage.py test
+    directly.
+  Measured in-VM: scoped 9-test module ~0.6s (3–18s before), clean
+  output, ruff + mypy green. Persistent-process and pytest
+  alternatives were rejected: after every edit the boot cost returns
+  (staleness), and pytest removes none of the fixed costs.
+  playwrighttest/screenshots moved to ops/testsuite.py as well;
+  run keeps thin `setenv` + `_ops_cli` wrappers and ops/cli.py
+  dispatches one Command class per subcommand.
 
 ## Opportunities (open)
 
@@ -147,7 +150,7 @@ diagram-reviewer tail of the same session is fixed separately in
 - Scout map indexes `Agent:` comments in files likely to be touched.
 - Test parallelism: none today (single process everywhere incl. the
   battery); `--parallel` is a battery lever if its wall time starts
-  to matter — irrelevant for scoped testq runs, and it composes with
+  to matter — irrelevant for scoped `./run test` runs, and it composes with
   --keepdb (Django keeps per-worker DBs).
 
 REJECTED by operator: `./run py` — any allowlisted preloaded runner is
