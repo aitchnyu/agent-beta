@@ -474,7 +474,7 @@ def deployscratch() -> None:
         shell.run_step("uv run mypy .", "uv", "run", "mypy", *MYPY_COLOR, ".", cwd=SCRATCH_DIR)
         print("Running ourapp tests (scoped; the framework suite runs in main/)")
         shell.run_step(
-            "./run test ourapp --noinput",
+            "./run test --full ourapp",
             "uv",
             "run",
             "manage.py",

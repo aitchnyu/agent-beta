@@ -119,17 +119,39 @@ diagram-reviewer tail of the same session is fixed separately in
   Keeps the main session at gates + summaries instead of the
   200k+ of probes/logs/deploys — the self-serve answer to the
   context-rent problem (no launcher automation needed).
+- **`./run test` fast default** (folded over a separate testq) —
+  quiet logs via new `LOG_LEVEL` settings knob, `--failfast`,
+  `--keepdb` gated by a migrations fingerprint (`_migrations_hash`:
+  paths+contents of both migration trees vs
+  `/tmp/desmo/test-migrations.sha`; drift or missing marker ⇒ fresh
+  create). `--full` = legacy full run (fresh DB, full logs, no
+  failfast); checkframework1 uses it (deployscratch invokes
+  manage.py test directly). Unknown flags pass through to
+  manage.py test (parse_known_args) and --noinput is always
+  passed. Playwright tag still excluded. Measured in-VM, 9-test module: ~0.6–0.7s scoped,
+  clean output. Persistent-process/pytest alternatives rejected:
+  boot is always post-edit in an agent loop (staleness), and pytest
+  doesn't touch the fixed costs. Logic lives in **ops/testsuite.py**
+  (Python port of test/playwrighttest/screenshots; run keeps thin
+  `setenv` + `_ops_cli` wrappers, cli.py now passes through args).
+  Verified in-VM: fast path 0.5–1.0s scoped, `--full` OK, ruff +
+  mypy clean over ops/ and the full repo.
 
 ## Opportunities (open)
 
-- `./run py` — settings-preloaded, allowlisted one-liner runner
-  (TODO's "sed and python3?"). CONSTRAINT (operator): single
-  preloaded `-c` probes only — NOT a door for arbitrary python
-  scripts; no file execution, no stdin scripts.
+- Reviewer gate + drain-on-resume: no stage exit without a reviewer
+  result; a resumed session drains pending reviewer results before
+  new work (closes both the skipped diagram pass and the abandoned
+  02:02 review).
 - Batch design questions into one options prompt per stage.
-- Deploy a delta only after its targeted review lands; session
-  resume drains pending reviewer results first.
 - Scout map indexes `Agent:` comments in files likely to be touched.
+- Test parallelism: none today (single process everywhere incl. the
+  battery); `--parallel` is a battery lever if its wall time starts
+  to matter — irrelevant for scoped testq runs, and it composes with
+  --keepdb (Django keeps per-worker DBs).
+
+REJECTED by operator: `./run py` — any allowlisted preloaded runner is
+a door for arbitrary python; the probe tax stays (ask per probe).
 
 ## Verified
 

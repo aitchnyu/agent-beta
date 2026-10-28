@@ -300,7 +300,9 @@ else:
 # propagates to the root handler, which renders via the formatter from
 # djangoapp.logging — so the whole process emits one uniform, jq-filterable
 # NDJSON stream. See djangoapp/logging.py for the contract.
-_LOG_LEVEL = "DEBUG" if DEBUG else "INFO"
+# LOG_LEVEL is a required env key — the root level for the NDJSON stream
+# (DEBUG in dev .env, INFO in the VM template).
+_LOG_LEVEL = os.environ["LOG_LEVEL"]
 
 LOGGING = {
     "version": 1,

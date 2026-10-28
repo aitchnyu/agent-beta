@@ -123,6 +123,16 @@ ignore = [
     "PLR0915",  # too many statements — statement count is pipeline length, not complexity
     "PLW0603",  # global statement usage — configure_output() assigns the module-level color flags once at startup
 ]
+# The test-suite commands: the keepdb marker lives in /tmp/desmo (the
+# established capture area, same as the d2 renders).
+"ops/testsuite.py" = [
+    "S108",  # hardcoded /tmp — the TMPDIR fallback for the marker dir
+]
+# Unit tests exercise the private decision helpers directly — that is
+# their job; the helpers are the unit under test.
+"ops/tests/*" = [
+    "SLF001",  # private member access — testing the private unit
+]
 # Endpoint validators raise PydanticCustomError with inline string
 # literals — that is the pydantic idiom (see steer.md § Forms &
 # validation errors), not a hot-path exception construction. Their

@@ -122,6 +122,7 @@
       "journalctl -u desmo_pgbackrest*": "allow",
       "systemctl status": "allow",
       "systemctl status *": "allow",
+      "systemctl is-active": "allow",
       "systemctl is-active *": "allow",
       "pg_isready": "allow",
       "pg_isready *": "allow",

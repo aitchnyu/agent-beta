@@ -286,9 +286,11 @@ _with_test_redis() {
   REDIS_URL="$_TEST_REDIS_URL" DESMO_TEST_REDIS=1 "$@"
 }
 
+# Django test suite — logic in ops/testsuite.py: quiet logs, failfast,
+# keepdb while migrations are unchanged; --full = full run (the gates).
 test() {
   setenv
-  _with_test_redis uv run manage.py test $_DJANGO_NO_COLOR --exclude-tag playwright "$@"
+  _ops_cli test "$@"
 }
 
 typecheck() {
@@ -296,27 +298,18 @@ typecheck() {
   uv run mypy $_MYPY_COLOR .
 }
 
+# Playwright e2e — logic lives in ops/testsuite.py: build, then the
+# tagged run (a test label narrows it; no label = full suite).
 playwrighttest() {
   setenv
-  cd frontend
-  npm run build
-  cd ..
-  # Forwards args like test(): `./run playwrighttest
-  # djangoapp.tests.playwright.test_framework_smoke` runs just that module
-  # (Django intersects the label with --tag playwright). No args = full suite.
-  _with_test_redis uv run manage.py test $_DJANGO_NO_COLOR --tag playwright --noinput "$@"
+  _ops_cli playwrighttest "$@"
 }
 
+# Regenerates the committed README PNGs in docs/screenshots/ — logic in
+# ops/testsuite.py (overlay recipe: docs/screenshots/README.md).
 screenshots() {
   setenv
-  cd frontend
-  npm run build
-  cd ..
-  # Regenerates the committed README PNGs in docs/screenshots/. The pass
-  # self-gates on GENERATE_SCREENSHOTS (tests skip without it). The models-management
-  # shots additionally need the testapp overlay — see
-  # docs/screenshots/README.md for the manual overlay recipe.
-  GENERATE_SCREENSHOTS=1 _with_test_redis uv run manage.py test $_DJANGO_NO_COLOR --tag screenshots --noinput "$@"
+  _ops_cli screenshots "$@"
 }
 
 checkmarkdownd2() {
@@ -403,7 +396,7 @@ checkframework1() {
   done
   ( cd "$_SCRATCH_DIR"
     ( cd frontend && npm run build )
-    ./run test --noinput ourapp
+    ./run test --full ourapp
   )
   # Green: drop scratch. On failure set -e aborts earlier, leaving it behind
   # for inspection.
@@ -511,13 +504,13 @@ ${H}Development${R}
 
 ${H}Checks${R}
   ${C}lintfix${R}             ruff format + ruff check, oxlint + eslint (vue templates) (writes)
+  ${C}test${R} [args…]        Django tests — quiet logs, failfast, auto keepdb on unchanged migrations; --full = full run; other flags pass to manage.py
   ${C}typecheck${R}           mypy (backend); the frontend type-check (vue-tsgo) rides npm run build
   ${C}checkmarkdownd2${R} [file.md]
                         validate every d2 fence in file(s) (first broken
                         block + error, exit 1); file args also render each
                         fence to fence<N>.svg in a fresh /tmp/desmo/ dir;
                         no args on a TTY → scan the default docs
-  ${C}test${R} [args…]        Django test suite (args pass through to manage.py test)
   ${C}playwrighttest${R} …    Playwright e2e suite
   ${C}screenshots${R}         regenerate docs/screenshots via Playwright
   ${C}checkframework1${R}     the full dev-side gate (main/ only, never the VM):

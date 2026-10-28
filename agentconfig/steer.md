@@ -1201,6 +1201,11 @@ run the queries inside the VM (`multipass exec desmo -- …`).
 ### Writing tests
 Playwright e2e below covers the frontend too; the unit bullet covers
 [Backend](#backend) models/views.
+- **Run scoped checks with `./run test <labels…>`** — quiet logs
+  (WARNING), `--failfast`, and `--keepdb` while the migrations
+  fingerprint is unchanged (a migration add/edit/delete forces a fresh
+  rebuild automatically). `./run test --full …` is the legacy full
+  run (fresh DB, full logs); the deploy/checkframework gates use it.
 - **Unit tests** cover **models and views** in `ourapp/tests/`, one file per
   feature + layer (`test_<feature>_models.py`, `test_<feature>_views.py`,
   `test_<feature>_commands.py`). Subclass the framework's bases —
@@ -1649,7 +1654,8 @@ prints the exact on-disk path.
 
 When a deploy or battery fails on infrastructure — postgres "is shutting
 down", connection refused, service unavailable — **diagnose and retry once
-before reporting it**: `pg_isready`, `systemctl status postgresql@18-main`
+before reporting it**: `pg_isready`, `systemctl status` on the postgres
+unit (`postgresql@*-main`)
 (read-only), then re-run the failed command. Transient states (a restart
 landing mid-deploy) clear themselves; only report a blocker that survives
 a retry.

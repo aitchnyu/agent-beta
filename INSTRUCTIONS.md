@@ -220,13 +220,13 @@ Use `./run python` to run python commands. Or it will interrupt my workflow.
 You must not allow `.pk` and `.id` to be sent to client. It is an unacceptable leak. Send only the designated public ids (which may be the pk) to client. All url paths and api responses use public ids.
 
 #### Test database
-We are not using Sqlite for main db, so dont try to delete db.sqlite3 nor delete Postgres db. Try `./run test --keepdb...`   
+We are not using Sqlite for main db, so dont try to delete db.sqlite3 nor delete Postgres db. `./run test` picks `--keepdb` automatically while migrations are unchanged — never pass keepdb flags yourself.   
 Dont change keepdb settings anywhere.   
 Dont run `psql -U postgres -c "DROP DATABASE IF EXISTS test_tables;" 2>&1` either. You dont need to.
 
 Default on_delete policy should be models.RESTRICT
 
-If django manage complaints there is already a database called `test_something`, and it asks you if it should delete it, one workaround could be `--noinput` to test command. Do not try `drop database` except as last resort.  
+The test command always passes `--noinput` for you — a stale `test_something` database is deleted non-interactively. Do not try `drop database` except as last resort.  
 
 ### Tests
 We need docstrings like:
