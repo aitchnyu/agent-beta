@@ -34,7 +34,8 @@ export default function (pi: ExtensionAPI) {
 					"dumps, and interleaved logs.",
 			});
 			return {
-				output: [{ type: "text", text: "compaction started — the next turn begins lean" }],
+				content: [{ type: "text", text: "compaction started — the next turn begins lean" }],
+				details: undefined,
 			};
 		},
 	});

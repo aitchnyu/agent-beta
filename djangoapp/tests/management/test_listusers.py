@@ -20,7 +20,11 @@ class ListUsersCommandTests(BaseTestCase):
 
     def setUp(self) -> None:
         User.objects.create_user(
-            username="root", password="x", email="root@example.com", is_staff=True, is_superuser=True
+            username="root",
+            password="x",
+            email="root@example.com",
+            is_staff=True,
+            is_superuser=True,
         )
         User.objects.create_user(username="plain", password="x", email="plain@example.com")
 

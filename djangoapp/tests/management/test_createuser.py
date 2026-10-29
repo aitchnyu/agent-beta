@@ -55,9 +55,7 @@ class CreateUserCommandTests(BaseTestCase):
 
     def test_plain_create_records_created(self) -> None:
         """Creation alone is audited: one "created" entry, no flags."""
-        call_command(
-            "createuser", "Plain", "User", "plain@example.com", stdout=StringIO()
-        )
+        call_command("createuser", "Plain", "User", "plain@example.com", stdout=StringIO())
         user = User.objects.get(email="plain@example.com")
         entry = UserHistory.objects.get(target_user=user)
         self.assertEqual(entry.action, "created")
@@ -68,15 +66,15 @@ class CreateUserCommandTests(BaseTestCase):
         """A second account for the same email (iexact) raises instead of doubling."""
         User.objects.create_user(username="dup", email="dup@example.com")
         with self.assertRaises(CommandError):
-            call_command(
-                "createuser", "Dup", "User", "DUP@example.com", stdout=StringIO()
-            )
+            call_command("createuser", "Dup", "User", "DUP@example.com", stdout=StringIO())
 
     def test_output_mentions_login_link(self) -> None:
         """Stdout points the operator at makeloginlink for signing in."""
         out = StringIO()
         call_command("createuser", "Hint", "User", "hint@example.com", stdout=out)
-        self.assertIn("login link: ./run djangomanage makeloginlink hint@example.com", out.getvalue())
+        self.assertIn(
+            "login link: ./run djangomanage makeloginlink hint@example.com", out.getvalue()
+        )
 
     def test_first_user_must_be_superuser(self) -> None:
         """A plain first user would lock everyone out — refuse with the fix."""

@@ -92,7 +92,7 @@ export default function (pi: ExtensionAPI) {
 		async execute(_toolCallId, params, signal, _onUpdate, ctx) {
 			const held = [...prewarms.values()];
 			if (held.length === 0) {
-				return { output: [{ type: "text", text: "no prewarmed reviewers held" }] };
+				return { content: [{ type: "text", text: "no prewarmed reviewers held" }], details: undefined };
 			}
 			const lines: string[] = [];
 			for (const pre of held) {
@@ -134,7 +134,7 @@ export default function (pi: ExtensionAPI) {
 					lines.push(`${pre.agentType} ${pre.agentId}: expired → RESPAWN FAILED (spawn fresh yourself)`);
 				}
 			}
-			return { output: [{ type: "text", text: lines.join("\n") }] };
+			return { content: [{ type: "text", text: lines.join("\n") }], details: undefined };
 		},
 	});
 }

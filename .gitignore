@@ -57,3 +57,7 @@ media/
 
 # pgbackrest repository (backup sets + WAL archive). Same policy as media/
 dbbackups/
+
+# eslint's content cache (frontend/.eslintcache) — runtime artifact from
+# the cached lint runs; must never ride the rsync into main/.
+frontend/.eslintcache
