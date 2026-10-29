@@ -219,12 +219,24 @@ refuse-if-prod() {
 # Step 0 is the prod refusal (refuse-if-prod): a non-loopback BASE_URLS
 # aborts the gate before anything mutates.
 gate() {
-  local link body
+  local link body real_users
 
   # ── Step 0: never on a prod VM ──────────────────────────────────────────
   # The battery destroys what it touches: testapp overlay over ourapp/,
   # smoke superuser in the DB, assert 11's live-DB restore.
   refuse-if-prod
+
+  # ── Safety: the battery destroys DB state — never real users ────────────
+  # Refuse unless every user is *@gate.test or the smoke user — any
+  # other user is real data, no override. awk '/@/' keeps user rows
+  # (always exit 0) — so only a listusers failure fails here.
+  real_users="$(gate-as-desmo-user ./run djangomanage listusers \
+    --exclude '^(framework@example\.com|.*@gate\.test)$' | awk '/@/')"
+  if [ -n "$real_users" ]; then
+    echo "FAILED: real users present in desmo_db — the gate would erase them:"
+    echo "$real_users"
+    exit 1
+  fi
 
   # ── Setup 1/3: replace the app with the test app ───────────────────────
   # Wholesale replace — same semantics as the host tiers' overlay_app
@@ -243,8 +255,11 @@ gate() {
   # overlaid code.
   echo; echo "=== Setup 2/3: migrate, create the smoke superuser ==="
   gate-as-desmo-user uv run --no-sync python manage.py migrate --noinput
+  # Idempotent: the battery leaves its users in place, so a rerun
+  # starts from a DB that may already hold the smoke user.
+  # --if-absent skips then.
   gate-as-desmo-user uv run --no-sync python manage.py createuser \
-    Framework Smoke framework@example.com --superuser
+    Framework Smoke framework@example.com --superuser --if-absent
   systemctl restart desmo_granian.service
 
   # ── Setup 3/3: issue the one-time superuser login link ─────────────────
@@ -309,6 +324,11 @@ gate() {
   # VM-only paths run (protected-hardlink fallback in ops/scratch.py's
   # _link_or_copy_tree, operator-owned scratch git).
   echo; echo "=== Assert 7: agent createscratch ==="
+  # Precondition: the refusal postcondition below needs scratch ABSENT —
+  # establish it regardless of any earlier state (the battery must be
+  # order-independent: it may run right after a cleanscratch or on a
+  # scratch a previous session left behind).
+  gate-as-default-user agent-scratch-clean
   # Postcondition 1: deployscratch without scratch/ refuses
   gate-expect-refusal gate-as-default-user agent-scratch-deploy
   # Postcondition 2: exit 0 means scratch/ exists and scratch-baseline resolves
@@ -372,6 +392,8 @@ gate() {
   # midnight-UTC cadence and Persistent catch-up stay untested (a
   # reboot is too heavy for the gate).
   echo; echo "=== Assert 11: pgbackrest (mark, backup, restore live, verify) ==="
+  echo "    NOTE: this assert's restore REPLACES desmo_db — the battery"
+  echo "    leaves the DB at that restored state."
   local marker_backed_up restore_set backup_info backup_timers
   # Setup: a marker goes in, BOTH backup paths run (the agent's verb,
   # then the timer's shim — each takes its own backup), the NEWEST

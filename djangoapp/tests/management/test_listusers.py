@@ -8,11 +8,14 @@ from djangoapp.tests._base import BaseTestCase
 
 
 class ListUsersCommandTests(BaseTestCase):
-    """``listusers`` prints the user table, paginated.
+    """``listusers`` prints the user table, paginated; ``--exclude`` omits matching emails.
 
     - test_table_lists_every_column, first/last/email/staff/superuser all render
     - test_staff_and_superuser_markers, flags render as yes, absences as -
-    - test_page_size_bounds_rows, --page-size slices the table
+    - test_pagination_pages_and_past_last, fixed 100/page; a page past
+      the last refuses
+    - test_exclude_omits_matching_emails, --exclude drops matching
+      users from the table and the total
     - test_page_past_last_refuses, a page beyond the last is a CommandError
     - test_page_zero_refuses, --page is 1-based
     - test_empty_table_still_prints_header, zero users → header + footer, no crash
@@ -47,16 +50,27 @@ class ListUsersCommandTests(BaseTestCase):
         self.assertNotIn("yes", plain_row)
         self.assertEqual(table.count("yes"), 2)  # staff + super on the root row only
 
-    def test_page_size_bounds_rows(self) -> None:
-        """Email-ordered: page 1 holds plain (alphabetically first), page 2 the rest."""
+    def test_pagination_pages_and_past_last(self) -> None:
+        """One page for a small table; a page past the last refuses.
+
+        Fixed 100 rows/page with 2 users means page 1/1 holds everyone.
+        """
         first_page = StringIO()
-        call_command("listusers", "--page-size", "1", stdout=first_page)
+        call_command("listusers", stdout=first_page)
         self.assertIn("plain@example.com", first_page.getvalue())
-        self.assertNotIn("root@example.com", first_page.getvalue())
-        second_page = StringIO()
-        call_command("listusers", "--page", "2", "--page-size", "1", stdout=second_page)
-        self.assertIn("root@example.com", second_page.getvalue())
-        self.assertIn("page 1/2 · 2 users", first_page.getvalue())
+        self.assertIn("root@example.com", first_page.getvalue())
+        self.assertIn("page 1/1 · 2 users", first_page.getvalue())
+        with self.assertRaises(CommandError):
+            call_command("listusers", "--page", "2", stdout=StringIO())
+
+    def test_exclude_omits_matching_emails(self) -> None:
+        """--exclude drops matching users from the table and the total."""
+        out = StringIO()
+        call_command("listusers", "--exclude", r"^(root@example\.com|.*@gate\.test)$", stdout=out)
+        text = out.getvalue()
+        self.assertNotIn("root@example.com", text)
+        self.assertIn("plain@example.com", text)
+        self.assertIn("page 1/1 · 1 users", text)
 
     def test_page_past_last_refuses(self) -> None:
         with self.assertRaises(CommandError):

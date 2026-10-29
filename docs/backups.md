@@ -34,7 +34,7 @@ a minute and re-running.
 ## If backups fail
 
 ```bash
-sudo journalctl -u desmo_pgbackrest -o cat
+journalctl -u desmo_pgbackrest -o cat
 ```
 
 Read the error, fix, then prove it: `./run backupdb` and

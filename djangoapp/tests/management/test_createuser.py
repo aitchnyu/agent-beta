@@ -19,6 +19,8 @@ class CreateUserCommandTests(BaseTestCase):
       "created" entry (no is_superuser)
     - test_duplicate_email_refuses, a second account for the same email
       (iexact) raises
+    - test_if_absent_skips_existing, --if-absent skips an existing email
+      (no audit entry, no error)
     - test_output_mentions_login_link, stdout points at makeloginlink
     - test_first_user_must_be_superuser, plain createuser on an empty
       table raises with the --superuser instruction
@@ -67,6 +69,14 @@ class CreateUserCommandTests(BaseTestCase):
         User.objects.create_user(username="dup", email="dup@example.com")
         with self.assertRaises(CommandError):
             call_command("createuser", "Dup", "User", "DUP@example.com", stdout=StringIO())
+
+    def test_if_absent_skips_existing(self) -> None:
+        """--if-absent turns an existing email into a silent skip (gate reruns)."""
+        User.objects.create_user(username="dup", email="dup@example.com")
+        out = StringIO()
+        call_command("createuser", "Dup", "User", "dup@example.com", "--if-absent", stdout=out)
+        self.assertIn("already exists — skipped", out.getvalue())
+        self.assertEqual(User.objects.filter(email__iexact="dup@example.com").count(), 1)
 
     def test_output_mentions_login_link(self) -> None:
         """Stdout points the operator at makeloginlink for signing in."""

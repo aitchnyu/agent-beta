@@ -25,12 +25,21 @@ class Command(BaseCommand):
             action="store_true",
             help="Also grant is_staff + is_superuser (audited in UserHistory).",
         )
+        parser.add_argument(
+            "--if-absent",
+            action="store_true",
+            help="Skip silently when the email already exists (no audit entry).",
+        )
 
     def handle(self, **options: Any) -> None:  # noqa: ANN401 # Django passes **options as untyped command flags
         superuser: bool = options["superuser"]
+        email: str = options["email"]
+        if options["if_absent"] and User.objects.filter(email__iexact=email).exists():
+            self.stdout.write(f"{email} already exists — skipped")
+            return
         try:
             user = User.create_by_email(
-                email=options["email"],
+                email=email,
                 first_name=options["first_name"],
                 last_name=options["last_name"],
                 is_staff=superuser,

@@ -78,7 +78,7 @@ creds_dir="/etc/credentials/desmo"
 creds_env="$creds_dir/.env.vm"
 # pi CLI version for the npm -g install (lockstep with dev's
 # npm install -g @earendil-works/pi-coding-agent).
-_PI_NPM_VERSION="1.0.0"
+_PI_NPM_VERSION="1.4.0"
 # Caddy version for the GitHub-release .deb (2026-10-09: the Cloudsmith
 # apt repo upstream documents began answering 402 "repository restricted";
 # the SAME official .deb rides caddyserver/caddy GitHub releases).
@@ -224,6 +224,8 @@ provision() {
   install -d -m775 -o desmo -g desmo "$appdir"
   # default user joins the desmo group → reads the creds env (root:desmo 640).
   usermod -aG desmo "$op_user"
+  # `journalctl -u desmo_*` works without sudo.
+  usermod -aG systemd-journal desmo
   # commit marker = GIT_COMMITTER_NAME env (creds file); a global git
   # identity would OVERRIDE env vars — so none is ever set here.
 

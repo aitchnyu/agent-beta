@@ -11,34 +11,37 @@ from djangoapp.models import User
 class Command(BaseCommand):
     """List users — first, last, email, staff, superuser — paginated."""
 
-    help = "List users (first, last, email, staff, superuser); --page N, 100 rows per page."
+    help = (
+        "List users (first, last, email, staff, superuser); --page N; "
+        "--exclude <regex> omits users whose email matches."
+    )
 
     def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument("--page", type=int, default=1, help="1-based page number.")
         parser.add_argument(
-            "--page-size", type=int, default=100, help="Rows per page (default 100)."
+            "--exclude", default="", help="Omit users whose email matches this regex."
         )
 
     def handle(self, **options: Any) -> None:  # noqa: ANN401 # Django passes **options as untyped command flags
         page: int = options["page"]
-        page_size: int = options["page_size"]
+        page_size = 100
         if page < 1:
             msg = "--page is 1-based"
             raise CommandError(msg)
-        if page_size < 1:
-            msg = "--page-size must be positive"
-            raise CommandError(msg)
 
-        total = User.objects.count()
+        users = User.objects.order_by("email")
+        if options["exclude"]:
+            users = users.exclude(email__regex=options["exclude"])
+        total = users.count()
         pages = max(1, math.ceil(total / page_size))
         if page > pages:
             msg = f"page {page} is past the last page ({pages})"
             raise CommandError(msg)
 
         rows = list(
-            User.objects.order_by("email").values(
-                "first_name", "last_name", "email", "is_staff", "is_superuser"
-            )[(page - 1) * page_size : page * page_size]
+            users.values("first_name", "last_name", "email", "is_staff", "is_superuser")[
+                (page - 1) * page_size : page * page_size
+            ]
         )
 
         display = [
