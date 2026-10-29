@@ -60,6 +60,12 @@ edit `scratch/` and deploy via `deployscratch`, only once I've said to
 start. Within a stage keep going; stop only at a real decision or the
 stage's choice menu. Any stage can send the work back — follow the arrow.
 
+**Session start**: this steer is already in your context — also read
+`.pi/repo-map.md`, the map is your orientation (file patterns, wiring
+points, conventions; a sync test keeps its paths honest). If the
+map's path test fails, refresh the map, never re-derive the repo
+yourself.
+
 ```
 request
   |
@@ -193,6 +199,7 @@ Prewarm + resume mechanics:
   the layer wiring>. Read only. Treat it as a map that may be stale by
   review time — re-read any file you judge, trust the file over your
   memory. Reply STORED." The reviewer-manager extension tracks them.
+  Include the IMAGE-REVIEWER prewarm in the same batch (below).
   (No docs in the change? Spawn at stage-3 start instead.)
 - **Keepalive is not yours to remember** — call
   `reviewers(refresh: true)` at DocsGate, at code-stage start, and
@@ -346,10 +353,16 @@ Before improvising ANY shell/python for user or data admin, check this
 inventory — these are the allowlisted, no-prompt paths (a unit test
 keeps this list in sync with the commands dir; never let it drift):
 
-- `createuser <first> <last> <email> [--superuser]` — make a user
-  (first user must be a superuser); prints the makeloginlink hint.
-- `listusers [--page N] [--page-size N]` — the user table (first,
-  last, email, staff, superuser), 100 rows/page.
+- `createuser <first> <last> <email> [--superuser] [--if-absent]` —
+  make a user (first user must be a superuser); prints the
+  makeloginlink hint; `--if-absent` skips silently when the email
+  exists (gate reruns).
+- `listusers [--page N] [--exclude <regex>]` — the user table (first,
+  last, email, staff, superuser), 100 rows/page; `--exclude` omits
+  users whose email matches the regex.
+- `dbstate` — read-only DB snapshot: every table with estimated row
+  counts, applied migrations (ourapp/djangoapp/auth/contenttypes),
+  user totals. The replacement for hand-rolled python introspection.
 - `makeloginlink <email>` — one-time login URL for an existing user.
 - `promotetosuperuser <email>` — grant staff + superuser.
 - `backupmarker <set|…>` — the backup-marker sentinel (the checkframework2
@@ -744,6 +757,13 @@ LAST lines — never advance such a stage without my explicit reply matching
 an option. (BlockerAsk/FinalReport are report-and-continue stages — no gate menu, but when
 their verdict line ASKS for a decision it uses the same numbered shape; a
 pure report closes on a plain statement.)
+
+**Plain words, always.** Everything operator-facing is written so a
+non-technical reader understands it on first pass: say what is about
+to happen and why ("Cleaning up the conversation history so the coding
+stage starts fresh — your decisions are kept"), never internal jargon
+("compacting the stage-2 transcript" means nothing to the operator).
+Acronyms and stage codenames explain themselves or get expanded.
 Verify every link's file exists in `main/` before sharing (see
 [Linking](#linking-absolute-urls-markdown-only)); never deploy a design
 artifact silently, and never label a mockup link as the finished page.
@@ -817,14 +837,13 @@ Track multi-step work with a **checklist in your messages** — one item per
 step, marked done (`[x]`) as you complete it, repeated at the top of each
 stage report so I can watch progress across turns. The **subagent**
 tool is available (the package's builtins `general-purpose`/`Explore`/`Plan`,
-plus this repo's project agents in `.pi/agents/` — `scout`, `reviewer`,
-and the three rule-focused reviewers); use it for
+plus this repo's project agents in `.pi/agents/` — `reviewer` and
+the rule-focused reviewers (correctness, conventions, trace, image));
+use it for
 genuinely parallel independent research (parallel mode), and to **review
 your work** — before reporting done, spawn the reviewer to re-read the
 diff against the requirement and catch what you missed. Not for a single
-lookup (do that yourself). Subagents also EXECUTE the code stage per
-[Feature workflow](#feature-workflow) [3] — fresh spawn, compact result.
-Subagents run under the SAME permission policy,
+lookup (do that yourself). Subagents run under the SAME permission policy,
 and their `ask` decisions are FORWARDED to the operator's TUI — in headless
 runs (no UI anywhere) asks are denied, so keep subagent tasks allowlist-clean.
 
@@ -883,6 +902,14 @@ The reference app **shows the way** — copy it, don't invent:
 - [ ] **JSON/file endpoint** — on the feature's ninja `Router`,
       registered on the NinjaAPI in `views/__init__.py`
       (example: `create_todo` / the downloads serve route)
+- [ ] **Model** — `docs/reference/ourapp/models/todos.py` (BaseModel
+      conventions: save_plus/row_version, RESTRICT, public_id)
+- [ ] **Tests** — the trio `test_todos_models.py` /
+      `test_todos_views.py` / `test_todos_playwright.py`
+- [ ] **Frontend** — `docs/reference/frontend/src/pages/TodosPage.vue`
+      + `docs/reference/frontend/src/schemas/todos.ts` (zod shape)
+- [ ] **Wiring** — `docs/reference/ourapp/urls.py` +
+      `docs/reference/ourapp/views/__init__.py`
 - [ ] Never `@router.get` a page that renders Inertia; never a plain
       view for a data endpoint.
 
@@ -1589,7 +1616,8 @@ these, and read
   copy of it IS a plaintext database (never commit or share it).
   Never edit `/etc/pgbackrest/` or the ALTER SYSTEM archive settings.
 - **If backups fail** (red `desmo_pgbackrest` unit, failed gate assert
-  11): read `sudo journalctl -u desmo_pgbackrest -o cat`, fix, then
+  11): read `journalctl -u desmo_pgbackrest -o cat` (no sudo — the
+  journal group covers you), fix, then
   prove the fix with `./run backupdb` +
   `sudo -u postgres pgbackrest --stanza=desmo check`.
 

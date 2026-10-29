@@ -4,7 +4,7 @@
  * Two Oct 28 sessions prewarmed reviewers that expired before the review
  * round (pi-subagents releases idle background agents; a busy main agent
  * cannot ping them). This extension tracks every background REVIEWER
- * spawn (the prewarms — scout and other non-reviewer agents are ignored)
+ * spawn (the prewarms; non-reviewer agents are ignored)
  * and exposes the `reviewers` tool: status for each held prewarm, plus a
  * refresh that resumes each with a keepalive via nested subagent calls.
  * A resume that fails (the retention window already lapsed) respawns the
@@ -47,7 +47,7 @@ export default function (pi: ExtensionAPI) {
 		const input = call.input ?? {};
 		if (input.run_in_background !== true) return;
 		const agentType = String(input.subagent_type ?? "");
-		if (!agentType.startsWith("reviewer")) return; // scouts and friends are not prewarms
+		if (!agentType.startsWith("reviewer")) return; // non-reviewer agents are not prewarms
 		pendingSpawns.set(event.toolCallId, { agentType, sprompt: String(input.prompt ?? "") });
 	});
 

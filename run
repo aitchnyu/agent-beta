@@ -318,7 +318,7 @@ checkmarkdownd2() {
   # All ok → exit 0, and file args also render each fence to
   # fence<N>.svg in a fresh /tmp/desmo/ dir. No args on a TTY: scan
   # every fence in the default docs (ourapp/docs/, ourapp/README.md,
-  # docs/d2.md, docs/reference/ourapp/docs/, agentconfig/steer.md).
+  # docs/d2.md, docs/reference/ourapp/docs/, .pi/steer.md).
   _require_main_run checkmarkdownd2 || return 1
   node "$_MAIN_DIR/deploy/checkmarkdownd2.mjs" "$@"
 }

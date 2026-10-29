@@ -12,7 +12,7 @@ from pathlib import Path
 
 _REPO = Path(__file__).resolve().parent.parent.parent
 _COMMANDS_DIR = _REPO / "djangoapp" / "management" / "commands"
-_STEER = (_REPO / "agentconfig" / "steer.md").read_text(encoding="utf-8")
+_STEER = (_REPO / ".pi" / "steer.md").read_text(encoding="utf-8")
 
 
 class ManagementCommandInventoryTests(unittest.TestCase):

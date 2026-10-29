@@ -1,3 +1,52 @@
+Analyze the accesses and thoughts taken by the agent. Make a repo map so agent doesnt have to discover stuff by itself. 
+
+Remove the scout background agent.
+
+Run reviewer agents after coding round. Think if prewarmed reviewer save time over brand new reviewers.
+
+Have image reviewer subagent (prewarmed?) in background that run for every markdown generated. We abandoned that idea earlier.
+
+Whats conventions reviewer and why is it slowest?
+
+Whats the criteria for which agent proposes compact tool?
+
+This is too terse for the user to understand. In future phrase it for a layman:
+
+```
+ Approved — compacting the stage-2 transcript, then starting the code stage with the
+ wiring files I need:
+
+
+ compact
+```
+
+Why did it need to run python scripts? Cant we avoid that?
+
+Update to latest pi in vm as well as repo
+
+Allow backup and other safe commands. It hit permission prompt.
+
+why is service down when deploying scratch? Why did it need to run migrate
+run new reviewers instead of warming
+have image reviewers
+whats conventions
+did we examine if we need to compact
+why python command?
+Latest pi
+allow to backup
+
+have a repo map
+
+Command to print all users?
+first last email as args `desmo djangomanage createuser you@example.com --first-name You --last-name Name --superuser`
+Dont run shell 
+When proposing scripts, split into sections, comment them, meaningful var names
+Why are reviewers and other agents printing to terminal and blocking questions?
+
+Why code subagent?
+Why 3580 seconds?
+wrong time to prewarm reviewer
+
 Implement these as classes instead of functions 
 
     "cleanscratch": (
@@ -130,11 +179,13 @@ How to track time taken for provisioning
 Remove https://localhost:8000/accounts/login/, show items in dropdown only. 
 User view form should be single column, each checkbox in own line. Describe each field and checkbox
 
-Lets make a chore tracker. We should have chores which have a repetition schedule. It shows chores from earliest to latest due date. The logged in user can complete an instance.  
+Lets make a chore tracker. We should have chores which have a repetition schedule. It shows chores from earliest to latest due date. Any logged in user can create and complete an instance. Chores have links where we can see past instances and edit. We can archive chores too and view them with a filter.
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
 How to document system changes when agent modifies system? Write down scripts?
 List backups and time travel
 Can agent merge from upstream, minding branch and tags?
+Systemd service for backup /srv/
+Manually run backup? Add descriptions
 
 Switch to Debian for lower memory usage? Multipass is for Ubuntu. Incus can rewind machines.
 Incus for native port forward
@@ -153,6 +204,7 @@ threeflet
 Desec dns docs
 org/reponame with main thing, landing page
 Features - file section with git etc. Readme is crap. Gantt of scout, main work and reviewer prewarm and reviewer action, rework
+Just keep pi command without desmo prefix
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 UserHistory.record_created(user, user, user.snapshot()) is a mess

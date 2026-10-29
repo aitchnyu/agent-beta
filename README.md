@@ -177,7 +177,7 @@ If you want to look around:
   framework pages under `frontend/src/system/pages/`.
 - **Design mockups** — throwaway superuser-only `/mockup/<page>` pages with
   a crosshatch overlay let you review a UI before it's built
-  (the convention lives in `agentconfig/steer.md`; `/mockup/MockupTodos` ships as the
+  (the convention lives in `.pi/steer.md`; `/mockup/MockupTodos` ships as the
   permanent demo — see [Edit → test → deploy workflow](#edit--test--deploy-workflow)).
 - **Golden theme** — a worked example for building a Bootstrap color theme (six wheel-derived
   golden options, light + dark tokens, AA contrast, colorblind review). Start from
@@ -310,7 +310,7 @@ One-time setup:
 
    When we set up a provider and model, a background agent analyzes the repo. It is normal and helps save operator's time:
 
-   ![pi first session — the groundwork scout already running in the background, footer glm-5.3-flash • high, 1 running agent](docs/screenshots/pi/pi-groundwork-scout.png)
+   ![pi first session — groundwork orientation already running in the background, footer glm-5.3-flash • high, 1 running agent](docs/screenshots/pi/pi-groundwork-scout.png)
 
 4. **Thinking level**: `/thinking` opens the picker for the current
    model → **high** → **Ctrl+S** sets it as the startup default. On
@@ -417,7 +417,7 @@ split into modules (one per feature), never stuffed into one file:
 
 The app also has its own `README.md` (a brief feature catalog) and `docs/`
 (one markdown file per feature, linked from the README). See
-`agentconfig/steer.md` for the "Checklist — adding or changing a feature".
+`.pi/steer.md` for the "Checklist — adding or changing a feature".
 
 See `docs/reference/` for a complete copyable example (the **facts** feature —
 a `Topic` + `Fact`, a seed command, two pages — and the **todos** feature — a
@@ -518,7 +518,7 @@ change:
 Mid-build UIs are reviewed as **mockups**: throwaway superuser-only
 `/mockup/<page>` routes rendered with a crosshatch overlay, so a design is
 visible in the real app before it's built (the convention lives in
-`agentconfig/steer.md`; the repo ships `/mockup/MockupTodos` as the permanent demo —
+`.pi/steer.md`; the repo ships `/mockup/MockupTodos` as the permanent demo —
 append `?final=1` for its hatched-off "graduated" look).
 
 <figure>
@@ -743,8 +743,8 @@ creates what, when) lives in `deploy/inside-vm.sh`'s header.
 │   │   │   ├── src/app/           YOUR tree: pages/ (auto-globbed; component
 │   │   │   │                      name = path), components/, styles/app.scss
 │   │   │   └── src/system/        framework pages/components/schemas/styles/icons/utils
-│   │   ├── agentconfig/           steering documents the pi agent reads
-│   │   ├── .pi/                   pi CLI config: permissions allowlist, extensions
+│   │   ├── .pi/                   pi CLI config: permissions allowlist, extensions,
+│   │   │                          steer.md + repo-map.md, agents
 │   │   ├── deploy/                guest-side scripts (gate.sh, inside-vm.sh, …)
 │   │   └── dbbackups/             pgbackrest repo — plain unencrypted backup sets +
 │   │                              WAL archive (nightly; runtime data, gitignored +
