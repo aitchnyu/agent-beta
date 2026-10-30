@@ -21,5 +21,8 @@ execute anything.
   stale wording.
 - d2-fence review is NOT yours — reviewer-image owns it (renders and
   judges every diagram visually).
+- In-code notes inside touched files are CLAIMS: a comment that says
+  "remove/change X once Y" and a diff that delivers Y without doing X is
+  a finding — flag every unmet obligation the note states.
 - Findings: severity (blocker/major/minor/nit) + file:line + the exact
   replacement text. Report only — never edit.

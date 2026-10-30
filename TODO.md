@@ -1,4 +1,24 @@
-Show full drilldown
+How to to fewer turn boundaries. 
+How to launch subagent at lower thinking level for same model without hardcoding it?
+split conventions' five duties into parallel smaller agents
+
+I wanted a single reviewer for all images in md
+Instead I see
+    why for n in 1 2 3 4
+System must avoid this slowdown
+
+Why ` python3 - <<'EOF'`
+
+why play with json.loads
+
+When system wants to run a bash command, explain it to user in plainish language so user can make an informed decision
+
+Whats the end message given to user? Lets discuss
+
+Why compact after review?
+Why did session go idle after compact was cancelled?
+
+Why didnt you remove placeholder and why reviewer didnt catch it? 
 
 how to hide thinking?
 How to justify each command?
@@ -218,6 +238,7 @@ Desec dns docs
 org/reponame with main thing, landing page
 Features - file section with git etc. Readme is crap. Gantt of scout, main work and reviewer prewarm and reviewer action, rework
 Just keep pi command without desmo prefix
+File shows which commits it was part of and if its part of uncommitted changes
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 UserHistory.record_created(user, user, user.snapshot()) is a mess

@@ -16,15 +16,17 @@ export default function (pi: ExtensionAPI) {
 		name: "compact",
 		label: "Compact the session",
 		description:
-			"Compact this session NOW. Call it at stage boundaries (after DocsGate approval, " +
-			"after CommitOffer) or whenever the transcript holds a finished stage's probes, " +
-			"deploys, and tool dumps. Operator decisions, doc paths, reviewer agent IDs, and " +
-			"the open gate's menu survive; the next stage starts lean. Pass the next batch in " +
-			"continue_with and execute it immediately when this tool returns — never end a " +
-			"turn on compact.",
-		promptSnippet: "compact — shed the finished stage's transcript between stages",
+			"Compact this session NOW. The default moment is right after DocsGate " +
+			"approval — shed the mockup/docs stage so the code stage starts lean. " +
+			"Other points are rarely right: compacting just before a gate message " +
+			"sheds the content the gate must carry, and after CommitOffer the " +
+			"close-out needs no leanness — compact there only if the context is " +
+			"truly huge. Skip it if the pre-DocsGate stages made under ~60 tool " +
+			"calls. Pass the next batch in continue_with and execute it " +
+			"immediately when this tool returns — never end a turn on compact.",
+		promptSnippet: "compact — shed the mockup/docs stage after DocsGate",
 		promptGuidelines: [
-			"Call compact({ continue_with }) at every stage boundary (after DocsGate approval, after CommitOffer) — pass the next batch and execute it the moment the tool returns.",
+			"Call compact({ continue_with }) after DocsGate approval by default — rarely elsewhere. Pass the next batch and execute it the moment the tool returns.",
 		],
 		parameters: Type.Object({
 			continue_with: Type.String({

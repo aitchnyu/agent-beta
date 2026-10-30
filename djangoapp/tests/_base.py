@@ -12,6 +12,8 @@ sniffing ``manage.py test`` in settings.py, so production settings stay pure;
 ``test_test_conventions.py`` fails the run if a new class forgets to inherit.
 """
 
+# MAINTAIN-CONSISTENCY repo-map: excerpted in .pi/repo-map.md §9 — change both together.
+
 from __future__ import annotations
 
 from django.test import TestCase, override_settings

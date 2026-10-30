@@ -138,14 +138,23 @@ lives in [Stage messages](#stage-messages):
     and approve per use) and never a wholesale rewrite of an existing
     file (the model repays the whole authoring cost). Extra edit
     round-trips are the cheaper tax.
+  - Read-only checks are plain `sed`/`read`/`rg`/`cat` calls — never a
+    `python3 - <<EOF` heredoc wrapper (bare python is a permission
+    ask; an empty heredoc is the ask with zero work). Python only when
+    something must actually be computed.
+  - `rg` flags: `-n` numbers lines; `-r STR` REPLACES matches with
+    STR — a stray `rg -rn` fabricates phantoms you will then debug.
+    Read your own command before reading its output.
   - Edit → `./run deployscratch` from `main/` **once per edit batch** —
     every green batch goes LIVE (migrate/restarts folded in when backend
     code changed). Run it straight through; don't stop to report progress.
   - After any format pass, re-read a file before editing it again —
     reformatted text breaks old-text matches.
   - Evolve the mockup pages into the real feature (real URL, real
-    props/endpoints) and DELETE the `Mockup<Name>.vue` page and its homepage
-    link when the real page lands.
+    props/endpoints) and DELETE the `Mockup<Name>.vue` page, its homepage
+    link, AND the homepage placeholder block when the real page lands —
+    a real feature replaces the placeholder, and its EMPTY state must
+    render ("No chores yet", never placeholder text).
 - **[4] Agent review + doc updates** —
   - run the executable checks yourself; paste their outputs as evidence
   - spawn the reviewers fresh, in parallel (see
@@ -177,13 +186,16 @@ updates run as ONE batch ending at the CommitOffer. From your seat:
 4. update the docs;
 5. make the CommitOffer.
 
-Call the `compact` tool at stage boundaries (after DocsGate approval,
-after CommitOffer) — shed the finished stage's transcript to its
-decisions + summaries so the next stage starts lean; operator turns
-are never compacted away. Two hard rules:
+Call the `compact` tool after DocsGate approval — shed the
+mockup/docs stage (probes, renders, deploy churn) so the code stage
+starts lean; operator turns are never compacted away. That is the
+default boundary. Others are rarely right: compacting right before a
+gate message sheds the content the gate must carry, and after
+CommitOffer the close-out needs no leanness — prefer not compacting
+at those points unless the context is truly huge. Two hard rules:
 
-- **Below the limit, don't compact.** If the just-finished stage 
-  made under ~60 tool calls, carry the context
+- **Below the limit, don't compact.** If the pre-DocsGate stages
+  made under ~60 tool calls combined, carry the context
   forward — relearning after compaction costs more than a lean
   context saves (a compacted session re-reads reference material it
   already held).
@@ -200,6 +212,22 @@ Keep OPENING turns small — a plan of ≤10 lines, then the first tool
 call. Long composed payloads (multi-paragraph prompts, restated
 context) are generation time paid before any work starts; prompts you
 send to tools and subagents stay short too.
+
+### One turn, one batch
+
+Every model round trip costs a generation
+gap — spend them on decisions, not on serialization:
+
+- if the next 2+ calls don't depend on each other's results, emit
+  them together in ONE block (parallel reads, parallel probes);
+- chain read-only inspection into one compound command
+  (`rg -n A f; sed -n '40,80p' f; rg -n B f`) — the permission
+  system clears each segment, so compounds of allowlisted reads
+  still run free;
+- put ALL of a file's edits in one `edit` call — N surgical diffs,
+  one round trip;
+- after a failing suite run, fix every failure you understand in one
+  batch, then rerun once — never one symptom per run-edit-run cycle.
 
 ### The review round (stage 4)
 
@@ -225,16 +253,20 @@ Spawn + feeding mechanics:
   prompt: the requirement in 2–3 lines + `git status --short` + the
   pasted `git diff` + the touched-file list. Reviewers read the diff
   and ONLY the files it touches — say so in the prompt; whole-tree
-  re-reads are how a review round burns minutes.
+  re-reads are how a review round burns minutes. Launch each with
+  `thinking` ONE level below the session's current level (high →
+  medium, medium → low) — per call, never pinned in the agent files.
 - Run the executable checks yourself FIRST — the feature's tests,
   `./run checkmarkdownd2`, quick fixture probes — and PASTE the
   outputs into the prompts as evidence (the checkmarkdownd2 output
   names the fresh /tmp/desmo render dir — paste that path too; the
   image reviewer reads the fence<N>.svg files). Reviewers read
   results; they never execute.
-- The image reviewer is scoped PER FENCE — "judge fence<N>.svg
-  against the Diagrams rules", one prompt per render — never "review
-  the doc's diagrams" as one open-ended pass.
+- The image reviewer is ONE spawn per markdown doc — a single
+  subagent whose prompt lists every `fence<N>.svg` of that doc with
+  its rule set ("judge fence1…fenceN of <doc> against the Diagrams
+  rules"). NEVER one subagent per fence — N spawns pay N cold starts
+  for the same verdicts.
 - Spot-check resumes are TIGHTLY SCOPED — one named confirmation
   ("confirm the wrapped labels fit"), not an open-ended re-review:
   a tightly-scoped round answers in under a minute; an open-ended
@@ -296,10 +328,9 @@ reference file (INSTRUCTIONS.md, the reference views, a base class) you just
 looked at is pure waste — 50+ reads for a one-feature turn means you're
 re-fetching context instead of remembering it.
 
-**Batch your tool calls — every turn is a full model roundtrip.** Ask for
-ALL the files and greps you need in ONE turn (multiple tool calls ride a
-single assistant message) and fold quick shell inspection into one `&&`
-chain; start dependent steps only after the batch returns.
+**Batch your tool calls** per [One turn, one batch](#one-turn-one-batch)
+— the triage read is the worst offender: ask for ALL the files and
+greps you need in ONE turn.
 
 **Resolve lint, don't suppress it.** Don't pile on `# noqa`. ruff's
 type-checking-only rule wants annotation-only imports under
@@ -404,6 +435,16 @@ or write one into a file — it must be reviewable at a glance:
   (mark what each section mutates);
 - readable variable names — no cryptic one-letter holders.
 
+**Explain before you ask.** Before you run any command that will
+trigger a permission ask (everything outside the allowlist):
+
+- state one plain-language line in the message before the call: what
+  the command does, and why now;
+- for destructive commands (deletes, restores, writes outside
+  scratch), also state what they could cost;
+- never send the command bare — the operator approves on your
+  sentence, not on the command string.
+
 ### Mockups
 Stages 1–2's artifacts live in **files**, not chat: mockups are real deployed
 pages. Everything lives in `../scratch/` and reaches `main/` only via
@@ -411,16 +452,17 @@ pages. Everything lives in `../scratch/` and reaches `main/` only via
 deployed links in chat immediately after each deploy via
 [Stage messages](#stage-messages). **Verify every URL you announce**
 before sharing it:
-- one probe, exactly this shape (read-only, allowlisted):
+- probe once, exactly this shape (read-only, allowlisted):
   `curl -sk -o /dev/null -w "%{http_code}" https://localhost<path>`
-  — on the VM's OWN origin (`https://localhost`, no port). The
-  announced links may carry the tunnel origin (`:8000`) — that port
-  is operator-side only and answers 000 from inside the VM; probe
-  the PATH, never the tunnel origin
-- the allowlist matches this prefix exactly — an improvised variant
-  becomes a permission ask
-- a link that 404s costs the operator a bug report (a session once
-  announced a live mockup whose hatch route never existed)
+- probe the PATH on the VM's OWN origin (`https://localhost`, no
+  port) — never the tunnel origin. Announced links may carry
+  `:8000`; that port serves the operator only and answers 000 from
+  inside the VM.
+- improvise no variants — the allowlist matches the exact prefix
+  above; any other shape triggers a permission ask.
+- verify before you announce — a 404 link costs the operator a bug
+  report (a session once shipped a live mockup whose hatch route
+  never existed).
 
 - **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
   deploy as `/files/main/ourapp/docs/<feature>.md`. Structure and writing
@@ -771,13 +813,13 @@ restates it. Verify each link's file exists before sharing it (an
 unverified URL is worse than no URL: it wastes a round-trip).
 
 When the work is done and the suite is green, close with a short markdown
-summary in exactly this shape:
+summary in exactly this shape — operator-level, no dev detail (endpoints,
+bundles, migrations, file lists live in the design doc, not in the
+message):
 - **Requirement** — one line restating what was asked.
-- **What changed** — the feature/behavior added or fixed.
-- **Endpoints** — each new or changed URL (from `ourapp/views/`) with its path
-  and HTTP verb.
-- **Tests** — the test names you added and confirmation that `./run deployscratch`
-  passes.
+- **What changed** — the feature(s) and behavior added or fixed, in plain
+  words.
+- **Tests** — confirmation the suite + deploy are green.
 - **Links** — a checklist of absolute URLs (verified against the tree, built
   from the deployed base URL) to share:
   - [ ] the design doc — `<base>/files/main/ourapp/docs/<feature>.md`
@@ -845,15 +887,24 @@ Choose
   - [ ] the Requirement / What changed / Endpoints / Tests / Links checklist
         in [Message structure](#message-structure-the-single-rule)
 - **CommitOffer — offer to commit**
-  - [ ] the FinalReport checklist
-  - [ ] files-to-commit list
-  - [ ] menu: 1. commit 2. hold — then `Choose` (commits stay the human's
-        call)
-  - [ ] shaped per [Message structure](#message-structure-the-single-rule)
-- **CloseOut — final checklist close-out** (stage [6]; no menu — it runs after the
-  commit lands): the checklist itself (clean tree, single feature commit,
-  migrations + production scripts executed, scratch gone), then the
-  ONE-sentence report.
+  - which feature(s) this adds, in plain words — no dev detail
+    (endpoints, bundles, migrations, file lists belong in the design
+    doc, never in this message)
+  - links: the feature's page(s) + the design doc
+    (`<base>/files/main/ourapp/docs/<feature>.md`)
+  - menu: 1. commit 2. hold — then `Choose` (commits stay the human's
+    call)
+  - a re-attached standing offer repeats the feature line + the links —
+    never bare numbers
+  - shaped per [Message structure](#message-structure-the-single-rule)
+- **CloseOut — post-commit close-out** (stage [6]; no menu — it runs after the
+  commit lands):
+  - the checklist stated as done, one line (clean tree, single feature
+    commit, migrations + production scripts executed, scratch gone);
+  - which feature(s) shipped, in plain words;
+  - links: the design doc + the commit (its sha, or the repo URL for
+    it);
+  - the ONE-sentence report.
 
 ### Plan format — data models first
 That order is clearest for
@@ -1793,8 +1844,8 @@ Use the right tool, not a shell reinvention:
 - **Search file contents:** the `grep` tool for structured, source-linked
   results; `rg` is allowlisted too (installed on host and VM) — it earns
   its keep inside `&&` chains.
-- **Read in parallel:** issue several reads/greps in **one turn** —
-  pi runs them concurrently. Don't read one file per turn.
+- **Read in parallel** — several reads/greps in one turn; pi runs them
+  concurrently (see [One turn, one batch](#one-turn-one-batch)).
 - **Write/edit files:** the `write`/`edit` tools. Never `cat >` / heredocs.
 - **Never recurse into** `node_modules`, `dist`, `build`, `.git`, `__pycache__`.
 - **Don't repeat a command more than twice** if it returns the same output.

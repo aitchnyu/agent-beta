@@ -147,8 +147,9 @@ the full file only when an excerpt runs out.
 <!-- MAINTAIN-CONSISTENCY repo-map — these skeletons excerpt
      docs/reference/ourapp/{models,views,tests} todos files,
      docs/reference/ourapp/views/__init__.py, docs/reference/ourapp/urls.py,
-     and docs/reference/frontend/src/{schemas/todos.ts,pages/TodosPage.vue};
-     changing any side means updating the other. -->
+     docs/reference/frontend/src/{schemas/todos.ts,pages/TodosPage.vue},
+     and djangoapp/tests/_base.py; changing any side means updating the
+     other. -->
 
 **Model** — from `docs/reference/ourapp/models/todos.py`:
 
@@ -218,8 +219,28 @@ class TodosViewTests(BaseTestCase):
         )
 
     # page GET: client.get("/todos", HTTP_X_INERTIA="true").json()["props"]["props"]
+    # endpoint POSTs: body = resp.json() — then pk-free asserts on body
     # pk-free assert: for t in todos: self.assertNotIn("id", t)
 ```
+
+**Test harness** — from `djangoapp/tests/_base.py` + the views tests:
+
+```python
+from djangoapp.tests._base import BaseTestCase, BaseInertiaTestCase
+
+# unit tests → BaseTestCase (fast MD5 hasher);
+# inertia-prop view tests → BaseInertiaTestCase, then:
+
+
+class MyViewTests(BaseInertiaTestCase):
+    def test_page_lists(self):
+        self.client.get("/mine", HTTP_X_INERTIA="true")
+        props = self.props()["props"]  # the Inertia wrapper; assert inside it
+        self.assertEqual(props["models"][0]["name"], "x")
+```
+
+JSON bodies: resp.json() on test-client responses — json.loads
+only for plain strings (e.g. playwright's `request.post_data`).
 
 **Frontend schema + page** — from
 `docs/reference/frontend/src/schemas/todos.ts` +
