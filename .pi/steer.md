@@ -1459,6 +1459,14 @@ class FactsViewTests(BaseTestCase):
       in plain English (e.g. "anon GET /todos is 404 (private)"), not a restate
       of the method name.
 
+### Debugging a failing test
+A failing test debugs from inside its frame: rerun the same label with
+`--pdb` — allowlisted on both test commands. Unit tests feed pdb commands
+in a here-string; Playwright tests through a throwaway rc dir under
+/tmp/desmo (its driver eats stdin — recipe in the doc). The e2e browser
+stays open at the prompt: live DOM text, console output, screenshots.
+Verified commands and transcripts live in **docs/debugging-tests.md**
+(read it first).
 
 ## Frontend
 
@@ -1769,7 +1777,6 @@ The allowlisted commands (defined in the `bash` map of
 ./run checkmarkdownd2 <file.md>      # validate every d2 fence in a file
 ./run typecheck                      # …and ./run lintfix
 ./run test …                         # any args
-./run python …                       # quick fixture probes (stage-4 evidence)
 ./run playwrighttest …
 ./run djangomanage makemigrations …  # … / migrate / findstatic / baseurls
                                       # (findstatic, baseurls are read-only)

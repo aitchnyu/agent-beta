@@ -22,13 +22,15 @@
       "*": "ask",
       "scratch/*": "allow",
       "*/scratch/*": "allow",
-      "/srv/desmo/scratch/*": "allow"
+      "/srv/desmo/scratch/*": "allow",
+      "/tmp/desmo/*": "allow"
     },
     "edit": {
       "*": "ask",
       "scratch/*": "allow",
       "*/scratch/*": "allow",
-      "/srv/desmo/scratch/*": "allow"
+      "/srv/desmo/scratch/*": "allow",
+      "/tmp/desmo/*": "allow"
     },
     "external_directory": {
       "*": "ask",
@@ -72,6 +74,7 @@
       "./run lintfix": "allow",
       "npm run build": "allow",
       "rm -rf ../scratch": "allow",
+      "rm -rf /tmp/desmo/pdb-*": "allow",
       "rm ../scratch/*": "allow",
       "rm scratch/*": "allow",
       "rm /srv/desmo/scratch/*": "allow",

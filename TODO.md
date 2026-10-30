@@ -1,3 +1,6 @@
+Review last commit, both pi and debug
+Provision vm in place
+
 How to to fewer turn boundaries. 
 How to launch subagent at lower thinking level for same model without hardcoding it?
 split conventions' five duties into parallel smaller agents
