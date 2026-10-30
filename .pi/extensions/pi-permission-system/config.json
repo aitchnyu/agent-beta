@@ -85,7 +85,7 @@
       "./run djangomanage makeloginlink *": "allow",
       "./run djangomanage promotetosuperuser *": "allow",
       "./run test *": "allow",
-      "curl -sk -o /dev/null -w *": "allow",
+      "curl -sk -o /dev/null * https://localhost*": "allow",
       "./run playwrighttest *": "allow",
       "git diff *": "allow",
       "git log *": "allow",

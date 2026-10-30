@@ -20,11 +20,10 @@ run as ONE turn; compact at stage boundaries.
   no props/backend, superuser-only, `div.mockup` wrapper.
   `?props=<base64url JSON>` presets state (`_B64JsonProps`).
   Graduation = real page + DELETE mockup + homepage link.
-- Reviewers: prewarmed at stage-2 start (background `subagent`,
+- Reviewers: fresh at stage 4 (parallel `subagent` —
   reviewer-correctness / reviewer-conventions / reviewer-trace for
-  big diffs, single `reviewer` otherwise); the reviewer-manager
-  extension keeps them alive (`reviewers({refresh: true})` at
-  DocsGate, code-stage start, FinalReport); round 2 resumes warm.
+  big diffs, single `reviewer` otherwise), each fed the diff +
+  touched files; round 2 resumes round-1 agents on the fix diff.
 
 ## 2. Scratch discipline
 
@@ -71,6 +70,8 @@ run as ONE turn; compact at stage boundaries.
   m2m changes not logged.
 
 ## 5. Endpoints + Inertia pages pattern
+
+Copy from the §9 skeletons first; the full reference files back them.
 
 - Pages = PLAIN Django views in `ourapp/views/<feature>.py`, routed
   `path(...)` in `ourapp/urls.py` (see also
@@ -133,7 +134,105 @@ run as ONE turn; compact at stage boundaries.
 - **`dbbackups/` inside main/ is a postgres-owned island.** Never
   chown/copy/write into it; pgbackrest (running as postgres) fails
   the backup when its ownership changes.
-- **Gate leftover landmine**: a gate run leaves Books-era migration
-  rows in `desmo_db` — if a fresh feature 500s with tables missing,
-  check `django_migrations` for a colliding `0001_initial` (the
-  gate-cleanup fix removes this; see plan file 20261029).
+- **Gate leftover landmine**: a gate run leaves the DB at the assert-11
+  restore point — testapp migration rows included. If a fresh feature
+  500s with tables missing, check `django_migrations` for a colliding
+  `0001_initial`.
+
+## 9. Copy-me skeletons (read these BEFORE opening reference files)
+
+The distilled shapes from `docs/reference/` — copy these first; open
+the full file only when an excerpt runs out.
+
+<!-- MAINTAIN-CONSISTENCY repo-map — these skeletons excerpt
+     docs/reference/ourapp/{models,views,tests} todos files,
+     docs/reference/ourapp/views/__init__.py, docs/reference/ourapp/urls.py,
+     and docs/reference/frontend/src/{schemas/todos.ts,pages/TodosPage.vue};
+     changing any side means updating the other. -->
+
+**Model** — from `docs/reference/ourapp/models/todos.py`:
+
+```python
+class TodoManager(models.Manager["Todo"]):
+    def active_for(self, user: User) -> models.QuerySet["Todo"]:
+        return self.get_queryset().filter(owner=user).order_by("-created_at")
+
+
+class Todo(BaseModel):
+    text = models.CharField(max_length=500)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.RESTRICT, related_name="todos"
+    )
+    objects = TodoManager()
+
+    class Meta:
+        ordering: ClassVar[list[str]] = ["-created_at"]
+```
+
+**View module** — from `docs/reference/ourapp/views/todos.py`:
+
+```python
+router = Router()
+
+class TodoOutSchema(Schema):   # pk-free: public_id, never the int pk
+    public_id: str; text: str; completed: bool; row_version: int; owner_public_id: str
+
+def todos_page(request: HttpRequest) -> InertiaResponse:   # PLAIN view, routed in urls.py
+    user = user_or_404(request)
+    return InertiaResponse(request, "TodosPage",
+        {"props": {"todos": [_todo_out(t).model_dump() for t in todos]}})
+
+@router.post("/todos/create", response=TodoOutSchema)
+def create_todo(request, payload: TodoCreateSchema) -> TodoOutSchema:
+    user = user_or_404(request)
+    with transaction.atomic():          # multi-write = one atomic block
+        todo = Todo(text=payload.text.strip(), owner=user)
+        todo.save_plus(actor=user, expected_row_version=payload.expected_row_version)
+        Notification.record(recipient=user, kind="todo.created", body=…, url="/todos")
+    return _todo_out(todo)
+```
+
+**Registration + routing** — `ourapp/views/__init__.py` + `ourapp/urls.py`:
+
+```python
+api = NinjaAPI(urls_namespace="ourapp-http")
+api.add_router("/", todos.router)          # every feature's router, one NinjaAPI
+# urls.py: PAGES first (plain path()s), then the API MOUNTED LAST:
+urlpatterns = [path("todos", todos_page, name="todos"), …, path("", api.urls)]
+```
+
+**View tests** — from `docs/reference/ourapp/tests/test_todos_views.py`:
+
+```python
+class TodosViewTests(BaseTestCase):
+    def setUp(self) -> None:
+        self.alice = User.objects.create_user(username="alice", password="x")
+        self.client = Client()
+        self.client.force_login(self.alice)
+
+    def _toggle(self, public_id: str, expected_row_version: int):
+        return self.client.post(
+            f"/todos/{public_id}/toggle",
+            data={"expected_row_version": expected_row_version},
+            content_type="application/json",
+        )
+
+    # page GET: client.get("/todos", HTTP_X_INERTIA="true").json()["props"]["props"]
+    # pk-free assert: for t in todos: self.assertNotIn("id", t)
+```
+
+**Frontend schema + page** — from
+`docs/reference/frontend/src/schemas/todos.ts` +
+`docs/reference/frontend/src/pages/TodosPage.vue`:
+
+```ts
+export const TodoSchema = z.object({
+  public_id: z.string(), row_version: z.number().int().nonnegative(), … })
+export type TodoOut = z.infer<typeof TodoSchema>
+
+// page: parse the Inertia props wrapper, then mutate via postJSON + reload
+const props = defineProps<{ props: object }>()
+const todos = ref(TodosPagePropsSchema.parse(props.props).todos)
+await postJSON(`/todos/${todo.public_id}/toggle`, { expected_row_version: todo.row_version })
+await router.reload()   // server is source of truth after every mutation
+```

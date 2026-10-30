@@ -1,5 +1,7 @@
 """Tests for the todos views (``GET /todos``, create, toggle)."""
 
+# MAINTAIN-CONSISTENCY repo-map: excerpted in .pi/repo-map.md §9 — change both together.
+
 from django.test import Client
 
 from djangoapp.models import User

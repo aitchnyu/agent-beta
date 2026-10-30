@@ -5,6 +5,8 @@ such a cell links to the owner's profile). ``TodoManager.active_for`` carries
 the per-user query, and ``Todo.toggle()`` flips completion, keeping views thin.
 """
 
+# MAINTAIN-CONSISTENCY repo-map: excerpted in .pi/repo-map.md §9 — change both together.
+
 from __future__ import annotations
 
 from typing import ClassVar

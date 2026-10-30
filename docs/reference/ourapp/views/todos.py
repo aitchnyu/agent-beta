@@ -15,6 +15,8 @@ Shape: the Inertia page is a PLAIN Django view (routed in ``urls.py``);
 the two POST endpoints ride this module's ninja Router.
 """
 
+# MAINTAIN-CONSISTENCY repo-map: excerpted in .pi/repo-map.md §9 — change both together.
+
 from __future__ import annotations
 
 from django.db import transaction

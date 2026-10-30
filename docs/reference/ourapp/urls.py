@@ -8,6 +8,8 @@ specific page paths resolve first and API endpoints answer at their
 literal URLs.
 """
 
+# MAINTAIN-CONSISTENCY repo-map: excerpted in .pi/repo-map.md §9 — change both together.
+
 from django.urls import path
 
 from ourapp.views import api

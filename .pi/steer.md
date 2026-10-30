@@ -46,9 +46,16 @@ and ask the operator).
   - if green, rsyncs to `main/`;
   - migrates + restarts granian/huey only when backend code changed.
   **A green `deployscratch` IS the whole verification.** If it succeeded,
-  do not verify anything else — no post-deploy e2e run, no live-URL
-  checks, no re-running suites from `main/`. The operator verifies the
-  live pages; the feature's e2e is exercised by the full suite
+  do not verify anything else:
+  - no post-deploy e2e run;
+  - no live-URL checks;
+  - no re-running suites from `main/`.
+  The operator verifies the live pages; the feature's e2e is exercised
+  by the full suite (below). And `deployscratch` **publishes an
+  accepted batch** — it is not a checkpoint:
+  - intermediate iterations (diagram fix cycles, mid-battery fixes)
+    stay in scratch and `/tmp` renders;
+  - deploy once, when the batch is green and accepted.
   (`checkframework1`), not by the deploy loop.
 
 ## Feature workflow
@@ -104,22 +111,28 @@ lives in [Stage messages](#stage-messages):
   links BETWEEN mockup pages are fine from the start — still no backend
   API calls, nothing saves. Frontend-only edits keep the battery light —
   build something you can think up and test FAST. Bundle the workflow
-  questions into MockupGate (one round).
+  questions into MockupGate (one round) — and ask them BEFORE writing
+  the first mockup: requirement answers reshape the design, and a
+  mockup built on unasked questions gets thrown away.
 - **[2] Design docs** — the design doc (per the [Feature docs](#feature-docs)
-  outline) joins the mockups; share doc + mockup links via DocsGate. First thing
-  in the stage, BEFORE writing any fence: the reviewer-manager extension
-  spawns the reviewer prewarm(s) and keeps them alive (see
-  [Review with prewarmed agents](#review-with-prewarmed-agents-stage-2--4))
-  — their rulebook study overlaps your writing, and the diagram renders
-  land in a warm reviewer's lap the moment you validate.
+  outline) joins the mockups; share doc + mockup links via DocsGate.
+  Validate the fences and SELF-CHECK the renders before deploying (see
+  [Diagrams](#diagrams)); at DocsGate a fresh image reviewer judges
+  them (see [The review round](#the-review-round-stage-4)).
 - **[3] Code — only after explicit approval.** YOU code directly — the
   operator watches your every tool call live; no stage subagent, no
-  background spawner. The reviewer-manager keeps the prewarmed
-  reviewers alive while you work. Continue in the SAME `../scratch/`
+  background spawner. Continue in the SAME `../scratch/`
   (no second `createscratch` unless sent back). Per edit batch:
   - After any write batch — review fixes included — run
     `cd ../scratch && ./run lintfix` first (seconds, allowlisted,
     repo-wide). DJ001-class errors die there, not in the battery.
+  - Write in the repo's style so lintfix stays a no-op: sorted import
+    blocks, short defs joined on one line, the reference files'
+    formatting habits. Every auto-fix is a re-read round-trip you
+    paid for twice.
+  - Models are FINAL before `makemigrations` — a generated migration
+    is never deleted and regenerated mid-loop unless the schema
+    intent itself changed.
   - Edits go through the `edit` tool, one surgical diff per spot — never
     python/bash script batches (arbitrary code the operator must review
     and approve per use) and never a wholesale rewrite of an existing
@@ -135,8 +148,9 @@ lives in [Stage messages](#stage-messages):
     link when the real page lands.
 - **[4] Agent review + doc updates** —
   - run the executable checks yourself; paste their outputs as evidence
-  - resume the prewarmed reviewer(s) — or spawn fresh if this session
-    has none — to re-read the diff against the requirement
+  - spawn the reviewers fresh, in parallel (see
+    [The review round](#the-review-round-stage-4)) to judge the diff
+    against the requirement
   - triage findings per the rules below
   - update the design doc to match the code
 - **[5] Offer to commit** — CommitOffer; never commit unasked.
@@ -158,7 +172,7 @@ lives in [Stage messages](#stage-messages):
 updates run as ONE batch ending at the CommitOffer. From your seat:
 
 1. code + deploy per batch (the operator watches live);
-2. run the reviewer round (resume the manager's prewarmed reviewers);
+2. run the reviewer round (fresh reviewers, spawned in parallel);
 3. triage findings, fix, redeploy;
 4. update the docs;
 5. make the CommitOffer.
@@ -166,65 +180,73 @@ updates run as ONE batch ending at the CommitOffer. From your seat:
 Call the `compact` tool at stage boundaries (after DocsGate approval,
 after CommitOffer) — shed the finished stage's transcript to its
 decisions + summaries so the next stage starts lean; operator turns
-are never compacted away.
+are never compacted away. Two hard rules:
+
+- **Below the limit, don't compact.** If the just-finished stage 
+  made under ~60 tool calls, carry the context
+  forward — relearning after compaction costs more than a lean
+  context saves (a compacted session re-reads reference material it
+  already held).
+- **A canceled compaction still continues** — the compact tool's own
+  result and rules drive continuation; but if the operator CANCELS it,
+  no result arrives. Execute the `continue_with` batch anyway — never
+  park a session on a canceled compact.
 
 Never stop between them to report, and never sit on completed reviewer
 results; process them before the turn ends. Only MockupGate/DocsGate
 gates or a genuine question pause for the operator.
 
-### Review with prewarmed agents (stage 2 → 4)
+Keep OPENING turns small — a plan of ≤10 lines, then the first tool
+call. Long composed payloads (multi-paragraph prompts, restated
+context) are generation time paid before any work starts; prompts you
+send to tools and subagents stay short too.
 
-Prewarm reviewers in the
-background while you write docs and code; resume them for the review
-instead of spawning fresh. How many:
+### The review round (stage 4)
+
+Fresh reviewers, spawned when the review actually runs — prewarming
+is useless (a held bench expires; a fresh study costs the same
+minute). How many:
 
 - **Significant diff** — touches backend AND frontend, any framework file,
-  or more than ~10 files → prewarm all THREE rule-focused reviewers
+  or more than ~10 files → all THREE rule-focused reviewers
   (`.pi/agents/`):
   - `reviewer-correctness` — spec-vs-code drift, API contract, edge cases
   - `reviewer-conventions` — doc-claims-vs-code, mirrors, naming,
-    comment style, TODO hygiene; carries the diagram pass when docs
-    changed
+    comment style, TODO hygiene
   - `reviewer-trace` — cross-layer wiring, render-vs-validate ground truth
+  Plus `reviewer-image` when docs changed.
 - **Small diff** — anything else: the single `reviewer`, as before — it
   carries the diagram duty when docs changed (its agent file has the
   contract).
 
-Prewarm + resume mechanics:
+Spawn + feeding mechanics:
 
-- **Stage 2 start**, before the first fence is written: YOU spawn each
-  reviewer with `subagent(subagent_type: <type>, run_in_background:
-  true, prompt: …)` — "Build a MAP, not a copy: <your rule domain's
-  reference material — steer.md conventions, the Diagrams rulebook,
-  the layer wiring>. Read only. Treat it as a map that may be stale by
-  review time — re-read any file you judge, trust the file over your
-  memory. Reply STORED." The reviewer-manager extension tracks them.
-  Include the IMAGE-REVIEWER prewarm in the same batch (below).
-  (No docs in the change? Spawn at stage-3 start instead.)
-- **Keepalive is not yours to remember** — call
-  `reviewers(refresh: true)` at DocsGate, at code-stage start, and
-  when the FinalReport lands; the tool resumes every held prewarm
-  with a keepalive so the pi-subagents retention window never expires
-  them while you code.
-- **Stage 4**, resume them:
-  `subagent(subagent_type: <type>, resume: <id>, prompt: …)` — the
-  requirement + `git status --short` + touched files, labeled "changed
-  since your study — re-read fresh."
-  - Run the executable checks yourself FIRST — the feature's tests,
-    `./run checkmarkdownd2`, quick fixture probes — and PASTE the
-    outputs into the resume prompts as evidence (the checkmarkdownd2
-    output names the fresh /tmp/desmo render dir — paste that path too;
-    the diagram-duty reviewer reads the fence<N>.svg files). Reviewers
-    read results; they never execute.
-  - Resume right after the last edit batch's checks pass in scratch —
-    before that batch's `deployscratch`
-  - scratch is what the review reads; the deploy doesn't change it — so
-    the review overlaps the battery instead of following it
-  - if another edit batch follows, re-resume the reviewers with the new
-    diff
-- Steer a misdirected study mid-run — background agents take steering
+- Spawn in PARALLEL, `run_in_background: true`, each with a SHORT
+  prompt: the requirement in 2–3 lines + `git status --short` + the
+  pasted `git diff` + the touched-file list. Reviewers read the diff
+  and ONLY the files it touches — say so in the prompt; whole-tree
+  re-reads are how a review round burns minutes.
+- Run the executable checks yourself FIRST — the feature's tests,
+  `./run checkmarkdownd2`, quick fixture probes — and PASTE the
+  outputs into the prompts as evidence (the checkmarkdownd2 output
+  names the fresh /tmp/desmo render dir — paste that path too; the
+  image reviewer reads the fence<N>.svg files). Reviewers read
+  results; they never execute.
+- The image reviewer is scoped PER FENCE — "judge fence<N>.svg
+  against the Diagrams rules", one prompt per render — never "review
+  the doc's diagrams" as one open-ended pass.
+- Spot-check resumes are TIGHTLY SCOPED — one named confirmation
+  ("confirm the wrapped labels fit"), not an open-ended re-review:
+  a tightly-scoped round answers in under a minute; an open-ended
+  one re-reads everything for the same verdict.
+- Spawn right after the last edit batch's checks pass in scratch —
+  before that batch's `deployscratch`
+- scratch is what the review reads; the deploy doesn't change it — so
+  the review overlaps the battery instead of following it
+- if another edit batch follows, resume the reviewers with the new
+  diff
+- Steer a misdirected review mid-run — background agents take steering
   messages without restarting.
-- No prewarm (small fix, resumed session)? Spawn fresh, as before.
 - All reviewers are read-only (no bash in their toolsets) — nothing
   interrupts the operator.
 
@@ -244,7 +266,7 @@ Round 2 (only if needed):
   - round 1 yields more than ~2 blockers/majors
   - the fixes touch files round 1 didn't study
 
-  While applying the fixes, prewarm a targeted round-2 reviewer for the
+  While applying the fixes, resume a targeted round-2 reviewer for the
   failure class they revealed (e.g. model/migration drift) — not the
   whole repo again.
 - **Hard bound: 2 rounds.** Still blockers after round 2 → the problem is
@@ -387,10 +409,18 @@ Stages 1–2's artifacts live in **files**, not chat: mockups are real deployed
 pages. Everything lives in `../scratch/` and reaches `main/` only via
 `deployscratch` — allowlisted, so mockup deploys run unblocked; share the
 deployed links in chat immediately after each deploy via
-[Stage messages](#stage-messages). **Verify every URL you announce** —
-one allowlisted `curl -sk -o /dev/null -w "%{http_code}" <url>` (read-only)
-before sharing it; a link that 404s costs the operator a bug report
-(a session once announced a live mockup whose hatch route never existed).
+[Stage messages](#stage-messages). **Verify every URL you announce**
+before sharing it:
+- one probe, exactly this shape (read-only, allowlisted):
+  `curl -sk -o /dev/null -w "%{http_code}" https://localhost<path>`
+  — on the VM's OWN origin (`https://localhost`, no port). The
+  announced links may carry the tunnel origin (`:8000`) — that port
+  is operator-side only and answers 000 from inside the VM; probe
+  the PATH, never the tunnel origin
+- the allowlist matches this prefix exactly — an improvised variant
+  becomes a permission ask
+- a link that 404s costs the operator a bug report (a session once
+  announced a live mockup whose hatch route never existed)
 
 - **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
   deploy as `/files/main/ourapp/docs/<feature>.md`. Structure and writing
@@ -537,6 +567,14 @@ them with pan/zoom controls.
   pinned dimensions exist for uniformity), icons not rendering, label
   or arrow collisions, clipped text, notes floating far from their
   subject, illegible dark-mode contrast.
+- **Render and self-check BEFORE the first deploy** — the fence
+  validator already emits SVGs (`/tmp/desmo/render-*`); look at them
+  yourself before the doc goes live. A diagram shipped uneyeballed
+  costs a fix loop that dwarfs the check.
+- **One diagram fix round at DocsGate** — validate, render, fix the
+  faults the pass finds, deploy. Deeper polish (aspect ratios,
+  pixel-perfect widths) only when the operator asks; the reviewer's
+  thoroughness never defines done for the stage.
 - Icons stay local: copy a lucide SVG (grep
   `frontend/node_modules/lucide-static/icons/`) to
   `djangoapp/static/icons/` with a concrete stroke hex, reference
@@ -547,8 +585,8 @@ them with pan/zoom controls.
   grammar, not semantics: an undeclared actor is just a shape — declare
   every actor as `shape: person` yourself. The docs fast path re-checks
   changed files at deploy time automatically.
-- **Fresh eyes: the diagram pass rides the prewarmed reviewer** — no
-  dedicated spawn. Collect every doc whose fences you generated or edited;
+- **Fresh eyes: the diagram pass is a fresh image reviewer** at DocsGate.
+  Collect every doc whose fences you generated or edited;
   the resume prompt for the diagram-duty reviewer (the single `reviewer`,
   or `reviewer-conventions` in an all-three run) carries, per doc: the
   doc path, the pasted `./run checkmarkdownd2` output, and the render dir
@@ -883,8 +921,15 @@ Read code in this priority order:
    truth and the only thing you normally change; `ourapp/README.md` +
    `ourapp/docs/` document the app's features, `docs/reference/` is the full
    copyable pattern.
-2. **The reference next** — `docs/reference/` as a complete, copyable example
-   (model + ninja API + urls + Inertia page + test).
+ 2. **The reference next** — `docs/reference/` as a complete, copyable
+    example (model + ninja API + urls + Inertia page + test).
+    - **Search it before writing from memory** —
+      `rg -n "<symbol|idiom>" docs/reference/` (from `main/`) answers
+      import styles, route shapes, and test idioms in seconds.
+    - A name you're about to import appears nowhere in the reference?
+      Don't import it — copy the reference's equivalent.
+    - Your own code failing? Diff it against the reference's
+      equivalent BEFORE probing or introspecting.
 3. **The framework only as reference** — `djangoapp/` is there to understand
    behaviour, not to rework. Change it only when the user explicitly asks.
 

@@ -1,3 +1,5 @@
+// MAINTAIN-CONSISTENCY repo-map: excerpted in .pi/repo-map.md §9 — change both together.
+
 import { z } from "zod"
 
 // Todos feature's shared shape — the list page and the form component both

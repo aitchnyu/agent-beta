@@ -1,3 +1,15 @@
+Show full drilldown
+
+how to hide thinking?
+How to justify each command?
+End message too geeky?
+
+Why did agent have to run python scripts at all and run django resolver? Werent the reference enough?
+When and why was compaction decided? It was counterproductive right? 
+why didnt session automatically continue after compaction?
+Why didnt it continue after I canceled a compaction?
+Why did it call curl? Can we have an approved pattern that steer.md can use and which agent supports? Its for localhost.
+
 Analyze the accesses and thoughts taken by the agent. Make a repo map so agent doesnt have to discover stuff by itself. 
 
 Remove the scout background agent.
@@ -197,6 +209,7 @@ Update docs for adding users and login links
 Can choose multiple machines, no more init and dev in run, slim down pi command
 convert checkframework1 and gate to python script
 provision-full and delete-vm should have a prefix
+vm provsion should print 
 
 Test dbs get backed up
 Run the uv, npm, playwright installs in parallel?
@@ -228,3 +241,4 @@ Redis and db memory usage?
 Group and mute notification groups
 Readonly mode for app?
 Mutation tests?
+Install playwright on first 

@@ -8,6 +8,8 @@ plain Django views returning Inertia responses, routed directly in
 ``urls.py`` (see steer.md § View/router shapes).
 """
 
+# MAINTAIN-CONSISTENCY repo-map: excerpted in .pi/repo-map.md §9 — change both together.
+
 from ninja import NinjaAPI
 
 from ourapp.views import downloads, todos

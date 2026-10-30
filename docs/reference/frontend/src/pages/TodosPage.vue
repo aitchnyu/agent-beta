@@ -1,4 +1,5 @@
 <script setup lang="ts">
+// MAINTAIN-CONSISTENCY repo-map: excerpted in .pi/repo-map.md §9 — change both together.
 import { ref } from "vue"
 import { router } from "@inertiajs/vue3"
 import { z } from "zod"

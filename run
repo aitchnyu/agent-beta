@@ -520,8 +520,9 @@ ${H}Checks${R}
 
 ${H}Scratch (the agent edit loop)${R}
   ${C}createscratch${R}       copy main/ → scratch/ + tag scratch-baseline
-  ${C}deployscratch${R}       checks, then deploy scratch/ → main/ (VM only). Full path:
-                       battery, backup, migrate, restarts; frontend/docs-only
+  ${C}deployscratch${R}       checks, then deploy scratch/ → main/ (VM only). Backend
+                       diffs: scoped battery (ruff, mypy, ourapp tests — no browser
+                       pass), backup, migrate, restarts; frontend/docs-only
                        diffs take a fast path (lint/build, + smoke if framework
                        files changed, or fence checks)
   ${C}cleanscratch${R}        remove scratch/
