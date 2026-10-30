@@ -1,9 +1,9 @@
+
 Review last commit, both pi and debug
 Provision vm in place
 
 How to to fewer turn boundaries. 
 How to launch subagent at lower thinking level for same model without hardcoding it?
-split conventions' five duties into parallel smaller agents
 
 I wanted a single reviewer for all images in md
 Instead I see
@@ -43,7 +43,6 @@ Have image reviewer subagent (prewarmed?) in background that run for every markd
 
 Whats conventions reviewer and why is it slowest?
 
-Whats the criteria for which agent proposes compact tool?
 
 This is too terse for the user to understand. In future phrase it for a layman:
 

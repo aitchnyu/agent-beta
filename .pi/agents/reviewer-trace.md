@@ -1,6 +1,6 @@
 ---
 name: reviewer-trace
-description: Read-only reviewer — cross-layer wiring (schemas↔views↔pages, models↔migrations, chunks/manifests) and render-vs-validate ground truth; one of the three rule-focused reviewers
+description: Read-only reviewer — cross-layer wiring (schemas↔views↔pages, models↔migrations, chunks/manifests) and render-vs-validate ground truth; one of the rule-focused reviewers
 permission:
   bash: ask
 tools: read, grep, find, ls

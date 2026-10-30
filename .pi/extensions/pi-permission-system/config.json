@@ -5,8 +5,6 @@
     "*": "ask",
     "subagent": "allow",
     "get_subagent_result": "allow",
-    "compact": "allow",
-    "reviewers": "allow",
     "read": "allow",
     "grep": "allow",
     "ls": "allow",

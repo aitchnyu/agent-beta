@@ -1,6 +1,6 @@
 ---
 name: reviewer-correctness
-description: Read-only reviewer — spec-vs-code drift, API contract, edge cases traced by reading; one of the three rule-focused reviewers
+description: Read-only reviewer — spec-vs-code drift, API contract, edge cases traced by reading; one of the rule-focused reviewers
 permission:
   bash: ask
 tools: read, grep, find, ls

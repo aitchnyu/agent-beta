@@ -119,48 +119,29 @@ lives in [Stage messages](#stage-messages):
   Validate the fences and SELF-CHECK the renders before deploying (see
   [Diagrams](#diagrams)); at DocsGate a fresh image reviewer judges
   them (see [The review round](#the-review-round-stage-4)).
-- **[3] Code — only after explicit approval.** YOU code directly — the
-  operator watches your every tool call live; no stage subagent, no
-  background spawner. Continue in the SAME `../scratch/`
-  (no second `createscratch` unless sent back). Per edit batch:
-  - After any write batch — review fixes included — run
-    `cd ../scratch && ./run lintfix` first (seconds, allowlisted,
-    repo-wide). DJ001-class errors die there, not in the battery.
-  - Write in the repo's style so lintfix stays a no-op: sorted import
-    blocks, short defs joined on one line, the reference files'
-    formatting habits. Every auto-fix is a re-read round-trip you
-    paid for twice.
-  - Models are FINAL before `makemigrations` — a generated migration
-    is never deleted and regenerated mid-loop unless the schema
-    intent itself changed.
-  - Edits go through the `edit` tool, one surgical diff per spot — never
-    python/bash script batches (arbitrary code the operator must review
-    and approve per use) and never a wholesale rewrite of an existing
-    file (the model repays the whole authoring cost). Extra edit
-    round-trips are the cheaper tax.
-  - Read-only checks are plain `sed`/`read`/`rg`/`cat` calls — never a
-    `python3 - <<EOF` heredoc wrapper (bare python is a permission
-    ask; an empty heredoc is the ask with zero work). Python only when
-    something must actually be computed.
-  - `rg` flags: `-n` numbers lines; `-r STR` REPLACES matches with
-    STR — a stray `rg -rn` fabricates phantoms you will then debug.
-    Read your own command before reading its output.
-  - Edit → `./run deployscratch` from `main/` **once per edit batch** —
-    every green batch goes LIVE (migrate/restarts folded in when backend
-    code changed). Run it straight through; don't stop to report progress.
-  - After any format pass, re-read a file before editing it again —
-    reformatted text breaks old-text matches.
-  - Evolve the mockup pages into the real feature (real URL, real
-    props/endpoints) and DELETE the `Mockup<Name>.vue` page, its homepage
-    link, AND the homepage placeholder block when the real page lands —
-    a real feature replaces the placeholder, and its EMPTY state must
+- **[3] Code — only after explicit approval.** Spawn the `coder`
+  subagent FOREGROUND, `thinking` one level below the session's. Its
+  prompt carries: the models-first plan digest, the DocsGate links,
+  and "copy from .pi/repo-map.md §9 first." The operator watches its
+  tool calls live and its permission asks forward to you. You stay
+  the planner — verify each green batch it reports and keep the docs
+  current; never implement yourself while a coder run is open.
+  Continue in the SAME `../scratch/` (no second `createscratch` unless
+  sent back). The implement-loop contract lives in
+  `.pi/agents/coder.md`.
+  - Mockups graduate into the real feature: the coder evolves the
+    mockup pages (real URL, real props/endpoints) and DELETES the
+    `Mockup<Name>.vue` page, its homepage link, AND the homepage
+    placeholder block when the real page lands — the EMPTY state must
     render ("No chores yet", never placeholder text).
 - **[4] Agent review + doc updates** —
   - run the executable checks yourself; paste their outputs as evidence
   - spawn the reviewers fresh, in parallel (see
     [The review round](#the-review-round-stage-4)) to judge the diff
     against the requirement
-  - triage findings per the rules below
+  - triage findings per the rules below, then RESUME the coder with
+    the accepted code fixes (it holds the plan and loop state); you
+    fix the docs
   - update the design doc to match the code
 - **[5] Offer to commit** — CommitOffer; never commit unasked.
 - **[6] Final checklist** — after the commit lands, audit the job yourself
@@ -180,29 +161,16 @@ lives in [Stage messages](#stage-messages):
 **One turn through [3]→[5].** Code, deploy, review, triage/fixes, and doc
 updates run as ONE batch ending at the CommitOffer. From your seat:
 
-1. code + deploy per batch (the operator watches live);
+1. the coder codes + deploys per batch (the operator watches live);
 2. run the reviewer round (fresh reviewers, spawned in parallel);
-3. triage findings, fix, redeploy;
+3. triage findings — the coder fixes code, you fix docs — redeploy;
 4. update the docs;
 5. make the CommitOffer.
 
-Call the `compact` tool after DocsGate approval — shed the
-mockup/docs stage (probes, renders, deploy churn) so the code stage
-starts lean; operator turns are never compacted away. That is the
-default boundary. Others are rarely right: compacting right before a
-gate message sheds the content the gate must carry, and after
-CommitOffer the close-out needs no leanness — prefer not compacting
-at those points unless the context is truly huge. Two hard rules:
-
-- **Below the limit, don't compact.** If the pre-DocsGate stages
-  made under ~60 tool calls combined, carry the context
-  forward — relearning after compaction costs more than a lean
-  context saves (a compacted session re-reads reference material it
-  already held).
-- **A canceled compaction still continues** — the compact tool's own
-  result and rules drive continuation; but if the operator CANCELS it,
-  no result arrives. Execute the `continue_with` batch anyway — never
-  park a session on a canceled compact.
+You never compact this session — the mechanical churn lives in coder
+subagents, so your context grows at planner pace. If a session truly
+runs long, the operator `/compact`s it; you never do, and you never
+wait on one.
 
 Never stop between them to report, and never sit on completed reviewer
 results; process them before the turn ends. Only MockupGate/DocsGate
@@ -214,6 +182,9 @@ context) are generation time paid before any work starts; prompts you
 send to tools and subagents stay short too.
 
 ### One turn, one batch
+
+<!-- MAINTAIN-CONSISTENCY coder-contract — restated (scoped to the
+     implement loop) in .pi/agents/coder.md; change both together. -->
 
 Every model round trip costs a generation
 gap — spend them on decisions, not on serialization:
@@ -236,11 +207,13 @@ is useless (a held bench expires; a fresh study costs the same
 minute). How many:
 
 - **Significant diff** — touches backend AND frontend, any framework file,
-  or more than ~10 files → all THREE rule-focused reviewers
+  or more than ~10 files → all FOUR rule-focused reviewers
   (`.pi/agents/`):
   - `reviewer-correctness` — spec-vs-code drift, API contract, edge cases
-  - `reviewer-conventions` — doc-claims-vs-code, mirrors, naming,
-    comment style, TODO hygiene
+  - `reviewer-conventions` — doc-claims-vs-code, naming,
+    comment style, TODO + in-code-note hygiene
+  - `reviewer-mirrors` — config/allowlist mirrors, run verbs vs help,
+    command flags vs inventory
   - `reviewer-trace` — cross-layer wiring, render-vs-validate ground truth
   Plus `reviewer-image` when docs changed.
 - **Small diff** — anything else: the single `reviewer`, as before — it
@@ -253,9 +226,9 @@ Spawn + feeding mechanics:
   prompt: the requirement in 2–3 lines + `git status --short` + the
   pasted `git diff` + the touched-file list. Reviewers read the diff
   and ONLY the files it touches — say so in the prompt; whole-tree
-  re-reads are how a review round burns minutes. Launch each with
-  `thinking` ONE level below the session's current level (high →
-  medium, medium → low) — per call, never pinned in the agent files.
+  re-reads are how a review round burns minutes. Reviewers run at the
+  session's own thinking level — their value is one deep judgment
+  pass, not speed.
 - Run the executable checks yourself FIRST — the feature's tests,
   `./run checkmarkdownd2`, quick fixture probes — and PASTE the
   outputs into the prompts as evidence (the checkmarkdownd2 output
@@ -271,8 +244,8 @@ Spawn + feeding mechanics:
   ("confirm the wrapped labels fit"), not an open-ended re-review:
   a tightly-scoped round answers in under a minute; an open-ended
   one re-reads everything for the same verdict.
-- Spawn right after the last edit batch's checks pass in scratch —
-  before that batch's `deployscratch`
+- Spawn as soon as the coder's final batch is green in scratch —
+  deploy timing doesn't matter (scratch is what the review reads)
 - scratch is what the review reads; the deploy doesn't change it — so
   the review overlaps the battery instead of following it
 - if another edit batch follows, resume the reviewers with the new
@@ -437,6 +410,9 @@ or write one into a file — it must be reviewable at a glance:
 
 **Explain before you ask.** Before you run any command that will
 trigger a permission ask (everything outside the allowlist):
+
+<!-- MAINTAIN-CONSISTENCY coder-contract — restated in
+     .pi/agents/coder.md; change both together. -->
 
 - state one plain-language line in the message before the call: what
   the command does, and why now;
@@ -630,7 +606,7 @@ them with pan/zoom controls.
 - **Fresh eyes: the diagram pass is a fresh image reviewer** at DocsGate.
   Collect every doc whose fences you generated or edited;
   the resume prompt for the diagram-duty reviewer (the single `reviewer`,
-  or `reviewer-conventions` in an all-three run) carries, per doc: the
+  or `reviewer-image` in a multi-reviewer run) carries, per doc: the
   doc path, the pasted `./run checkmarkdownd2` output, and the render dir
   it printed — one `fence<N>.svg` per fence (engine-identical to the
   viewer, own viewBox, dark theme embedded). The contract lives in the
@@ -840,9 +816,10 @@ pure report closes on a plain statement.)
 
 **Plain words, always.** Everything operator-facing is written so a
 non-technical reader understands it on first pass: say what is about
-to happen and why ("Cleaning up the conversation history so the coding
-stage starts fresh — your decisions are kept"), never internal jargon
-("compacting the stage-2 transcript" means nothing to the operator).
+to happen and why ("checking every diagram drawing against the
+rules, then shipping the pages"), never internal jargon
+("`checkmarkdownd2` fence validation with SVG renders" means nothing
+to the operator).
 Acronyms and stage codenames explain themselves or get expanded.
 Verify every link's file exists in `main/` before sharing (see
 [Linking](#linking-absolute-urls-markdown-only)); never deploy a design
@@ -926,8 +903,9 @@ Track multi-step work with a **checklist in your messages** — one item per
 step, marked done (`[x]`) as you complete it, repeated at the top of each
 stage report so I can watch progress across turns. The **subagent**
 tool is available (the package's builtins `general-purpose`/`Explore`/`Plan`,
-plus this repo's project agents in `.pi/agents/` — `reviewer` and
-the rule-focused reviewers (correctness, conventions, trace, image));
+plus this repo's project agents in `.pi/agents/` — `reviewer`, `coder`,
+the rule-focused reviewers (correctness, conventions, mirrors, trace),
+plus `reviewer-image` when docs changed);
 use it for
 genuinely parallel independent research (parallel mode), and to **review
 your work** — before reporting done, spawn the reviewer to re-read the
@@ -972,6 +950,9 @@ Read code in this priority order:
    truth and the only thing you normally change; `ourapp/README.md` +
    `ourapp/docs/` document the app's features, `docs/reference/` is the full
    copyable pattern.
+<!-- MAINTAIN-CONSISTENCY coder-contract — item 2's search-first rules
+     are restated (scoped to the implement loop) in .pi/agents/coder.md;
+     change both together. -->
  2. **The reference next** — `docs/reference/` as a complete, copyable
     example (model + ninja API + urls + Inertia page + test).
     - **Search it before writing from memory** —

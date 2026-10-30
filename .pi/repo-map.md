@@ -12,7 +12,7 @@ Six stages, each transition an explicit operator pick: [1] Mockups →
 MockupGate → [2] Design docs → DocsGate → [3] Code (scratch,
 `deployscratch` per batch) → [4] Agent review + doc updates →
 [5] CommitOffer → [6] Final checklist → one-sentence close. Stages 3–5
-run as ONE turn; compact at stage boundaries.
+run as ONE turn; the session never compacts — the operator can.
 
 - Mockups: `frontend/src/app/pages/Mockup<Name>.vue`, served verbatim
   by the hatch route `/mockup/<page>` (plain view `mockup_page` in
@@ -21,9 +21,12 @@ run as ONE turn; compact at stage boundaries.
   `?props=<base64url JSON>` presets state (`_B64JsonProps`).
   Graduation = real page + DELETE mockup + homepage link.
 - Reviewers: fresh at stage 4 (parallel `subagent` —
-  reviewer-correctness / reviewer-conventions / reviewer-trace for
-  big diffs, single `reviewer` otherwise), each fed the diff +
-  touched files; round 2 resumes round-1 agents on the fix diff.
+  reviewer-correctness / conventions / mirrors / trace for big diffs
+  (+ `reviewer-image` when docs changed), single `reviewer`
+  otherwise), each fed the diff + touched files; round 2 resumes
+  round-1 agents on the fix diff. The `coder` agent implements
+  stage 3 from the DocsGate plan (foreground, one thinking level
+  below the session).
 
 ## 2. Scratch discipline
 
@@ -149,7 +152,8 @@ the full file only when an excerpt runs out.
      docs/reference/ourapp/views/__init__.py, docs/reference/ourapp/urls.py,
      docs/reference/frontend/src/{schemas/todos.ts,pages/TodosPage.vue},
      and djangoapp/tests/_base.py; changing any side means updating the
-     other. -->
+     other. steer.md stage [3] and .pi/agents/coder.md cite this as
+     "§9" — update them on renumber. -->
 
 **Model** — from `docs/reference/ourapp/models/todos.py`:
 

@@ -306,13 +306,13 @@ One-time setup:
    **glm-5.3-flash** — then **Ctrl+S** on it saves it as the default
    model for new sessions:
 
-   ![pi /model — typing fla filters to glm-5.3-flash](docs/screenshots/pi/pi-model.png)
+    ![pi /model — typing fla filters to glm-5.3-flash](docs/screenshots/pi/pi-model.png)
 
-   When we set up a provider and model, a background agent analyzes the repo. It is normal and helps save operator's time:
+    A fresh session orients itself inline — steer.md is injected
+    automatically and the session reads `.pi/repo-map.md` first; no
+    background setup agent runs.
 
-   ![pi first session — groundwork orientation already running in the background, footer glm-5.3-flash • high, 1 running agent](docs/screenshots/pi/pi-groundwork-scout.png)
-
-4. **Thinking level**: `/thinking` opens the picker for the current
+ 4. **Thinking level**: `/thinking` opens the picker for the current
    model → **high** → **Ctrl+S** sets it as the startup default. On
    Z.AI the recommendation is **glm-5.3-flash** at **high**; Shift+Tab
    cycles thinking levels in-session, and a one-off override rides
