@@ -119,16 +119,20 @@ lives in [Stage messages](#stage-messages):
   Validate the fences and SELF-CHECK the renders before deploying (see
   [Diagrams](#diagrams)); at DocsGate a fresh image reviewer judges
   them (see [The review round](#the-review-round-stage-4)).
-- **[3] Code — only after explicit approval.** Spawn the `coder`
-  subagent FOREGROUND, `thinking` one level below the session's. Its
-  prompt carries: the models-first plan digest, the DocsGate links,
-  and "copy from .pi/repo-map.md §9 first." The operator watches its
-  tool calls live and its permission asks forward to you. You stay
-  the planner — verify each green batch it reports and keep the docs
-  current; never implement yourself while a coder run is open.
-  Continue in the SAME `../scratch/` (no second `createscratch` unless
-  sent back). The implement-loop contract lives in
-  `.pi/agents/coder.md`.
+- **[3] Code — only after explicit approval.**
+  - At DocsGate-send: spawn the `coder` subagent in background with
+    "PREP ONLY — read .pi/repo-map.md §9, the reference files, and
+    the plan below; write nothing; reply READY".
+  - On approval: resume it with "implement". It runs in BACKGROUND —
+    you stay live to orchestrate the reviewers while it works; its
+    `notify_parent` pings mark the first green test batch and the
+    final green battery; the operator watches its tool calls and its
+    permission asks forward to you.
+  - You stay the planner — verify each green batch it reports, keep
+    the docs current; never implement yourself while a coder run is
+    open. Continue in the SAME `../scratch/` (no second
+    `createscratch` unless sent back). The implement-loop contract
+    lives in `.pi/agents/coder.md`.
   - Mockups graduate into the real feature: the coder evolves the
     mockup pages (real URL, real props/endpoints) and DELETES the
     `Mockup<Name>.vue` page, its homepage link, AND the homepage
@@ -202,6 +206,12 @@ gap — spend them on decisions, not on serialization:
 
 ### The review round (stage 4)
 
+<!-- MAINTAIN-CONSISTENCY review-fleet — the duty lines below are the
+     source of truth for reviewer-{correctness,conventions,
+     mirrors,trace,reviewer}.md (symlinked from .pi/agents/); image
+     review's rules are docs/d2.md's; logging claims are docs/logging.md's.
+     Change both sides together. -->
+
 Fresh reviewers, spawned when the review actually runs — prewarming
 is useless (a held bench expires; a fresh study costs the same
 minute). How many:
@@ -229,12 +239,13 @@ Spawn + feeding mechanics:
   re-reads are how a review round burns minutes. Reviewers run at the
   session's own thinking level — their value is one deep judgment
   pass, not speed.
-- Run the executable checks yourself FIRST — the feature's tests,
-  `./run checkmarkdownd2`, quick fixture probes — and PASTE the
-  outputs into the prompts as evidence (the checkmarkdownd2 output
-  names the fresh /tmp/desmo render dir — paste that path too; the
-  image reviewer reads the fence<N>.svg files). Reviewers read
-  results; they never execute.
+- Evidence for the prompts, without re-running what a green coder run
+  already proved: paste the CODER's outputs (suite, battery) as the
+  evidence. No coder coverage (doc edits, small fixes)? Run the
+  checks yourself first — the feature's tests, `./run checkmarkdownd2`,
+  quick fixture probes — and paste those. Either way paste the
+  checkmarkdownd2 render dir path too; the image reviewer reads the
+  fence<N>.svg files. Reviewers read results; they never execute.
 - The image reviewer is ONE spawn per markdown doc — a single
   subagent whose prompt lists every `fence<N>.svg` of that doc with
   its rule set ("judge fence1…fenceN of <doc> against the Diagrams
@@ -244,8 +255,14 @@ Spawn + feeding mechanics:
   ("confirm the wrapped labels fit"), not an open-ended re-review:
   a tightly-scoped round answers in under a minute; an open-ended
   one re-reads everything for the same verdict.
-- Spawn as soon as the coder's final batch is green in scratch —
-  deploy timing doesn't matter (scratch is what the review reads)
+- Two-phase launch, overlapped with the coder:
+  - at its FIRST green batch (the notify_parent ping), spawn the
+    reviewers in background — "FAMILIARIZE ONLY: the requirement, the
+    diff so far, the touched files; hold — verify nothing yet";
+  - at its FINAL green batch, resume each with the closing delta (the
+    diff since their read + the changed-file list) — "verify now."
+  Familiarization overlaps the coder; only verification stays on the
+  critical path.
 - scratch is what the review reads; the deploy doesn't change it — so
   the review overlaps the battery instead of following it
 - if another edit batch follows, resume the reviewers with the new
@@ -603,8 +620,11 @@ them with pan/zoom controls.
   grammar, not semantics: an undeclared actor is just a shape — declare
   every actor as `shape: person` yourself. The docs fast path re-checks
   changed files at deploy time automatically.
-- **Fresh eyes: the diagram pass is a fresh image reviewer** at DocsGate.
-  Collect every doc whose fences you generated or edited;
+- **Fresh eyes: the image reviewer spawns the moment validation
+  renders exist** — right after `checkmarkdownd2` passes, in
+  background; it judges while you deploy and compose the DocsGate
+  message, and its verdict lands IN the gate message. Collect every
+  doc whose fences you generated or edited;
   the resume prompt for the diagram-duty reviewer (the single `reviewer`,
   or `reviewer-image` in a multi-reviewer run) carries, per doc: the
   doc path, the pasted `./run checkmarkdownd2` output, and the render dir

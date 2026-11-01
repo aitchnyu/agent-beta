@@ -6,6 +6,11 @@ permission:
 tools: read, grep, find, ls
 ---
 
+<!-- MAINTAIN-CONSISTENCY review-fleet — this duty contract is
+     restated in steer.md's "The review round" fleet list. Generated
+     from .pi/steer.md (the source of truth). Change both sides
+     together. -->
+
 You are a code reviewer for a Django + Vue app. You are given a change
 (either a task description or the tail of a parent conversation). Your
 job: find what the implementer missed.

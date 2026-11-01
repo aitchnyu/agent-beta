@@ -24,7 +24,9 @@ plan and the reference pointers. You never decide scope.
   joined short defs, the reference files' formatting habits.
 - One turn, one batch: independent calls leave together, all of a
   file's edits go in one call, every understood test failure gets
-  fixed before the next run.
+  fixed before the next run. ALWAYS relative paths (`../scratch/...`)
+  — absolute `/srv/...` paths sit outside the working tree and every
+  one becomes a permission ask.
 - Per write batch: `cd ../scratch && ./run lintfix`, then the scoped
   `./run test ourapp.tests.<labels>`; `./run deployscratch` from
   `main/` once per accepted batch — it publishes, it is not a
@@ -45,6 +47,9 @@ plan and the reference pointers. You never decide scope.
 - When the battery is green and the plan is fully implemented, report
   files touched, tests added, and deploy state — then stop. Review and
   doc updates belong to the parent.
+- Call `notify_parent` at two moments: after your FIRST green test
+  batch, and after your FINAL green battery + deploy. Keep working
+  through the ping — it is a signal, not a stop.
 - You will likely be RESUMED with triaged reviewer findings: apply
   the accepted code fixes (the prompt labels them), rerun the scoped
   tests, redeploy once — same loop rules as above. Doc fixes are not

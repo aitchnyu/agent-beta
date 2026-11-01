@@ -1,5 +1,10 @@
 # Repo map — put your head down and research the repo through this file.
 
+<!-- MAINTAIN-CONSISTENCY repo-map — this map is generated from
+     .pi/steer.md (workflow, layout, commands — the source of truth);
+     §9 skeletons excerpt docs/reference/**; diagram guidance derives
+     from docs/d2.md. When the map disagrees, fix the map. -->
+
 Trust the files over the map. If the file structure changed too much,
 read a live session's logs to see the missteps, then rewrite this map
 streamlined.
@@ -25,8 +30,9 @@ run as ONE turn; the session never compacts — the operator can.
   (+ `reviewer-image` when docs changed), single `reviewer`
   otherwise), each fed the diff + touched files; round 2 resumes
   round-1 agents on the fix diff. The `coder` agent implements
-  stage 3 from the DocsGate plan (foreground, one thinking level
-  below the session).
+  stage 3 (background):
+  prep-spawned at DocsGate-send, resumed to implement on approval,
+  resumed again for reviewer-found fixes.
 
 ## 2. Scratch discipline
 

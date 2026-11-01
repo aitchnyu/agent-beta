@@ -18,15 +18,33 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const REPO_ROOT = process.env.PI_REPO_ROOT ?? process.cwd();
 const STEER_MD = path.join(REPO_ROOT, ".pi/steer.md");
+const BEGIN = "<!-- steer-begin -->";
+const END = "<!-- steer-end -->";
+
+function stripSteer(prompt: string): string {
+    const begin = prompt.indexOf(BEGIN);
+    if (begin === -1) return prompt;
+    const end = prompt.indexOf(END, begin);
+    const tail = end === -1 ? "" : prompt.slice(end + END.length);
+    return prompt.slice(0, begin) + tail;
+}
 
 export default function (pi: ExtensionAPI) {
-	pi.on("before_agent_start", async (event) => {
-		try {
-			const steer = fs.readFileSync(STEER_MD, "utf-8");
-			return { systemPrompt: `${event.systemPrompt}\n\n# Project instructions (.pi/steer.md)\n\n${steer}` };
-		} catch {
-			process.stderr.write(`steer.md missing at ${STEER_MD}\n`);
-			return;
-		}
-	});
+    pi.on("before_agent_start", async (event) => {
+        try {
+            const steer = fs.readFileSync(STEER_MD, "utf-8");
+            // A subagent's prompt is its agent file; strip any inherited
+            // steer block so children run lean regardless of provider.
+            if (event.systemPrompt.includes("<agent_instructions>")) {
+                const stripped = stripSteer(event.systemPrompt);
+                if (stripped === event.systemPrompt) return;
+                return { systemPrompt: stripped };
+            }
+            if (event.systemPrompt.includes(BEGIN)) return;
+            return { systemPrompt: `${event.systemPrompt}\n\n${BEGIN}\n${steer}\n${END}` };
+        } catch {
+            process.stderr.write(`steer.md missing at ${STEER_MD}\n`);
+            return;
+        }
+    });
 }

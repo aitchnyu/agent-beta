@@ -1,3 +1,8 @@
+Commands
+Remember 5.3 flash doesnt have medium
+Was session faster?
+Why fresh coder?
+reviwer assymmetry?
 
 Review last commit, both pi and debug
 Provision vm in place
@@ -264,4 +269,5 @@ Redis and db memory usage?
 Group and mute notification groups
 Readonly mode for app?
 Mutation tests?
-Install playwright on first 
+Install playwright on first run?
+Store downthinking entries for models for implementing agent

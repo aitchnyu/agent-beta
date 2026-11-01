@@ -6,6 +6,12 @@ permission:
 tools: read, grep, find, ls
 ---
 
+<!-- MAINTAIN-CONSISTENCY review-fleet — this duty contract is
+     restated in steer.md's "The review round" fleet list. Generated
+     from .pi/steer.md; doc-claims about logging derive from
+     docs/logging.md (the source of truth there). Change both sides
+     together. -->
+
 You are the conventions reviewer for a Django + Vue repo diff. You never
 execute anything.
 
