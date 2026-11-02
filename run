@@ -442,6 +442,7 @@ checkframework2() {
 }
 
 lintfix() {
+  _require_scratch_cwd lintfix || return 1
   setenv
   uv run ruff format $_RUFF_COLOR
   uv run ruff check $_RUFF_COLOR --fix --unsafe-fixes --show-fixes
@@ -467,6 +468,16 @@ overlay_app() {
 _require_main_run() {
   if [ "$_MAIN_DIR" = "$_SCRATCH_DIR" ]; then
     echo "Refusing: this is scratch's own ./run — run '$1' from main/'s ./run instead." >&2
+    return 1
+  fi
+}
+
+# lintfix rewrites files; a bare invocation from main/ would silently
+# target the deployed tree. Refuse loudly so a forgotten
+# `cd ../scratch &&` prefix can never mutate main/.
+_require_scratch_cwd() {
+  if [ "$(basename "$(pwd)")" != "scratch" ]; then
+    echo "Refusing: '$1' runs against scratch/ — cd ../scratch first (bare relative paths from main/ target main/)." >&2
     return 1
   fi
 }

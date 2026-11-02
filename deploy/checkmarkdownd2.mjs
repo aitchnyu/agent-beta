@@ -5,7 +5,7 @@
 // dir under /tmp/desmo/ (see the render step below).
 // No args on a TTY: scan every ```d2 fence in the default docs
 // (ourapp/docs/, ourapp/README.md, docs/d2.md, docs/reference/ourapp/docs/,
-// agentconfig/steer.md) and report ok/FAIL per fence — validation only,
+// .pi/steer.md) and report ok/FAIL per fence — validation only,
 // no renders.
 //
 // The engine is @d2lang/d2's isomorphic node build from frontend/node_modules
@@ -110,7 +110,7 @@ if (!files.length && process.stdin.isTTY) {
     path.join(REPO, 'ourapp/README.md'),
     path.join(REPO, 'docs/d2.md'),
     ...fs.readdirSync(path.join(REPO, 'docs/reference/ourapp/docs')).map((f) => path.join(REPO, 'docs/reference/ourapp/docs', f)),
-    path.join(REPO, 'agentconfig/steer.md'),
+    path.join(REPO, '.pi/steer.md'),
   ]) {
     const text = fs.readFileSync(f, 'utf8');
     for (const block of await collectD2Blocks(text, marked)) {

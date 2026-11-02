@@ -1,3 +1,32 @@
+1. Orientation: 0→23m — paid twice. The implement spawn was resume: null — a fresh session — despite a completed 13.4-minute prep session (19:04→19:18, ended READY via ask_parent) holding exactly this context. The coder re-read the entire reference set, framework files, and test harness (60+ reads, including 239s/101s/80s thinking gaps). Steer says "resume it with implement," but the session had no mechanism spelled out (which agent id, from where) — so it spawned fresh. ~23 minutes wasted by one missing mechanic.
+
+2. Writes + first green: 23→34m — models/views/tests/migration, including one 405-second generation turn right after the first lintfix (composing the fix batch over the lint output).
+
+3. Framework-test debugging spiral: 34→46m (~11.5m). A full-suite run hit failures in pre-existing framework tests (logging/CSRF territory) — the coder wrote /tmp/dbg_*.py scripts, created and iterated a test_zz_dbg.py, ran git stash -u to isolate, and read ops/ source, settings, and deployscratch internals before working its way out. Its contract has no boundary for "a failing test you didn't write."
+
+4. .venv spelunking: ~1.5m — TypedModelMeta, constraints, WSGI classes in site-packages. The no-spelunk rule lives in repo-map §8, which coder.md doesn't carry.
+
+5. First-green ping at 50m (20:09:50, after backend green) — exactly per contract; the review board warmed on it.
+
+6. Frontend + e2e + battery + deploy: 50→61m — final green 20:20:31; the 11-minute tail the reviewers overlapped.
+
+Verdict on the regression (42m → 61m): not feature size — (a) the fresh-vs-resume bug costs ~23m, (b) the framework-test spiral ~11.5m, (c) spelunking ~1.5m. Fix the resume mechanism in steer (name the agent-id source: the prep's ask_parent result carries it), add two coder.md boundaries (pre-existing failures → report, don't repair the framework; never read .venv), and this run would have landed near ~35–40m.
+
+Why pwd confusion
+Permission asked for steer_subagent
+10 mins for image review
+    real oval
+    breaking wrap
+Why confused on TestResponse
+Reduce mypy strictness for project
+Why wait for unit tests before setting up reviewers
+Queued reviewer
+why familiarize again?
+Use pipe, dont have managers
+
+ One open question the review surfaced: the repo's steering notes still teach the old API wiring shape the feature upgraded.
+ Fixing it touches your steering file, so it's your call.
+
 Commands
 Remember 5.3 flash doesnt have medium
 Was session faster?
@@ -218,7 +247,7 @@ How to track time taken for provisioning
 Remove https://localhost:8000/accounts/login/, show items in dropdown only. 
 User view form should be single column, each checkbox in own line. Describe each field and checkbox
 
-Lets make a chore tracker. We should have chores which have a repetition schedule. It shows chores from earliest to latest due date. Any logged in user can create and complete an instance. Chores have links where we can see past instances and edit. We can archive chores too and view them with a filter.
+Lets make a chore tracker. We should have chores which have a repetition schedule of either days per week or N days/weeks/months. It shows chores from earliest to latest due date. Any logged in user can create and complete an instance. Chores have links where we can see past instances (who and when completed it) and edit. We can archive chores too and view them with a filter.
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
 How to document system changes when agent modifies system? Write down scripts?
 List backups and time travel

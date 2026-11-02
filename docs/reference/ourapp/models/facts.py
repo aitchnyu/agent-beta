@@ -15,6 +15,8 @@ the models-management UI the cell links to the topic's detail page via its
 ``get_absolute_url()``).
 """
 
+# MAINTAIN-CONSISTENCY repo-map: excerpted in .pi/repo-map.md §9 — change both together.
+
 from __future__ import annotations
 
 from typing import ClassVar, override

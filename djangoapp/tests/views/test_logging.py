@@ -55,6 +55,18 @@ class StructuredLoggingTests(BaseTestCase):
     - test_client_source_default: server records default to source=server
     """
 
+    def setUp(self) -> None:
+        super().setUp()
+        # These contract tests assert INFO records; the scoped test runner
+        # forces LOG_LEVEL=WARNING (output noise), which drops them at the
+        # emitting logger. Pin the root level for the test, restore after.
+        self._root_level = logging.getLogger().level
+        logging.getLogger().setLevel(logging.INFO)
+
+    def tearDown(self) -> None:
+        logging.getLogger().setLevel(self._root_level)
+        super().tearDown()
+
     def test_stdlib_logger_renders_as_json(self) -> None:
         """A plain stdlib logger comes out as one flat JSON object per line."""
         with _capture_json() as buf:

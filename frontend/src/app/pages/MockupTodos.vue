@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Permanent demo of the mockup convention (agentconfig/steer.md § Mockups
+// Permanent demo of the mockup convention (.pi/steer.md § Mockups
 // and diagrams): a stage-1 mockup — hardcoded markup only, no props, no
 // v-if/v-for, no client state — with the root div.mockup crosshatch layer.
 // Unlike a feature mockup it never graduates; /mockup/MockupTodos IS the example.

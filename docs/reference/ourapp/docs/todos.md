@@ -11,8 +11,8 @@ direction: down
 guest: Anonymous visitor {shape: person}
 member: Signed-in member {shape: person}
 todos: Todos {
-  add: Add a todo {shape: oval}
-  toggle: Tick it off / untick {shape: oval}
+  add: Add a todo {width: 240; style.border-radius: 24}
+  toggle: Tick it off / untick {width: 240; style.border-radius: 24}
 }
 member -> todos.add
 todos.toggle -> todos.add: extend {style.stroke-dash: 3}

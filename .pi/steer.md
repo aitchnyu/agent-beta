@@ -37,6 +37,15 @@ approval.
 Always use the allowlisted relative form
 (`cd ../scratch`), never `cd /abs/path` (absolute paths aren't allowlisted
 and ask the operator).
+- Each bash call starts a FRESH shell in the session cwd (`main/`) — cwd
+  does not stick between calls. A bare relative path (`find ourapp`,
+  `head djangoapp/...`) silently targets `main/`'s tree. Every scratch
+  operation carries the `cd ../scratch && …` prefix; `lintfix` refuses
+  to run from `main/` as a backstop.
+
+<!-- MAINTAIN-CONSISTENCY coder-contract — the fresh-shell rule above is
+     restated in .pi/agents/coder.md; change both together. -->
+
 - Fresh scratch tree: `./run createscratch` (run from `main/`).
 - Edit + check + deploy, all one command: `./run deployscratch` **run from
   `main/`** — NOT from inside `../scratch/` (the script resolves main and
@@ -53,6 +62,10 @@ and ask the operator).
   The operator verifies the live pages; the feature's e2e is exercised
   by the full suite (below). And `deployscratch` **publishes an
   accepted batch** — it is not a checkpoint:
+
+  <!-- MAINTAIN-CONSISTENCY coder-contract — the publication rule here
+       is restated in .pi/agents/coder.md; change both together. -->
+
   - intermediate iterations (diagram fix cycles, mid-battery fixes)
     stay in scratch and `/tmp` renders;
   - deploy once, when the batch is green and accepted.
@@ -116,18 +129,27 @@ lives in [Stage messages](#stage-messages):
   mockup built on unasked questions gets thrown away.
 - **[2] Design docs** — the design doc (per the [Feature docs](#feature-docs)
   outline) joins the mockups; share doc + mockup links via DocsGate.
-  Validate the fences and SELF-CHECK the renders before deploying (see
-  [Diagrams](#diagrams)); at DocsGate a fresh image reviewer judges
-  them (see [The review round](#the-review-round-stage-4)).
+  Validate the fences and SELF-CHECK the renders before deploying
+  (see [Diagrams](#diagrams)). Validation also spawns the image
+  reviewer in background; its verdict lands in the DocsGate message
+  (see [The review round](#the-review-round-stage-4)).
 - **[3] Code — only after explicit approval.**
-  - At DocsGate-send: spawn the `coder` subagent in background with
+  - At DocsGate-send, spawn the `coder` subagent in background:
     "PREP ONLY — read .pi/repo-map.md §9, the reference files, and
-    the plan below; write nothing; reply READY".
-  - On approval: resume it with "implement". It runs in BACKGROUND —
-    you stay live to orchestrate the reviewers while it works; its
-    `notify_parent` pings mark the first green test batch and the
-    final green battery; the operator watches its tool calls and its
-    permission asks forward to you.
+    the models-first digest below; write nothing; reply READY via
+    ask_parent and hold." The open question holds the session alive
+    past the 45m retention — any gate length.
+  - On approval, RESUME the prep session — its agent id rides in the
+    READY ask_parent result; pass that id as the `resume` option with
+    prompt "implement". A fresh spawn re-pays the whole orientation
+    (observed: 23 minutes). Only if its session aged out, or the gate
+    sent you back to revise docs or mockups, re-spawn fresh with the
+    PREP prompt plus the revised digest — never implement against a
+    plan it no longer holds. It runs in BACKGROUND —
+    you stay live to orchestrate the reviewers; its notify_parent
+    pings mark the first green test batch and the final green
+    battery; the operator watches its tool calls and its permission
+    asks forward to you.
   - You stay the planner — verify each green batch it reports, keep
     the docs current; never implement yourself while a coder run is
     open. Continue in the SAME `../scratch/` (no second
@@ -139,11 +161,12 @@ lives in [Stage messages](#stage-messages):
     placeholder block when the real page lands — the EMPTY state must
     render ("No chores yet", never placeholder text).
 - **[4] Agent review + doc updates** —
-  - run the executable checks yourself; paste their outputs as evidence
-  - spawn the reviewers fresh, in parallel (see
-    [The review round](#the-review-round-stage-4)) to judge the diff
-    against the requirement
-  - triage findings per the rules below, then RESUME the coder with
+  - paste the coder's suite/battery outputs as the evidence; run the
+    checks yourself only where the coder had no coverage
+  - the reviewers were familiarized during stage 3 and verified at
+    the final green — triage their findings as they land (see
+    [The review round](#the-review-round-stage-4))
+  - then RESUME the coder with
     the accepted code fixes (it holds the plan and loop state); you
     fix the docs
   - update the design doc to match the code
@@ -166,7 +189,8 @@ lives in [Stage messages](#stage-messages):
 updates run as ONE batch ending at the CommitOffer. From your seat:
 
 1. the coder codes + deploys per batch (the operator watches live);
-2. run the reviewer round (fresh reviewers, spawned in parallel);
+2. run the reviewer round (familiarized during the coder run, verified
+   at its final green);
 3. triage findings — the coder fixes code, you fix docs — redeploy;
 4. update the docs;
 5. make the CommitOffer.
@@ -208,13 +232,14 @@ gap — spend them on decisions, not on serialization:
 
 <!-- MAINTAIN-CONSISTENCY review-fleet — the duty lines below are the
      source of truth for reviewer-{correctness,conventions,
-     mirrors,trace,reviewer}.md (symlinked from .pi/agents/); image
+     mirrors,trace,reviewer}.md (in .pi/agents/); image
      review's rules are docs/d2.md's; logging claims are docs/logging.md's.
      Change both sides together. -->
 
-Fresh reviewers, spawned when the review actually runs — prewarming
-is useless (a held bench expires; a fresh study costs the same
-minute). How many:
+Fresh reviewers per feature run — the bench is held only from the
+coder's first green to its final (inside the 45m subagent retention);
+doc-only work with no coder run spawns them when the review runs.
+How many:
 
 - **Significant diff** — touches backend AND frontend, any framework file,
   or more than ~10 files → all FOUR rule-focused reviewers
@@ -226,6 +251,9 @@ minute). How many:
     command flags vs inventory
   - `reviewer-trace` — cross-layer wiring, render-vs-validate ground truth
   Plus `reviewer-image` when docs changed.
+  - Spawning early (familiarize or validation time): judge the fleet
+    from the DocsGate plan, and re-check at verify — if the final
+    diff outgrew the call, add a fresh reviewer.
 - **Small diff** — anything else: the single `reviewer`, as before — it
   carries the diagram duty when docs changed (its agent file has the
   contract).
@@ -246,21 +274,27 @@ Spawn + feeding mechanics:
   quick fixture probes — and paste those. Either way paste the
   checkmarkdownd2 render dir path too; the image reviewer reads the
   fence<N>.svg files. Reviewers read results; they never execute.
-- The image reviewer is ONE spawn per markdown doc — a single
-  subagent whose prompt lists every `fence<N>.svg` of that doc with
-  its rule set ("judge fence1…fenceN of <doc> against the Diagrams
-  rules"). NEVER one subagent per fence — N spawns pay N cold starts
-  for the same verdicts.
+- The image reviewer is ONE spawn for the WHOLE batch — a single
+  subagent whose prompt lists every `fence<N>.svg` of every changed
+  doc with its rule set ("judge fence1…fenceN of <doc> against the
+  Diagrams rules"), reviewed in one pass. NEVER one subagent per fence
+  or per doc — N spawns pay N cold starts for the same verdicts.
 - Spot-check resumes are TIGHTLY SCOPED — one named confirmation
   ("confirm the wrapped labels fit"), not an open-ended re-review:
   a tightly-scoped round answers in under a minute; an open-ended
   one re-reads everything for the same verdict.
 - Two-phase launch, overlapped with the coder:
-  - at its FIRST green batch (the notify_parent ping), spawn the
-    reviewers in background — "FAMILIARIZE ONLY: the requirement, the
-    diff so far, the touched files; hold — verify nothing yet";
-  - at its FINAL green batch, resume each with the closing delta (the
-    diff since their read + the changed-file list) — "verify now."
+  - FIRST green batch (the notify_parent ping): spawn the reviewers
+    in background — "FAMILIARIZE ONLY: the requirement, the diff and
+    status below, the touched files; hold — verify nothing yet;
+    reply STORED."
+  - FINAL green batch: resume each with "verify now," pasting the
+    full `git diff` + `git status --short` (name the files new since
+    familiarization) plus the coder's final suite and battery outputs
+    as evidence. The reviewers hold the diff they read and skip it.
+  - A held reviewer that expired — coder tail past the retention
+    window — spawns fresh with the full diff.
+
   Familiarization overlaps the coder; only verification stays on the
   critical path.
 - scratch is what the review reads; the deploy doesn't change it — so
@@ -353,18 +387,19 @@ print(User.objects.count())
 '
 ```
 
-**`./run lintfix` is safe to run repo-wide.** It only normalizes formatting to
-the committed ruff config — never changes logic — so run it the moment
-`deployscratch` flags formatting, on any file (framework included). Don't stop to
-debate whether formatting a file is "allowed"; drift in `main` is exactly what
-it's there to clear.
+**`./run lintfix` normalizes formatting to the committed ruff config** — never
+logic, but it REWRITES files, so it runs in `scratch/` only
+(`cd ../scratch && ./run lintfix`) and refuses from `main/`: a forgotten prefix
+must never mutate the deployed tree. Run it the moment `deployscratch` flags
+formatting, on any file (framework included — drift is exactly what it clears).
+Don't stop to debate whether formatting a file is "allowed".
 
 **Use the exact allowlisted command forms** so you don't hit blocks:
 
 ```bash
 # GOOD — exact/prefix rules: run unblocked
 ./run deployscratch                     # FROM main/ — batteries scratch, deploys → main
-./run lintfix
+cd ../scratch && ./run lintfix           # lintfix REWRITES files: scratch only
 git diff
 git log --oneline -3
 ./run djangomanage createuser You Name you@example.com --superuser
@@ -410,7 +445,8 @@ keeps this list in sync with the commands dir; never let it drift):
 - `promotetosuperuser <email>` — grant staff + superuser.
 - `backupmarker <set|…>` — the backup-marker sentinel (the checkframework2
   gate drives its backup round-trip through it).
-- `addoauth <provider> <client_id> <secret>` — register an OAuth login.
+- `addoauth <provider> <client_id> <secret>` — register an OAuth login
+  (asks: the secret rides the command line).
 - `makemigrations` / `migrate` — schema changes (via djangomanage).
 - `findstatic <name>` — which on-disk file a static URL resolves to.
 - `baseurls` — the app's base URLs (for absolute links).
@@ -451,7 +487,8 @@ before sharing it:
   port) — never the tunnel origin. Announced links may carry
   `:8000`; that port serves the operator only and answers 000 from
   inside the VM.
-- improvise no variants — the allowlist matches the exact prefix
+- improvise no variants — the gate matches only
+  `curl -sk -o /dev/null … https://localhost…`; anything else asks
   above; any other shape triggers a permission ask.
 - verify before you announce — a 404 link costs the operator a bug
   report (a session once shipped a live mockup whose hatch route
@@ -580,9 +617,9 @@ them with pan/zoom controls.
   line:
   - actors — `shape: person`, declared explicitly, pinned to
     `width: 180; height: 160` so every actor renders identically
-  - use cases — `shape: oval`, fixed `width: 240` regardless of label
-    length; a generous radius when drawn as a box instead
-    (`style.border-radius: 24`)
+  - use cases — ALWAYS a rounded box: fixed `width: 240` +
+    `style.border-radius: 24`, breaks embedded in the label. Never
+    `shape: oval` — literal ovals clip long labels
   - the system boundary — a container
   - associations — `->`; include/extend — dashed labeled arrows
     (`{style.stroke-dash: 3}`)
@@ -596,9 +633,9 @@ them with pan/zoom controls.
     fence (also `direction: down`).
 - Diagrams are per screen/page and chained — a→b→c flows, never flat
   one-level lists.
-- Keep boundaries narrow — few ovals per row.
+- Keep boundaries narrow — few use boxes per row.
 - **Visual faults to write against** — the review catches these in the
-  render, so never author them in: mismatched actor/oval sizes (the
+  render, so never author them in: mismatched actor/use sizes (the
   pinned dimensions exist for uniformity), icons not rendering, label
   or arrow collisions, clipped text, notes floating far from their
   subject, illegible dark-mode contrast.
@@ -625,20 +662,23 @@ them with pan/zoom controls.
   background; it judges while you deploy and compose the DocsGate
   message, and its verdict lands IN the gate message. Collect every
   doc whose fences you generated or edited;
-  the resume prompt for the diagram-duty reviewer (the single `reviewer`,
+  the spawn prompt for the diagram-duty reviewer (the single `reviewer`,
   or `reviewer-image` in a multi-reviewer run) carries, per doc: the
   doc path, the pasted `./run checkmarkdownd2` output, and the render dir
   it printed — one `fence<N>.svg` per fence (engine-identical to the
   viewer, own viewBox, dark theme embedded). The contract lives in the
   reviewer agent file.
-  - It judges the renders against the diagram rules, per fence, with
-    suggested diffs in the findings:
-    - concept fidelity — every actor, oval, arrow, label, cardinality
-      and state maps to a plain-language doc claim
+  - ALL renders go to that ONE spawn in ONE prompt — it reviews the
+    whole batch in a single pass. Never one spawn per fence and never
+    one image per turn.
+  - It judges the renders against the diagram rules, with suggested
+    diffs in the findings:
+    - concept fidelity — every actor, use box, arrow, label,
+      cardinality and state maps to a plain-language doc claim
     - width — viewBox aspect over ~1.3, direction down, vertical
       stacking, narrow boundaries
-    - visual faults — actors at the pinned size, ovals at their fixed
-      width, icons rendering, size uniformity, label and arrow
+    - visual faults — actors at the pinned size, use boxes at 240
+      rounded, icons rendering, size uniformity, label and arrow
       collisions, clipped text, note placement, dark-mode contrast
     - cross-doc consistency — the User actor identical, connection
       phrasing, delete-rule labels, state circles
@@ -701,7 +741,9 @@ Run through every box; the order is the order you build in.
           [File uploads](#file-uploads)).
 - [ ] **View module** — add `ourapp/views/<feature>.py` with a `Router`, wire
       **every** API endpoint (pages + data) there, and register it in
-      `ourapp/views/__init__.py` via `api.add_router("/", <feature>.router)`.
+      `ourapp/views/__init__.py`'s combining Router
+      (`router.add_router("/", <feature>.router)` — that Router feeds
+      `make_ninja_api`).
 - [ ] **Tests** — one file per layer, flat under `ourapp/tests/`:
     - [ ] model/manager behaviour in `ourapp/tests/test_<feature>_models.py`
     - [ ] every endpoint in `ourapp/tests/test_<feature>_views.py` (state + return
@@ -997,7 +1039,7 @@ The reference app **shows the way** — copy it, don't invent:
       routed by `path(...)` in `ourapp/urls.py`
       (example: `docs/reference/ourapp/views/todos.py` `todos_page`)
 - [ ] **JSON/file endpoint** — on the feature's ninja `Router`,
-      registered on the NinjaAPI in `views/__init__.py`
+      combined in `views/__init__.py` and served through `make_ninja_api`
       (example: `create_todo` / the downloads serve route)
 - [ ] **Model** — `docs/reference/ourapp/models/todos.py` (BaseModel
       conventions: save_plus/row_version, RESTRICT, public_id)
@@ -1103,8 +1145,11 @@ request, call a model/manager method, return a schema — never encode the rules
   `models/__init__.py` so Django discovers them. The home feature has no model,
   so it adds nothing to `models/`.
 - **Views** live in the `ourapp/views/` package: each feature exposes a
-  `Router` (`views/facts.py`, `views/todos.py`, `views/home.py`); `views/__init__.py`
-  owns the single `NinjaAPI` and registers every router with `api.add_router(...)`.
+  `Router` (`views/facts.py`, `views/todos.py`, `views/home.py`);
+  `views/__init__.py` combines them onto one Router
+  (`router.add_router("/", <feature>.router)`) and builds the single API via
+  `make_ninja_api("ourapp", router, prefix="")` — error handlers and the CSRF
+  guard ride along.
 - **Tests** are flat under `ourapp/tests/`: one file per feature + layer, named
   `test_<feature>_<layer>.py` (`models`, `views`, `commands`, `playwright`).
   Playwright files subclass `BasePlaywrightTestCase` (tagged `playwright`), so
@@ -1115,9 +1160,10 @@ The frontend half of this contract — HTTP helpers, forms, NinjaError
 consumption — lives in the [Frontend](#frontend) section
 ([HTTP](#http-frontend), [Forms & validation errors](#forms--validation-errors)).
 Prefer a django-ninja API: each feature exposes a `Router` in
-`ourapp/views/<feature>.py`, and `ourapp/views/__init__.py` owns the single
-`NinjaAPI` and registers every router (`api.add_router("/", <feature>.router)`);
-it is mounted in `ourapp/urls.py`. Use it for both data and pages: data
+`ourapp/views/<feature>.py`; `ourapp/views/__init__.py` combines them onto one
+Router (`router.add_router("/", <feature>.router)`) and builds the API with
+`make_ninja_api("ourapp", router, prefix="")` (error handlers + default CSRF
+guard); it is mounted in `ourapp/urls.py` after the pages. Use it for both data and pages: data
 endpoints return pydantic schemas (ninja validates the response), pages return
 `InertiaResponse(request, "<Page>", {"props": …})` — the component name is
 the page's path (`Home`, or `system/<feature>/<Page>` for framework pages).
@@ -1754,7 +1800,8 @@ the repo turns an allowlisted line into an approval ask.
 **The `bash` map in `.pi/extensions/pi-permission-system/config.json` IS the
 allowlist.** When a command unexpectedly prompts, read its patterns (catch-all
 `"*": "ask"` first, specific `allow`s after — LAST match wins) and restate
-the command in a form a pattern covers (the full list is quoted below).
+the command in a form a pattern covers (the everyday entries are
+quoted below — the config's `bash` map is the full list).
 
 **Environment variables go through `export`, never as a command prefix** —
 `VAR=value command` prefixes are accepted by the gate (the prefix is
@@ -1814,8 +1861,9 @@ feature's deploys (stage 3) stay gated conversationally: only after the
 DocsGate "approved" choice.
 
 `./run checkframework1` (the **full gate**: lint + types + the four test tiers
-under one merged coverage report) is deliberately NOT in that list — it's a
-human-run, `main/`-only check; the agent uses `./run deployscratch` from `main/`.
+under one merged coverage report) is allowlisted as a `main/`-only,
+before-promoting-a-framework-change check — the agent's everyday verification
+stays `./run deployscratch` from `main/`.
 
 ### Debugging build / serve issues
 When a page 404s client-side ("Inertia page not found: … — rebuild the
@@ -1834,7 +1882,9 @@ unit (`postgresql@*-main`)
 landing mid-deploy) clear themselves; only report a blocker that survives
 a retry.
 
-Anything else — including any git on `main/` — needs approval; for
+Anything else — git verbs beyond the read-only set and the
+CommitOffer's `git add`/`git commit` on `main/` included — needs
+approval; for
 read/list/search, use the `read`/`glob`/`grep` tools instead of
 shell `ls`/`find`/`grep`. Construct commands (or a short chain) that fit the
 allowlist wherever possible.

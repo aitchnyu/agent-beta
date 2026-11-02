@@ -25,11 +25,12 @@ run as ONE turn; the session never compacts — the operator can.
   no props/backend, superuser-only, `div.mockup` wrapper.
   `?props=<base64url JSON>` presets state (`_B64JsonProps`).
   Graduation = real page + DELETE mockup + homepage link.
-- Reviewers: fresh at stage 4 (parallel `subagent` —
-  reviewer-correctness / conventions / mirrors / trace for big diffs
-  (+ `reviewer-image` when docs changed), single `reviewer`
-  otherwise), each fed the diff + touched files; round 2 resumes
-  round-1 agents on the fix diff. The `coder` agent implements
+- Reviewer (docs): the doc `reviewer-image` spawns in background at
+  docs VALIDATION — its verdict lands in the DocsGate message.
+- Reviewers (code): correctness / conventions / mirrors / trace for big
+  diffs (single `reviewer` otherwise) familiarize in background at the
+  coder's FIRST green, verify at its final green; round 2 resumes them
+  on the fix diff. The `coder` agent implements
   stage 3 (background):
   prep-spawned at DocsGate-send, resumed to implement on approval,
   resumed again for reviewer-found fixes.
@@ -59,7 +60,8 @@ run as ONE turn; the session never compacts — the operator can.
   change list + safety rails) · what you see (screenshots) · history
   (optional) · for developers.
 - Diagrams: d2 fences, `direction: down` top-level, actors
-  `shape: person` pinned 180×160, ovals `width: 240`; mandatory
+  `shape: person` pinned 180×160, use-case boxes `width: 240` +
+  `style.border-radius: 24` (never `shape: oval`); mandatory
   `./run checkmarkdownd2 <file.md>` after every fence write.
 
 ## 4. BaseModel save_plus / row_version (`djangoapp/models/base.py`)
@@ -86,9 +88,10 @@ Copy from the §9 skeletons first; the full reference files back them.
   `path(...)` in `ourapp/urls.py` (see also
   `docs/reference/ourapp/urls.py`). JSON/file = `Router` endpoints
   (`@router.post("/todos/create", response=Schema)`).
-- `ourapp/views/__init__.py` owns the single `NinjaAPI`, routers
-  registered `api.add_router("/", <feature>.router)`; mounted last in
-  urls.py so page paths win.
+- `ourapp/views/__init__.py` combines feature routers onto one `Router`
+  (`router.add_router("/", <feature>.router)`) and builds the single API via
+  `make_ninja_api("ourapp", router, prefix="")` (error handlers + CSRF guard
+  ride along); mounted last in urls.py so page paths win.
 - Errors: `ApiError(status, *, type=, msg=, ctx=)` from
   `djangoapp.ninja_api` — never `HttpError`.
 - Auth: `user_or_404(request)` / `maybe_user(request)` from
@@ -155,6 +158,7 @@ the full file only when an excerpt runs out.
 
 <!-- MAINTAIN-CONSISTENCY repo-map — these skeletons excerpt
      docs/reference/ourapp/{models,views,tests} todos files,
+     docs/reference/ourapp/models/facts.py,
      docs/reference/ourapp/views/__init__.py, docs/reference/ourapp/urls.py,
      docs/reference/frontend/src/{schemas/todos.ts,pages/TodosPage.vue},
      and djangoapp/tests/_base.py; changing any side means updating the
@@ -180,6 +184,17 @@ class Todo(BaseModel):
         ordering: ClassVar[list[str]] = ["-created_at"]
 ```
 
+A `Meta.constraints` rule (uniqueness etc.) uses the same `ClassVar`
+form — from `docs/reference/ourapp/models/facts.py`:
+
+```python
+    class Meta:
+        ordering: ClassVar[list[str]] = ["-last_updated_at"]
+        constraints: ClassVar[list[models.BaseConstraint]] = [
+            models.UniqueConstraint(fields=["singleton"], name="factoftheday_singleton_row"),
+        ]
+```
+
 **View module** — from `docs/reference/ourapp/views/todos.py`:
 
 ```python
@@ -197,7 +212,7 @@ def todos_page(request: HttpRequest) -> InertiaResponse:   # PLAIN view, routed 
 def create_todo(request, payload: TodoCreateSchema) -> TodoOutSchema:
     user = user_or_404(request)
     with transaction.atomic():          # multi-write = one atomic block
-        todo = Todo(text=payload.text.strip(), owner=user)
+        todo = Todo(text=payload.text, owner=user)
         todo.save_plus(actor=user, expected_row_version=payload.expected_row_version)
         Notification.record(recipient=user, kind="todo.created", body=…, url="/todos")
     return _todo_out(todo)
@@ -206,8 +221,9 @@ def create_todo(request, payload: TodoCreateSchema) -> TodoOutSchema:
 **Registration + routing** — `ourapp/views/__init__.py` + `ourapp/urls.py`:
 
 ```python
-api = NinjaAPI(urls_namespace="ourapp-http")
-api.add_router("/", todos.router)          # every feature's router, one NinjaAPI
+router = Router()                          # every feature's router combined:
+router.add_router("/", todos.router)
+api = make_ninja_api("ourapp", router, prefix="")  # handlers + CSRF guard ride along
 # urls.py: PAGES first (plain path()s), then the API MOUNTED LAST:
 urlpatterns = [path("todos", todos_page, name="todos"), …, path("", api.urls)]
 ```

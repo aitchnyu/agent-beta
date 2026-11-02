@@ -15,6 +15,6 @@ urlpatterns = [
     # Pages — plain Django views.
     path("", home_page, name="home"),
     path("mockup/<str:page>", mockup_page, name="mockup"),
-    # JSON APIs — every feature router registered on the NinjaAPI.
+    # JSON APIs — every feature router combined in views/__init__.py.
     path("", api.urls),
 ]

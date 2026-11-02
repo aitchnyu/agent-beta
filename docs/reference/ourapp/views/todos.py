@@ -23,6 +23,7 @@ from django.db import transaction
 from django.http import Http404, HttpRequest
 from inertia import InertiaResponse
 from ninja import Router, Schema
+import pydantic
 
 from djangoapp.models import Notification, User
 from djangoapp.shortcuts import user_or_404
@@ -46,6 +47,25 @@ class TodoCreateSchema(Schema):
 
     text: str
     expected_row_version: int
+
+    # Validator signatures live here — .venv stub reads for these are a
+    # §9 gap in .pi/repo-map.md, not a step of your work.
+    @pydantic.field_validator("text")
+    @classmethod
+    def _stripped(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            msg = "text must not be empty"
+            raise ValueError(msg)  # ninja renders this as a standard 422
+        return value
+
+    # Cross-field checks: model_validator(mode="after") reads sibling values.
+    @pydantic.model_validator(mode="after")
+    def _version_zero_on_create(self) -> "TodoCreateSchema":
+        if self.expected_row_version != 0:
+            msg = "a create always starts at row_version 0"
+            raise ValueError(msg)
+        return self
 
 
 class TodoToggleSchema(Schema):
@@ -99,13 +119,14 @@ def create_todo(request: HttpRequest, payload: TodoCreateSchema) -> TodoOutSchem
     — the user is only ever informed AFTER the data is durable.
     ``save_plus`` (not ``objects.create``) so the write is
     audit-logged and stamps ``created_by``/``last_updated_by``. A nonzero
-    ``expected_row_version`` here raises ``Http404`` out of the model
-    itself — it never matched any state of the row, like any stale view of
-    the data.
+    ``expected_row_version`` never reaches the model — the create schema's
+    ``model_validator`` rejects it as a 422 (a create always starts at
+    row_version 0); a stale version on a toggle, by contrast, is the
+    model's 404.
     """
     user = user_or_404(request)
     with transaction.atomic():
-        todo = Todo(text=payload.text.strip(), owner=user)
+        todo = Todo(text=payload.text, owner=user)
         todo.save_plus(actor=user, expected_row_version=payload.expected_row_version)
         Notification.record(
             recipient=user,

@@ -56,7 +56,7 @@ docs/reference/
 
 Fat models/thin views, ninja routers + Inertia pages, zod-parsed payloads,
 public ids only, tests per feature + layer — all of it is
-`agentconfig/steer.md` ("Feature workflow"); this app follows it exactly
+`.pi/steer.md` ("Feature workflow"); this app follows it exactly
 and this README doesn't restate it.
 
 ## Workflow

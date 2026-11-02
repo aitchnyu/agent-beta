@@ -4,6 +4,7 @@
   "permission": {
     "*": "ask",
     "subagent": "allow",
+    "steer_subagent": "allow",
     "get_subagent_result": "allow",
     "read": "allow",
     "grep": "allow",

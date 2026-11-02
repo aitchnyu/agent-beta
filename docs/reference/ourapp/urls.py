@@ -3,9 +3,8 @@
 Pages are PLAIN Django views routed below — inertia pages never ride a
 ninja Router. Data/file endpoints (JSON APIs, the download serve) live
 on each feature's ``router`` in ``views/<feature>.py``, combined into
-the one ``NinjaAPI`` (``views/__init__.py``) and mounted here last, so
-specific page paths resolve first and API endpoints answer at their
-literal URLs.
+the one API (``views/__init__.py``) and mounted here last, so specific
+page paths resolve first and API endpoints answer at their literal URLs.
 """
 
 # MAINTAIN-CONSISTENCY repo-map: excerpted in .pi/repo-map.md §9 — change both together.
@@ -26,6 +25,6 @@ urlpatterns = [
     path("fact/<str:public_id>", fact_detail_page, name="fact-detail"),
     path("todos", todos_page, name="todos"),
     path("downloads", downloads_page, name="downloads"),
-    # Data/file endpoints — every feature's ninja Router on the one NinjaAPI.
+    # Data/file endpoints — every feature's ninja Router on the one API.
     path("", api.urls),
 ]

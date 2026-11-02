@@ -1,3 +1,5 @@
 {
-	"consumedSessionRetentionMinutes": 45
+  "consumedSessionRetentionMinutes": 45,
+  "maxConcurrent": 5,
+  "midRunUpdates": true
 }

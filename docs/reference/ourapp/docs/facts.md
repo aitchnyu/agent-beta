@@ -9,9 +9,9 @@ the Huey cron rotates each local midnight, shown on the home page.
 direction: down
 visitor: Anyone — no sign-in {shape: person}
 facts: Facts pages {
-  browse: Browse the list — a fresh draw {shape: oval}
-  pick_topic: Open a topic {shape: oval}
-  read_one: Read one fact — permalink {shape: oval}
+  browse: Browse the list — a fresh draw {width: 240; style.border-radius: 24}
+  pick_topic: Open a topic {width: 240; style.border-radius: 24}
+  read_one: Read one fact — permalink {width: 240; style.border-radius: 24}
 }
 visitor -> facts.browse
 facts.pick_topic -> facts.browse: extend {style.stroke-dash: 3}

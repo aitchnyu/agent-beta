@@ -36,7 +36,7 @@ def home_page(request: HttpRequest) -> InertiaResponse:
     page by SharedPropsMiddleware).
     """
     user = maybe_user(request)
-    # Example structured log lines (see agentconfig/steer.md § Logging). The
+    # Example structured log lines (see .pi/steer.md § Logging). The
     # event is a short human phrase (spaces, not snake_case); key/value fields
     # make the line jq-filterable. method/path/user_public_id/username are
     # already bound by LoggingContextMiddleware, so they're not repeated here.

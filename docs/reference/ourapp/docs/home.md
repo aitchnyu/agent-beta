@@ -12,10 +12,10 @@ visitor: Anonymous visitor {shape: person}
 viewer: Signed-in viewer {shape: person}
 cron: Huey cron — midnight {shape: person}
 home: Home {
-  read_pick: Read today's Fact of the Day {shape: oval}
-  sign_in: Follow the sign-in link {shape: oval}
-  see_identity: See display_name + public_id {shape: oval}
-  open_feature: Open a feature link {shape: oval}
+  read_pick: Read today's Fact of the Day {width: 240; style.border-radius: 24}
+  sign_in: Follow the sign-in link {width: 240; style.border-radius: 24}
+  see_identity: See display_name + public_id {width: 240; style.border-radius: 24}
+  open_feature: Open a feature link {width: 240; style.border-radius: 24}
 }
 visitor -> home.read_pick
 visitor -> home.open_feature

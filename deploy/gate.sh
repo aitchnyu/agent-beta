@@ -367,11 +367,28 @@ gate() {
   echo; echo "=== Assert 10: media upload + serve_file ==="
   printf 'gate-media-bytes' > /tmp/gate-upload.bin
   
+  # The upload is an unsafe method against a make_ninja_api API
+  # (csrf_guard on), over HTTPS — so send what the browser sends: the
+  # csrftoken cookie (rotated in at login; the page GET re-bootstraps a
+  # jar that predates the rotation) + the matching X-CSRFToken header +
+  # the same-origin Origin (Django's strict referer check on secure
+  # requests).
+  curl -k -sS -b "$gate_jar" -c "$gate_jar" -o /dev/null "$gate_base/"
+  csrf_token=$(awk '$6 == "csrftoken" {print $7; exit}' "$gate_jar")
+  [ -n "$csrf_token" ] || {
+    echo "FAILED: no csrftoken cookie in $gate_jar — the upload needs the CSRF trio." >&2
+    exit 1
+  }
   # Postcondition 1: the multipart upload stored the file and replied with
   # its unguessable storage name (ninja's JSON has a space after the colon)
-  media_name=$(curl -k -sS -b "$gate_jar" -F "file=@/tmp/gate-upload.bin" \
+  media_name=$(curl -k -sS -b "$gate_jar" \
+    -H "X-CSRFToken: $csrf_token" -H "Origin: $gate_base" \
+    -F "file=@/tmp/gate-upload.bin" \
     "$gate_base/media/upload" | sed -n 's/.*"name":[[:space:]]*"\([^"]*\)".*/\1/p')
-  [ -n "$media_name" ]
+  [ -n "$media_name" ] || {
+    echo "FAILED: media upload returned no storage name." >&2
+    exit 1
+  }
   # Postcondition 2: the serve URL streams the exact bytes back — an
   # unintercepted accel response would be an empty body and fail the cmp
   curl -k -sS -b "$gate_jar" "$gate_base/media/$media_name" -o /tmp/gate-download.bin

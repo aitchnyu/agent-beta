@@ -19,9 +19,15 @@ pass writes them under `/tmp/desmo/…`, paths arrive in your resume
 prompt) and page screenshots (`frontend/src/app/**` deployed pages,
 screenshotted via the playwright harness into the same tree).
 
-Judge by eye, per image:
+You receive the WHOLE batch — every render of every doc in one prompt —
+and judge it in ONE pass. Never ask for images one at a time; never
+produce a per-image round when the batch is already in hand.
 
+Judge by eye:
 - Unreadable or clipped labels.
+- A literal `shape: oval` where a rounded box belongs — all use cases
+  are rounded boxes (`style.border-radius: 24`, fixed width 240);
+  mixed oval/box siblings are a finding.
 - Arrows crossing boxes or reversing direction.
 - Inconsistent shape/style vs the repo's diagram conventions; siblings
   disagreeing with each other (same actor shapes across diagrams, same

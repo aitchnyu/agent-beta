@@ -25,16 +25,17 @@ function stripSteer(prompt: string): string {
     const begin = prompt.indexOf(BEGIN);
     if (begin === -1) return prompt;
     const end = prompt.indexOf(END, begin);
-    const tail = end === -1 ? "" : prompt.slice(end + END.length);
-    return prompt.slice(0, begin) + tail;
+    if (end === -1) return prompt; // malformed — strip nothing
+    return prompt.slice(0, begin) + prompt.slice(end + END.length);
 }
 
 export default function (pi: ExtensionAPI) {
     pi.on("before_agent_start", async (event) => {
         try {
             const steer = fs.readFileSync(STEER_MD, "utf-8");
-            // A subagent's prompt is its agent file; strip any inherited
-            // steer block so children run lean regardless of provider.
+            // Append-mode subagents (agent_instructions-wrapped) restate
+            // steer — strip it so they run lean; replace-mode children
+            // (Explore/Plan) still receive the append below.
             if (event.systemPrompt.includes("<agent_instructions>")) {
                 const stripped = stripSteer(event.systemPrompt);
                 if (stripped === event.systemPrompt) return;

@@ -9,9 +9,9 @@ the reference illustration of the framework's media primitives.
 direction: down
 admin: Superuser {shape: person}
 manager: Manager page — /downloads {
-  upload: Upload a file {shape: oval}
-  replace: Replace it {shape: oval}
-  delete: Delete it {shape: oval}
+  upload: Upload a file {width: 240; style.border-radius: 24}
+  replace: Replace it {width: 240; style.border-radius: 24}
+  delete: Delete it {width: 240; style.border-radius: 24}
 }
 admin -> manager.upload
 manager.replace -> manager.upload: extend {style.stroke-dash: 3}
@@ -22,7 +22,7 @@ manager.delete -> manager.upload: extend {style.stroke-dash: 3}
 direction: down
 guest: Anonymous visitor {shape: person}
 serve: Serve route — /downloads/<storage-name> {
-  get: Download a file before its expiry {shape: oval}
+  get: Download a file before its expiry {width: 240; style.border-radius: 24}
 }
 guest -> serve.get
 note: No sign-in to download — expired or unknown names 404 alike. {shape: text}

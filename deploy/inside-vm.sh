@@ -260,6 +260,18 @@ EOF
   echo "    pi CLI (npm -g, version-pinned)"
   npm install -g --ignore-scripts "@earendil-works/pi-coding-agent@$_PI_NPM_VERSION"
 
+  # Trust pi's project root — one /srv/desmo entry covers main/ and
+  # scratch/ for every session, headless subagent children included
+  # (they never get the launcher's --approve); anything outside stays
+  # untrusted. Create pi's state dirs AS the operator user (this script
+  # runs as root — a root-owned ~/.pi would strand pi's own writes and
+  # hide the trust file).
+  install -d -o "$op_user" -g "$op_user" -m 700 \
+    "/home/$op_user/.pi" "/home/$op_user/.pi/agent"
+  printf '{\n  "/srv/desmo": true\n}\n' \
+    | install -o "$op_user" -g "$op_user" -m 600 /dev/stdin \
+      "/home/$op_user/.pi/agent/trust.json"
+
   echo "    caddy (official GitHub-release .deb, version-pinned)"
   local caddy_arch caddy_deb
   caddy_arch="$(dpkg --print-architecture)"

@@ -398,8 +398,9 @@ split into modules (one per feature), never stuffed into one file:
   `get_absolute_url()`. Give each a docstring. Add/change a model →
   `./run djangomanage makemigrations ourapp`.
 - **API** (`ourapp/views/`): one django-ninja `Router` per feature
-  (`views/<feature>.py`); `views/__init__.py` owns the single `NinjaAPI` and
-  registers every router. Page responses render via Inertia
+  (`views/<feature>.py`); `views/__init__.py` combines them onto one `Router`
+  and builds the single API via `make_ninja_api` (error handlers + CSRF guard
+  ride along). Page responses render via Inertia
   (`InertiaResponse(request, "<Page>", {"props": …})`), data responses are
   pydantic schemas.
 - **URLs** (`ourapp/urls.py`): mounts the ninja API at the project root, so each

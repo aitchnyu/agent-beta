@@ -7,7 +7,7 @@ where tests are flat `test_<feature>_<layer>.py`) and combined into a whole; see
 
 This is the **placeholder**: it ships the landing page (plus the permanent
 `/mockup/MockupTodos` demo below) so the project is runnable out of the box. Add
-your features following the checklist in `agentconfig/steer.md`.
+your features following the checklist in `.pi/steer.md`.
 
 ## Features
 
@@ -23,7 +23,7 @@ your features following the checklist in `agentconfig/steer.md`.
 ```
 ourapp/
   models/      one module per feature, imported in models/__init__.py
-  views/       one Router per feature; views/__init__.py owns the NinjaAPI
+  views/       one Router per feature; views/__init__.py builds the API
   tests/       flat: test_<feature>_<layer>.py (models/views/commands/playwright)
   docs/        one markdown file per feature, linked from this README
   management/commands/   seed/setup commands (one module per command; added with the first command)

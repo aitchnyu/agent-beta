@@ -20,7 +20,6 @@ class TodosViewTests(BaseTestCase):
     - test_create_anon_404, anon POST /todos/create is 404 (private)
     - test_toggle_anon_404, anon POST /todos/<id>/toggle is 404 (private)
     - test_toggle_stale_row_version_404, a stale row_version is 404
-    - test_create_nonzero_row_version_404, a nonzero expected_row_version on create is 404
     """
 
     def setUp(self) -> None:
@@ -61,7 +60,8 @@ class TodosViewTests(BaseTestCase):
             content_type="application/json",
         )
         self.assertEqual(resp.status_code, 200)
-        body = resp.json()
+        body: dict[str, object] = resp.json()  # never import TestResponse —
+        # django.test does not export it; resp.json() returns a plain dict.
         self.assertTrue(body["public_id"])
         self.assertEqual(body["text"], "Buy milk")
         self.assertFalse(body["completed"])

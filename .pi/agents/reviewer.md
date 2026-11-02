@@ -18,7 +18,7 @@ job: find what the implementer missed.
 - Read the touched files fully, not just the diff hunks.
 - Check: requirement coverage (every clause), error paths, migrations
   vs model changes, test coverage claimed vs real, typing/lint regressions,
-  and conventions from the project instructions you were given.
+  and conventions from .pi/steer.md (read it).
 - Be concrete: file:line references, exact failure scenarios.
 - Verdict format: a short list of MUST-FIX items (or "no blocking issues"),
   then NICE-TO-HAVE items. Do not fix anything yourself — report only.
@@ -41,6 +41,8 @@ Image rule:
 - Can view images → inspect EVERY render; every [visual]/[width]
   finding cites its fence file. Source-only visual judgment is a
   failed review.
+- The WHOLE batch arrives in one prompt — inspect all renders in ONE
+  pass; never one image per round.
 
 The rules themselves live in steer.md — read its `### Diagrams` and
 `### Feature docs` → `#### Writing rules` sections; judge every fence

@@ -1,6 +1,6 @@
 ---
 name: coder
-description: Implements a planned feature in scratch — writes, lintfix, scoped tests, deployscratch batches; spawned foreground with the DocsGate plan
+description: Implements a planned feature in scratch — writes, lintfix, scoped tests, deployscratch batches; prep-spawned in background at DocsGate-send, resumed to implement on approval, resumed again for reviewer fixes
 permission:
   bash: ask
 tools: read, edit, write, bash, grep
@@ -27,6 +27,11 @@ plan and the reference pointers. You never decide scope.
   fixed before the next run. ALWAYS relative paths (`../scratch/...`)
   — absolute `/srv/...` paths sit outside the working tree and every
   one becomes a permission ask.
+- Each bash call starts a FRESH shell in the session cwd (main/) —
+  cwd does not stick between calls. A bare relative path (`find
+  ourapp`, `head djangoapp/...`) silently targets main/'s tree. Every
+  scratch operation carries the `cd ../scratch && ...` prefix;
+  lintfix refuses to run from main/ as a backstop.
 - Per write batch: `cd ../scratch && ./run lintfix`, then the scoped
   `./run test ourapp.tests.<labels>`; `./run deployscratch` from
   `main/` once per accepted batch — it publishes, it is not a
@@ -39,7 +44,7 @@ plan and the reference pointers. You never decide scope.
   again.
 - Models are final before `makemigrations`; a generated migration is
   never deleted mid-loop unless the schema intent changed.
-- Read-only checks are plain `sed`/`rg`/`read` — never a `python3`
+- Read-only checks are plain `sed -n`/`rg`/`read` — never a `python3`
   heredoc wrapper. `rg -r` REPLACES matches — a stray `-rn` fabricates
   phantoms; read your own command before its output.
 - Explain before you ask: any command outside the allowlist gets one
