@@ -1,3 +1,18 @@
+Use pipe, dont have managers
+
+can you move the trust.json and config.json near each other and have a TODO saying wait for ....
+ defaultProjectTrust: "always"
+
+       "./run createscratch *": "allow",
+      "./run deployscratch": "allow",
+Where did inside-vm changes go?
+
+Why python script? Just proceed to deploy
+Why permissions?  For cd ../scratch
+Just visualize the image to judge it. 
+ask_parent was denied for coder?
+Mockup and docs together
+
 1. Orientation: 0→23m — paid twice. The implement spawn was resume: null — a fresh session — despite a completed 13.4-minute prep session (19:04→19:18, ended READY via ask_parent) holding exactly this context. The coder re-read the entire reference set, framework files, and test harness (60+ reads, including 239s/101s/80s thinking gaps). Steer says "resume it with implement," but the session had no mechanism spelled out (which agent id, from where) — so it spawned fresh. ~23 minutes wasted by one missing mechanic.
 
 2. Writes + first green: 23→34m — models/views/tests/migration, including one 405-second generation turn right after the first lintfix (composing the fix batch over the lint output).
@@ -22,7 +37,6 @@ Reduce mypy strictness for project
 Why wait for unit tests before setting up reviewers
 Queued reviewer
 why familiarize again?
-Use pipe, dont have managers
 
  One open question the review surfaced: the repo's steering notes still teach the old API wiring shape the feature upgraded.
  Fixing it touches your steering file, so it's your call.

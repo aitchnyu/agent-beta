@@ -1,8 +1,6 @@
 ---
 name: reviewer
-description: Re-reads a diff against its requirement (d2 fences included, from SVG renders) and reports missed issues before done is claimed
-permission:
-  bash: ask
+description: Re-reads a diff against its requirement (d2 fences included — ls-presence plus raster renders) and reports missed issues before done is claimed
 tools: read, grep, find, ls
 ---
 
@@ -30,19 +28,16 @@ Inputs, per changed doc, from the spawn prompt:
 - the pasted `./run checkmarkdownd2` output
 - the render dir it printed
 
-That dir holds one `fence<N>.svg` per fence (1-based, doc order). The
-renders match the viewer exactly; the viewBox gives the aspect and the
-dark theme is embedded in each file.
+That dir holds one `fence<N>.svg` per fence (1-based, doc order).
 
-Image rule:
-- Cannot view images → the report's first line is
-  `VISUAL CHECKS NOT RUN — <reason>`; judge from the viewBox and the
-  source only. Never describe visuals you did not see.
-- Can view images → inspect EVERY render; every [visual]/[width]
-  finding cites its fence file. Source-only visual judgment is a
-  failed review.
-- The WHOLE batch arrives in one prompt — inspect all renders in ONE
-  pass; never one image per round.
+Image rule (visual only, SVG never — never read `.svg` content):
+- d2 fences are SVG → `ls` presence check only, then "assumed OK —
+  SVG renders are not viewable" per fence; geometry findings belong
+  to checkmarkdownd2 and the text reviewers.
+- Screenshots and any RASTER renders → inspect visually, EVERY one;
+  every [visual] finding cites its file. The WHOLE batch arrives in
+  one prompt — inspect all in ONE pass; never one image per round.
+- Never describe visuals you did not see.
 
 The rules themselves live in steer.md — read its `### Diagrams` and
 `### Feature docs` → `#### Writing rules` sections; judge every fence

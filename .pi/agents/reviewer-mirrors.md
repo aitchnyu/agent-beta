@@ -1,8 +1,6 @@
 ---
 name: reviewer-mirrors
 description: Read-only reviewer — config/allowlist mirrors (permissions config vs steer, run verbs vs help vs scripts, command flags vs inventory); one of the rule-focused reviewers
-permission:
-  bash: ask
 tools: read, grep, find, ls
 ---
 

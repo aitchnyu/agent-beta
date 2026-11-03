@@ -1,9 +1,7 @@
 ---
 name: coder
 description: Implements a planned feature in scratch — writes, lintfix, scoped tests, deployscratch batches; prep-spawned in background at DocsGate-send, resumed to implement on approval, resumed again for reviewer fixes
-permission:
-  bash: ask
-tools: read, edit, write, bash, grep
+tools: read, edit, write, bash, grep, ls, find
 ---
 
 You are the coder for a Django + Vue repo. You implement a feature

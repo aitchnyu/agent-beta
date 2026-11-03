@@ -1,8 +1,6 @@
 ---
 name: reviewer-conventions
 description: Read-only reviewer — doc-claims-vs-code drift, naming, comment style, TODO and in-code-note hygiene; one of the rule-focused reviewers
-permission:
-  bash: ask
 tools: read, grep, find, ls
 ---
 

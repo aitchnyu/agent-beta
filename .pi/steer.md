@@ -126,7 +126,9 @@ lives in [Stage messages](#stage-messages):
   build something you can think up and test FAST. Bundle the workflow
   questions into MockupGate (one round) — and ask them BEFORE writing
   the first mockup: requirement answers reshape the design, and a
-  mockup built on unasked questions gets thrown away.
+  mockup built on unasked questions gets thrown away. Deployed flow per
+  batch: lintfix in scratch → `./run deployscratch` → share the links —
+  a green deploy IS the verification ([Mockups](#mockups)).
 - **[2] Design docs** — the design doc (per the [Feature docs](#feature-docs)
   outline) joins the mockups; share doc + mockup links via DocsGate.
   Validate the fences and SELF-CHECK the renders before deploying
@@ -272,8 +274,9 @@ Spawn + feeding mechanics:
   evidence. No coder coverage (doc edits, small fixes)? Run the
   checks yourself first — the feature's tests, `./run checkmarkdownd2`,
   quick fixture probes — and paste those. Either way paste the
-  checkmarkdownd2 render dir path too; the image reviewer reads the
-  fence<N>.svg files. Reviewers read results; they never execute.
+  checkmarkdownd2 render dir path too; the image reviewer ls-checks the
+  fence<N>.svg files (and views any raster renders/screenshots).
+  Reviewers read results; they never execute.
 - The image reviewer is ONE spawn for the WHOLE batch — a single
   subagent whose prompt lists every `fence<N>.svg` of every changed
   doc with its rule set ("judge fence1…fenceN of <doc> against the
@@ -479,20 +482,11 @@ Stages 1–2's artifacts live in **files**, not chat: mockups are real deployed
 pages. Everything lives in `../scratch/` and reaches `main/` only via
 `deployscratch` — allowlisted, so mockup deploys run unblocked; share the
 deployed links in chat immediately after each deploy via
-[Stage messages](#stage-messages). **Verify every URL you announce**
-before sharing it:
-- probe once, exactly this shape (read-only, allowlisted):
-  `curl -sk -o /dev/null -w "%{http_code}" https://localhost<path>`
-- probe the PATH on the VM's OWN origin (`https://localhost`, no
-  port) — never the tunnel origin. Announced links may carry
-  `:8000`; that port serves the operator only and answers 000 from
-  inside the VM.
-- improvise no variants — the gate matches only
-  `curl -sk -o /dev/null … https://localhost…`; anything else asks
-  above; any other shape triggers a permission ask.
-- verify before you announce — a 404 link costs the operator a bug
-  report (a session once shipped a live mockup whose hatch route
-  never existed).
+[Stage messages](#stage-messages). A green deployscratch IS the
+verification — trust it and send the links. No probing, no python, no
+"just checking the authed view": mockup pages are superuser-only, and the
+operator's click is the first real check. Announced links may carry
+`:8000`; that port serves the operator only.
 
 - **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
   deploy as `/files/main/ourapp/docs/<feature>.md`. Structure and writing
@@ -671,6 +665,11 @@ them with pan/zoom controls.
   - ALL renders go to that ONE spawn in ONE prompt — it reviews the
     whole batch in a single pass. Never one spawn per fence and never
     one image per turn.
+  - Visual only, SVG never: it looks at rendered IMAGES (screenshots,
+    raster renders) and NEVER reads `.svg` content — d2 fences get an
+    `ls` presence check and "assumed OK — SVG renders are not
+    viewable" unless a raster variant exists. Geometry findings read
+    out of source are the text reviewers' and checkmarkdownd2's job.
   - It judges the renders against the diagram rules, with suggested
     diffs in the findings:
     - concept fidelity — every actor, use box, arrow, label,
@@ -682,8 +681,10 @@ them with pan/zoom controls.
       collisions, clipped text, note placement, dark-mode contrast
     - cross-doc consistency — the User actor identical, connection
       phrasing, delete-rule labels, state circles
-  - If it cannot view images, it says so and reviews source + viewBox
-    only.
+  - If it cannot view images, it reports which artifacts it could not
+    see and stops — no source fallback: d2 fences get an `ls` presence
+    check and "assumed OK"; only screenshots and raster renders are
+    judged visually.
   - Its findings join the review triage like any other: that agent
     applies what holds, re-validates (the re-run prints a FRESH render
     dir — paste it into the re-resume), and folds recurring fixes into
@@ -848,7 +849,9 @@ delivered, nothing pending) is a plain statement. Everything about message
 shape lives in this section — the
 workflow stages and [Stage messages](#stage-messages) reference it, nothing
 restates it. Verify each link's file exists before sharing it (an
-unverified URL is worse than no URL: it wastes a round-trip).
+unverified URL is worse than no URL: it wastes a round-trip) — for
+mockup links, a green deployscratch already satisfies this: the
+rsync put the file into `main/`; check nothing.
 
 When the work is done and the suite is green, close with a short markdown
 summary in exactly this shape — operator-level, no dev detail (endpoints,

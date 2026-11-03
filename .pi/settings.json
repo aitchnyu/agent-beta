@@ -2,8 +2,8 @@
   "enableInstallTelemetry": false,
   "sessionDir": "sessions",
   "packages": [
-    "npm:@gotgenes/pi-permission-system@39.0.2",
-    "npm:@gotgenes/pi-subagents@22.0.0"
+    "npm:@gotgenes/pi-permission-system@42.0.0",
+    "npm:@gotgenes/pi-subagents@25.0.5"
   ],
   "compaction": {
     "enabled": true,
