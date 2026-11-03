@@ -176,6 +176,7 @@ exclude = [
   "dist/",  # frontend build output
   "build/",  # packaging/build artifacts
   ".kilo/",  # kilo editor review worktrees (snapshots, not source)
+  "dbbackups/",  # pgbackrest runtime archive, postgres-owned
 ]
 warn_unused_ignores = true
 warn_unreachable = true  # flag dead branches strict mode doesn't cover

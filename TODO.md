@@ -1,5 +1,12 @@
-Use pipe, dont have managers
+Squash 18baa5f3de346ab21f3fdf32df46a1497abfeb7a and later. Propose a commit message. 
+Undo the chore commit on vm. Want to treat vm like a brand new vm, so it should have latest commit. Ensure keys are present. Share ssh command. Create a new superuser frank.einstien@mgmail.com and share a 24 hour login link.
 
+coder anatomy
+45 min
+exemplar
+
+How to call coding agent, fg agent?
+How to call image review agent and generate pics?
 can you move the trust.json and config.json near each other and have a TODO saying wait for ....
  defaultProjectTrust: "always"
 
@@ -261,7 +268,7 @@ How to track time taken for provisioning
 Remove https://localhost:8000/accounts/login/, show items in dropdown only. 
 User view form should be single column, each checkbox in own line. Describe each field and checkbox
 
-Lets make a chore tracker. We should have chores which have a repetition schedule of either days per week or N days/weeks/months. It shows chores from earliest to latest due date. Any logged in user can create and complete an instance. Chores have links where we can see past instances (who and when completed it) and edit. We can archive chores too and view them with a filter.
+Lets make a chore tracker. We should have chores which have a repetition schedule of either days per week or every N days/weeks/months. It shows chores from earliest to latest due date. Any logged in user can create and complete an instance. Chore titles are clickable links that leads to details page where we can see past instances (who and when completed it) and edit. We can archive chores too and view them with a filter.
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
 How to document system changes when agent modifies system? Write down scripts?
 List backups and time travel
@@ -314,3 +321,4 @@ Readonly mode for app?
 Mutation tests?
 Install playwright on first run?
 Store downthinking entries for models for implementing agent
+Use pipe, dont have managers

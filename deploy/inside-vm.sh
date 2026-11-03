@@ -245,7 +245,7 @@ EOF
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
   apt-get install -y curl rsync git htop ufw ripgrep fd-find miller pgbackrest \
-    postgresql postgresql-client redis-server ca-certificates gnupg
+    postgresql postgresql-client redis-server ca-certificates gnupg librsvg2-bin
   # fd-find: pi auto-downloads fd to ~/.pi/agent/bin on first launch
   # otherwise; Debian names the binary fdfind, pi wants fd.
   ln -sf /usr/bin/fdfind /usr/local/bin/fd

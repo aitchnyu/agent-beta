@@ -13,6 +13,7 @@
 // DOM-free: no jsdom/DOMPurify shim to get wrong.
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 const REPO = path.resolve(import.meta.dirname, '..');
@@ -139,13 +140,16 @@ if (!files.length) {
 //
 // Why SVG: same engine and options as the /files viewer (d2.ts), so the
 // render is what users see — one scalable file per fence, viewBox in its
-// own header, dark theme embedded. No PNG rasterizing, no metrics.
+// own header, dark theme embedded. Each fence ALSO gets a fence<N>.png
+// raster beside it (rsvg-convert at 2x zoom — no browser, no python) —
+// the image reviewer reads PNGs; SVG source is never viewable.
 //
 // Why a fresh random dir per run: no collisions, and stale renders from
 // earlier runs stay unreachable — the reviewer only ever sees the dir
 // this run printed. /tmp/desmo is wiped by createscratch/cleanscratch.
 //
-// The spawning agent pastes the printed dir into the reviewer prompt.
+// The success output ends with the file list and the next step, so the
+// spawning agent never improvises its own rasterize/screenshot step.
 const RENDER_ROOT = '/tmp/desmo';
 let runDir;
 try {
@@ -175,6 +179,18 @@ function docSubdir(file) {
   return sub;
 }
 
+// Rasterize one rendered SVG into the PNG the image reviewer reads —
+// rsvg-convert (librsvg: no browser, no python), 2x zoom. A failed
+// raster is a hard error, same as a broken fence.
+function pngRaster(svg, png) {
+  const r = spawnSync('rsvg-convert', ['-z', '2', '-o', png, svg], { encoding: 'utf8' });
+  if (r.error || r.status !== 0) {
+    console.error(`checkmarkdownd2: ${svg} did not rasterize — ${String(r.stderr || r.error || '').trim().split('\n')[0]}`);
+    process.exit(2);
+  }
+}
+
+const renderedDirs = [];
 for (const f of files) {
   let text;
   try {
@@ -212,7 +228,21 @@ for (const f of files) {
   }
   const rendered = blocks.length ? ` → ${dir}` : '';
   console.log(`ok   ${f} (${blocks.length} block${blocks.length === 1 ? '' : 's'})${rendered}`);
+  if (blocks.length) renderedDirs.push({ dir, count: blocks.length });
 }
+
+if (renderedDirs.length) {
+  for (const { dir, count } of renderedDirs) {
+    console.log(`    ${dir}:`);
+    for (let i = 1; i <= count; i++) {
+      pngRaster(path.join(dir, `fence${i}.svg`), path.join(dir, `fence${i}.png`));
+      console.log(`      fence${i}.svg + fence${i}.png`);
+    }
+  }
+  console.log('    next: paste the render dir(s) into the ONE image-review spawn —');
+  console.log('    it reads the PNGs (SVG content is never viewable)');
+}
+
 // The WASM worker keeps node alive past main — shut it down explicitly.
 await d2.dispose();
 process.exit(0);

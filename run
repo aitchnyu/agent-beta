@@ -312,13 +312,10 @@ screenshots() {
   _ops_cli screenshots "$@"
 }
 
+# d2 fence check — logic in deploy/checkmarkdownd2.mjs. With FILE args
+# each fence also renders (.svg + .png) into a fresh /tmp/desmo/ dir for
+# the image reviewer. No args on a TTY: validation-only doc scan.
 checkmarkdownd2() {
-  # Validate EVERY ```d2 fence in one or more markdown files — the
-  # first broken block is printed, then its compile error (exit 1).
-  # All ok → exit 0, and file args also render each fence to
-  # fence<N>.svg in a fresh /tmp/desmo/ dir. No args on a TTY: scan
-  # every fence in the default docs (ourapp/docs/, ourapp/README.md,
-  # docs/d2.md, docs/reference/ourapp/docs/, .pi/steer.md).
   _require_main_run checkmarkdownd2 || return 1
   node "$_MAIN_DIR/deploy/checkmarkdownd2.mjs" "$@"
 }
@@ -518,9 +515,8 @@ ${H}Checks${R}
   ${C}test${R} [args…]        Django tests — quiet logs, failfast, auto keepdb on unchanged migrations; --full = full run; other flags pass to manage.py
   ${C}typecheck${R}           mypy (backend); the frontend type-check (vue-tsgo) rides npm run build
   ${C}checkmarkdownd2${R} [file.md]
-                        validate every d2 fence in file(s) (first broken
-                        block + error, exit 1); file args also render each
-                        fence to fence<N>.svg in a fresh /tmp/desmo/ dir;
+                        validate every d2 fence (file args also render
+                        each to .svg + .png in a fresh /tmp/desmo/ dir;
                         no args on a TTY → scan the default docs
   ${C}playwrighttest${R} …    Playwright e2e suite
   ${C}screenshots${R}         regenerate docs/screenshots via Playwright

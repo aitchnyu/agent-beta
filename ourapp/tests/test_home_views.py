@@ -1,11 +1,26 @@
 """Tests for the home view (``GET /``)."""
 
+# MAINTAIN-CONSISTENCY test-exemplar — named in .pi/steer.md ("[3]
+# Code" PREP prompt) and .pi/agents/coder.md as the annotated
+# ourapp/tests/ exemplar new test files copy. Keep its patterns
+# representative: BaseInertiaTestCase + the inertia harness,
+# HTTPStatus enums, the TYPE_CHECKING-only _MonkeyPatchedWSGIResponse
+# annotation, per-test docstrings, noqa discipline. The paired PREP
+# reads — pyproject.toml's [tool.ruff] (select=ALL) and [tool.mypy]
+# (strict, django-stubs plugin) sections, and steer.md's
+# ValidationInfo example under "Forms & validation errors" — cover
+# the strictness this file's patterns exist to avoid.
+
 import base64
 import json
 from http import HTTPStatus
+from typing import TYPE_CHECKING
 
 from djangoapp.models import User
 from djangoapp.tests._base import BaseInertiaTestCase
+
+if TYPE_CHECKING:
+    from django.test.client import _MonkeyPatchedWSGIResponse
 
 
 class HomeViewTests(BaseInertiaTestCase):
@@ -72,7 +87,7 @@ class HomeViewTests(BaseInertiaTestCase):
         # csrftoken cookie is issued on every GET — without it the navbar
         # user menu's logout form (and any other POSTing layer) would fail
         # its token check -> 403.
-        response = self.client.get("/")
+        response: _MonkeyPatchedWSGIResponse = self.client.get("/")
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertIn("csrftoken", response.cookies)
 
@@ -121,7 +136,9 @@ class MockupTodosTests(BaseInertiaTestCase):
         """A props param that is not base64url JSON gets the standard 422."""
         root = User.objects.create_user(username="root", password="pw", is_superuser=True)
         self.client.force_login(root)
-        response = self.client.get("/mockup/MockupTodos?props=not-b64-json")
+        response: _MonkeyPatchedWSGIResponse = self.client.get(
+            "/mockup/MockupTodos?props=not-b64-json"
+        )
         self.assertEqual(response.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
 
     def test_deeply_nested_props_param_is_422(self) -> None:
@@ -129,7 +146,7 @@ class MockupTodosTests(BaseInertiaTestCase):
         root = User.objects.create_user(username="root", password="pw", is_superuser=True)
         self.client.force_login(root)
         deep = base64.urlsafe_b64encode(("[" * 2000 + "]" * 2000).encode()).decode()
-        response = self.client.get(f"/mockup/MockupTodos?props={deep}")
+        response: _MonkeyPatchedWSGIResponse = self.client.get(f"/mockup/MockupTodos?props={deep}")
         self.assertEqual(response.status_code, HTTPStatus.UNPROCESSABLE_ENTITY)
 
     def test_anonymous_gets_404(self) -> None:

@@ -17,3 +17,7 @@ execute anything. One duty, done exhaustively:
   call; management-command flags vs steer's command inventory.
 - Findings: severity (blocker/major/minor/nit) + file:line + the exact
   replacement text. Report only — never edit.
+- Emit the moment every check in your duty is answered: a clean
+  verdict is ONE line ("no blockers, no majors; verified: <seam or
+  claim list>"); findings are one line each. No re-derivation turns
+  after the evidence.

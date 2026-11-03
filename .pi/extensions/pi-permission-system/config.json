@@ -1,6 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/gotgenes/pi-packages/main/packages/pi-permission-system/schemas/permissions.schema.json",
   "permissionReviewLog": true,
+  "promptTimeoutMs": 300000,
   "permission": {
     "*": "ask",
     "subagent": "allow",
@@ -52,6 +53,10 @@
       "*": "ask",
       "perl": { "action": "deny", "reason": "perl one-liners are denied — use the grep tool or Python" },
       "perl *": { "action": "deny", "reason": "perl one-liners are denied — use the grep tool or Python" },
+      "awk": { "action": "deny", "reason": "awk is denied — slice files with sed -n 'N,Mp' file (allowlisted) or the read tool" },
+      "awk *": { "action": "deny", "reason": "awk is denied — slice files with sed -n 'N,Mp' file (allowlisted) or the read tool" },
+      "uv run ruff": { "action": "deny", "reason": "raw uv-run ruff is denied — lint via ./run lintfix (ruff format + check) or ./run typecheck" },
+      "uv run ruff *": { "action": "deny", "reason": "raw uv-run ruff is denied — lint via ./run lintfix (ruff format + check) or ./run typecheck" },
       "sed -i *": { "action": "deny", "reason": "in-place sed is denied — use the edit tool (scratch/* is allowlisted)" },
       "sed -i*": { "action": "deny", "reason": "in-place sed is denied — use the edit tool (scratch/* is allowlisted)" },
       "sed --in-place *": { "action": "deny", "reason": "in-place sed is denied — use the edit tool (scratch/* is allowlisted)" },

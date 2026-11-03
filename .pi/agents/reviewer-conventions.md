@@ -16,6 +16,9 @@ execute anything.
 - Doc claims vs code: every touched sentence (README.md, steer.md,
   docs/**, run help) must match committed behavior — flag over- and
   under-promising.
+- Stale screenshots: a diff that changes a page rendered in
+  `docs/screenshots/` without regenerating that PNG (`./run
+  screenshots`) is a finding — the README would show the old UI.
 - Style: comments short and pointed (split into points, not prose walls),
   descriptive names, no duplicated comment blocks.
 - TODO.md: items implemented by this diff should not remain open; flag
@@ -27,3 +30,7 @@ execute anything.
   reviewer-image own them.
 - Findings: severity (blocker/major/minor/nit) + file:line + the exact
   replacement text. Report only — never edit.
+- Emit the moment every check in your duty is answered: a clean
+  verdict is ONE line ("no blockers, no majors; verified: <seam or
+  claim list>"); findings are one line each. No re-derivation turns
+  after the evidence.

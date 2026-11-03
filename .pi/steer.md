@@ -136,22 +136,37 @@ lives in [Stage messages](#stage-messages):
   reviewer in background; its verdict lands in the DocsGate message
   (see [The review round](#the-review-round-stage-4)).
 - **[3] Code — only after explicit approval.**
-  - At DocsGate-send, spawn the `coder` subagent in background:
-    "PREP ONLY — read .pi/repo-map.md §9, the reference files, and
-    the models-first digest below; write nothing; reply READY via
-    ask_parent and hold." The open question holds the session alive
-    past the 45m retention — any gate length.
+   - At DocsGate-send, spawn the `coder` subagent in background:
+     "PREP ONLY — read the list below; write nothing; reply READY
+     via ask_parent and hold." The PREP reads:
+     - .pi/repo-map.md §9 (copy-me skeletons)
+     - the reference files
+     - the models-first digest below
+     - pyproject.toml's ruff + mypy sections
+     - the annotated exemplar `ourapp/tests/test_home_views.py`
+     - steer.md's `field_validator`/`ValidationInfo` example under
+       "Forms & validation errors"
+     PREP also DRAFTS the implementation plan — batch order, files
+     per batch, test plan, migration needs — from the digest, and
+     the READY reply carries that one-screen plan. The planning
+     generation is spent during the gate, not on the implement
+     critical path; "implement" resumes straight into batch 1. The
+     open question holds the session alive past the 45m retention —
+     any gate length.
   - On approval, RESUME the prep session — its agent id rides in the
     READY ask_parent result; pass that id as the `resume` option with
     prompt "implement". A fresh spawn re-pays the whole orientation
-    (observed: 23 minutes). Only if its session aged out, or the gate
-    sent you back to revise docs or mockups, re-spawn fresh with the
-    PREP prompt plus the revised digest — never implement against a
-    plan it no longer holds. It runs in BACKGROUND —
-    you stay live to orchestrate the reviewers; its notify_parent
-    pings mark the first green test batch and the final green
-    battery; the operator watches its tool calls and its permission
-    asks forward to you.
+    (observed: 23 minutes). Only if its session aged out, a session
+    switch cleared its records, or the gate sent you back to revise
+    docs or mockups, re-spawn fresh with the PREP prompt plus the
+    revised digest — never implement against a plan it no longer
+    holds. It runs in BACKGROUND —
+     you stay live to orchestrate the reviewers; its notify_parent
+     ping marks the first green test batch, and its FINAL green
+     report arrives as an ask_parent that HOLDS the session for the
+     fix round — answer it with the triaged code fixes, or "release"
+     to let it complete; the operator watches its tool calls and its
+     permission asks forward to you.
   - You stay the planner — verify each green batch it reports, keep
     the docs current; never implement yourself while a coder run is
     open. Continue in the SAME `../scratch/` (no second
@@ -168,9 +183,11 @@ lives in [Stage messages](#stage-messages):
   - the reviewers were familiarized during stage 3 and verified at
     the final green — triage their findings as they land (see
     [The review round](#the-review-round-stage-4))
-  - then RESUME the coder with
-    the accepted code fixes (it holds the plan and loop state); you
-    fix the docs
+   - then answer the coder's held final-green ask with the accepted
+     code fixes — it resumes the SAME session, which still holds the
+     plan and loop state (a session switch between rounds clears
+     subagent records — if the resume is refused, re-spawn fresh with
+     the fix list and the final diff); you fix the docs
   - update the design doc to match the code
 - **[5] Offer to commit** — CommitOffer; never commit unasked.
 - **[6] Final checklist** — after the commit lands, audit the job yourself
@@ -260,6 +277,14 @@ How many:
   carries the diagram duty when docs changed (its agent file has the
   contract).
 
+All reviewers report TERSELY and stop at the evidence: a clean
+verdict is ONE line ("no blockers, no majors; verified: <checked
+seams/claims>"), findings one line each — a list, not an essay, and
+never a seam-by-seam serialization of clean checks. Once every check
+in the duty is answered, emit — no re-derivation turns after the
+evidence. Reviewer wall clock is generation time; the report IS the
+cost.
+
 Spawn + feeding mechanics:
 
 - Spawn in PARALLEL, `run_in_background: true`, each with a SHORT
@@ -274,9 +299,11 @@ Spawn + feeding mechanics:
   evidence. No coder coverage (doc edits, small fixes)? Run the
   checks yourself first — the feature's tests, `./run checkmarkdownd2`,
   quick fixture probes — and paste those. Either way paste the
-  checkmarkdownd2 render dir path too; the image reviewer ls-checks the
-  fence<N>.svg files (and views any raster renders/screenshots).
-  Reviewers read results; they never execute.
+   checkmarkdownd2 render dir path too; the command rasterizes each
+   fence<N>.svg into a fence<N>.png beside it and prints the file list —
+   the image reviewer reads the PNGs. Mockup pages are never
+   screenshotted (the Mockups section's no-python rule).
+   Reviewers read results; they never execute.
 - The image reviewer is ONE spawn for the WHOLE batch — a single
   subagent whose prompt lists every `fence<N>.svg` of every changed
   doc with its rule set ("judge fence1…fenceN of <doc> against the
@@ -291,12 +318,22 @@ Spawn + feeding mechanics:
     in background — "FAMILIARIZE ONLY: the requirement, the diff and
     status below, the touched files; hold — verify nothing yet;
     reply STORED."
-  - FINAL green batch: resume each with "verify now," pasting the
-    full `git diff` + `git status --short` (name the files new since
-    familiarization) plus the coder's final suite and battery outputs
-    as evidence. The reviewers hold the diff they read and skip it.
-  - A held reviewer that expired — coder tail past the retention
-    window — spawns fresh with the full diff.
+   - FINAL green batch: resume each with "verify now," pasting the
+     full `git diff` + `git status --short` (name the files new since
+     familiarization) plus the coder's final suite and battery outputs
+     as evidence. The reviewers hold the diff they read and skip it,
+     and files UNCHANGED since familiarization are not re-read — say
+     so in the prompt; their stored context plus the diff hunks are
+     the source.
+   - A held reviewer that expired — coder tail past the retention
+     window — spawns fresh with the full diff.
+   - Collect verdicts NON-BLOCKING: `get_subagent_result` with
+     `wait: true, timeout: 120` — an expired wait returns the
+     reviewer's progress and never stops it, and a settled run
+     announces itself. Process each verdict as it lands (triage it,
+     prep the fix steer) and re-check stragglers between tasks. NEVER
+     one unbounded wait — it freezes you on the slowest reviewer while
+     the triage work sits undone.
 
   Familiarization overlaps the coder; only verification stays on the
   critical path.
@@ -484,8 +521,12 @@ pages. Everything lives in `../scratch/` and reaches `main/` only via
 deployed links in chat immediately after each deploy via
 [Stage messages](#stage-messages). A green deployscratch IS the
 verification — trust it and send the links. No probing, no python, no
-"just checking the authed view": mockup pages are superuser-only, and the
-operator's click is the first real check. Announced links may carry
+screenshots, no "just checking the authed view": mockup pages are
+superuser-only, and the operator's click is the first real check. There is
+NO allowlisted path that rasters a scratch page — `./run screenshots`
+regenerates committed README PNGs only — and improvising one (inline
+playwright python) is the 635s-dialog class; the DocsGate image reviewer
+judges the d2 rasters, never mockup pages. Announced links may carry
 `:8000`; that port serves the operator only.
 
 - **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
