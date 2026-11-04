@@ -7,11 +7,10 @@ import PageTitle from "../../components/PageTitle.vue"
 import RowCell from "../../components/manage/RowCell.vue"
 import cornerDownLeftIcon from "../../icons/corner-down-left.svg"
 import { ModelRowsPropsSchema } from "../../schemas/manage"
+import { useAppPage } from "../../utils/useAppPage"
 import { rowDetailUrl, rowListUrl } from "../../utils/urls"
 
-const props = defineProps<{ props: object }>()
-
-const p = ModelRowsPropsSchema.parse(props.props)
+const { data: p } = useAppPage(ModelRowsPropsSchema)
 
 // per_page selector (25/50/100) + sort (id/-id for every model;
 // last_updated_at/-last_updated_at only for models with that column).
@@ -21,7 +20,7 @@ const PER_PAGE_OPTIONS = [25, 50, 100]
 const SORT_OPTIONS = [
   { value: "-id", label: "Newest id" },
   { value: "id", label: "Oldest id" },
-  ...(p.columns.some((c) => c.name === "last_updated_at")
+  ...(p.value.columns.some((c) => c.name === "last_updated_at")
     ? [
         { value: "-last_updated_at", label: "Recently updated" },
         { value: "last_updated_at", label: "First updated" },
@@ -33,35 +32,40 @@ const modelsHref = "/manage/models"
 
 function applyFilters(perPage: number, sort: string) {
   // Changing the page size or sort order starts from page 1.
-  router.visit(rowListUrl(p.model_name, { page: 1, per_page: perPage, sort }))
+  router.visit(
+    rowListUrl(p.value.model_name, { page: 1, per_page: perPage, sort }),
+  )
 }
 
 function onPerPageChange(event: Event) {
   applyFilters(
     Number((event.target as HTMLSelectElement).value),
-    p.filters.sort,
+    p.value.filters.sort,
   )
 }
 
 function onSortChange(event: Event) {
-  applyFilters(p.filters.per_page, (event.target as HTMLSelectElement).value)
+  applyFilters(
+    p.value.filters.per_page,
+    (event.target as HTMLSelectElement).value,
+  )
 }
 
 const prevHref = computed(() => {
-  if (p.pagination.page <= 1) return null
-  return rowListUrl(p.model_name, {
-    page: p.pagination.page - 1,
-    per_page: p.filters.per_page,
-    sort: p.filters.sort,
+  if (p.value.pagination.page <= 1) return null
+  return rowListUrl(p.value.model_name, {
+    page: p.value.pagination.page - 1,
+    per_page: p.value.filters.per_page,
+    sort: p.value.filters.sort,
   })
 })
 
 const nextHref = computed(() => {
-  if (p.pagination.page >= p.pagination.total_pages) return null
-  return rowListUrl(p.model_name, {
-    page: p.pagination.page + 1,
-    per_page: p.filters.per_page,
-    sort: p.filters.sort,
+  if (p.value.pagination.page >= p.value.pagination.total_pages) return null
+  return rowListUrl(p.value.model_name, {
+    page: p.value.pagination.page + 1,
+    per_page: p.value.filters.per_page,
+    sort: p.value.filters.sort,
   })
 })
 </script>

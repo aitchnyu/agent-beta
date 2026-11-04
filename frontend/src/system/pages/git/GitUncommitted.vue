@@ -32,14 +32,16 @@ import { computed } from "vue"
 import FileTree from "../../components/git/FileTree.vue"
 import PageTitle from "../../components/PageTitle.vue"
 import { GitUncommittedPropsSchema } from "../../schemas/git"
+import { useAppPage } from "../../utils/useAppPage"
 import { buildFileTree } from "../../components/git/fileTree"
 import { fileUrl } from "../files/files"
 
-const props = defineProps<{ props: object }>()
-const data = GitUncommittedPropsSchema.parse(props.props)
+const { data } = useAppPage(GitUncommittedPropsSchema)
 
 // scratch_files is null when scratch/ isn't on disk — its section is
 // omitted then. main always renders.
-const scratchTree = computed(() => buildFileTree(data.scratch_files ?? []))
-const mainTree = computed(() => buildFileTree(data.main_files))
+const scratchTree = computed(() =>
+  buildFileTree(data.value.scratch_files ?? []),
+)
+const mainTree = computed(() => buildFileTree(data.value.main_files))
 </script>

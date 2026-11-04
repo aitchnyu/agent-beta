@@ -8,6 +8,7 @@ import {
 } from "../../schemas/users"
 import { showErrorToast } from "../../utils/sweetalert"
 import { postJSON } from "../../utils/http"
+import { useAppPage } from "../../utils/useAppPage"
 
 // Quill ships in its own lazy chunk (RichTextEditor + quill); the async
 // component resolves it on first mount of this page.
@@ -15,25 +16,21 @@ const RichTextEditor = defineAsyncComponent(
   () => import("../../components/RichTextEditor.vue"),
 )
 
-const props = defineProps<{
-  props: object
-}>()
-
-const p = UserEditPropsSchema.parse(props.props)
-const pathPrefix = p.path_prefix
+const { data: p } = useAppPage(UserEditPropsSchema)
+const pathPrefix = p.value.path_prefix
 
 // username is read-only; the rest are editable. Mutations go through the
 // app's HTTP layer (utils/http.ts: CSRF hook + errors normalized to the
 // @inertiajs/core classes showErrorToast already understands).
 const form = reactive({
-  first_name: p.target.first_name,
-  last_name: p.target.last_name,
-  email: p.target.email,
-  description: p.target.description,
-  has_public_profile: p.target.has_public_profile,
-  is_active: p.target.is_active,
-  is_staff: p.target.is_staff,
-  is_superuser: p.target.is_superuser,
+  first_name: p.value.target.first_name,
+  last_name: p.value.target.last_name,
+  email: p.value.target.email,
+  description: p.value.target.description,
+  has_public_profile: p.value.target.has_public_profile,
+  is_active: p.value.target.is_active,
+  is_staff: p.value.target.is_staff,
+  is_superuser: p.value.target.is_superuser,
 })
 const isSubmitting = ref(false)
 
@@ -41,15 +38,15 @@ async function onSubmit() {
   isSubmitting.value = true
   try {
     const res = UserMessageResponseSchema.parse(
-      await postJSON(`${pathPrefix}/edit/${p.target.public_id}`, {
+      await postJSON(`${pathPrefix}/edit/${p.value.target.public_id}`, {
         ...form,
       }),
     )
     // Server echoes the edited user's public id; confirm it matches the target.
-    if (res.id !== p.target.public_id) {
+    if (res.id !== p.value.target.public_id) {
       throw new Error("Saved a different user than expected")
     }
-    router.visit(`${pathPrefix}/id/${p.target.public_id}`)
+    router.visit(`${pathPrefix}/id/${p.value.target.public_id}`)
   } catch (e: unknown) {
     showErrorToast(e, "Failed to update user")
   } finally {

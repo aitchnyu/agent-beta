@@ -27,6 +27,7 @@ import FileTree from "../../components/git/FileTree.vue"
 import HumanizedTime from "../../components/HumanizedTime.vue"
 import PageTitle from "../../components/PageTitle.vue"
 import { GitCommitPropsSchema } from "../../schemas/git"
+import { useAppPage } from "../../utils/useAppPage"
 import {
   buildFileTree,
   type FileTreeFolder,
@@ -34,10 +35,9 @@ import {
 import { fileUrl } from "../files/files"
 import { shortSha } from "./git"
 
-const props = defineProps<{ props: object }>()
-const data = GitCommitPropsSchema.parse(props.props)
+const { data } = useAppPage(GitCommitPropsSchema)
 
 // The commit's flat file list as the folder tree FileTree renders; commits
 // read main/ only, so file urls prefix main/.
-const tree = computed<FileTreeFolder>(() => buildFileTree(data.files))
+const tree = computed<FileTreeFolder>(() => buildFileTree(data.value.files))
 </script>

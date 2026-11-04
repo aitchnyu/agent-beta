@@ -16,6 +16,8 @@ sniffing ``manage.py test`` in settings.py, so production settings stay pure;
 
 from __future__ import annotations
 
+from typing import Any, cast
+
 from django.test import TestCase, override_settings
 from inertia.test import InertiaTestCase
 
@@ -29,6 +31,17 @@ class BaseTestCase(TestCase):
 
 class BaseInertiaTestCase(BaseTestCase, InertiaTestCase):  # type: ignore[misc]
     """Same, for inertia-prop view tests — the one lineage-merge point."""
+
+    def feature_props(self) -> dict[str, Any]:
+        """Return the page's own data — the inner ``props`` key."""
+        return cast("dict[str, Any]", self.props()["props"])
+
+
+def feature_props_of(page_json: object) -> dict[str, Any]:
+    """Return the same inner ``props`` key from a plain page-JSON body."""
+    outer = cast("dict[str, object]", page_json)
+    inner = cast("dict[str, object]", outer["props"])
+    return cast("dict[str, Any]", inner["props"])
 
 
 class FreshRedisBuckets:

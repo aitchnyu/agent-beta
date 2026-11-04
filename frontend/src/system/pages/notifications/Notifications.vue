@@ -13,6 +13,7 @@ import {
   SelectedIdsSchema,
 } from "../../schemas/notifications"
 import { getJSON, postJSON } from "../../utils/http"
+import { useAppPage } from "../../utils/useAppPage"
 import { showToast, confirmAction } from "../../utils/sweetalert"
 import {
   disablePush,
@@ -21,36 +22,30 @@ import {
   resubscribePush,
 } from "../../utils/push"
 
-const props = defineProps<{
-  props: object
-}>()
+// useAppPage parses reactively (computed inside): partial reloads (e.g.
+// the test button's targeted refresh) swap page props in place, and the
+// watcher below re-seeds the local list state from each fresh parse.
+const { data: p } = useAppPage(NotificationsPagePropsSchema)
+const notifications = ref<NotificationItem[]>(p.value.notifications)
+const unreadCount = ref(p.value.unread_count)
+const hasMore = ref(p.value.has_more)
 
-const p = NotificationsPagePropsSchema.parse(props.props)
-const notifications = ref<NotificationItem[]>(p.notifications)
-const unreadCount = ref(p.unread_count)
-const hasMore = ref(p.has_more)
-
-// Partial reloads (e.g. the test button's targeted refresh) swap page
-// props reactively — without this watcher the list/count would stay a
-// setup-time snapshot. Re-parsed per change: small, and stays zod-true.
-const pageData = computed(() => NotificationsPagePropsSchema.parse(props.props))
-
-// The kind filter follows the LIVE props, not the setup-time snapshot:
-// history back/forward preserves this component (preserveState) while
-// swapping props — `p` would render a stale chip and page the wrong
-// filter. Server-config fields never change per visit; those stay on `p`.
-const kind = computed(() => pageData.value.kind)
+// The kind filter follows the LIVE props: history back/forward
+// preserves this component (preserveState) while swapping props — a
+// seeded copy would render a stale chip and page the wrong filter.
+// Server-config fields never change per visit; those stay seeded.
+const kind = computed(() => p.value.kind)
 // Bumped whenever a partial reload replaces the list wholesale — Load more
 // captures the epoch before its fetch and drops responses that straddle a
 // swap (otherwise stale-cursored appends would land on a fresh page-1 list
 // and silently hide the rows in between for the session).
 const listEpoch = ref(0)
 watch(
-  () => pageData.value.notifications,
+  () => p.value.notifications,
   (rows) => {
     notifications.value = rows
-    unreadCount.value = pageData.value.unread_count
-    hasMore.value = pageData.value.has_more
+    unreadCount.value = p.value.unread_count
+    hasMore.value = p.value.has_more
     listEpoch.value++
   },
 )
@@ -92,7 +87,7 @@ onMounted(() => {
 async function onEnable(): Promise<void> {
   pushBusy.value = true
   try {
-    await enablePush(p.vapid_public_key)
+    await enablePush(p.value.vapid_public_key)
     pushPermission.value = "granted"
     pushSubscribed.value = true
     await showToast("success", "Notifications enabled on this device")
@@ -130,7 +125,7 @@ async function onDisable(): Promise<void> {
 async function onResubscribe(): Promise<void> {
   pushBusy.value = true
   try {
-    await resubscribePush(p.vapid_public_key)
+    await resubscribePush(p.value.vapid_public_key)
     pushPermission.value = "granted"
     pushSubscribed.value = true
     await showToast("success", "Resubscribed — try a test notification")

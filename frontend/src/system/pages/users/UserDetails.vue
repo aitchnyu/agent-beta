@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
 import type { z } from "zod"
-import { Link, usePage } from "@inertiajs/vue3"
+import { Link } from "@inertiajs/vue3"
 import PageTitle from "../../components/PageTitle.vue"
 import RichTextViewer from "../../components/RichTextViewer.vue"
 import {
@@ -9,7 +9,6 @@ import {
   LogoutResponseSchema,
   UserDetailsPropsSchema,
 } from "../../schemas/users"
-import { SharedPropsSchema } from "../../schemas/sharedProps"
 import { postJSON } from "../../utils/http"
 import {
   confirmAction,
@@ -17,22 +16,17 @@ import {
   showToast,
 } from "../../utils/sweetalert"
 import { formatDateTime } from "../../utils/time"
+import { useAppPage } from "../../utils/useAppPage"
 
-const props = defineProps<{
-  props: object
-}>()
-
-const p = UserDetailsPropsSchema.parse(props.props)
-// Admin UI gates on the shared viewer_is_superuser flag (was a page prop).
-const isSuperuser = computed(
-  () => SharedPropsSchema.parse(usePage().props).viewer_is_superuser,
-)
+const { shared, data: p } = useAppPage(UserDetailsPropsSchema)
+// Admin UI gates on the shared viewer_is_superuser flag.
+const isSuperuser = computed(() => shared.value.viewer_is_superuser)
 
 // ── Admin actions: login link + logout everywhere ──────────────────────────
 // Mutations ride the app's HTTP layer (CSRF hook + normalized errors), same
 // as the edit page.
 
-const sessionCount = ref(p.session_count)
+const sessionCount = ref(p.value.session_count)
 const showLinkPanel = ref(false)
 const ttlMinutes = ref(60)
 const linkResult = ref<z.infer<typeof LoginLinkResponseSchema> | null>(null)
@@ -43,9 +37,12 @@ async function generateLink() {
   generating.value = true
   try {
     linkResult.value = LoginLinkResponseSchema.parse(
-      await postJSON(`${p.path_prefix}/api/${p.public_id}/loginlink`, {
-        ttl_minutes: ttlMinutes.value,
-      }),
+      await postJSON(
+        `${p.value.path_prefix}/api/${p.value.public_id}/loginlink`,
+        {
+          ttl_minutes: ttlMinutes.value,
+        },
+      ),
     )
   } catch (e: unknown) {
     showErrorToast(e, "Failed to generate login link")
@@ -71,12 +68,14 @@ async function logoutEverywhere() {
   try {
     const ok = await confirmAction(
       "Log out everywhere?",
-      `End all of ${p.first_name} ${p.last_name}'s active sessions? Their next request will be signed out.`,
+      `End all of ${p.value.first_name} ${p.value.last_name}'s active sessions? Their next request will be signed out.`,
     )
     if (!ok) return
     try {
       const res = LogoutResponseSchema.parse(
-        await postJSON(`${p.path_prefix}/api/${p.public_id}/logout`),
+        await postJSON(
+          `${p.value.path_prefix}/api/${p.value.public_id}/logout`,
+        ),
       )
       sessionCount.value = 0
       showToast(

@@ -17,9 +17,9 @@ import { Link } from "@inertiajs/vue3"
 import PageTitle from "../../components/PageTitle.vue"
 import SplitDiff from "../../components/git/SplitDiff.vue"
 import { GitDiffPropsSchema } from "../../schemas/git"
+import { useAppPage } from "../../utils/useAppPage"
 
-const props = defineProps<{ props: object }>()
-const data = GitDiffPropsSchema.parse(props.props)
+const { data } = useAppPage(GitDiffPropsSchema)
 
 // SplitDiff lazy-loads diff2html + hljs and shows its own Loading note until
 // the (async) render lands — nothing to await here.

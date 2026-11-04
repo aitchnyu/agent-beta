@@ -1,11 +1,12 @@
 <script setup lang="ts">
 // MAINTAIN-CONSISTENCY repo-map: excerpted in .pi/repo-map.md §9 — change both together.
-import { ref } from "vue"
+import { computed, ref } from "vue"
 import { router } from "@inertiajs/vue3"
 import { z } from "zod"
 import TodoForm from "../components/TodoForm.vue"
 import { TodoSchema, type TodoOut } from "../schemas/todos"
 import { postJSON } from "../../system/utils/http"
+import { useAppPage } from "../../system/utils/useAppPage"
 import { showErrorToast } from "../../system/utils/sweetalert"
 import "../styles/app.scss"
 
@@ -13,15 +14,16 @@ const TodosPagePropsSchema = z.object({
   todos: TodoSchema.array(),
 })
 
-// Inertia wraps the page data under a `props` key (page.props.props); parse it.
-const props = defineProps<{ props: object }>()
-// The list: page payload first, then each mutation's response (create prepends).
-const todos = ref(TodosPagePropsSchema.parse(props.props).todos)
+// The page's own data: useAppPage parses the inner `props` key REACTIVELY
+// (computed inside) — after any router.reload() the list re-renders from
+// the fresh server payload.
+const { data: p } = useAppPage(TodosPagePropsSchema)
+const todos = computed(() => p.value.todos)
 // Guard the toggle POST + reload so a double-click can't fire two toggles.
 const toggling = ref<string | null>(null)
 
 async function reload() {
-  // The server is the source of truth — reload the list after any mutation.
+  // The server is the source of truth — reload the props after any mutation.
   try {
     await router.reload()
   } catch (e) {
@@ -29,8 +31,9 @@ async function reload() {
   }
 }
 
-function onCreated(todo: TodoOut) {
-  todos.value = [todo, ...todos.value]
+function onCreated() {
+  // The form's create POST succeeded; a reload lands the row via props.
+  void reload()
 }
 
 async function toggle(todo: TodoOut) {

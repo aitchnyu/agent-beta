@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed } from "vue"
 import { Link } from "@inertiajs/vue3"
 import { z } from "zod"
 import { FactSchema, TopicSchema } from "../schemas/facts"
+import { useAppPage } from "../../system/utils/useAppPage"
 import "../styles/app.scss"
 
 const FactTopicPagePropsSchema = z.object({
@@ -11,9 +11,8 @@ const FactTopicPagePropsSchema = z.object({
   topics: TopicSchema.array(),
 })
 
-// Inertia wraps the page data under a `props` key (page.props.props); parse it.
-const props = defineProps<{ props: object }>()
-const p = computed(() => FactTopicPagePropsSchema.parse(props.props))
+// Parsed reactively (computed inside useAppPage): reload-safe.
+const { data: p } = useAppPage(FactTopicPagePropsSchema)
 </script>
 
 <template>

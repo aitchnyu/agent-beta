@@ -2,11 +2,10 @@
 import { Link } from "@inertiajs/vue3"
 import PageTitle from "../../components/PageTitle.vue"
 import { ModelListPropsSchema } from "../../schemas/manage"
+import { useAppPage } from "../../utils/useAppPage"
 import { rowListUrl } from "../../utils/urls"
 
-const props = defineProps<{ props: object }>()
-
-const p = ModelListPropsSchema.parse(props.props)
+const { data: p } = useAppPage(ModelListPropsSchema)
 </script>
 
 <template>

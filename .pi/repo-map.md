@@ -97,8 +97,11 @@ Copy from the §9 skeletons first; the full reference files back them.
 - Auth: `user_or_404(request)` / `maybe_user(request)` from
   `djangoapp.shortcuts`; ownership failure = 404 not 403.
 - Payloads pk-free (`public_id` only); page data nested under `props`
-  → frontend reads `props.props`; every frontend payload zod-parsed;
-  HTTP via `frontend/src/system/utils/http.ts` (`postJSON`/`ninjaPost`); toasts via
+  → pages parse BOTH levels via `useAppPage(FeaturePropsSchema)` from
+  `system/utils/useAppPage.ts` — returns `{ shared, data }`, computed
+  inside (reload-safe: Inertia mutates props in place); every payload
+  stays zod-parsed; HTTP via
+  `frontend/src/system/utils/http.ts` (`postJSON`/`ninjaPost`); toasts via
   `showToast`/`showErrorToast`; inline field errors via `FieldError`
   + `errorAtPath`.
 - Pages render `<PageTitle :value="…"/>`.
@@ -249,7 +252,7 @@ class TodosViewTests(BaseTestCase):
             content_type="application/json",
         )
 
-    # page GET: client.get("/todos", HTTP_X_INERTIA="true").json()["props"]["props"]
+    # page GET: props = feature_props_of(client.get("/todos", HTTP_X_INERTIA="true").json())
     # endpoint POSTs: body = resp.json() — then pk-free asserts on body
     # pk-free assert: for t in todos: self.assertNotIn("id", t)
 ```
@@ -257,7 +260,7 @@ class TodosViewTests(BaseTestCase):
 **Test harness** — from `djangoapp/tests/_base.py` + the views tests:
 
 ```python
-from djangoapp.tests._base import BaseTestCase, BaseInertiaTestCase
+from djangoapp.tests._base import BaseTestCase, BaseInertiaTestCase, feature_props_of
 
 # unit tests → BaseTestCase (fast MD5 hasher);
 # inertia-prop view tests → BaseInertiaTestCase, then:
@@ -266,7 +269,7 @@ from djangoapp.tests._base import BaseTestCase, BaseInertiaTestCase
 class MyViewTests(BaseInertiaTestCase):
     def test_page_lists(self):
         self.client.get("/mine", HTTP_X_INERTIA="true")
-        props = self.props()["props"]  # the Inertia wrapper; assert inside it
+        props = self.feature_props()  # the page's own data; assert inside it
         self.assertEqual(props["models"][0]["name"], "x")
 ```
 
@@ -282,9 +285,10 @@ export const TodoSchema = z.object({
   public_id: z.string(), row_version: z.number().int().nonnegative(), … })
 export type TodoOut = z.infer<typeof TodoSchema>
 
-// page: parse the Inertia props wrapper, then mutate via postJSON + reload
-const props = defineProps<{ props: object }>()
-const todos = ref(TodosPagePropsSchema.parse(props.props).todos)
+// page: useAppPage parses BOTH levels reactively (computed inside —
+// reload-safe); mutate via postJSON, then let props re-render the list
+const { data: p } = useAppPage(TodosPagePropsSchema)   // ../../system/utils/useAppPage
+const todos = computed(() => p.value.todos)
 await postJSON(`/todos/${todo.public_id}/toggle`, { expected_row_version: todo.row_version })
 await router.reload()   // server is source of truth after every mutation
 ```

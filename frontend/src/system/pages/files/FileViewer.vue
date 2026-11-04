@@ -5,6 +5,7 @@ import HumanizedTime from "../../components/HumanizedTime.vue"
 import MarkdownView from "../../components/files/MarkdownView.vue"
 import PageTitle from "../../components/PageTitle.vue"
 import { FileViewerPropsSchema } from "../../schemas/files"
+import { useAppPage } from "../../utils/useAppPage"
 import {
   detectLanguage,
   downloadUrl,
@@ -13,16 +14,15 @@ import {
   rawUrl,
 } from "./files"
 
-const props = defineProps<{ props: object }>()
-// Parsed once, non-reactively: file→file navigation is always a full page
-// load in this app (v-html anchors aren't Inertia links), so the component
-// never receives new props in place. Inertia re-keys the page component on
-// every visit, remounting this with fresh props.
-const p = FileViewerPropsSchema.parse(props.props)
+// file→file navigation is always a full page load in this app (v-html
+// anchors aren't Inertia links), so this component remounts with fresh
+// props on every visit.
+const { data: p } = useAppPage(FileViewerPropsSchema)
 
 // A text file renders as syntax-highlighted code when its extension maps to a
 // highlight.js language; otherwise it's plain text. Detection is frontend-only.
-const codeLang = p.kind === "text" ? detectLanguage(p.name) : undefined
+const codeLang =
+  p.value.kind === "text" ? detectLanguage(p.value.name) : undefined
 
 // Code previews fill asynchronously (lazy filePreview chunk); MarkdownView
 // flips this via its `rendered` emit. Text/image/binary render synchronously.
@@ -31,7 +31,7 @@ const previewReady = ref(false)
 // Component state for tests (wait on [data-files-state="rendered"] instead of
 // polling content magic strings) and a11y (aria-busy while still empty).
 const filesState = computed(() =>
-  (p.kind === "markdown" || codeLang) && !previewReady.value
+  (p.value.kind === "markdown" || codeLang) && !previewReady.value
     ? "loading"
     : "rendered",
 )
@@ -40,7 +40,7 @@ onMounted(async () => {
   if (!codeLang) return
   // filePreview (hljs/marked) is a lazy chunk; it resolves on first visit.
   const { highlightCode } = await import("./filePreview")
-  rendered.value = highlightCode(p.text, codeLang)
+  rendered.value = highlightCode(p.value.text, codeLang)
   previewReady.value = true
 })
 </script>

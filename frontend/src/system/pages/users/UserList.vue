@@ -10,15 +10,12 @@ import {
   UserSearchResponseSchema,
 } from "../../schemas/users"
 import { showErrorToast } from "../../utils/sweetalert"
+import { useAppPage } from "../../utils/useAppPage"
 
 type UserSearchItem = z.infer<typeof UserSearchItemSchema>
 
-const props = defineProps<{
-  props: object
-}>()
-
-const p = UserListPropsSchema.parse(props.props)
-const pathPrefix = p.path_prefix
+const { data: p } = useAppPage(UserListPropsSchema)
+const pathPrefix = p.value.path_prefix
 
 // Jump-to-profile search (single-select that navigates on pick).
 const selectedUser = ref<UserSearchItem | null>(null)
@@ -42,9 +39,9 @@ function goToProfile(value: UserSearchItem | null) {
 }
 
 // Paginated browse table below.
-const currentPage = ref(p.pagination.page)
+const currentPage = ref(p.value.pagination.page)
 const allPages = computed(() =>
-  Array.from({ length: p.pagination.total_pages }, (_, i) => i + 1),
+  Array.from({ length: p.value.pagination.total_pages }, (_, i) => i + 1),
 )
 
 function buildUrl(page?: number) {
@@ -58,7 +55,7 @@ function navigateToPage(page: number) {
   router.visit(buildUrl(page))
 }
 
-function fullName(user: (typeof p.users)[number]): string {
+function fullName(user: (typeof p.value.users)[number]): string {
   return `${user.first_name} ${user.last_name}`.trim() || user.username
 }
 

@@ -51,11 +51,11 @@ import { Link } from "@inertiajs/vue3"
 import HumanizedTime from "../../components/HumanizedTime.vue"
 import PageTitle from "../../components/PageTitle.vue"
 import { GitCommitListPropsSchema } from "../../schemas/git"
+import { useAppPage } from "../../utils/useAppPage"
 import { shortSha } from "./git"
 
-const props = defineProps<{ props: object }>()
-const data = GitCommitListPropsSchema.parse(props.props)
-const currentPage = data.pagination.page
+const { data } = useAppPage(GitCommitListPropsSchema)
+const currentPage = data.value.pagination.page
 
 function buildUrl(page: number) {
   return page > 1 ? `/git/commits?page=${page}` : "/git/commits"

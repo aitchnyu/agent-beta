@@ -4,13 +4,10 @@ import PageTitle from "../../components/PageTitle.vue"
 import RichTextViewer from "../../components/RichTextViewer.vue"
 import { UserHistoryPropsSchema } from "../../schemas/users"
 import { formatDateTime } from "../../utils/time"
+import { useAppPage } from "../../utils/useAppPage"
 
-const props = defineProps<{
-  props: object
-}>()
-
-const p = UserHistoryPropsSchema.parse(props.props)
-const pathPrefix = p.path_prefix
+const { data: p } = useAppPage(UserHistoryPropsSchema)
+const pathPrefix = p.value.path_prefix
 
 function actionLabel(action: string): string {
   switch (action) {

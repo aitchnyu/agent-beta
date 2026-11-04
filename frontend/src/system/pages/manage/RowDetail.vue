@@ -10,18 +10,17 @@ import {
   UpdateLogEntryItemSchema,
 } from "../../schemas/manage"
 import { formatDateTime } from "../../utils/time"
+import { useAppPage } from "../../utils/useAppPage"
 import { rowListUrl } from "../../utils/urls"
 
-// `props` is the row's core (model_name/columns/values); `logs` is a separate
-// deferred Inertia prop — undefined on first paint, then fetched automatically
-// by the Inertia v3 client from the page's deferredProps metadata (no
-// hand-rolled reload), landing via a partial reload (only: ["logs"]).
+// `logs` is a deferred Inertia prop — undefined on first paint, then
+// fetched automatically from the page's deferredProps metadata and
+// landed via a partial reload (only: ["logs"]).
 const props = defineProps<{
-  props: object
   logs?: UpdateLogEntryItem[] | null
 }>()
 
-const p = computed(() => RowDetailPropsSchema.parse(props.props))
+const { data: p } = useAppPage(RowDetailPropsSchema)
 const listHref = computed(() => rowListUrl(p.value.model_name))
 
 // logs is undefined/null before the partial lands; expose a loaded flag + an

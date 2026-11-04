@@ -3,7 +3,7 @@
 from http import HTTPStatus
 
 from djangoapp.models import User
-from djangoapp.tests._base import BaseInertiaTestCase
+from djangoapp.tests._base import BaseInertiaTestCase, feature_props_of
 from ourapp.models import Fact, FactOfTheDay, Topic
 
 
@@ -88,7 +88,7 @@ class HomeViewTests(BaseInertiaTestCase):
         fact = Fact.objects.create(text="VW Beetle ran 65 years.", topic=topic)
         FactOfTheDay.choose_for_today()  # the cron's write — a GET never writes
         page = self.client.get("/", HTTP_X_INERTIA="true").json()
-        props = page["props"]["props"]
+        props = feature_props_of(page)
         self.assertEqual(props["fact_of_day"]["public_id"], fact.public_id)
         self.assertNotIn("id", props["fact_of_day"])  # pk-free
 
@@ -97,5 +97,5 @@ class HomeViewTests(BaseInertiaTestCase):
         topic = Topic.objects.create(name="cars", slug="cars")
         Fact.objects.create(text="VW Beetle ran 65 years.", topic=topic)
         page = self.client.get("/", HTTP_X_INERTIA="true").json()
-        self.assertIsNone(page["props"]["props"]["fact_of_day"])
+        self.assertIsNone(feature_props_of(page)["fact_of_day"])
         self.assertEqual(FactOfTheDay.objects.count(), 0)

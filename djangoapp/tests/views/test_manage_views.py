@@ -46,7 +46,7 @@ class ManageModelsViewTests(BaseInertiaTestCase):
         self.client.force_login(self.superuser)
         self.client.get("/manage/models")
         self.assertComponentUsed("system/manage/ModelList")
-        self.assertIsInstance(self.props()["props"]["models"], list)
+        self.assertIsInstance(self.feature_props()["models"], list)
 
     def test_unknown_model_list_404(self) -> None:
         """An unknown model's /list → 404."""

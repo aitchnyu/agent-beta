@@ -74,7 +74,7 @@ class NotificationsPageTests(BaseInertiaTestCase):
         self.inertia.force_login(self.user)
         self.inertia.get("/notifications/")
         self.assertComponentUsed("system/notifications/Notifications")
-        page = self.props()["props"]
+        page = self.feature_props()
         kinds = [n["kind"] for n in page["notifications"]]
         self.assertEqual(kinds, ["k.new", "k.old"])
         self.assertEqual(page["unread_count"], 2)
@@ -90,7 +90,7 @@ class NotificationsPageTests(BaseInertiaTestCase):
         Notification.record(recipient=self.user, kind="backup.done", body="b")
         self.inertia.force_login(self.user)
         self.inertia.get("/notifications/?kind=invoice.paid")
-        page = self.props()["props"]
+        page = self.feature_props()
         self.assertEqual([n["kind"] for n in page["notifications"]], ["invoice.paid"])
         self.assertEqual(page["kind"], "invoice.paid")
         # unread_count stays global (it is the page header's number, not the
@@ -102,7 +102,7 @@ class NotificationsPageTests(BaseInertiaTestCase):
         Notification.record(recipient=self.user, kind="k", body="a")
         self.inertia.force_login(self.user)
         self.inertia.get("/notifications/?kind=nope")
-        page = self.props()["props"]
+        page = self.feature_props()
         self.assertEqual(page["notifications"], [])
         self.assertEqual(page["kind"], "nope")
 
@@ -112,7 +112,7 @@ class NotificationsPageTests(BaseInertiaTestCase):
             Notification.objects.create(recipient=self.user, kind="k", body=f"n{i}")
         self.inertia.force_login(self.user)
         self.inertia.get("/notifications/")
-        page = self.props()["props"]
+        page = self.feature_props()
         self.assertEqual(len(page["notifications"]), 50)
         self.assertTrue(page["has_more"])
 
@@ -121,7 +121,7 @@ class NotificationsPageTests(BaseInertiaTestCase):
         Notification.record(recipient=self.user, kind="k", body="a")
         self.inertia.force_login(self.user)
         self.inertia.get("/notifications/")
-        page = self.props()["props"]
+        page = self.feature_props()
         self.assertEqual(len(page["notifications"]), 1)
         self.assertFalse(page["has_more"])
 

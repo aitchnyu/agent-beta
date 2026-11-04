@@ -1284,9 +1284,11 @@ the page's path (`Home`, or `system/<feature>/<Page>` for framework pages).
 On the frontend, parse
 every payload with a zod schema. See `docs/reference/` for the full pattern. Page data is nested under a `props` key
 (views pass `{"props": …}`) while `SharedPropsMiddleware` adds the viewer
-(`user`, `viewer_is_superuser`) at the top level — so a page reads its own data
-as `props.props`, e.g. `const props = defineProps<{ props: object }>(); const p =
-Schema.parse(props.props)`, never flat. The exact JSON shapes (page vs data
+(`user`, `viewer_is_superuser`) at the top level — so a page reads BOTH levels
+through ONE call: `const { shared, data: p } =
+useAppPage(FeaturePropsSchema)` (`system/utils/useAppPage.ts`; computed
+inside, so reloads re-render; `p.value.x` in
+script, `p.x` in template). The exact JSON shapes (page vs data
 responses) are in `docs/reference/README.md` ("Response shapes"). Add/change a
 model → `./run djangomanage makemigrations ourapp`.
 
@@ -1351,7 +1353,7 @@ raise ApiError(
 - [ ] Sends only `public_id`, never the integer `pk`/`id`.
 
 For every **Inertia page**, all five must hold:
-- write a **zod schema** for its props (frontend).
+- write a **zod schema** for its props and read them via `useAppPage` (frontend).
 - **raise 404** when something is not found, or not allowed for that user
   (ownership/permissions) — never render an empty or broken page.
 - render **`<PageTitle :value="…"/>`** (import from `system/components/PageTitle.vue`) —

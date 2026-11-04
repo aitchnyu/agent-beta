@@ -122,7 +122,7 @@ class MockupTodosTests(BaseInertiaTestCase):
         self.inertia.force_login(root)
         self.inertia.get("/mockup/MockupTodos")
         self.assertComponentUsed("MockupTodos")
-        self.assertEqual(self.props()["props"], {})
+        self.assertEqual(self.feature_props(), {})
 
     def test_props_url_param_presets_props(self) -> None:
         """?props=<base64url JSON object> rides through as the page props."""
@@ -130,7 +130,7 @@ class MockupTodosTests(BaseInertiaTestCase):
         self.inertia.force_login(root)
         encoded = base64.urlsafe_b64encode(json.dumps({"items": 3}).encode()).decode().rstrip("=")
         self.inertia.get(f"/mockup/MockupTodos?props={encoded}")
-        self.assertEqual(self.props()["props"], {"items": 3})
+        self.assertEqual(self.feature_props(), {"items": 3})
 
     def test_bad_props_param_is_422(self) -> None:
         """A props param that is not base64url JSON gets the standard 422."""

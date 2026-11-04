@@ -9,15 +9,14 @@ import fileImageIcon from "../../icons/file-image.svg"
 import fileTextIcon from "../../icons/file-text.svg"
 import folderIcon from "../../icons/folder.svg"
 import { FileBrowserPropsSchema } from "../../schemas/files"
+import { useAppPage } from "../../utils/useAppPage"
 import { detectLanguage, fileUrl, formatSize } from "./files"
 
-const props = defineProps<{ props: object }>()
-
-const p = FileBrowserPropsSchema.parse(props.props)
+const { data: p } = useAppPage(FileBrowserPropsSchema)
 
 // An entry under the current dir: join `rel` and the entry name.
 function entryUrl(name: string): string {
-  return fileUrl(p.rel ? `${p.rel}/${name}` : name)
+  return fileUrl(p.value.rel ? `${p.value.rel}/${name}` : name)
 }
 
 // Icon per entry type:

@@ -54,21 +54,34 @@ after writing, per feature.
    Schema.parse(...))`. **Scope: 7 files** — TodosPage.vue + 5
    other reference pages, repo-map §9 (the 14 system pages fold
    into item 1's migration).
-3. **Generate the frontend contract from ninja's OpenAPI.** Tools:
-   export via ninja's builtin (`api.get_openapi_schema()` in a
-   `dumpopenapi` management command — no third-party export tool),
-   then **`@hey-api/openapi-ts` + its Zod plugin** into a committed
-   `generated.ts` (keeps zod 4 and the parse-every-payload
-   invariant; can later also emit a typed SDK client). Fallback if
-   we ever drop runtime parsing: `openapi-typescript` (types only,
-   zero runtime). NOT `zod-openapi` — that is the reverse direction
-   (zod → OpenAPI). `./run genschemas` runs export + codegen;
-   deployscratch drift-checks the committed file. Dates stay
-   strings (today's wire format); Decimal-as-string is now in
-   steer's model checklist; zod remains for form inputs only.
-   Kills the per-feature dual schema and its naming slips;
-   pydanticErrors is unaffected (422 handling is independent of
-   schema parsing).
+3. **Generate the frontend contract from ninja's OpenAPI.**
+   `./run genschemas <module.attr>` — a dotted path to ANY NinjaAPI
+   instance (`ourapp.views.api`, `djangoapp.views.users.users_api`),
+   resolved via importlib → `api.get_openapi_schema()` → codegen
+   with **`@hey-api/openapi-ts` + its Zod plugin** (zod 4, keeps
+   the parse-every-payload invariant). No args = the configured
+   target list (the seven live instances: ourapp, users, manage,
+   git, files, notifications, clienterrors); the reference app's
+   API rides checkframework1's staged overlay. No registry, no
+   merged spec. **One generated.ts per API**, next to its consumers
+   (`system/schemas/<api>/generated.ts`, `app/schemas/
+   generated.ts`) — self-contained, no cross-API $refs, per-file
+   drift diffs. **Drift check = checkframework2**: the in-VM gate's
+   battery regenerates every target and diffs (checkframework1 runs
+   the same list dev-side, so drift fails before the VM);
+   `--check` also rides deployscratch. Fallback if we ever drop
+   runtime parsing: `openapi-typescript` (types only). NOT
+   `zod-openapi` — reverse direction (zod → OpenAPI).
+   **Own SDK template — yes, two ways**: (a) a hey-api custom
+   plugin (in-repo JS module, full control of emitted code), or
+   (b) preferred: a thin generator in ops/ that reads the dumped
+   spec and emits an sdk.ts wrapping the EXISTING ninjaPost — one
+   typed function per operation (`create_todo` → `createTodo(body)
+   : Promise<TodoOut | NinjaError>`); CSRF + 422→pydanticErrors
+   mapping stay in http.ts. Adopt after schemas prove out. Dates
+   stay strings; Decimal-as-string is in steer's model checklist;
+   zod remains for form inputs only; §9's copy-me schema step
+   becomes "import from generated", not "write todos.ts".
 4. **Verify-tail diet.** One linter (oxlint + prettier, drop
    eslint), one type-checker (vue-tsgo, drop vue-tsc), one
    typescript major. Ruff: curated set (`E,W,F,I,B,UP,DJ,RUF`)
@@ -88,13 +101,17 @@ after writing, per feature.
 
 ## Checklist
 
-- [ ] `useAppPage(FeatureSchema)` composable + `feature_props()`
-      test helper; migrate 14 system pages, 6 reference pages,
-      `_base.py`, 7 test files, repo-map §5/§9 (~29 files)
-- [ ] Fix the reload-safe idiom in the reference exemplar +
-      §9 skeleton (`computed(() => Schema.parse(...))`, 7 files)
-- [ ] `./run genschemas` (dumpopenapi + @hey-api/openapi-ts zod
-      plugin) + deployscratch drift gate
+- [x] `useAppPage(FeatureSchema)` composable + `feature_props()` +
+      `feature_props_of()` test helpers; migrated 14 system pages,
+      6 reference pages, `_base.py`, 7 test files + 4 reference
+      test files, repo-map §5/§9, steer (DONE Nov 4 — VM-verified:
+      ruff/mypy/eslint/build green, 158 framework tests + reference
+      suites OK; not yet committed)
+- [x] Reload-safe idiom: useAppPage computes internally; TodosPage
+      exemplar + §9 skeleton now teach it (DONE Nov 4)
+- [ ] `./run genschemas <module.attr>` (importlib target + hey-api
+      zod plugin) — one generated.ts per API; `--check` in
+      checkframework1/2 batteries + deployscratch
 - [ ] Decimal → string on the wire: steer rule added (Nov 4);
       apply `field_serializer` to existing Decimal Out schemas +
       `format: decimal` when codegen lands

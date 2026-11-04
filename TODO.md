@@ -1,5 +1,15 @@
 are we having in framework test too? Will we have an ops command to write any .ts file even for multiple ninjas? How does it emit a typed sdk?
 
+avoid manual zod and fetch
+
+dont we have vue components in test app too?
+
+Isnt this mentioninng history unnecessarily, ie we used to have props.props, in this:
+
+```
+pages parse BOTH levels via `useAppPage(FeaturePropsSchema)` from
+  `system/utils/useAppPage.ts
+```
 
 create a prompt file like last prompt file. Yes, be detailed about the phases. Draw a gantt chart in mermaid.
 

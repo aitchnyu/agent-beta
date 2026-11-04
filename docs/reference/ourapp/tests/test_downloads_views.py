@@ -12,7 +12,7 @@ from django.test import Client, override_settings
 from django.utils import timezone
 
 from djangoapp.models import User
-from djangoapp.tests._base import BaseTestCase
+from djangoapp.tests._base import BaseTestCase, feature_props_of
 
 from ourapp.models import Download
 
@@ -74,7 +74,9 @@ class DownloadsViewTests(BaseTestCase):
         """Superuser GET /downloads renders the rows (pk-free)."""
         resp = self._upload()
         self.assertEqual(resp.status_code, 200)
-        props = self.client.get("/downloads", HTTP_X_INERTIA="true").json()["props"]["props"]
+        props = feature_props_of(
+            self.client.get("/downloads", HTTP_X_INERTIA="true").json()
+        )
         self.assertEqual(len(props["downloads"]), 1)
         for key in props["downloads"][0]:
             self.assertNotIn(key, ("id", "pk"))

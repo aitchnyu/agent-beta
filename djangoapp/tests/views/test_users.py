@@ -72,7 +72,7 @@ class UserListViewTests(QueryBudgetInertiaTestCase):
         """Superuser sees email/public/staff/superuser/active in each list row."""
         self.client.force_login(self.superuser)
         self.client.get("/users/list")
-        users = {u["public_id"]: u for u in self.props()["props"]["users"]}
+        users = {u["public_id"]: u for u in self.feature_props()["users"]}
         pub = users[self.public_user.public_id]
         self.assertEqual(pub["email"], "pub@example.com")
         self.assertTrue(pub["has_public_profile"])
@@ -88,13 +88,13 @@ class UserListViewTests(QueryBudgetInertiaTestCase):
             User.objects.create_user(username=f"user{i:02d}", password="pass")
         self.client.force_login(self.superuser)
         self.client.get("/users/list")
-        p1 = self.props()["props"]
+        p1 = self.feature_props()
         self.assertEqual(p1["pagination"]["total_count"], 34)
         self.assertEqual(p1["pagination"]["total_pages"], 2)
         self.assertEqual(p1["pagination"]["page"], 1)
         self.assertEqual(len(p1["users"]), 25)
         self.client.get("/users/list?page=2")
-        p2 = self.props()["props"]
+        p2 = self.feature_props()
         self.assertEqual(p2["pagination"]["page"], 2)
         self.assertEqual(len(p2["users"]), 9)
 
@@ -250,7 +250,7 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
         """Public profile includes description and username."""
         self.set_max_select_queries(2)  # anonymous GET: session read + profile fetch
         self.client.get(f"/users/id/{self.public_user.public_id}")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertEqual(props["description"], "<p>about me</p>")
         self.assertEqual(props["username"], "pub")
         self.assertEqual(props["first_name"], "Pub")
@@ -260,7 +260,7 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
         """Private profile omits description and username, keeps first/last name."""
         self.set_max_select_queries(2)  # anonymous GET: session read + profile fetch
         self.client.get(f"/users/id/{self.private_user.public_id}")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertIsNone(props["description"])
         self.assertIsNone(props["username"])
         self.assertEqual(props["first_name"], "Pri")
@@ -270,7 +270,7 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
         """Owner of a private profile sees no description (gated by own flag)."""
         self.client.force_login(self.private_user)
         self.client.get(f"/users/id/{self.private_user.public_id}")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertTrue(props["is_owner"])
         self.assertIsNone(props["description"])
         self.assertIsNone(props["username"])
@@ -302,7 +302,7 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
         )
         self.client.force_login(self.superuser)
         self.client.get(f"/users/id/{self.public_user.public_id}")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertEqual(props["email"], "pub@example.com")
         self.assertTrue(props["has_public_profile"])
         self.assertTrue(props["is_active"])
@@ -316,13 +316,13 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
         target_client.get("/")  # backfills the index row
         self.client.force_login(self.superuser)
         self.client.get(f"/users/id/{self.public_user.public_id}")
-        self.assertEqual(self.props()["props"]["session_count"], 1)
+        self.assertEqual(self.feature_props()["session_count"], 1)
 
     def test_details_admin_attrs_hidden_for_anonymous(self) -> None:
         """Anonymous viewer gets no real email (None) and history_count 0."""
         self.set_max_select_queries(2)  # anonymous GET: session read + profile fetch
         self.client.get(f"/users/id/{self.public_user.public_id}")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertIsNone(props["email"])
         # Admin gating now comes from the shared flag, not a page prop.
         self.assertFalse(self.props()["viewer_is_superuser"])
@@ -335,11 +335,11 @@ class UserDetailsViewTests(QueryBudgetInertiaTestCase):
         User.objects.filter(pk=self.public_user.pk).update(last_login=when)
         self.client.force_login(self.superuser)
         self.client.get(f"/users/id/{self.public_user.public_id}")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertEqual(props["last_login"], when.isoformat())
         # A user who never logged in gets None (the UI renders "Never").
         self.client.get(f"/users/id/{self.private_user.public_id}")
-        self.assertIsNone(self.props()["props"]["last_login"])
+        self.assertIsNone(self.feature_props()["last_login"])
 
     def test_details_missing_404(self) -> None:
         """Unknown public_id returns 404."""
@@ -427,7 +427,7 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
         self.client.force_login(self.superuser)
         self.client.get(f"/users/edit/{self.target.public_id}")
         self.assertComponentUsed("system/users/UserEdit")
-        target = self.props()["props"]["target"]
+        target = self.feature_props()["target"]
         self.assertEqual(target["username"], "target")
         self.assertEqual(target["first_name"], "Old")
         self.assertFalse(target["has_public_profile"])
@@ -578,7 +578,7 @@ class UserHistoryViewTests(QueryBudgetInertiaTestCase):
         self.client.force_login(self.superuser)
         self.client.get(f"/users/history/{self.target.public_id}")
         self.assertComponentUsed("system/users/UserHistory")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertEqual(props["target_public_id"], self.target.public_id)
         entries = props["entries"]
         self.assertEqual(len(entries), 1)

@@ -5,7 +5,7 @@
 from django.test import Client
 
 from djangoapp.models import User
-from djangoapp.tests._base import BaseTestCase
+from djangoapp.tests._base import BaseTestCase, feature_props_of
 from ourapp.models import Todo
 
 
@@ -46,7 +46,9 @@ class TodosViewTests(BaseTestCase):
     def test_todos_page_lists_owner_todos(self) -> None:
         "Authed GET /todos renders only the user's todos (pk-free)."
         Todo.objects.create(text="Bob's task", owner=self.bob)
-        props = self.client.get("/todos", HTTP_X_INERTIA="true").json()["props"]["props"]
+        props = feature_props_of(
+            self.client.get("/todos", HTTP_X_INERTIA="true").json()
+        )
         todos = props["todos"]
         self.assertEqual({t["public_id"] for t in todos}, {self.alice_todo.public_id})
         for t in todos:

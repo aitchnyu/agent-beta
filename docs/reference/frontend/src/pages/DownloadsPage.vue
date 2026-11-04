@@ -4,6 +4,7 @@ import { router } from "@inertiajs/vue3"
 import { z } from "zod"
 import PageTitle from "../../system/components/PageTitle.vue"
 import { postForm, postJSON } from "../../system/utils/http"
+import { useAppPage } from "../../system/utils/useAppPage"
 import { showErrorToast } from "../../system/utils/sweetalert"
 import "../styles/app.scss"
 
@@ -25,9 +26,10 @@ const DownloadsPagePropsSchema = z.object({
   downloads: DownloadSchema.array(),
 })
 
-// Inertia wraps the page data under a `props` key (page.props.props); parse it.
-const props = defineProps<{ props: object }>()
-const downloads = computed(() => DownloadsPagePropsSchema.parse(props.props).downloads)
+// Parsed reactively (computed inside useAppPage): reload-safe — every
+// mutation's router.reload() re-renders the table from fresh props.
+const { data: p } = useAppPage(DownloadsPagePropsSchema)
+const downloads = computed(() => p.value.downloads)
 
 // One upload form state: the file picker + the optional expiry picker
 // (empty = the server default, one week out).

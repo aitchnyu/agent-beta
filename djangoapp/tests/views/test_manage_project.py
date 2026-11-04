@@ -84,7 +84,7 @@ class ManageProjectTests(BaseInertiaTestCase):
         if query:
             url = f"{url}?{query}"
         self.client.get(url)
-        return cast("dict[str, Any]", self.props()["props"])
+        return self.feature_props()
 
     def _stamp_book(self, book: Model, *, created_at: datetime, edited_at: datetime) -> None:
         """Force a book's created_at/last_updated_at via update() (save() would reset them)."""
@@ -105,7 +105,7 @@ class ManageProjectTests(BaseInertiaTestCase):
         self.assertComponentUsed("system/manage/ModelList")
 
         # Every test-app model appears, each with its live row count.
-        models = {m["name"]: m for m in self.props()["props"]["models"]}
+        models = {m["name"]: m for m in self.feature_props()["models"]}
         self.assertEqual(set(models), {"Author", "Book", "FileCleanupDoc", "Shelf"})
         self.assertEqual(models["Author"]["row_count"], 1)
         self.assertEqual(models["Book"]["row_count"], 1)
@@ -212,7 +212,7 @@ class ManageProjectTests(BaseInertiaTestCase):
         #    "created_at": "...", "edited_at": "..."}
         self.client.get(f"/manage/models/Book/id/{self.book.public_id}")
         self.assertComponentUsed("system/manage/RowDetail")
-        props = self.props()["props"]
+        props = self.feature_props()
 
         # Builtins (public_id/created_by/created_at/row_version/last_updated_at/
         # last_updated_by) are columns like any other, so they lead before

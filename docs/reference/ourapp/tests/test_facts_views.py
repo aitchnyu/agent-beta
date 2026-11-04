@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from djangoapp.tests._base import BaseTestCase
+from djangoapp.tests._base import BaseTestCase, feature_props_of
 
 from ourapp.models import Fact, Topic
 
@@ -27,13 +27,13 @@ class FactsViewTests(BaseTestCase):
     def _facts_props(self) -> dict[str, Any]:
         # X-Inertia makes InertiaResponse return the page JSON directly.
         resp = self.client.get("/facts", HTTP_X_INERTIA="true")
-        return resp.json()["props"]["props"]  # type: ignore[no-any-return]
+        return feature_props_of(resp.json())
 
     def test_facts_page_renders_with_fact(self) -> None:
         """GET /facts renders FactsPage with one fact + topics (pk-free)."""
         page = self.client.get("/facts", HTTP_X_INERTIA="true").json()
         self.assertEqual(page["component"], "FactsPage")
-        props = page["props"]["props"]
+        props = feature_props_of(page)
         self.assertEqual(props["fact"]["public_id"], self.fact.public_id)
         self.assertEqual(props["fact"]["text"], self.fact.text)
         self.assertNotIn("id", props["fact"])  # pk-free: public_id, never the integer pk
@@ -58,7 +58,7 @@ class FactsViewTests(BaseTestCase):
         """GET /facts/<slug> renders FactTopicPage scoped to the topic (pk-free)."""
         page = self.client.get("/facts/cars", HTTP_X_INERTIA="true").json()
         self.assertEqual(page["component"], "FactTopicPage")
-        props = page["props"]["props"]
+        props = feature_props_of(page)
         self.assertEqual(props["topic"]["slug"], "cars")
         self.assertEqual(props["fact"]["public_id"], self.fact.public_id)
         # pk-free: topic + fact expose public_id, never the integer id/pk.
@@ -76,7 +76,7 @@ class FactsViewTests(BaseTestCase):
             f"/fact/{self.fact.public_id}", HTTP_X_INERTIA="true"
         ).json()
         self.assertEqual(page["component"], "FactPage")
-        props = page["props"]["props"]
+        props = feature_props_of(page)
         self.assertEqual(props["fact"]["public_id"], self.fact.public_id)
         self.assertEqual(props["fact"]["text"], self.fact.text)
         self.assertNotIn("id", props["fact"])  # pk-free

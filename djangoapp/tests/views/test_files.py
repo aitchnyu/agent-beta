@@ -70,7 +70,7 @@ class FilesViewTests(BaseInertiaTestCase):
         self.client.force_login(self.superuser)
         self.client.get("/files")
         self.assertComponentUsed("system/files/FileBrowser")
-        props = self.props()["props"]
+        props = self.feature_props()
         names = {e["name"] for e in props["entries"]}
         self.assertIn("main", names)  # the repo dir (BASE_DIR.name)
         self.assertIsNone(props["parent"])  # can't go above the browse root
@@ -79,14 +79,14 @@ class FilesViewTests(BaseInertiaTestCase):
         """/files/ (rel="") serves the same browse-root listing."""
         self.client.force_login(self.superuser)
         self.client.get("/files/")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertIn("main", {e["name"] for e in props["entries"]})
 
     def test_hidden_dirs_filtered_by_default(self) -> None:
         """Default listing excludes .venv/node_modules/.git/__pycache__."""
         self.client.force_login(self.superuser)
         self.client.get("/files/")
-        names = {e["name"] for e in self.props()["props"]["entries"]}
+        names = {e["name"] for e in self.feature_props()["entries"]}
         for hidden in (".venv", "node_modules", ".git", "__pycache__"):
             self.assertNotIn(hidden, names)
 
@@ -102,7 +102,7 @@ class FilesViewTests(BaseInertiaTestCase):
         """main/ourapp/ listing carries entries + a root/main/ourapp breadcrumb."""
         self.client.force_login(self.superuser)
         self.client.get("/files/main/ourapp")
-        props = self.props()["props"]
+        props = self.feature_props()
         # The user app splits models/views into packages (one module per feature).
         names = {e["name"] for e in props["entries"]}
         self.assertIn("models", names)
@@ -115,7 +115,7 @@ class FilesViewTests(BaseInertiaTestCase):
         self.client.force_login(self.superuser)
         self.client.get(f"/files/{_TEXT_FILE}")
         self.assertComponentUsed("system/files/FileViewer")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertEqual(props["kind"], "text")
         self.assertIn("BaseModel", props["text"])
         self.assertEqual(props["parent"], "main/ourapp/models")
@@ -224,7 +224,7 @@ class FilesViewTests(BaseInertiaTestCase):
             (Path(d) / "pic.png").write_bytes(b"\x89PNG\r\n\x1a\n")
             self.client.get("/files/pic.png")
             self.assertComponentUsed("system/files/FileViewer")
-            self.assertEqual(self.props()["props"]["kind"], "image")
+            self.assertEqual(self.feature_props()["kind"], "image")
 
     def test_hostile_paths_404(self) -> None:
         """Whatever the client generates, the server confines it to the repo.
@@ -258,7 +258,7 @@ class FilesViewTests(BaseInertiaTestCase):
         """A .py file returns kind=text (language detection is frontend-side)."""
         self.client.force_login(self.superuser)
         self.client.get("/files/main/djangoapp/views/files.py")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertEqual(props["kind"], "text")
         self.assertNotIn("language", props)
         self.assertIn("def file_browser", props["text"])
@@ -267,7 +267,7 @@ class FilesViewTests(BaseInertiaTestCase):
         """A .md file returns kind=markdown with its content inlined."""
         self.client.force_login(self.superuser)
         self.client.get("/files/main/djangoapp/tests/filefixtures/sample.md")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertEqual(props["kind"], "markdown")
         self.assertIn("linked image", props["text"])
 

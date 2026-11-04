@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { Link, usePage } from "@inertiajs/vue3"
+import { Link } from "@inertiajs/vue3"
 import { z } from "zod"
 import { FactSchema } from "../schemas/facts"
-import { SharedPropsSchema } from "../../system/schemas/sharedProps"
+import { useAppPage } from "../../system/utils/useAppPage"
 // Side-effect import: the app ships its own styles from styles/app.scss, so the
 // feature is self-contained (no edit to the framework's main.scss).
 import "../styles/app.scss"
@@ -15,10 +15,9 @@ const HomePropsSchema = z.object({
   fact_of_day: FactSchema.nullable(),
 })
 
-// Inertia wraps the page data under a `props` key (page.props.props); parse it.
-const props = defineProps<{ props: object }>()
-const p = computed(() => HomePropsSchema.parse(props.props))
-const shared = computed(() => SharedPropsSchema.parse(usePage().props))
+// Both levels parsed reactively in one call: `p` is the page's own data
+// (the inner `props` key), `shared` the viewer profile (top level).
+const { shared, data: p } = useAppPage(HomePropsSchema)
 const isAuthenticated = computed(() => shared.value.user !== null)
 // The superuser flag gates the Downloads manager link.
 const isSuperuser = computed(() => shared.value.viewer_is_superuser)

@@ -79,7 +79,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         """``/git/uncommitted/`` lists main's + scratch's pending files."""
         self.client.get("/git/uncommitted/")
         self.assertComponentUsed("system/git/GitUncommitted")
-        props = self.props()["props"]
+        props = self.feature_props()
         main = {f["path"]: f["status"] for f in props["main_files"]}
         scratch = {f["path"]: f["status"] for f in props["scratch_files"]}
         self.assertEqual(main.get("TodoApp/app.py"), "modified")
@@ -105,7 +105,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         """``/git/uncommitted/main/TodoApp/app.py`` serves the diff with the new line."""
         self.client.get("/git/uncommitted/main/TodoApp/app.py")
         self.assertComponentUsed("system/git/GitDiff")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertIn('+    print("final")', props["diff"])
         self.assertEqual(props["title"], "Uncommitted (main): TodoApp/app.py")
         self.assertEqual(props["file_url"], "/files/main/TodoApp/app.py")
@@ -114,7 +114,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         """``/git/uncommitted/main/TodoApp/notes.md`` serves the whole-file-added diff."""
         self.client.get("/git/uncommitted/main/TodoApp/notes.md")
         self.assertComponentUsed("system/git/GitDiff")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertIn("+todo", props["diff"])
         # Untracked files exist on disk — the file link is live.
         self.assertEqual(props["file_url"], "/files/main/TodoApp/notes.md")
@@ -130,7 +130,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         """``/git/uncommitted/scratch/TodoApp/scratch_only.py`` serves the scratch-repo diff."""
         self.client.get("/git/uncommitted/scratch/TodoApp/scratch_only.py")
         self.assertComponentUsed("system/git/GitDiff")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertIn("+x = 1", props["diff"])
         self.assertEqual(props["title"], "Uncommitted (scratch): TodoApp/scratch_only.py")
         self.assertEqual(props["file_url"], "/files/scratch/TodoApp/scratch_only.py")
@@ -140,7 +140,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         """``/git/commits`` lists 3 commits newest-first with pagination."""
         self.client.get("/git/commits")
         self.assertComponentUsed("system/git/GitCommitList")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertEqual(
             [c["subject"] for c in props["commits"]],
             ["Add delete endpoint", "Add create endpoint", "Initial TodoApp"],
@@ -152,7 +152,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     def test_commit_list_fields(self) -> None:
         """List rows carry subject + sha + date, and NOT author/short_sha."""
         self.client.get("/git/commits")
-        first = self.props()["props"]["commits"][0]
+        first = self.feature_props()["commits"][0]
         self.assertEqual(first["subject"], "Add delete endpoint")
         self.assertEqual(first["sha"], self.commit_c.hexsha)
         self.assertIsInstance(first["date"], int)
@@ -164,7 +164,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     def test_commit_list_page_clamped(self) -> None:
         """``?page=999`` clamps to the last page (1 here), not an impossible number."""
         self.client.get("/git/commits?page=999")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertEqual(props["pagination"]["page"], 1)
         self.assertEqual(len(props["commits"]), 3)
 
@@ -172,12 +172,12 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         """A non-int ``?page=`` clamps to 1 (200), not an error."""
         self.client.get("/git/commits?page=abc")
         self.assertComponentUsed("system/git/GitCommitList")
-        self.assertEqual(len(self.props()["props"]["commits"]), 3)
+        self.assertEqual(len(self.feature_props()["commits"]), 3)
 
     def test_commit_files(self) -> None:
         """``/git/commits/<sha>`` shows the commit meta + changed files with statuses."""
         self.client.get(f"/git/commits/{self.short_b}")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertEqual(props["commit"]["subject"], "Add create endpoint")
         by_path = {f["path"]: f["status"] for f in props["files"]}
         self.assertEqual(by_path.get("TodoApp/app.py"), "modified")
@@ -186,7 +186,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     def test_commit_files_root(self) -> None:
         """The root commit (no parent) shows all files as 'added'."""
         self.client.get(f"/git/commits/{self.short_a}")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertEqual(props["commit"]["subject"], "Initial TodoApp")
         by_path = {f["path"]: f["status"] for f in props["files"]}
         self.assertEqual(by_path.get("TodoApp/app.py"), "added")
@@ -194,7 +194,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
     def test_commit_files_deleted(self) -> None:
         """A commit that deletes a file shows status='deleted'."""
         self.client.get(f"/git/commits/{self.short_c}")
-        by_path = {f["path"]: f["status"] for f in self.props()["props"]["files"]}
+        by_path = {f["path"]: f["status"] for f in self.feature_props()["files"]}
         self.assertEqual(by_path.get("TodoApp/endpoints.py"), "deleted")
 
     def test_commit_files_unknown(self) -> None:
@@ -208,7 +208,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         """``/git/commits/<sha>/<path>`` serves that file's diff in the commit."""
         self.client.get(f"/git/commits/{self.short_b}/TodoApp/app.py")
         self.assertComponentUsed("system/git/GitDiff")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertIn("+    return x", props["diff"])
         # The muted file link targets the worktree's CURRENT state (exact at
         # HEAD, approximate for history) — not a commit-pinned blob.
@@ -222,7 +222,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         """
         self.client.get(f"/git/commits/{self.short_a}/TodoApp/app.py")
         self.assertComponentUsed("system/git/GitDiff")
-        diff = self.props()["props"]["diff"]
+        diff = self.feature_props()["diff"]
         self.assertIn("+def main():", diff)
         self.assertIn('+    print("hello")', diff)
         # Everything is new against the empty tree — no deletion lines.
@@ -232,7 +232,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
         """A diff for a file deleted in the commit shows the deletion."""
         self.client.get(f"/git/commits/{self.short_c}/TodoApp/endpoints.py")
         self.assertComponentUsed("system/git/GitDiff")
-        props = self.props()["props"]
+        props = self.feature_props()
         self.assertIn("-def greet(name):", props["diff"])
         # Deleted at HEAD too — no on-disk file to view, so no link.
         self.assertIsNone(props["file_url"])
@@ -295,7 +295,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
             (root / "a.py").write_text("x = 1\n")  # untracked
             with patch("djangoapp.views.git_data._REPO_ROOT", root):
                 self.client.get("/git/uncommitted/")
-            props = self.props()["props"]
+            props = self.feature_props()
             self.assertIsNone(props["scratch_files"])  # scratch/ not on disk → omitted
             self.assertEqual([f["path"] for f in props["main_files"]], ["a.py"])
 
@@ -307,7 +307,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
             (root / "orphan.py").write_text("x = 1\n")
             with patch("djangoapp.views.git_data._REPO_ROOT", root):
                 self.client.get("/git/uncommitted/")
-            props = self.props()["props"]
+            props = self.feature_props()
             self.assertIsNone(props["scratch_files"])  # no scratch/ sibling
             files = props["main_files"]
             self.assertEqual([f["path"] for f in files], ["orphan.py"])
@@ -320,7 +320,7 @@ class GitRealTests(  # type: ignore[misc] # library-internal client clash; see _
             git.Repo.init(root)
             with patch("djangoapp.views.git_data._REPO_ROOT", root):
                 self.client.get("/git/commits")
-            props = self.props()["props"]
+            props = self.feature_props()
             self.assertEqual(props["commits"], [])
             self.assertEqual(props["pagination"]["total_count"], 0)
 

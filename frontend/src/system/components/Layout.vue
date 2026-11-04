@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue"
-import { usePage } from "@inertiajs/vue3"
-import { SharedPropsSchema } from "../schemas/sharedProps"
+import { useSharedProps } from "../utils/useAppPage"
 import CollapsibleButton from "./CollapsibleButton.vue"
 import LucideIcon from "./LucideIcon.vue"
 import Navbar from "./navbar/Navbar.vue"
@@ -14,8 +12,7 @@ import { fileUrl } from "../pages/files/files"
 
 // Shared props arrive via SharedPropsMiddleware (not per-view). The navbar
 // is declarative — the navbar/ components own the responsive machinery.
-const page = usePage()
-const shared = computed(() => SharedPropsSchema.parse(page.props))
+const shared = useSharedProps()
 </script>
 
 <template>

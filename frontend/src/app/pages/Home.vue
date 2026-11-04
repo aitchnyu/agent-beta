@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { Link, usePage } from "@inertiajs/vue3"
+import { Link } from "@inertiajs/vue3"
 import PageTitle from "../../system/components/PageTitle.vue"
 import { fileUrl } from "../../system/pages/files/files"
-import { SharedPropsSchema } from "../../system/schemas/sharedProps"
+import { useSharedProps } from "../../system/utils/useAppPage"
 // Side-effect import: the app ships its own styles from styles/app.scss, so
 // the app is self-contained (no edit to the system stylesheet).
 import "../styles/app.scss"
 
 // Login state is the shared viewer `user`, injected on every page by
 // SharedPropsMiddleware.
-const shared = computed(() => SharedPropsSchema.parse(usePage().props))
+const shared = useSharedProps()
 const isAuthenticated = computed(() => shared.value.user !== null)
 </script>
 

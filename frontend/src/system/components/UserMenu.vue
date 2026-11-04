@@ -6,9 +6,10 @@
 //   visibilitychange → partial reload of just that prop
 // - push SW registration + the one-shot post-login subscription rebind
 import { computed, onBeforeUnmount, onMounted } from "vue"
-import { Link, router, usePage } from "@inertiajs/vue3"
+import { Link, router } from "@inertiajs/vue3"
 import { getCsrfToken } from "../utils/csrf"
-import { type User, SharedPropsSchema } from "../schemas/sharedProps"
+import { type User } from "../schemas/sharedProps"
+import { useSharedProps } from "../utils/useAppPage"
 import DropdownMenu from "./DropdownMenu.vue"
 import LucideIcon from "./LucideIcon.vue"
 import chevronDownIcon from "../icons/chevron-down.svg"
@@ -20,8 +21,7 @@ defineProps<{
   user: User
 }>()
 
-const page = usePage()
-const shared = computed(() => SharedPropsSchema.parse(page.props))
+const shared = useSharedProps()
 const unreadCount = computed(() => shared.value.unread_notifications)
 const csrfToken = computed(() => getCsrfToken())
 
