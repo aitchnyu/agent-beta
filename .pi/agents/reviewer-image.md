@@ -31,9 +31,10 @@ Judge by eye:
 - A literal `shape: oval` where a rounded box belongs — all use cases
   are rounded boxes (`style.border-radius: 24`, fixed width 240);
   mixed oval/box siblings are a finding.
-- Arrows crossing, entering, or overlapping boxes — including an edge
-  striking its own label text (route around, or offset the label with
-  `near`) — or reversing direction.
+- Arrows passing THROUGH a box or striking out label text (route
+  around, or offset the label with `near`) — or reversing direction.
+  Grazing — an edge touching a boundary or label tangentially — is
+  acceptable; do not flag it.
 - Inconsistent shape/style vs the repo's diagram conventions; siblings
   disagreeing with each other (same actor shapes across diagrams, same
   button style across pages).
@@ -58,4 +59,7 @@ findings are one line each. Emit the moment every image in the batch
 is judged.
 
 Keepalive discipline: a resume whose prompt is only a hold-ping gets
-a one-line "STORED" reply — do not re-report on keepalives.
+a one-line "STORED" reply — do not re-report on keepalives. And once
+a doc's findings were applied and `checkmarkdownd2` validates green,
+you are DONE with that doc: re-review only if diagram semantics
+changed (shapes/edges added, renamed, rewired) — never for styling.

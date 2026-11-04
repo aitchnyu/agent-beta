@@ -518,7 +518,7 @@ ${H}Checks${R}
                         validate every d2 fence (file args also render
                         each to .svg + .png in a fresh /tmp/desmo/ dir;
                         no args on a TTY → scan the default docs
-  ${C}playwrighttest${R} …    Playwright e2e suite
+  ${C}playwrighttest${R} …    Playwright e2e suite (auto keepdb on unchanged migrations, like test)
   ${C}screenshots${R}         regenerate docs/screenshots via Playwright
   ${C}checkframework1${R}     the full dev-side gate (main/ only, never the VM):
                         lint + types + 4 test tiers under one merged

@@ -28,7 +28,7 @@ _MIGRATION_TREES = (
     scratch.MAIN_DIR / "djangoapp" / "migrations",
     scratch.MAIN_DIR / "ourapp" / "migrations",
 )
-_MARKER = Path("/tmp/desmo/test-migrations.sha")
+_KEEPDB_MARKER = Path("/tmp/desmo/test-migrations.sha")
 
 
 def _migrations_hash() -> str:
@@ -38,15 +38,29 @@ def _migrations_hash() -> str:
     """
     digest = hashlib.sha256()
     for tree in _MIGRATION_TREES:
-        for path in sorted(tree.glob("*.py")):
-            digest.update(str(path.relative_to(scratch.MAIN_DIR)).encode())
-            digest.update(path.read_bytes())
+        prefix = f"{tree.relative_to(scratch.MAIN_DIR)}/"
+        digest.update(scratch.visible_files_hash(tree, prefix=prefix).encode())
     return digest.hexdigest()
 
 
-def _built_frontend() -> None:
-    """Rebuild the frontend bundle the browser suites test against."""
-    shell.run("npm", "run", "build", cwd=scratch.MAIN_DIR / "frontend")
+def _keepdb_hint() -> bool:
+    """True when the marker still matches the migration trees.
+
+    While it matches, suites may pass --keepdb and reuse desmo_db_test
+    instead of recreating it + replaying migrations before every run.
+    Callers rewrite the marker after their run so the NEXT caller
+    inherits the cache.
+    """
+    return scratch.marker_content_for(_KEEPDB_MARKER) == _migrations_hash()
+
+
+def _write_keepdb_marker() -> None:
+    """Record the current migration hash as the keepdb marker.
+
+    Called after a suite ran against desmo_db_test: the next suite
+    (test or playwrighttest) sees a matching hash and may --keepdb.
+    """
+    scratch.write_marker(_KEEPDB_MARKER, _migrations_hash())
 
 
 class Test(LabelsCommand):
@@ -58,13 +72,10 @@ class Test(LabelsCommand):
     def run(args: argparse.Namespace, extra: list[str]) -> None:
         env = scratch.test_redis_env()
         flags: list[str] = ["--exclude-tag", "playwright", "--noinput"]
-        digest = ""
         if not args.full:
             env["LOG_LEVEL"] = "WARNING"
-            digest = _migrations_hash()
-            keepdb = _MARKER.is_file() and _MARKER.read_text(encoding="utf-8").strip() == digest
             flags.append("--failfast")
-            if keepdb:
+            if _keepdb_hint():
                 flags.append("--keepdb")
         shell.run(
             "uv",
@@ -78,8 +89,7 @@ class Test(LabelsCommand):
             env=env,
         )
         if not args.full:
-            _MARKER.parent.mkdir(parents=True, exist_ok=True)
-            _MARKER.write_text(digest + "\n", encoding="utf-8")
+            _write_keepdb_marker()
 
     def build_parser(self) -> argparse.ArgumentParser:
         """Build the labels parser plus the --full flag."""
@@ -101,7 +111,12 @@ class Playwrighttest(LabelsCommand):
 
     @staticmethod
     def run(args: argparse.Namespace, extra: list[str]) -> None:
-        _built_frontend()
+        scratch.built_frontend(scratch.MAIN_DIR / "frontend")
+        # Same keepdb-by-marker caching as `test`: while no migration
+        # changed, reuse desmo_db_test instead of recreating + replaying
+        # migrations before every e2e run (the e2e fix loop pays this
+        # boot per invocation otherwise).
+        flags = ["--keepdb"] if _keepdb_hint() else []
         shell.run(
             "uv",
             "run",
@@ -111,10 +126,12 @@ class Playwrighttest(LabelsCommand):
             "--tag",
             "playwright",
             "--noinput",
+            *flags,
             *args.labels,
             *extra,
             env=scratch.test_redis_env(),
         )
+        _write_keepdb_marker()
 
 
 class Screenshots(LabelsCommand):
@@ -130,7 +147,7 @@ class Screenshots(LabelsCommand):
     def run(args: argparse.Namespace, extra: list[str]) -> None:
         env = scratch.test_redis_env()
         env["GENERATE_SCREENSHOTS"] = "1"
-        _built_frontend()
+        scratch.built_frontend(scratch.MAIN_DIR / "frontend")
         shell.run(
             "uv",
             "run",

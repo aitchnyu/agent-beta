@@ -45,6 +45,52 @@ if TYPE_CHECKING:
 MAIN_DIR = Path(__file__).resolve().parent.parent
 SCRATCH_DIR = MAIN_DIR.parent / "scratch"
 
+
+def visible_files_hash(directory: Path, *, prefix: str = "") -> str:
+    """sha256 of a directory's git-visible files: tracked +
+    untracked-but-not-ignored (git ls-files), sorted names + contents.
+
+    Ignored files never contribute; `prefix` namespaces the names when
+    several trees are combined into one digest.
+    """
+    import hashlib
+
+    listing = subprocess.check_output(
+        ["git", "-C", str(directory), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+    )
+    digest = hashlib.sha256()
+    for name in sorted(listing.decode().split("\0")):
+        path = directory / name
+        if name and path.is_file():
+            digest.update((prefix + name).encode())
+            digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def marker_content_for(marker: Path) -> str | None:
+    """The marker's stored digest, or None when absent."""
+    if not marker.is_file():
+        return None
+    return marker.read_text(encoding="utf-8").strip()
+
+
+def write_marker(marker: Path, digest: str) -> None:
+    """Store a digest as a marker file (trailing newline)."""
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(digest + "\n", encoding="utf-8")
+
+
+def built_frontend(frontend: Path) -> None:
+    """Rebuild a frontend bundle — skipped when its build inputs are
+    unchanged since the last build (the marker rides dist/, so a wiped
+    or rsynced dist rebuilds)."""
+    digest = visible_files_hash(frontend)
+    marker = frontend / "dist" / ".build-sha"
+    if marker_content_for(marker) == digest:
+        return
+    shell.run("npm", "run", "build", cwd=frontend)
+    write_marker(marker, digest)
+
 # Agent scratch space outside the repo: d2 renders (checkmarkdownd2) and
 # parked oversized bash output (tool-output-cap). Wiped with the tree.
 AGENT_TMP_DIR = Path("/tmp/desmo")  # noqa: S108 — the fixed path IS the contract (permission-allowlisted, lifecycle-wiped)
@@ -412,7 +458,7 @@ class Deployscratch(Command):
         if exit_code == 0:
             try:
                 backup_held = bool(json.loads(probe_output)[0]["status"]["lock"]["backup"]["held"])
-            except ValueError, IndexError, KeyError, TypeError:
+            except (ValueError, IndexError, KeyError, TypeError):
                 backup_held = False
         if backup_held:
             shell.die("Refusing: a backup is running — let it finish, then re-run deployscratch.")
@@ -450,7 +496,7 @@ class Deployscratch(Command):
             if fast_path.frontend_changed:
                 # Lint + build the SPA in scratch; the bundle rides the rsync.
                 shell.run_step("npm run lint", "npm", "run", "lint", cwd=SCRATCH_DIR / "frontend")
-                shell.run_step("npm run build", "npm", "run", "build", cwd=SCRATCH_DIR / "frontend")
+                built_frontend(SCRATCH_DIR / "frontend")
                 # Real pages in a real browser — lint and build cannot catch
                 # runtime breakage; the smoke pass can (kept for framework
                 # frontend edits — the app-surface classification decides).
@@ -513,7 +559,7 @@ class Deployscratch(Command):
             print("Running frontend linting")
             shell.run_step("npm run lint", "npm", "run", "lint", cwd=SCRATCH_DIR / "frontend")
             print("Running frontend build (type-check + vite in one pass)")
-            shell.run_step("npm run build", "npm", "run", "build", cwd=SCRATCH_DIR / "frontend")
+            built_frontend(SCRATCH_DIR / "frontend")
             # Framework-file watch: edits outside the app surface mean framework
             # code changed → run the scratch-test-subset smoke (an early-warning
             # fraction of checkframework1; the full suite still gates in main/).
@@ -634,12 +680,14 @@ class Deployscratch(Command):
             )
             step_banner("collectstatic")
         if not fast_path.docs_or_frontend_only:
-            print("restarting services…")
             # Huey's unit always exists on provisioned VMs (HUEY_WORKERS ≥ 1
             # is enforced at provisioning).
+            step_banner("daemon-reload")
             shell.run("sudo", "systemctl", "daemon-reload")
-            shell.run("sudo", "systemctl", "restart", "desmo_granian.service", "desmo_huey.service")
-            step_banner("restart")
+            step_banner("restarting desmo_granian.service")
+            shell.run("sudo", "systemctl", "restart", "desmo_granian.service")
+            step_banner("restarting desmo_huey.service")
+            shell.run("sudo", "systemctl", "restart", "desmo_huey.service")
 
         # ── closing ──
         url_base = share_url_base(os.environ.get("BASE_URLS", ""))

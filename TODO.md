@@ -1,4 +1,23 @@
-1b 
+are we having in framework test too? Will we have an ops command to write any .ts file even for multiple ninjas? How does it emit a typed sdk?
+
+
+create a prompt file like last prompt file. Yes, be detailed about the phases. Draw a gantt chart in mermaid.
+
+all permission calls?
+
+Launch coder as early as possible
+Were main and reviewer-image both reviewing images?
+Small arrow grazing is not a problem. After fixing images and cmd verification works, dont review images anymore. Proceed.
+"Checking whether the planner has finished its prep" - no, dont wait at all
+
+reviewers finished work fast/
+
+```
+ $ cd ../scratch && ./run playwrighttest ourapp.tests.test_chores_playwright 2>&1 | tail -5 (timeout 600s)
+
+ ----------------------------------------------------------------------
+ Ran 4 tests in 33.689s
+```
 
 Arrows and other overlaps
 Permission prompts? journalctl
@@ -16,7 +35,7 @@ coder anatomy
 45 min
 exemplar
 
-How to call coding agent, fg agent?
+How to call cod2ing agent, fg agent?
 How to call image review agent and generate pics?
 can you move the trust.json and config.json near each other and have a TODO saying wait for ....
  defaultProjectTrust: "always"
@@ -334,3 +353,4 @@ Mutation tests?
 Install playwright on first run?
 Store downthinking entries for models for implementing agent
 Use pipe, dont have managers
+Plantuml. 

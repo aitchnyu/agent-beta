@@ -46,9 +46,10 @@ and ask the operator).
 <!-- MAINTAIN-CONSISTENCY coder-contract — the fresh-shell rule above is
      restated in .pi/agents/coder.md; change both together. -->
 
-- Fresh scratch tree: `./run createscratch` (run from `main/`).
-- Edit + check + deploy, all one command: `./run deployscratch` **run from
-  `main/`** — NOT from inside `../scratch/` (the script resolves main and
+- Fresh scratch tree: from `main/`, run `./run createscratch`.
+- Edit + check + deploy, all one command: from `main/`, run
+  `./run deployscratch` — NOT from inside `../scratch/` (the script
+  resolves main and
   scratch from its OWN location; invoked from scratch it refuses). It:
   - runs the check battery in scratch — frontend/docs-only diffs take a
     fast path (lint/build or fence validation, no backend checks);
@@ -69,7 +70,6 @@ and ask the operator).
   - intermediate iterations (diagram fix cycles, mid-battery fixes)
     stay in scratch and `/tmp` renders;
   - deploy once, when the batch is green and accepted.
-  (`checkframework1`), not by the deploy loop.
 
 ## Feature workflow
 
@@ -93,7 +93,7 @@ request
 [1] MOCKUPS             /mockup/<page>, static or interactive, no props
   |   share links (MockupGate) --> user picks:
   |      revise ......... back to [1]
-  |      write docs ........... to [2]
+  |      write docs ........... to [2] — coder GROUNDWORK spawns here
   v
 [2] DESIGN DOCS          use cases, data + its changes, dev reference
   |   share doc + mockup links (DocsGate) --> user picks:
@@ -132,9 +132,9 @@ lives in [Stage messages](#stage-messages):
   a green deploy IS the verification ([Mockups](#mockups)).
 - **[2] Design docs** — the design doc (per the [Feature docs](#feature-docs)
   outline) joins the mockups; share doc + mockup links via DocsGate.
-  Validate the fences and SELF-CHECK the renders before deploying
-  (see [Diagrams](#diagrams)). Validation also spawns the image
-  reviewer in background; its verdict lands in the DocsGate message
+  Validate the fences with `./run checkmarkdownd2`; the image
+  reviewer spawned in background judges the renders — you NEVER view
+  them yourself. Its verdict lands in the DocsGate message
   (see [The review round](#the-review-round-stage-4)).
 - **[3] Code — only after explicit approval.**
    - **Docs + code together** (DocsGate pick): the doc is approved as
@@ -143,32 +143,32 @@ lives in [Stage messages](#stage-messages):
      rules, same scratch tree). The gate approved direction, not
      final prose; [4]'s review round then judges doc and app
      together, and [4]'s doc-update step becomes verification.
-   - At DocsGate-send, spawn the `coder` subagent in background:
-     "PREP ONLY — read the list below; write nothing; reply READY
-     via ask_parent and hold." Requirements already final at spawn
-     (docs+code pick, or a restarted feature)? Then the prompt is
-     "requirements final — no hold: read, draft the plan, then
-     implement." The PREP reads:
-     - .pi/repo-map.md §9 (copy-me skeletons)
-     - the reference files
-     - the models-first digest below
-     - pyproject.toml's ruff + mypy sections
-     - the annotated exemplar `ourapp/tests/test_home_views.py`
-     - steer.md's `field_validator`/`ValidationInfo` example under
-       "Forms & validation errors"
-     - the design doc itself, under the docs+code option (you own
-       its sections from batch 1)
-     PREP also DRAFTS the implementation plan — batch order, files
-     per batch, test plan, migration needs — from the digest, and
-     the READY reply carries that one-screen plan. The planning
-     generation is spent during the gate, not on the implement
-     critical path; "implement" resumes straight into batch 1. The
-     open question holds the session alive past the 45m retention —
-     any gate length. PREP-and-hold is for the gate window, when no
-     approved requirements exist yet; if the requirements are
-     already final at spawn (approval in hand, or a restarted
-     feature), skip the hold — same reads and plan, then straight
-     into batch 1 in one continuous session.
+    - The coder launches EARLY — at the MockupGate "write docs"
+      pick, while you write the docs — as GROUNDWORK, in background:
+      "read the doc-independent list; study the approved mockups +
+      requirement; draft the preliminary models-first plan from
+      them; reply 'GROUNDWORK DONE + preliminary plan' via
+      ask_parent and hold." The groundwork reads:
+      - .pi/repo-map.md §9 (copy-me skeletons)
+      - the reference files
+      - pyproject.toml's ruff + mypy sections
+      - the annotated exemplar `ourapp/tests/test_home_views.py`
+      - steer.md's `field_validator`/`ValidationInfo` example under
+        "Forms & validation errors"
+    - At DocsGate-send, WAVE 2: resume it with the models-first
+      digest (and the design doc itself under the docs+code option —
+      it owns those sections from batch 1). It RECONCILES the
+      preliminary plan against the digest — flip or uphold plan
+      lines, never a full re-plan — and replies "READY + final
+      plan", then holds. Requirements already final at spawn
+      (docs+code pick, or a restarted feature)? The prompt is
+      "requirements final — no hold: read, draft the plan, then
+      implement." The open question holds the session alive past
+      the 45m retention — any gate length; planning generation is
+      spent during mockups/docs, not on the implement critical
+      path. Paste the preliminary plan into the DocsGate message —
+      the operator reviews the plan WITH the docs and catches
+      scope drift at the gate.
    - On approval, RESUME the prep session — its agent id rides in the
      READY ask_parent result; pass that id as the `resume` option with
      prompt "implement" (mid-prep pivot path: the id comes from the
@@ -177,10 +177,18 @@ lives in [Stage messages](#stage-messages):
      cleared its records, or the gate sent you back to revise docs or
      mockups — then re-spawn with the PREP prompt plus the revised
      digest. Never implement against a plan it no longer holds; a
-     fresh spawn re-pays the whole orientation (observed: 23 minutes).
+     fresh spawn re-pays the whole orientation.
    - It runs in BACKGROUND — you stay live to orchestrate the
-     reviewers.
-   - Its notify_parent ping marks the first green test batch.
+     reviewers. NEVER wait on the prep: no get_subagent_result
+     polling, no "checking whether it finished" — the READY ask
+     arrives on its own, and approval steers mid-prep. Keep working
+     the gate and stage messages meanwhile.
+    - Each notify_parent ping is an ACCEPTED batch, and YOU deploy
+      it: check main/'s `git status --short` shows only files also
+      pending in scratch (equality via `git diff --no-index`), then —
+      from `main/` — run `./run deployscratch` and steer
+      "deployed — next batch". The coder never deploys; its
+      forwarded asks block on operator presence.
    - Its FINAL green report arrives as an ask_parent that HOLDS the
      session for the fix round — answer it with the triaged code
      fixes, or "release" to let it complete.
@@ -219,6 +227,11 @@ lives in [Stage messages](#stage-messages):
    - update the design doc to match the code (docs+code option: the
      coder kept it current per batch — verify, and apply reviewer
      doc fixes)
+   - the [4] close is ONE cycle — fixes, doc updates, screenshot
+     captures: resume the coder once, tick each item onto the fix
+     list first (a dropped item costs a round trip), and ship it
+     all with a single `./run deployscratch`; an extra cycle needs
+     an operator-reported regression, not polish
 - **[5] Offer to commit** — CommitOffer; never commit unasked.
 - **[6] Final checklist** — after the commit lands, audit the job yourself
   (the operator's recurring catches — never make them catch one again),
@@ -344,17 +357,24 @@ Spawn + feeding mechanics:
   a tightly-scoped round answers in under a minute; an open-ended
   one re-reads everything for the same verdict.
 - Two-phase launch, overlapped with the coder:
-  - FIRST green batch (the notify_parent ping): spawn the reviewers
-    in background — "FAMILIARIZE ONLY: the requirement, the diff and
-    status below, the touched files; hold — verify nothing yet;
-    reply STORED."
+   - FIRST green batch (the notify_parent ping): spawn the reviewers
+     in background — "FAMILIARIZE + ANALYZE: the requirement, the
+     diff and status below (diff @ <sha>), the touched files. Store
+     them, then build your working notes — every seam/claim/
+     edge-case of your duty as a checkable line (file:line + what to
+     confirm), each marked holds-on-this-diff / cannot-tell-yet /
+     not-covered. Notes are claims, NEVER verdicts or findings.
+     Reply 'STORED + N notes' with the notes, and hold."
    - FINAL green batch: resume each with "verify now," pasting the
-     full `git diff` + `git status --short` (name the files new since
-     familiarization) plus the coder's final suite and battery outputs
-     as evidence. The reviewers hold the diff they read and skip it,
-     and files UNCHANGED since familiarization are not re-read — say
-     so in the prompt; their stored context plus the diff hunks are
-     the source.
+     DELTA since familiarization (`git diff <familiarized-sha>..<final>`
+     — or the changed-file list + hunks) plus the coder's final
+     suite and battery outputs as evidence. Files UNCHANGED since
+     familiarization are not re-read — stored context plus the notes
+     are the source. The reviewers RECONCILE: re-read only the
+     delta, uphold or flip every note it touches, open notes for
+     anything new, then the terse verdict. A large delta (the gate
+     sent work back) says so in the prompt — re-familiarize from the
+     full diff instead.
    - A held reviewer that expired — coder tail past the retention
      window — spawns fresh with the full diff.
    - Familiarize is for the coder's tail — when the diff isn't final
@@ -492,12 +512,15 @@ npm install                         # only `npm run build` is allowed
 Note: read-only shell inspection IS allowlisted (`rg`, `grep`, `find`, `cat`,
 `head`, `tail`, `ps`, `lsof`, …) and runs unblocked — but PREFER the
 read/glob/grep TOOLS when exploring (structured, source-linked results);
-shell forms earn their keep inside `&&` chains. Related trap (observed
-burning a real session): redirects (`2>&1`, `2>/dev/null` — ALL of them)
+shell forms earn their keep inside `&&` chains. Related traps:
+redirects (`2>&1`, `2>/dev/null` — ALL of them)
 and command substitution bolted onto otherwise-allowed commands —
 **don't append redirects unless absolutely necessary**: the TUI captures
 full tool output (stderr included), discarding buys nothing, and an
-avoidable `2>/dev/null` turns an allowlisted line into a block.
+avoidable `2>/dev/null` turns an allowlisted line into a block. Same
+for **pipes to `tail`/`head`**: long output is already truncated from
+the MIDDLE (head and tail both stay visible) — `… | tail -20` buys
+nothing and throws away the start. Run the bare command.
 
 ### Management commands (synced with djangoapp/management/commands/)
 
@@ -753,9 +776,9 @@ them with pan/zoom controls.
       stacking, narrow boundaries
     - visual faults — actors at the pinned size, use boxes at 240
       rounded, icons rendering, size uniformity, clipped text, note
-      placement, dark-mode contrast; arrows never cross, enter, or
-      overlap boxes and never strike their own label text (route
-      around, `near`-offset labels)
+      placement, dark-mode contrast; arrows never pass THROUGH a
+      box or strike out label text — grazing (an edge touching a
+      boundary or label tangentially) is acceptable
     - cross-doc consistency — the User actor identical, connection
       phrasing, delete-rule labels, state circles
   - It inspects the rendered PNG rasters — checkmarkdownd2 writes one
@@ -763,9 +786,12 @@ them with pan/zoom controls.
     `.svg` content; screenshots and raster renders outside the
     batch do not exist for it.
   - Its findings join the review triage like any other: that agent
-    applies what holds, re-validates (the re-run prints a FRESH render
-    dir — paste it into the re-resume), and folds recurring fixes into
-    this rulebook so they stop recurring.
+    applies what holds and re-validates with `./run checkmarkdownd2`
+    ALONE — once images are fixed and the command validates green,
+    STOP reviewing images; re-view renders only when diagram
+    semantics changed (shapes/edges added, renamed, rewired), not
+    for styling. Fold recurring fixes into this rulebook so they
+    stop recurring.
 <!-- MAINTAIN-CONSISTENCY diagram-review — this bullet restates
      .pi/agents/reviewer.md's capture contract (fence<N>.svg in a fresh
      /tmp/desmo run dir) and image-first rule; change both together. -->
@@ -811,6 +837,11 @@ Run through every box; the order is the order you build in.
           with a comment)
     - [ ] money is `models.DecimalField(max_digits=…, decimal_places=…)` —
           never `FloatField` (binary-float rounding corrupts sums)
+    - [ ] money leaves the API as a **string**: Out/response schemas
+          serialize `Decimal` fields via `field_serializer` → `str`, so the
+          wire is `"12.30"` (a JSON string), never a JSON number — JS
+          parses JSON numbers as float64, which would re-corrupt what
+          `DecimalField` protected
     - [ ] a `FileField` gets a **unique-enough folder** as its `upload_to`
           (e.g. `"one_time_downloads"`, not `"files"`): `media/` is shared by every
           app and feature, filenames stay original, and two features in one
@@ -993,6 +1024,8 @@ Choose
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
 - **DocsGate — design docs**
   - [ ] models-first plan digest
+  - [ ] the coder's preliminary plan from groundwork (paste it —
+        the operator reviews the plan WITH the docs)
   - [ ] design-doc link + mockup links
   - [ ] menu: 1. revise docs/mockups 2. docs — approved, code
         follows 3. docs and code together (doc rides the batches) —
@@ -1889,10 +1922,14 @@ the operator. Diagnose with allowed tools first (the `bash` map in
 `.pi/extensions/pi-permission-system/config.json` is the full list;
 `id`, `journalctl -u desmo_*`, `stat`, `systemctl status`,
 `sudo -u postgres pgbackrest --stanza=desmo info` are allowlisted;
-`git -C` is deny-listed — cd
-into the repo and run bare `git …`; `./run python -c` always asks —
+`git -C` is deny-listed — cd into the repo and run bare `git …`;
+`./run python -c` always asks —
 reach for `dbstate`/management commands first and save `python -c`
-for when nothing else can answer).
+for when nothing else can answer). Read-only checks lean on the git
+family — bare and starred `git diff`/`git status`/`git log` are
+allowlisted, and `git diff --no-index <a> <b>` is the cross-tree
+equality check (main/ vs `../scratch/` before a deploy; exit 0 =
+identical).
 
 **Environment variables go through `export`, never as a command prefix** —
 `VAR=value command` prefixes are accepted by the gate (the prefix is
@@ -1922,7 +1959,8 @@ The allowlisted commands (defined in the `bash` map of
 npm run build                        # from frontend/
 cd ../scratch                        # …then git status / git diff … / git log … / git show …
 git status …                         # any args, like git diff / log / show / blame / grep /
-                                     # ls-files / ls-tree / rev-parse / check-ignore
+                                      # ls-files / ls-tree / rev-parse / check-ignore;
+                                      # git diff --no-index a b = cross-tree equality
 pwd
 rm -rf ../scratch                  # whole scratch tree (bare only)
 rm ../scratch/<file> […]           # single FILES inside scratch, bare rm only,
