@@ -1,5 +1,16 @@
+1b 
+
+Arrows and other overlaps
+Permission prompts? journalctl
+Agents should choose commands that dont prompt
+Interrupt prep time - send feature. Dont prep.
+Why are reviewers so fast?
+
+Write design docs like a powerpoint
+Option to write design docs and app together
+
 Squash 18baa5f3de346ab21f3fdf32df46a1497abfeb7a and later. Propose a commit message. 
-Undo the chore commit on vm. Want to treat vm like a brand new vm, so it should have latest commit. Ensure keys are present. Share ssh command. Create a new superuser frank.einstien@mgmail.com and share a 24 hour login link.
+Undo the chore commit on vm. Want to treat vm like a brand new vm, so it should have latest commit. Ensure keys are present. Create a new vm. Share ssh command. Create a new superuser frank.einstien@mgmail.com and share a 24 hour login link.
 
 coder anatomy
 45 min
@@ -296,6 +307,7 @@ org/reponame with main thing, landing page
 Features - file section with git etc. Readme is crap. Gantt of scout, main work and reviewer prewarm and reviewer action, rework
 Just keep pi command without desmo prefix
 File shows which commits it was part of and if its part of uncommitted changes
+Highlight readme in any dir
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 UserHistory.record_created(user, user, user.snapshot()) is a mess

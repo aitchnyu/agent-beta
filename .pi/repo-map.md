@@ -136,10 +136,12 @@ Copy from the §9 skeletons first; the full reference files back them.
   DJANGO_SETTINGS_MODULE=djangoproject.settings && ./run python -c
   'import django; django.setup(); from ourapp.models import Todo;
   …'`. Everything else (settings env, allowlist) already rides
-  `./run`. Prefer `dbstate`/management commands when one exists.
-  Code-phase only — while a feature is a mockup, python stays
-  untouched (steer's no-probe/no-python rule): a mockup question is
-  answered by the operator's click on the deployed link, not a query.
+  `./run`. Prefer `dbstate`/management commands when one exists —
+  and note `./run python -c` PROMPTS the operator by design; reserve
+  it for when no command answers the question. Code-phase only —
+  while a feature is a mockup, python stays untouched (steer's
+  no-probe/no-python rule): a mockup question is answered by the
+  operator's click on the deployed link, not a query.
 - **JSON API surface**: introspect via the NinjaAPI instance, not the
   filesystem: `from ourapp.views import api; [p for p in
   api.urls]` (mount point + operation paths). Pages are NOT on api —

@@ -98,7 +98,8 @@ request
 [2] DESIGN DOCS          use cases, data + its changes, dev reference
   |   share doc + mockup links (DocsGate) --> user picks:
   |      revise docs/mockups ... back as directed
-  |      approved ............... to [3]
+  |      docs ................. to [3] (approved, code follows)
+  |      docs and code ........ to [3] (doc rides the batches)
   v
 [3] CODE                 scratch, deployscratch per batch, mockups graduate
   |
@@ -136,9 +137,18 @@ lives in [Stage messages](#stage-messages):
   reviewer in background; its verdict lands in the DocsGate message
   (see [The review round](#the-review-round-stage-4)).
 - **[3] Code — only after explicit approval.**
+   - **Docs + code together** (DocsGate pick): the doc is approved as
+     an evolving outline and the coder owns it — each batch also
+     updates the design-doc section it implemented ([Feature docs]
+     rules, same scratch tree). The gate approved direction, not
+     final prose; [4]'s review round then judges doc and app
+     together, and [4]'s doc-update step becomes verification.
    - At DocsGate-send, spawn the `coder` subagent in background:
      "PREP ONLY — read the list below; write nothing; reply READY
-     via ask_parent and hold." The PREP reads:
+     via ask_parent and hold." Requirements already final at spawn
+     (docs+code pick, or a restarted feature)? Then the prompt is
+     "requirements final — no hold: read, draft the plan, then
+     implement." The PREP reads:
      - .pi/repo-map.md §9 (copy-me skeletons)
      - the reference files
      - the models-first digest below
@@ -146,29 +156,44 @@ lives in [Stage messages](#stage-messages):
      - the annotated exemplar `ourapp/tests/test_home_views.py`
      - steer.md's `field_validator`/`ValidationInfo` example under
        "Forms & validation errors"
+     - the design doc itself, under the docs+code option (you own
+       its sections from batch 1)
      PREP also DRAFTS the implementation plan — batch order, files
      per batch, test plan, migration needs — from the digest, and
      the READY reply carries that one-screen plan. The planning
      generation is spent during the gate, not on the implement
      critical path; "implement" resumes straight into batch 1. The
      open question holds the session alive past the 45m retention —
-     any gate length.
-  - On approval, RESUME the prep session — its agent id rides in the
-    READY ask_parent result; pass that id as the `resume` option with
-    prompt "implement". A fresh spawn re-pays the whole orientation
-    (observed: 23 minutes). Only if its session aged out, a session
-    switch cleared its records, or the gate sent you back to revise
-    docs or mockups, re-spawn fresh with the PREP prompt plus the
-    revised digest — never implement against a plan it no longer
-    holds. It runs in BACKGROUND —
-     you stay live to orchestrate the reviewers; its notify_parent
-     ping marks the first green test batch, and its FINAL green
-     report arrives as an ask_parent that HOLDS the session for the
-     fix round — answer it with the triaged code fixes, or "release"
-     to let it complete; the operator watches its tool calls and its
-     permission asks forward to you.
+     any gate length. PREP-and-hold is for the gate window, when no
+     approved requirements exist yet; if the requirements are
+     already final at spawn (approval in hand, or a restarted
+     feature), skip the hold — same reads and plan, then straight
+     into batch 1 in one continuous session.
+   - On approval, RESUME the prep session — its agent id rides in the
+     READY ask_parent result; pass that id as the `resume` option with
+     prompt "implement" (mid-prep pivot path: the id comes from the
+     spawn record — there is no READY result).
+   - Fresh spawn only when: its session aged out, a session switch
+     cleared its records, or the gate sent you back to revise docs or
+     mockups — then re-spawn with the PREP prompt plus the revised
+     digest. Never implement against a plan it no longer holds; a
+     fresh spawn re-pays the whole orientation (observed: 23 minutes).
+   - It runs in BACKGROUND — you stay live to orchestrate the
+     reviewers.
+   - Its notify_parent ping marks the first green test batch.
+   - Its FINAL green report arrives as an ask_parent that HOLDS the
+     session for the fix round — answer it with the triaged code
+     fixes, or "release" to let it complete.
+   - If approval lands while the prep is still running (no READY
+     yet), steer it with "implement" instead of waiting — background
+     agents take steering mid-run, and the coder pivots to batch 1
+     on the spot.
+   - The operator watches its tool calls; its permission asks forward
+     to you.
   - You stay the planner — verify each green batch it reports, keep
-    the docs current; never implement yourself while a coder run is
+    the docs current (docs+code option: the coder keeps the doc
+    current — verify each batch's doc edits); never implement
+    yourself while a coder run is
     open. Continue in the SAME `../scratch/` (no second
     `createscratch` unless sent back). The implement-loop contract
     lives in `.pi/agents/coder.md`.
@@ -180,15 +205,20 @@ lives in [Stage messages](#stage-messages):
 - **[4] Agent review + doc updates** —
   - paste the coder's suite/battery outputs as the evidence; run the
     checks yourself only where the coder had no coverage
-  - the reviewers were familiarized during stage 3 and verified at
+  - the reviewers were familiarized during stage 3 (skip familiarize
+    when they spawn with the final diff already in hand) and verified at
     the final green — triage their findings as they land (see
     [The review round](#the-review-round-stage-4))
    - then answer the coder's held final-green ask with the accepted
-     code fixes — it resumes the SAME session, which still holds the
-     plan and loop state (a session switch between rounds clears
-     subagent records — if the resume is refused, re-spawn fresh with
-     the fix list and the final diff); you fix the docs
-  - update the design doc to match the code
+     code fixes, labeled by owner (coder-owned doc sections vs
+     parent-applied doc fixes) — it resumes the SAME session, which
+     still holds the plan and loop state (a session switch between
+     rounds clears subagent records — if the resume is refused,
+     re-spawn fresh with the fix list and the final diff); you fix
+     the docs
+   - update the design doc to match the code (docs+code option: the
+     coder kept it current per batch — verify, and apply reviewer
+     doc fixes)
 - **[5] Offer to commit** — CommitOffer; never commit unasked.
 - **[6] Final checklist** — after the commit lands, audit the job yourself
   (the operator's recurring catches — never make them catch one again),
@@ -327,6 +357,10 @@ Spawn + feeding mechanics:
      the source.
    - A held reviewer that expired — coder tail past the retention
      window — spawns fresh with the full diff.
+   - Familiarize is for the coder's tail — when the diff isn't final
+     yet. If the final diff already exists at spawn (doc-only work,
+     or the coder already finished), skip it: spawn straight to
+     "verify now" — the diff rides the spawn prompt, no STORED hold.
    - Collect verdicts NON-BLOCKING: `get_subagent_result` with
      `wait: true, timeout: 120` — an expired wait returns the
      reviewer's progress and never stops it, and a settled run
@@ -718,14 +752,16 @@ them with pan/zoom controls.
     - width — viewBox aspect over ~1.3, direction down, vertical
       stacking, narrow boundaries
     - visual faults — actors at the pinned size, use boxes at 240
-      rounded, icons rendering, size uniformity, label and arrow
-      collisions, clipped text, note placement, dark-mode contrast
+      rounded, icons rendering, size uniformity, clipped text, note
+      placement, dark-mode contrast; arrows never cross, enter, or
+      overlap boxes and never strike their own label text (route
+      around, `near`-offset labels)
     - cross-doc consistency — the User actor identical, connection
       phrasing, delete-rule labels, state circles
-  - If it cannot view images, it reports which artifacts it could not
-    see and stops — no source fallback: d2 fences get an `ls` presence
-    check and "assumed OK"; only screenshots and raster renders are
-    judged visually.
+  - It inspects the rendered PNG rasters — checkmarkdownd2 writes one
+    `fence<N>.png` per fence; a missing PNG is a finding. Never read
+    `.svg` content; screenshots and raster renders outside the
+    batch do not exist for it.
   - Its findings join the review triage like any other: that agent
     applies what holds, re-validates (the re-run prints a FRESH render
     dir — paste it into the re-resume), and folds recurring fixes into
@@ -958,8 +994,9 @@ Choose
 - **DocsGate — design docs**
   - [ ] models-first plan digest
   - [ ] design-doc link + mockup links
-  - [ ] menu: 1. revise docs 2. revise mockups 3. approved — code — then
-        `Choose`
+  - [ ] menu: 1. revise docs/mockups 2. docs — approved, code
+        follows 3. docs and code together (doc rides the batches) —
+        then `Choose`
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
 - **BlockerAsk — blocker**
   - [ ] what failed
@@ -1847,6 +1884,16 @@ allowlist.** When a command unexpectedly prompts, read its patterns (catch-all
 the command in a form a pattern covers (the everyday entries are
 quoted below — the config's `bash` map is the full list).
 
+**Prefer prompt-free forms from the start** — every prompt is a wait on
+the operator. Diagnose with allowed tools first (the `bash` map in
+`.pi/extensions/pi-permission-system/config.json` is the full list;
+`id`, `journalctl -u desmo_*`, `stat`, `systemctl status`,
+`sudo -u postgres pgbackrest --stanza=desmo info` are allowlisted;
+`git -C` is deny-listed — cd
+into the repo and run bare `git …`; `./run python -c` always asks —
+reach for `dbstate`/management commands first and save `python -c`
+for when nothing else can answer).
+
 **Environment variables go through `export`, never as a command prefix** —
 `VAR=value command` prefixes are accepted by the gate (the prefix is
 stripped and the command itself is policy-checked), but steer with the
@@ -1886,6 +1933,12 @@ rm ../scratch/<file> […]           # single FILES inside scratch, bare rm only
                                     # fails at exec ("is a directory"): use
                                     # ./run cleanscratch
 export NAME=VALUE                    # pair with && and an allowed command (see above)
+id                                   # own uid — first step of any ownership diagnosis
+journalctl -u desmo_<unit> …         # service logs (granian/huey/pgbackrest;
+                                     # postgresql: journalctl -u postgresql@…)
+stat <path>                          # file ownership + modes
+./run backupdb                       # manual pre-migration backup
+sudo -u postgres pgbackrest --stanza=desmo info
 ```
 
 No multipass form is allowlisted — every multipass command is blocked. VM

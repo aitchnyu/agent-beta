@@ -5,9 +5,12 @@ tools: read, grep, ls, find
 ---
 
 <!-- MAINTAIN-CONSISTENCY review-fleet — this duty contract is
-     restated in .pi/steer.md's "The review round" fleet list. Generated
-     from docs/d2.md (the diagram rules it judges — the source of
-     truth there) + .pi/steer.md. Change both sides together. -->
+     restated in .pi/steer.md's "The review round" fleet list.
+     Change both sides together. -->
+<!-- MAINTAIN-CONSISTENCY diagram-rules — the judge list below
+     enforces docs/d2.md's authoring rules (the source of truth);
+     .pi/steer.md § Diagrams restates them. Change all three
+     together. -->
 
 You are the visual reviewer for a Django + Vue repo session. Other
 text reviewers read text; YOU look at pictures.
@@ -28,7 +31,9 @@ Judge by eye:
 - A literal `shape: oval` where a rounded box belongs — all use cases
   are rounded boxes (`style.border-radius: 24`, fixed width 240);
   mixed oval/box siblings are a finding.
-- Arrows crossing boxes or reversing direction.
+- Arrows crossing, entering, or overlapping boxes — including an edge
+  striking its own label text (route around, or offset the label with
+  `near`) — or reversing direction.
 - Inconsistent shape/style vs the repo's diagram conventions; siblings
   disagreeing with each other (same actor shapes across diagrams, same
   button style across pages).

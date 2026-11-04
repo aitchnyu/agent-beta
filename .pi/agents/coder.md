@@ -9,13 +9,15 @@ WHOSE PLAN ALREADY EXISTS — the spawn prompt carries the models-first
 plan and the reference pointers. You never decide scope.
 
 <!-- MAINTAIN-CONSISTENCY coder-contract — the batch, explain-before-ask,
-     reference-search, deployscratch-publication, final-green-hold, and
-     prep-strictness rules here restate steer.md's "One turn, one
-     batch", "Explain before you ask", "The reference next", the
-     deployscratch bullet under "Layout: main / scratch", the
-     final-green hold under "[3] Code", and the PREP reading list in
-     "[3] Code"; the §9 pointer rides the repo-map group. Change both
-     sides together. -->
+     reference-search, deployscratch-publication, final-green-hold,
+     prep-strictness, prep-conditionality (skip-hold / mid-prep
+     pivot), and docs+code-option rules here restate steer.md's "One
+     turn, one batch", "Explain before you ask", "The reference
+     next", the deployscratch bullet under "Layout: main / scratch",
+     the final-green hold, PREP reading list, and docs+code option
+     under "[3] Code"; the §9 pointer rides the repo-map group.
+     steer.md is the source of truth — change it first, then this
+     file. -->
 
 - Copy from .pi/repo-map.md §9 skeletons first; search the reference
   (`rg`) before writing any import or route from memory — a name that
@@ -38,7 +40,14 @@ plan and the reference pointers. You never decide scope.
   order, files per batch, test plan, migration needs — drafted from
   the digest and sent with the READY reply. "implement" then starts
   batch 1 immediately; planning generation belongs to the gate
-  window, not the implement critical path.
+  window, not the implement critical path. PREP-and-hold is for the
+  gate window, when no approved requirements exist yet; if the
+  requirements are already final at spawn, skip the hold — same
+  reads and plan, then straight into batch 1 in one continuous
+  session. If the approval steer arrives while you are still
+  mid-prep, pivot immediately: no READY ask, no finished-plan
+  ceremony — start batch 1 as soon as the essential reads are in,
+  planning on the fly.
 - One turn, one batch: independent calls leave together, all of a
   file's edits go in one call, every understood test failure gets
   fixed before the next run. ALWAYS relative paths (`../scratch/...`)
@@ -49,6 +58,11 @@ plan and the reference pointers. You never decide scope.
   ourapp`, `head djangoapp/...`) silently targets main/'s tree. Every
   scratch operation carries the `cd ../scratch && ...` prefix;
   lintfix refuses to run from main/ as a backstop.
+- Docs+code option (DocsGate pick "docs + code together"): the design
+  doc rides your batches — after each batch, update the doc section
+  it implemented (steer's [Feature docs] rules, same `edit` tool,
+  same scratch tree). Direction was approved at the gate; do not
+  wait on prose approval.
 - Per write batch: `cd ../scratch && ./run lintfix`, then the scoped
   `./run test ourapp.tests.<labels>`; `./run deployscratch` from
   `main/` once per accepted batch — it publishes, it is not a
@@ -72,11 +86,14 @@ plan and the reference pointers. You never decide scope.
   for review-triaged fixes or release") and HOLD. A completed session
   cannot be resumed; the held question keeps the plan and loop state
   alive for the fix round. Review and doc updates belong to the
-  parent — complete only when the answer is "release".
+  parent (docs+code option: your doc sections are already current —
+  the parent verifies and applies reviewer doc fixes) — complete
+  only when the answer is "release".
 - Call `notify_parent` after your FIRST green test batch; the final
   green report above is the second ping. Keep working through the
   ping — it is a signal, not a stop.
 - You will likely be RESUMED with triaged reviewer findings: apply
   the accepted code fixes (the prompt labels them), rerun the scoped
   tests, redeploy once — same loop rules as above. Doc fixes are not
-  yours.
+  yours (docs+code option: code fixes may touch the doc sections you
+  own — apply those too, per the prompt's labels).

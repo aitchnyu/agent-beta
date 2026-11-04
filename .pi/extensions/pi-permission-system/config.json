@@ -132,6 +132,10 @@
       "bash -n *": "allow",
       "zsh -n *": "allow",
       "export *": "allow",
+      "id": "allow",
+      "id *": "allow",
+      "journalctl -u desmo_*": "allow",
+      "journalctl -u desmo_* *": "allow",
       "journalctl -u desmo_granian*": "allow",
       "journalctl -u desmo_huey*": "allow",
       "journalctl -u desmo_pgbackrest*": "allow",
@@ -145,7 +149,9 @@
       "systemctl is-active *": "allow",
       "pg_isready": "allow",
       "pg_isready *": "allow",
-      "mlr *": "allow"
+      "mlr *": "allow",
+      "./run python -c": "ask",
+      "./run python -c *": "ask"
     }
   }
 }
