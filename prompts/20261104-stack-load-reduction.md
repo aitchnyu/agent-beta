@@ -109,16 +109,30 @@ after writing, per feature.
       suites OK; not yet committed)
 - [x] Reload-safe idiom: useAppPage computes internally; TodosPage
       exemplar + §9 skeleton now teach it (DONE Nov 4)
-- [ ] `./run genschemas <module.attr>` (importlib target + hey-api
-      zod plugin) — one generated.ts per API; `--check` in
-      checkframework1/2 batteries + deployscratch
-- [ ] Decimal → string on the wire: steer rule added (Nov 4);
-      apply `field_serializer` to existing Decimal Out schemas +
-      `format: decimal` when codegen lands
-- [ ] Frontend tool dedup (package.json scripts + devDeps)
-- [ ] Ruff curated select; mypy tests override + drop
-      `disallow_any_decorated`
-- [ ] `<uuid:public_id>` in §5 skeleton + repo-map sync test
+- [x] `./run genschemas <module:api> [out]` — ON DEMAND, no target
+      list, no drift gate (nothing imports generated files yet; revisit
+      `--check` only when adoption is real). Emits `zod.gen.ts` (hey-api
+      zod plugin) + `sdk.gen.ts` via OUR OWN TEMPLATE:
+      `frontend/scripts/gensdk.template.ejs` (EJS — verbatim output
+      shape with `<%- %>` holes, real backticks/`${}`) rendered by the
+      typed `frontend/scripts/gensdk.ts` (tsx + ejs devDeps); one typed
+      function per JSON operation wrapping `ninjaPost`, named from
+      method+path; pages/inline-schema ops skipped with a comment.
+      ADOPTED: UserDetails.vue's loginlink/logout now call the
+      generated client; the hand schemas in schemas/users.ts are
+      deleted (DONE Nov 4 — VM-verified; not committed)
+- [x] Decimal → string on the wire: steer rule added (Nov 4);
+      `field_serializer` applies when a Decimal field first ships
+- [x] Frontend tool dedup: vue-tsc + typescript@6 dropped; eslint
+      rescoped to TEMPLATE rules only (3 devDeps: eslint +
+      eslint-plugin-vue + vue-eslint-parser, parser:false skips
+      scripts; vue-tsgo owns expressions) — verified the essential
+      rules (v-if+v-for, missing v-for key) fire and the build does NOT
+      catch them; lint = oxlint + prettier + eslint templates (DONE Nov 4)
+- [x] Ruff curated select (`E,F,W,I,B,UP,DJ,RUF` + 3 ignores, no
+      per-file-ignores — also clears ops/scratch.py's pre-existing
+      0.17.1 drift); mypy dropped `disallow_any_decorated` (DONE Nov 4)
+- [x] `<uuid:public_id>` rule in §5 skeleton (DONE Nov 4)
 - [ ] Re-run a feature; compare orientation + verify-tail minutes
       against the Nov 3/Nov 4 runs
 

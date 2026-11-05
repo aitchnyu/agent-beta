@@ -540,8 +540,8 @@ keeps this list in sync with the commands dir; never let it drift):
   user totals. The replacement for hand-rolled python introspection.
 - `makeloginlink <email>` — one-time login URL for an existing user.
 - `promotetosuperuser <email>` — grant staff + superuser.
-- `backupmarker <set|…>` — the backup-marker sentinel (the checkframework2
-  gate drives its backup round-trip through it).
+- `backupmarker <set|…>` — the backup-marker sentinel (NOT allowlisted —
+  it writes; the checkframework2 gate drives its backup round-trip).
 - `addoauth <provider> <client_id> <secret>` — register an OAuth login
   (asks: the secret rides the command line).
 - `makemigrations` / `migrate` — schema changes (via djangomanage).

@@ -1,3 +1,5 @@
+Can be enstricten linting for the actual code?
+
 are we having in framework test too? Will we have an ops command to write any .ts file even for multiple ninjas? How does it emit a typed sdk?
 
 avoid manual zod and fetch
@@ -327,6 +329,8 @@ Can choose multiple machines, no more init and dev in run, slim down pi command
 convert checkframework1 and gate to python script
 provision-full and delete-vm should have a prefix
 vm provsion should print 
+
+Can we avoid NinjaError special case? 
 
 Test dbs get backed up
 Run the uv, npm, playwright installs in parallel?

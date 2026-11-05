@@ -18,9 +18,9 @@ const isAuthenticated = computed(() => shared.value.user !== null)
   <PageTitle />
   <div class="home-container">
     <p class="home-placeholder-note text-muted">
-      Agent instruction: this page is throwaway placeholder scaffolding —
-      remove ALL of it (both the logged-in and the anonymous signed-out
-      content) as soon as possible, in mockup time itself.
+      Agent instruction: this page is throwaway placeholder scaffolding — remove
+      ALL of it (both the logged-in and the anonymous signed-out content) as
+      soon as possible, in mockup time itself.
     </p>
     <template v-if="isAuthenticated">
       <p class="home-placeholder-note text-muted">

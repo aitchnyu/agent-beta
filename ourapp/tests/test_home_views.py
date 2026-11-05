@@ -6,7 +6,7 @@
 # representative: BaseInertiaTestCase + the inertia harness,
 # HTTPStatus enums, the TYPE_CHECKING-only _MonkeyPatchedWSGIResponse
 # annotation, per-test docstrings, noqa discipline. The paired PREP
-# reads — pyproject.toml's [tool.ruff] (select=ALL) and [tool.mypy]
+# reads — pyproject.toml's [tool.ruff] select=ALL and [tool.mypy]
 # (strict, django-stubs plugin) sections, and steer.md's
 # ValidationInfo example under "Forms & validation errors" — cover
 # the strictness this file's patterns exist to avoid.

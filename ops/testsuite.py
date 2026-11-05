@@ -44,7 +44,7 @@ def _migrations_hash() -> str:
 
 
 def _keepdb_hint() -> bool:
-    """True when the marker still matches the migration trees.
+    """Return whether the marker still matches the migration trees.
 
     While it matches, suites may pass --keepdb and reuse desmo_db_test
     instead of recreating it + replaying migrations before every run.
@@ -112,10 +112,8 @@ class Playwrighttest(LabelsCommand):
     @staticmethod
     def run(args: argparse.Namespace, extra: list[str]) -> None:
         scratch.built_frontend(scratch.MAIN_DIR / "frontend")
-        # Same keepdb-by-marker caching as `test`: while no migration
-        # changed, reuse desmo_db_test instead of recreating + replaying
-        # migrations before every e2e run (the e2e fix loop pays this
-        # boot per invocation otherwise).
+        # Same keepdb-by-marker caching as `test`: reuse desmo_db_test
+        # while no migration changed.
         flags = ["--keepdb"] if _keepdb_hint() else []
         shell.run(
             "uv",

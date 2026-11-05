@@ -4,7 +4,7 @@ set -euo pipefail
 
 # Color in tool/test output: keep it in a real terminal, strip it when captured
 # (agent logs, pipes) so ANSI escapes don't pollute the captured text. NO_COLOR
-# is the broad switch (eslint/vitest/vite/Django/ruff/mypy all respect it); the
+# is the broad switch (eslint/oxlint/vite/Django/ruff/mypy all respect it); the
 # explicit flags are belt-and-suspenders for the tools the agent runs most.
 if [ -t 1 ]; then
   _RUFF_COLOR=
@@ -511,7 +511,7 @@ ${H}Development${R}
   ${C}pi${R}                  the pi coding-agent TUI (scratch-driven edit → deploy loop)
 
 ${H}Checks${R}
-  ${C}lintfix${R}             ruff format + ruff check, oxlint + eslint (vue templates) (writes)
+  ${C}lintfix${R}             ruff format + ruff check, oxlint + prettier + eslint templates (writes)
   ${C}test${R} [args…]        Django tests — quiet logs, failfast, auto keepdb on unchanged migrations; --full = full run; other flags pass to manage.py
   ${C}typecheck${R}           mypy (backend); the frontend type-check (vue-tsgo) rides npm run build
   ${C}checkmarkdownd2${R} [file.md]

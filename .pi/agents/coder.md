@@ -33,13 +33,11 @@ plan and the reference pointers. You never decide scope.
   validation errors" — then study the approved mockups + requirement
   and draft the PRELIMINARY models-first plan from them. Reply
   "GROUNDWORK DONE + preliminary plan" via ask_parent and hold.
-  New files under ruff `select=ALL` + strict django-stubs take
-  predictable bites — typing-only imports,
-  `_MonkeyPatchedWSGIResponse` response
-  annotations, fixture types, validator signatures. Copy the
-  exemplar's and example's patterns when writing new files; the
-  strictness learned mid-fix-loop costs a lintfix round per
-  discovery.
+  New files take predictable bites — ruff runs select=ALL
+  (typing-only imports, missing annotations, mutable class attributes
+  without `ClassVar`, bugbear patterns) and django-stubs is strict
+  (`TestResponse` annotations, fixture types, validator signatures).
+  Copy the exemplar's and example's patterns when writing new files.
 - At DocsGate-send (wave 2) you receive the models-first digest
   (plus the design doc under the docs+code option — you own its
   sections from batch 1): RECONCILE the preliminary plan against it

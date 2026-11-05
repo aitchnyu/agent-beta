@@ -21,6 +21,7 @@ Design notes:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -46,29 +47,50 @@ MAIN_DIR = Path(__file__).resolve().parent.parent
 SCRATCH_DIR = MAIN_DIR.parent / "scratch"
 
 
-def visible_files_hash(directory: Path, *, prefix: str = "") -> str:
-    """sha256 of a directory's git-visible files: tracked +
-    untracked-but-not-ignored (git ls-files), sorted names + contents.
+def visible_files_hash(
+    directory: Path, *, prefix: str = "", exclude: tuple[str, ...] = ()
+) -> str:
+    """Compute the sha256 of a directory's git-visible files.
 
-    Ignored files never contribute; `prefix` namespaces the names when
-    several trees are combined into one digest.
+    Tracked + untracked-but-not-ignored files (git ls-files), sorted
+    names + contents.
+
+    `exclude` skips top-level directories that contain files written
+    by this very module — without it, the marker the suite writes
+    would change the hash and defeat the skip.
     """
-    import hashlib
-
     listing = subprocess.check_output(
-        ["git", "-C", str(directory), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        [
+            "git",
+            "-C",
+            str(directory),
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            # --exclude-standard drops gitignored files already
+            # (node_modules, caches, .env) — nothing else needed for them.
+            "--exclude-standard",
+        ],
     )
     digest = hashlib.sha256()
     for name in sorted(listing.decode().split("\0")):
         path = directory / name
-        if name and path.is_file():
+        # dist/ is not gitignored (the deploy needs the bundle), so the
+        # exclude list must drop it here: otherwise this function's own
+        # marker file would change every hash and break the skip.
+        if (
+            name
+            and path.is_file()
+            and not name.startswith(tuple(e + "/" for e in exclude))
+        ):
             digest.update((prefix + name).encode())
             digest.update(path.read_bytes())
     return digest.hexdigest()
 
 
 def marker_content_for(marker: Path) -> str | None:
-    """The marker's stored digest, or None when absent."""
+    """Return the marker's stored digest, or ``None`` when absent."""
     if not marker.is_file():
         return None
     return marker.read_text(encoding="utf-8").strip()
@@ -81,15 +103,18 @@ def write_marker(marker: Path, digest: str) -> None:
 
 
 def built_frontend(frontend: Path) -> None:
-    """Rebuild a frontend bundle — skipped when its build inputs are
-    unchanged since the last build (the marker rides dist/, so a wiped
-    or rsynced dist rebuilds)."""
-    digest = visible_files_hash(frontend)
+    """Rebuild a frontend bundle, skipping unchanged inputs.
+
+    The skip decision rides a marker in ``dist/``, so a wiped or
+    rsynced dist rebuilds.
+    """
+    digest = visible_files_hash(frontend, exclude=("dist",))
     marker = frontend / "dist" / ".build-sha"
     if marker_content_for(marker) == digest:
         return
     shell.run("npm", "run", "build", cwd=frontend)
     write_marker(marker, digest)
+
 
 # Agent scratch space outside the repo: d2 renders (checkmarkdownd2) and
 # parked oversized bash output (tool-output-cap). Wiped with the tree.
@@ -458,7 +483,7 @@ class Deployscratch(Command):
         if exit_code == 0:
             try:
                 backup_held = bool(json.loads(probe_output)[0]["status"]["lock"]["backup"]["held"])
-            except (ValueError, IndexError, KeyError, TypeError):
+            except ValueError, IndexError, KeyError, TypeError:
                 backup_held = False
         if backup_held:
             shell.die("Refusing: a backup is running — let it finish, then re-run deployscratch.")

@@ -1,69 +1,31 @@
-import js from "@eslint/js"
-import vue from "eslint-plugin-vue"
-import typescript from "@typescript-eslint/eslint-plugin"
-import typescriptParser from "@typescript-eslint/parser"
-import vueParser from "vue-eslint-parser"
-import {
-  defineConfigWithVueTs,
-  vueTsConfigs,
-} from "@vue/eslint-config-typescript"
-import prettierConfig from "@vue/eslint-config-prettier"
+import pluginVue from "eslint-plugin-vue"
 
-export default defineConfigWithVueTs(
-  js.configs.recommended,
-  ...vue.configs["flat/essential"],
-  vueTsConfigs.recommended,
+// Templates only: <template> correctness rules (duplicate attrs,
+// v-if+v-for, missing v-for key…). Script blocks are vue-tsgo's job,
+// formatting is prettier's — no TS parser, no prettier plugin here,
+// which keeps this at three dev-deps instead of the old twelve.
+export default [
   {
-    files: ["**/*.vue", "**/*.ts"],
+    ignores: ["dist/**", "node_modules/**", "**/*.gen.ts"],
+  },
+  ...pluginVue.configs["flat/essential"],
+  {
+    files: ["src/**/*.vue"],
     languageOptions: {
-      ecmaVersion: "latest",
-      sourceType: "module",
-      parser: vueParser,
       parserOptions: {
-        parser: typescriptParser,
+        // false = skip <script> blocks (vue-tsgo's job); template
+        // structural rules still run — that's this config's whole point.
+        parser: false,
+        sourceType: "module",
       },
-      globals: {
-        window: "readonly",
-        document: "readonly",
-        console: "readonly",
-      },
-    },
-    plugins: {
-      "@typescript-eslint": typescript,
     },
     rules: {
-      "no-unused-vars": ["error", { argsIgnorePattern: "^_$" }],
-      "no-debugger": "off",
+      // Template expressions are TypeScript (`$event.target as …`) and
+      // scripts are lang="ts" — both skipped here (vue-tsgo owns them),
+      // so vue/no-parsing-error only reports false positives on TS casts.
+      "vue/no-parsing-error": "off",
       "vue/multi-word-component-names": "off",
       "vue/no-deprecated-filter": "off",
     },
   },
-  {
-    // Node-side scripts (build config, tools) — node globals.
-    files: ["eslint.config.js", "vite.config.js", "scripts/**/*.mjs"],
-    languageOptions: {
-      globals: {
-        console: "readonly",
-        process: "readonly",
-      },
-    },
-  },
-  {
-    // The Web Push service worker (frontend/public/) is plain JS copied
-    // verbatim by Vite; `self` is its global scope (no window/document)
-    // and `URL` the worker-context constructor it uses for the
-    // same-origin navigation guard.
-    files: ["public/**/*.js"],
-    languageOptions: {
-      globals: {
-        self: "readonly",
-        URL: "readonly",
-      },
-      sourceType: "script",
-    },
-  },
-  {
-    ignores: ["dist/**", "node_modules/**"],
-  },
-  prettierConfig,
-)
+]
