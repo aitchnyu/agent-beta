@@ -3,27 +3,19 @@ import { computed, ref } from "vue"
 import { router } from "@inertiajs/vue3"
 import { z } from "zod"
 import PageTitle from "../../system/components/PageTitle.vue"
-import { postForm, postJSON } from "../../system/utils/http"
+import { postForm } from "../../system/utils/http"
+import { DownloadOutSchema, post_delete_download } from "../schemas/downloads_sdk"
 import { useAppPage } from "../../system/utils/useAppPage"
 import { showErrorToast } from "../../system/utils/sweetalert"
 import "../styles/app.scss"
 
-const DownloadSchema = z.object({
-  public_id: z.string(),
-  // What the uploader called it (what clients see); stored_name is the
-  // storage path (downloads/<name>) — it IS the anonymous download URL.
-  original_name: z.string(),
-  stored_name: z.string(),
-  expires_at: z.string(),
-  is_expired: z.boolean(),
-  // Optimistic-lock echo for replace (deletes carry no version).
-  row_version: z.number().int().nonnegative(),
-})
-
-type DownloadOut = z.infer<typeof DownloadSchema>
+// The row shape comes from the generated sdk (DownloadOutSchema, built from
+// the backend DownloadOutSchema — stored_name is the storage path and IS the
+// anonymous download URL).
+type DownloadOut = z.infer<typeof DownloadOutSchema>
 
 const DownloadsPagePropsSchema = z.object({
-  downloads: DownloadSchema.array(),
+  downloads: DownloadOutSchema.array(),
 })
 
 // Parsed reactively (computed inside useAppPage): reload-safe — every
@@ -110,7 +102,7 @@ async function remove(d: DownloadOut) {
   if (busy.value !== null) return
   busy.value = d.public_id
   try {
-    await postJSON(`/downloads/${d.public_id}/delete`)
+    await post_delete_download(d.public_id)
     reload()
   } catch (e) {
     showErrorToast(e, "Could not delete the download")

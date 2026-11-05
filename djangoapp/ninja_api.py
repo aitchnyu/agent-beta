@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 # Fixed, leak-free messages for error classes that shouldn't echo internals.
-_NOT_FOUND = (
+NOT_FOUND_TEXT = (
     "This is a 404. We couldn't show you what you were looking for or complete that "
     "action. This usually happens when the page has moved, the link has expired, "
     "or access is restricted."
@@ -51,9 +51,9 @@ class ApiError(HttpError):
     ``raise ApiError(404)`` or
     ``raise ApiError(404, type="user_mismatch", msg="…", ctx={…})``. The
     response body is ``{"type": …, "msg": …, "ctx": {}}`` top-level with
-    unset keys omitted — a body ``msg`` is user copy the toast renders
-    verbatim. ``message`` (required by ``HttpError``) serves logs and
-    ``str()``: the msg, else the type, else a plain status line.
+    unset keys omitted — a body ``msg`` is user copy the frontend toast
+    renders verbatim. ``message`` (required by ``HttpError``) serves logs
+    and ``str()``: the msg, else the type, else a plain status line.
     """
 
     def __init__(
@@ -81,6 +81,28 @@ def _wants_html(request: HttpRequest) -> bool:
     return "text/html" in request.headers.get("Accept", "") and not request.headers.get("X-Inertia")
 
 
+class ExportedSchemaMixin:
+    """Marker: this schema joins the generated frontend SDK (repo-map §2).
+
+    Keep it empty — shared config would change every exported model.
+    """
+
+
+class NotFound(Http404):
+    """A 404 that works on both surfaces.
+
+    Pages (plain Django views) render ``404.html`` with ``msg`` via the
+    project's handler404; JSON ops get the standard error envelope with
+    ``type``/``msg`` from the ninja handler. A bare ``Http404`` stays
+    generic and leak-safe; only this curated form carries messages.
+    """
+
+    def __init__(self, type: str = "not_found", msg: str | None = None) -> None:  # noqa: A002
+        super().__init__(msg or "")
+        self.error_type = type
+        self.msg = msg
+
+
 def register_api_error_handlers(api: NinjaAPI) -> None:
     """Register friendly, leak-free JSON handlers on ``api``."""
 
@@ -91,7 +113,7 @@ def register_api_error_handlers(api: NinjaAPI) -> None:
             # bare ApiError(404) has none, so fall back to the friendly
             # fixed text (never "HTTP 404").
             return render(
-                request, "404.html", {"message": exc.msg or _NOT_FOUND}, status=exc.status_code
+                request, "404.html", {"message": exc.msg or NOT_FOUND_TEXT}, status=exc.status_code
             )
         body: DictStrAny = {}
         if exc.error_type is not None:
@@ -103,16 +125,18 @@ def register_api_error_handlers(api: NinjaAPI) -> None:
         return api.create_response(request, body, status=exc.status_code)
 
     @api.exception_handler(Http404)
-    def on_http_404(request: HttpRequest, _exc: Exception) -> HttpResponse:
+    def on_http_404(request: HttpRequest, exc: Exception) -> HttpResponse:
         # Reveal the requested path (the user's own input — never a server-internal
         # leak) so a 404 names what wasn't found; never str(exc), which a message-
-        # carrying Http404 could use to leak internals (use ApiError(404, …) for a
-        # fully custom message). The path rides in ctx, not the message.
-        body = {"type": "not_found", "msg": _NOT_FOUND, "ctx": {"path": request.path}}
+        # carrying Http404 could use to leak internals. Our NotFound carries a
+        # curated, server-constructed type/msg; a bare Http404 stays generic.
+        error_type = getattr(exc, "error_type", None) or "not_found"
+        message = getattr(exc, "msg", None) or NOT_FOUND_TEXT
+        body = {"type": error_type, "msg": message, "ctx": {"path": request.path}}
         if _wants_html(request):
             # A browser navigation (Accept: text/html) gets the same message
             # rendered on the HTML 404 page instead of raw JSON.
-            detail = f"{_NOT_FOUND}: {request.path}"
+            detail = f"{message}: {request.path}"
             return render(request, "404.html", {"message": detail}, status=404)
         return api.create_response(request, body, status=404)
 

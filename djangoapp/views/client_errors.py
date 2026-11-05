@@ -2,7 +2,7 @@
 
 The frontend's global handlers (frontend/src/main.ts) POST here with the error
 message, stack, source location (filename/lineno/colno), page url and browser
-context. This view logs it once on the ``client`` logger and returns 204. The
+context. This view logs it once on the ``client`` logger and acks with JSON. The
 authoritative identity is read from ``request.user`` (never trusted from the
 body); anonymous reports are accepted (``user`` is ``None``).
 
@@ -20,16 +20,17 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
-from django.http import HttpRequest, HttpResponse
 from ninja import Router
 from pydantic import BaseModel, ConfigDict, Field
 
 from djangoapp.logging import get_logger
-from djangoapp.ninja_api import make_ninja_api
+from djangoapp.ninja_api import ApiError, ExportedSchemaMixin, make_ninja_api
 from djangoapp.redis_client import redis_client
 from djangoapp.shortcuts import maybe_user
 
 if TYPE_CHECKING:
+    from django.http import HttpRequest
+
     from djangoapp.models import User
 
 logger = get_logger("client")
@@ -54,7 +55,7 @@ _MAX_STACK_CHARS = 500
 _MAX_STACK_INPUT = 5000
 
 
-class ClientErrorBody(BaseModel):
+class ClientErrorBody(BaseModel, ExportedSchemaMixin):
     """A single frontend-reported error."""
 
     # extra="forbid" makes the no-injection guarantee explicit: a client can't
@@ -78,6 +79,12 @@ class ClientErrorBody(BaseModel):
         "'render', 'setup function') — categorizes where the error blew up.",
     )
     public_id: str | None = None
+
+
+class ClientErrorAck(BaseModel, ExportedSchemaMixin):
+    """The sink's minimal JSON ack (it used to answer 204 No Content)."""
+
+    accepted: bool = True
 
 
 client_errors_router = Router()
@@ -104,11 +111,11 @@ def _rate_limited(user: User | None) -> bool:
     return bool(result) and result[0] > _RATE_LIMIT
 
 
-@client_errors_router.post("/client-errors", response={204: None, 429: None})
-def submit(request: HttpRequest, body: ClientErrorBody) -> HttpResponse:
+@client_errors_router.post("/client-errors", response=ClientErrorAck)
+def submit(request: HttpRequest, body: ClientErrorBody) -> ClientErrorAck:
     user = maybe_user(request)
     if _rate_limited(user):
-        return HttpResponse(status=429)
+        raise ApiError(429, type="rate_limited", msg="Too many error reports — try again later")
     logger.warning(
         "client error",
         source="client",
@@ -129,7 +136,7 @@ def submit(request: HttpRequest, body: ClientErrorBody) -> HttpResponse:
             {"public_id": user.public_id, "username": user.username} if user is not None else None
         ),
     )
-    return HttpResponse(status=204)
+    return ClientErrorAck()
 
 
 # Mount at the project root so the route is POST /client-errors.

@@ -16,12 +16,18 @@ sniffing ``manage.py test`` in settings.py, so production settings stay pure;
 
 from __future__ import annotations
 
-from typing import Any, cast
+from http import HTTPStatus
+from typing import TYPE_CHECKING, Any, cast
 
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from inertia.test import InertiaTestCase
 
 from djangoapp.redis_client import clear_redis
+
+if TYPE_CHECKING:
+    # django-stubs' name for what the test Client actually returns (with
+    # .json()/.context) — plain HttpResponse would understate it.
+    from django.test.client import _MonkeyPatchedWSGIResponse
 
 
 @override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.MD5PasswordHasher"])
@@ -42,6 +48,19 @@ def feature_props_of(page_json: object) -> dict[str, Any]:
     outer = cast("dict[str, object]", page_json)
     inner = cast("dict[str, object]", outer["props"])
     return cast("dict[str, Any]", inner["props"])
+
+
+def assert_page_404(test_case: SimpleTestCase, response: _MonkeyPatchedWSGIResponse) -> None:
+    """Assert the friendly 404 page: status, HTML, the message and the home link.
+
+    The page-vs-API contract tests use this: a page URL 404 always renders
+    that page, whatever the client's ``Accept`` header says.
+    """
+    test_case.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
+    test_case.assertEqual(response["Content-Type"], "text/html; charset=utf-8")
+    body = response.content.decode()
+    test_case.assertIn("Page not found", body)
+    test_case.assertIn('href="/"', body)
 
 
 class FreshRedisBuckets:

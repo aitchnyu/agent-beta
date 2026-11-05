@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ref } from "vue"
+import type { z } from "zod"
 import FieldError from "../../system/components/FieldError.vue"
 import { NinjaError } from "../../system/utils/pydanticErrors"
-import { ninjaPost } from "../../system/utils/http"
-import { TodoSchema, type TodoOut } from "../schemas/todos"
+import { TodoOutSchema, post_create_todo } from "../schemas/todos_sdk"
 
-// Create mode (no `todo` prop): POST /todos/create, then emit "created"
+type TodoOut = z.infer<typeof TodoOutSchema>
+
+// Create mode (no `todo` prop): the generated sdk call, then emit "created"
 // with the todo the endpoint returns.
 const props = defineProps<{ todo?: TodoOut }>()
 const emit = defineEmits<{ created: [todo: TodoOut] }>()
@@ -22,16 +24,17 @@ async function submit() {
   submitting.value = true
   try {
     // expected_row_version: 0 — the required value for a create (no prior state to echo).
-    const result = await ninjaPost(TodoSchema, "/todos/create", {
+    const result = await post_create_todo({
       text: text.value,
       expected_row_version: 0,
     })
-    if (result instanceof NinjaError) {
-      errors.value = result.childForPath(["body", "payload"])
-      return
-    }
     text.value = ""
     emit("created", result)
+  } catch (e) {
+    // Not validation (network/server): rethrow — main.ts' global
+    // handlers toast it. Validation scopes inline, under the field.
+    if (!(e instanceof NinjaError)) throw e
+    errors.value = e.childForPath(["body", "payload"])
   } finally {
     submitting.value = false
   }

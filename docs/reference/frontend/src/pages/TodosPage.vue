@@ -4,14 +4,15 @@ import { computed, ref } from "vue"
 import { router } from "@inertiajs/vue3"
 import { z } from "zod"
 import TodoForm from "../components/TodoForm.vue"
-import { TodoSchema, type TodoOut } from "../schemas/todos"
-import { postJSON } from "../../system/utils/http"
+import { TodoOutSchema, post_toggle_todo } from "../schemas/todos_sdk"
 import { useAppPage } from "../../system/utils/useAppPage"
 import { showErrorToast } from "../../system/utils/sweetalert"
 import "../styles/app.scss"
 
+type TodoOut = z.infer<typeof TodoOutSchema>
+
 const TodosPagePropsSchema = z.object({
-  todos: TodoSchema.array(),
+  todos: TodoOutSchema.array(),
 })
 
 // The page's own data: useAppPage parses the inner `props` key REACTIVELY
@@ -46,7 +47,7 @@ async function toggle(todo: TodoOut) {
     // row changed server-side since this read, the stale number is rejected
     // with a 404 and only the catch below runs; reload() is reached solely on
     // success, so the list never shows a toggle the server refused.
-    await postJSON(`/todos/${todo.public_id}/toggle`, {
+    await post_toggle_todo(todo.public_id, {
       expected_row_version: todo.row_version,
     })
     await reload()

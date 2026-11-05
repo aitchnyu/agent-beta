@@ -10,7 +10,7 @@ import {
   reportVisitError,
 } from "./system/utils/clientError"
 import { showErrorToast } from "./system/utils/sweetalert"
-import { UserVisibleError } from "./system/utils/pydanticErrors"
+import { NinjaError, UserVisibleError } from "./system/utils/pydanticErrors"
 import "./system/styles/main.scss"
 import "vue-multiselect/dist/vue-multiselect.css"
 // Eager styles for the lazy JS chunks, otherwise these pages flash of unstyled content.
@@ -40,6 +40,16 @@ async function runErrorPipeline(
   }
 }
 
+// An expected, server-articulated rejection (a thrown ninja 422 no form
+// scoped): toast it, but keep it OUT of the client-error sink — that is
+// for client bugs, and per-site copy is gone by design (ninja* callers
+// that only toast let the error fly here).
+const toastIfNinjaError = (e: unknown): boolean => {
+  if (!(e instanceof NinjaError)) return false
+  void showErrorToast(e, "Request failed")
+  return true
+}
+
 // Global safety net: surface errors that escape component try/catch as toasts,
 // AND ship them to the backend (POST /client-errors) with the source location,
 // page url and reporter identity. Vue-caught errors go to app.config.errorHandler
@@ -52,6 +62,7 @@ window.addEventListener("error", (event: ErrorEvent) => {
   // reportErrorEvent returns false for resource-load failures (broken
   // <img>/<script>) — those aren't JS errors, so skip the user-facing toast too.
   runErrorPipeline(() => {
+    if (toastIfNinjaError(err)) return
     if (!reportErrorEvent(event)) return
     return showErrorToast(err ?? event.message, "Something went wrong")
   })
@@ -65,6 +76,7 @@ window.addEventListener(
       reason?.stack ?? reason?.message ?? reason,
     )
     runErrorPipeline(() => {
+      if (toastIfNinjaError(reason)) return
       reportRejection(event)
       return showErrorToast(reason, "Something went wrong")
     })
@@ -118,6 +130,7 @@ createInertiaApp({
     app.config.errorHandler = (err, _instance, info) => {
       console.error("Vue error:", err instanceof Error ? err.stack : err)
       runErrorPipeline(() => {
+        if (toastIfNinjaError(err)) return
         reportVueError(err, info)
         return showErrorToast(err, "Something went wrong")
       })

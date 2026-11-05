@@ -17,8 +17,8 @@ from ninja import NinjaAPI
 from ninja.testing import TestClient
 
 from djangoapp.models import User
-from djangoapp.ninja_api import _NOT_FOUND, register_api_error_handlers
-from djangoapp.tests._base import BaseInertiaTestCase, BaseTestCase
+from djangoapp.ninja_api import register_api_error_handlers
+from djangoapp.tests._base import BaseInertiaTestCase, BaseTestCase, assert_page_404
 
 if TYPE_CHECKING:
     from django.http import HttpRequest, HttpResponse
@@ -26,15 +26,20 @@ if TYPE_CHECKING:
 _BROWSER_ACCEPT = "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
 
 
-class NinjaErrorHtmlTests(BaseInertiaTestCase):
-    """Ninja 404 content negotiation: HTML page for browsers, JSON for API clients.
+class ErrorSurfaceTests(BaseInertiaTestCase):
+    """The surface, not the Accept header, decides a 404's shape.
 
-    - test_browser_navigation_gets_html_404, text/html Accept without X-Inertia
-      renders 404.html (message + homepage link)
-    - test_api_client_still_gets_json_404, the default Accept (*/*) keeps the
-      {"type", "msg", "ctx"} JSON contract
-    - test_inertia_visit_gets_json_404, an X-Inertia visit with a browser
-      Accept stays on JSON
+    Page URLs are plain Django views now: a page 404 always renders
+    ``404.html`` (Django's handler404), whatever the client's Accept says.
+    JSON ops keep the ninja contract: the {"type", "msg", "ctx"} envelope,
+    with the browser-Accept HTML branch still reserved for a navigation.
+
+    - test_page_404_is_html, a page URL → the 404 page
+    - test_page_404_is_html_even_for_api_accept, Accept */* on a page URL
+      does NOT switch it to JSON (the old negotiation is gone)
+    - test_json_op_404_is_json, an API URL → the envelope (custom type kept)
+    - test_json_op_404_blanket_accept_is_json, HTML Accept without X-Inertia
+      on an API URL still negotiates to the envelope (ninja handlers)
     """
 
     superuser: User
@@ -43,38 +48,40 @@ class NinjaErrorHtmlTests(BaseInertiaTestCase):
     def setUpTestData(cls) -> None:
         cls.superuser = User.objects.create_user(username="admin", is_superuser=True, is_staff=True)
 
-    def test_browser_navigation_gets_html_404(self) -> None:
-        """A text/html Accept (no X-Inertia) renders the 404 page, not JSON."""
+    def test_page_404_is_html(self) -> None:
+        """A page URL 404 renders the friendly page for a browser navigation."""
         self.client.force_login(self.superuser)
         response = self.client.get("/files/ourapp/does-not-exist.txt", HTTP_ACCEPT=_BROWSER_ACCEPT)
-        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
-        self.assertEqual(response["Content-Type"], "text/html; charset=utf-8")
-        body = response.content.decode()
-        self.assertIn("Page not found", body)
-        self.assertIn('href="/"', body)
+        assert_page_404(self, response)
 
-    def test_api_client_still_gets_json_404(self) -> None:
-        """The default test-client Accept (*/*) keeps the JSON contract."""
+    def test_page_404_is_html_even_for_api_accept(self) -> None:
+        """Accept */* on a page URL still gets the page — pages own that space."""
         self.client.force_login(self.superuser)
         response = self.client.get("/files/ourapp/does-not-exist.txt")
+        assert_page_404(self, response)
+
+    def test_json_op_404_is_json(self) -> None:
+        """An API URL keeps the envelope, custom type included."""
+        self.client.force_login(self.superuser)
+        response = self.client.post("/notifications/api/00000000-0000-0000-0000-000000000000/read")
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
         self.assertEqual(response.headers["Content-Type"], "application/json; charset=utf-8")
         body = response.json()
-        self.assertEqual(body["type"], "not_found")
-        self.assertEqual(body["msg"], _NOT_FOUND)
-        self.assertEqual(body["ctx"], {"path": "/files/ourapp/does-not-exist.txt"})
+        self.assertEqual(body["type"], "notification_not_found")
+        # Unset envelope keys are omitted (ctx rides only when a view sets it).
+        self.assertNotIn("ctx", body)
 
-    def test_inertia_visit_gets_json_404(self) -> None:
-        """An X-Inertia visit with a browser Accept stays on the JSON protocol."""
+    def test_json_op_404_blanket_accept_is_json(self) -> None:
+        """Accept */* on an API URL stays JSON (no browser-only negotiation)."""
         self.client.force_login(self.superuser)
-        response = self.client.get(
-            "/files/ourapp/does-not-exist.txt",
+        response = self.client.post(
+            "/notifications/api/00000000-0000-0000-0000-000000000000/read",
             HTTP_ACCEPT=_BROWSER_ACCEPT,
             HTTP_X_INERTIA="true",
         )
         self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)
         self.assertEqual(response.headers["Content-Type"], "application/json; charset=utf-8")
-        self.assertEqual(response.json()["type"], "not_found")
+        self.assertEqual(response.json()["type"], "notification_not_found")
 
 
 class NinjaPermissionDeniedTests(BaseTestCase):

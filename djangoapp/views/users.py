@@ -14,12 +14,10 @@ from django.http import (  # ninja inspects view signatures at runtime
     HttpResponse,
 )
 from django.shortcuts import redirect, render
+from django.urls import path
 from django.utils import timezone
 from inertia import InertiaResponse
-from ninja import (
-    Query,
-    Router,
-)
+from ninja import Router
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Field, field_validator
 
@@ -31,8 +29,9 @@ from djangoapp.models import (
     UserHistoryEntryItem,
     UserSessionIndex,
 )
-from djangoapp.ninja_api import ApiError, make_ninja_api
+from djangoapp.ninja_api import ApiError, ExportedSchemaMixin, NotFound, make_ninja_api
 from djangoapp.utils import sanitize_html
+from djangoapp.views.pages import parse_query
 
 USERS_PATH_PREFIX = "/users"
 
@@ -62,14 +61,14 @@ class UserListFilters(PydanticBaseModel):
     q: str = ""
 
 
-class UserListProps(PydanticBaseModel):
+class UserListProps(PydanticBaseModel, ExportedSchemaMixin):
     path_prefix: str
     users: list[UserListItem]
     pagination: UserListPagination
     filters: UserListFilters
 
 
-class UserDetailsProps(PydanticBaseModel):
+class UserDetailsProps(PydanticBaseModel, ExportedSchemaMixin):
     path_prefix: str
     public_id: str
     first_name: str
@@ -107,12 +106,12 @@ class UserEditItem(PydanticBaseModel):
     is_superuser: bool
 
 
-class UserEditProps(PydanticBaseModel):
+class UserEditProps(PydanticBaseModel, ExportedSchemaMixin):
     path_prefix: str
     target: UserEditItem
 
 
-class UserUpdateSchema(PydanticBaseModel):
+class UserUpdateSchema(PydanticBaseModel, ExportedSchemaMixin):
     """Editable user fields. ``username`` is intentionally absent (read-only)."""
 
     first_name: str = Field(min_length=1)
@@ -140,39 +139,39 @@ class UserUpdateSchema(PydanticBaseModel):
         return v
 
 
-class UserHistoryProps(PydanticBaseModel):
+class UserHistoryProps(PydanticBaseModel, ExportedSchemaMixin):
     path_prefix: str
     target_public_id: str
     target_title: str
     entries: list[UserHistoryEntryItem]
 
 
-class MessageResponse(PydanticBaseModel):
+class MessageResponse(PydanticBaseModel, ExportedSchemaMixin):
     id: str = ""
 
 
-class LoginLinkRequest(PydanticBaseModel):
+class LoginLinkRequest(PydanticBaseModel, ExportedSchemaMixin):
     """Issue payload; the allowlist is the UI's TTL select (minutes)."""
 
     ttl_minutes: Literal[60, 480, 1440] = 60
 
 
-class LoginLinkResponse(PydanticBaseModel):
+class LoginLinkResponse(PydanticBaseModel, ExportedSchemaMixin):
     url: str
     expires_at: str
 
 
-class LogoutResponse(PydanticBaseModel):
+class LogoutResponse(PydanticBaseModel, ExportedSchemaMixin):
     sessions: int
 
 
-class UserSearchItem(PydanticBaseModel):
+class UserSearchItem(PydanticBaseModel, ExportedSchemaMixin):
     public_id: str
     username: str
     title: str
 
 
-class UserSearchResponse(PydanticBaseModel):
+class UserSearchResponse(PydanticBaseModel, ExportedSchemaMixin):
     users: list[UserSearchItem]
 
 
@@ -191,8 +190,8 @@ def superuser_or_404(request: HttpRequest) -> User:
     """Return the requesting superuser, else raise 404."""
     viewer = request.user
     if not (viewer.is_authenticated and viewer.is_superuser):
-        msg = "Superuser access required"
-        raise ApiError(404, type="superuser_required", msg=msg)
+        msg = "superuser_required"
+        raise NotFound(msg, "Superuser access required")
     return viewer
 
 
@@ -200,7 +199,8 @@ def get_user_or_404(public_id: str) -> User:
     try:
         target: User = User.objects.get(public_id=public_id)
     except User.DoesNotExist:
-        raise ApiError(404, type="user_not_found", msg="User not found") from None
+        msg = "user_not_found"
+        raise NotFound(msg, "User not found") from None
     else:
         return target
 
@@ -236,9 +236,9 @@ def redeem_login_key(request: HttpRequest, key: str) -> HttpResponse:
 users_router = Router()
 
 
-@users_router.get("/list", response=None, include_in_schema=False)
-def list_page(request: HttpRequest, filters: Query[UserListFilters]) -> HttpResponse:
+def list_page(request: HttpRequest) -> HttpResponse:
     superuser_or_404(request)
+    filters = parse_query(request, UserListFilters)
 
     q = filters.q.strip()
     qs = User.search_users(q) if q else User.objects.all().order_by("username")
@@ -272,7 +272,7 @@ def list_page(request: HttpRequest, filters: Query[UserListFilters]) -> HttpResp
     return InertiaResponse(request, "system/users/UserList", {"props": props.model_dump()})
 
 
-@users_router.get("/api/search", response=UserSearchResponse, include_in_schema=False)
+@users_router.get("/api/search", response=UserSearchResponse)
 def search(
     request: HttpRequest,
     q: str = "",
@@ -292,7 +292,6 @@ def search(
     )
 
 
-@users_router.get("/id/{public_id}", response=None, include_in_schema=False)
 def details_page(request: HttpRequest, public_id: str) -> HttpResponse:
     target = get_user_or_404(public_id)
 
@@ -331,7 +330,6 @@ def details_page(request: HttpRequest, public_id: str) -> HttpResponse:
     return InertiaResponse(request, "system/users/UserDetails", {"props": props.model_dump()})
 
 
-@users_router.get("/edit/{public_id}", response=None, include_in_schema=False)
 def edit_page(request: HttpRequest, public_id: str) -> HttpResponse:
     superuser_or_404(request)
     target = get_user_or_404(public_id)
@@ -354,7 +352,7 @@ def edit_page(request: HttpRequest, public_id: str) -> HttpResponse:
     return InertiaResponse(request, "system/users/UserEdit", {"props": props.model_dump()})
 
 
-@users_router.post("/edit/{public_id}")
+@users_router.post("/api/{public_id}/edit", response=MessageResponse)
 def edit_submit(request: HttpRequest, public_id: str, payload: UserUpdateSchema) -> MessageResponse:
     viewer = superuser_or_404(request)
     target = get_user_or_404(public_id)
@@ -379,7 +377,6 @@ def edit_submit(request: HttpRequest, public_id: str, payload: UserUpdateSchema)
     return MessageResponse(id=target.public_id)
 
 
-@users_router.get("/history/{public_id}", response=None, include_in_schema=False)
 def history_page(request: HttpRequest, public_id: str) -> HttpResponse:
     superuser_or_404(request)
     target = get_user_or_404(public_id)
@@ -459,3 +456,14 @@ def force_logout(request: HttpRequest, public_id: str) -> LogoutResponse:
 # Both POSTs are CSRF-protected by make_ninja_api's default csrf_guard (it
 # runs in ninja's auth pipeline; the frontend sends X-CSRFToken always).
 users_api = make_ninja_api("users", users_router, prefix=USERS_PATH_PREFIX.strip("/"))
+
+
+# Pages are plain Django views (ninja hosts JSON only); djangoapp/urls.py
+# mounts these BEFORE the APIs. Same paths as the old ninja page ops.
+_PAGE = USERS_PATH_PREFIX.strip("/")
+page_urls = [
+    path(f"{_PAGE}/list", list_page, name="users-list"),
+    path(f"{_PAGE}/id/<str:public_id>", details_page, name="users-details"),
+    path(f"{_PAGE}/edit/<str:public_id>", edit_page, name="users-edit"),
+    path(f"{_PAGE}/history/<str:public_id>", history_page, name="users-history"),
+]

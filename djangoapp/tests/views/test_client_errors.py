@@ -63,8 +63,8 @@ class ClientErrorViewTests(FreshRedisBuckets, BaseTestCase):
     uncaught browser error and building the request payload (lineno/colno/url/
     public_id) — is owned by the Playwright ``ClientErrorReportingE2e`` suite.
 
-    - test_authed_report_logs_client_error, authed POST → 204; source=client + row/col + user
-    - test_anon_report_accepted, anonymous POST → 204 with user None
+    - test_authed_report_logs_client_error, authed POST → 200 ack; source=client + row/col + user
+    - test_anon_report_accepted, anonymous POST → 200 ack with user None
     - test_tokenless_post_accepted_under_strict_csrf, opt-out holds even with CSRF enforcement on
     - test_rate_limit_returns_429_over_budget, over cap → 429 (real redis);
       per-user buckets (bob gets his own), all anon reporters share one
@@ -78,14 +78,15 @@ class ClientErrorViewTests(FreshRedisBuckets, BaseTestCase):
 
     @tag("scratch-test-subset")
     def test_authed_report_logs_client_error(self) -> None:
-        """Authed POST → 204 with source=client + row/col/url + the user."""
+        """Authed POST → 200 ack with source=client + row/col/url + the user."""
         user = User.objects.create_user(username="alice", password="x", first_name="Alice")
         self.client.force_login(user)
         with _capture_json() as buf:
             response = self.client.post(
                 "/client-errors", data=_payload(), content_type="application/json"
             )
-        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"accepted": True})
         records = _ndjson(buf)
         rec = next(r for r in records if r.get("event") == "client error")
         self.assertEqual(rec["source"], "client")
@@ -99,12 +100,12 @@ class ClientErrorViewTests(FreshRedisBuckets, BaseTestCase):
         self.assertNotEqual(rec["user"], {"public_id": "ignored-client-value"})
 
     def test_anon_report_accepted(self) -> None:
-        """Anonymous POST → 204 with user=None."""
+        """Anonymous POST → 200 ack with user=None."""
         with _capture_json() as buf:
             response = self.client.post(
                 "/client-errors", data=_payload(), content_type="application/json"
             )
-        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.status_code, 200)
         records = _ndjson(buf)
         rec = next(r for r in records if r.get("event") == "client error")
         self.assertIsNone(rec["user"])
@@ -124,7 +125,7 @@ class ClientErrorViewTests(FreshRedisBuckets, BaseTestCase):
             response = strict.post(
                 "/client-errors", data=_payload(), content_type="application/json"
             )
-        self.assertEqual(response.status_code, 204)
+        self.assertEqual(response.status_code, 200)
         self.assertTrue(any(r.get("event") == "client error" for r in _ndjson(buf)))
 
     def test_rate_limit_returns_429_over_budget(self) -> None:
@@ -165,17 +166,19 @@ class ClientErrorViewTests(FreshRedisBuckets, BaseTestCase):
             ]
             # A second, fresh anon client still finds the shared bucket spent.
             second_anon = Client()
-            second_anon_status = second_anon.post(
+            over_budget = second_anon.post(
                 "/client-errors", data=_payload(), content_type="application/json"
-            ).status_code
+            )
         finally:
             client_errors._RATE_LIMIT = original_limit
-        # Per user: 204, 204, then 429. Anon: shared → 204, 204, 429, and the
+        # Per user: 200, 200, then 429. Anon: shared → 200, 200, 429, and the
         # second anon client gets 429 immediately.
-        self.assertEqual(alice_statuses, [204, 204, 429])
-        self.assertEqual(bob_statuses, [204, 204, 429])
-        self.assertEqual(anon_statuses, [204, 204, 429])
-        self.assertEqual(second_anon_status, 429)
+        self.assertEqual(alice_statuses, [200, 200, 429])
+        self.assertEqual(bob_statuses, [200, 200, 429])
+        self.assertEqual(anon_statuses, [200, 200, 429])
+        self.assertEqual(over_budget.status_code, 429)
+        # Over budget the standard error envelope rides the 429.
+        self.assertEqual(over_budget.json()["type"], "rate_limited")
 
     def test_redis_failure_fails_closed(self) -> None:
         """A dead-redis endpoint → 500 (fail closed; report not accepted).

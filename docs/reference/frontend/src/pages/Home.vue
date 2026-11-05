@@ -2,7 +2,7 @@
 import { computed } from "vue"
 import { Link } from "@inertiajs/vue3"
 import { z } from "zod"
-import { FactSchema } from "../schemas/facts"
+import { FactOutSchema } from "../schemas/facts_sdk"
 import { useAppPage } from "../../system/utils/useAppPage"
 // Side-effect import: the app ships its own styles from styles/app.scss, so the
 // feature is self-contained (no edit to the framework's main.scss).
@@ -12,7 +12,7 @@ import "../styles/app.scss"
 // chosen by a Huey daily cron, or null). Login state is the shared viewer
 // (`user`, injected on every page by SharedPropsMiddleware).
 const HomePropsSchema = z.object({
-  fact_of_day: FactSchema.nullable(),
+  fact_of_day: FactOutSchema.nullable(),
 })
 
 // Both levels parsed reactively in one call: `p` is the page's own data

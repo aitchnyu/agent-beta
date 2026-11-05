@@ -61,3 +61,7 @@ dbbackups/
 # eslint's content cache (frontend/.eslintcache) — runtime artifact from
 # the cached template-lint runs; must never ride the rsync into main/.
 frontend/.eslintcache
+
+# generatesdk unit-test output (djangoapp/tests/out/) — written by the
+# test, removed on teardown; ignore it so a crashed run leaves no trace.
+djangoapp/tests/out/

@@ -2,13 +2,13 @@ import ky, { HTTPError, TimeoutError } from "ky"
 import type { Options } from "ky"
 import { HttpNetworkError, HttpResponseError } from "@inertiajs/core"
 import type { z } from "zod"
-import { type NinjaError, ninjaErrorFrom } from "./pydanticErrors"
+import { ninjaErrorFrom } from "./pydanticErrors"
 // One HTTP layer for every standalone (non-page-visit) request, on ky — a
 // zero-dependency fetch wrapper (~3KB gzip; axios would cost ~4x for features
 // this codebase doesn't use). Inertia page visits keep using Inertia's own
-// internal client; UserList's search box uses the useHttp hook. ky is
-// fetch-based, so the same layer can serve streaming responses (XHR clients
-// buffer the whole response and cannot stream) should one be needed again.
+// internal client. ky is fetch-based, so the same layer can serve streaming
+// responses (XHR clients buffer the whole response and cannot stream)
+// should one be needed again.
 //
 // CSRF: Django's csrftoken cookie -> X-CSRFToken header on every request via
 // the beforeRequest hook (the cookie is set on every response by
@@ -161,15 +161,18 @@ export async function streamPost(
 
 // -- ninja helpers -----------------------------------------------------------
 //
-// Success is parsed by the schema; a 422 comes back as a NinjaError;
-// everything else throws like the plain helpers above.
+// Success is parsed by the schema; ANY non-2xx throws — a 422 as a
+// NinjaError (the server-articulated validation payload, § Forms &
+// validation errors in steer.md), everything else via the taxonomy above.
+// Callers that only toast let it fly to main.ts' global handlers; forms
+// catch NinjaError to scope validation errors inline.
 
-/** A 422 becomes a NinjaError; anything else rethrows via the taxonomy. */
-async function asNinjaErrorOrThrow(err: unknown): Promise<NinjaError> {
+/** Throw a 422 as a NinjaError; anything else via the taxonomy. Never resolves. */
+async function throwNinjaError(err: unknown): Promise<never> {
   if (err instanceof HTTPError && err.response.status === 422) {
     // ky already read the body into err.data (parsed JSON or raw text).
     const ninja = ninjaErrorFrom(err.data)
-    if (ninja) return ninja
+    if (ninja) throw ninja
   }
   return normalizeError(err)
 }
@@ -178,14 +181,16 @@ export async function ninjaPost<Schema extends z.ZodType>(
   schema: Schema,
   url: string,
   data?: unknown,
-): Promise<z.infer<Schema> | NinjaError> {
+  opts?: { params?: Record<string, string | number | boolean | undefined> },
+): Promise<z.infer<Schema>> {
   const req: Options = {}
   if (data !== undefined) req.json = data
+  if (opts?.params) req.searchParams = opts.params
   let body: unknown
   try {
     body = await api.post(url, req).json()
   } catch (err) {
-    return asNinjaErrorOrThrow(err)
+    return throwNinjaError(err)
   }
   return schema.parse(body) as z.infer<Schema>
 }
@@ -193,16 +198,21 @@ export async function ninjaPost<Schema extends z.ZodType>(
 export async function ninjaGet<Schema extends z.ZodType>(
   schema: Schema,
   url: string,
-  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
-): Promise<z.infer<Schema> | NinjaError> {
+  opts: {
+    signal?: AbortSignal
+    timeoutMs?: number
+    params?: Record<string, string | number | boolean | undefined>
+  } = {},
+): Promise<z.infer<Schema>> {
   const req: Options = {}
   if (opts.signal) req.signal = opts.signal
   if (opts.timeoutMs) req.timeout = opts.timeoutMs
+  if (opts.params) req.searchParams = opts.params
   let body: unknown
   try {
     body = await api.get(url, req).json()
   } catch (err) {
-    return asNinjaErrorOrThrow(err)
+    return throwNinjaError(err)
   }
   return schema.parse(body) as z.infer<Schema>
 }
@@ -211,14 +221,14 @@ export async function ninjaDelete<Schema extends z.ZodType>(
   schema: Schema,
   url: string,
   data?: unknown,
-): Promise<z.infer<Schema> | NinjaError> {
+): Promise<z.infer<Schema>> {
   const req: Options = {}
   if (data !== undefined) req.json = data
   let body: unknown
   try {
     body = await api.delete(url, req).json()
   } catch (err) {
-    return asNinjaErrorOrThrow(err)
+    return throwNinjaError(err)
   }
   return schema.parse(body) as z.infer<Schema>
 }

@@ -5,47 +5,37 @@ import { Link } from "@inertiajs/vue3"
 import PageTitle from "../../components/PageTitle.vue"
 import RichTextViewer from "../../components/RichTextViewer.vue"
 import {
-  LoginLinkResponseSchema,
-  LogoutResponseSchema,
-  UserDetailsPropsSchema,
-} from "../../schemas/users"
-import { postJSON } from "../../utils/http"
-import {
-  confirmAction,
-  showErrorToast,
-  showToast,
-} from "../../utils/sweetalert"
+  LoginLinkRequest,
+  LoginLinkResponse,
+  UserDetailsProps,
+  post_issue_login_link,
+  post_force_logout,
+} from "../../schemas/users_sdk"
+import { confirmAction, showToast } from "../../utils/sweetalert"
 import { formatDateTime } from "../../utils/time"
 import { useAppPage } from "../../utils/useAppPage"
 
-const { shared, data: p } = useAppPage(UserDetailsPropsSchema)
+const { shared, data: p } = useAppPage(UserDetailsProps)
 // Admin UI gates on the shared viewer_is_superuser flag.
 const isSuperuser = computed(() => shared.value.viewer_is_superuser)
 
 // ── Admin actions: login link + logout everywhere ──────────────────────────
-// Mutations ride the app's HTTP layer (CSRF hook + normalized errors), same
-// as the edit page.
+// Calls go through the generated client (typed wrappers over ninjaPost);
+// failures throw to main.ts' global toast — nothing to catch here.
 
 const sessionCount = ref(p.value.session_count)
 const showLinkPanel = ref(false)
-const ttlMinutes = ref(60)
-const linkResult = ref<z.infer<typeof LoginLinkResponseSchema> | null>(null)
+const ttlMinutes = ref<z.infer<typeof LoginLinkRequest>["ttl_minutes"]>(60)
+const linkResult = ref<z.infer<typeof LoginLinkResponse> | null>(null)
 const generating = ref(false)
 const loggingOut = ref(false)
 
 async function generateLink() {
   generating.value = true
   try {
-    linkResult.value = LoginLinkResponseSchema.parse(
-      await postJSON(
-        `${p.value.path_prefix}/api/${p.value.public_id}/loginlink`,
-        {
-          ttl_minutes: ttlMinutes.value,
-        },
-      ),
-    )
-  } catch (e: unknown) {
-    showErrorToast(e, "Failed to generate login link")
+    linkResult.value = await post_issue_login_link(p.value.public_id, {
+      ttl_minutes: ttlMinutes.value,
+    })
   } finally {
     generating.value = false
   }
@@ -71,22 +61,14 @@ async function logoutEverywhere() {
       `End all of ${p.value.first_name} ${p.value.last_name}'s active sessions? Their next request will be signed out.`,
     )
     if (!ok) return
-    try {
-      const res = LogoutResponseSchema.parse(
-        await postJSON(
-          `${p.value.path_prefix}/api/${p.value.public_id}/logout`,
-        ),
-      )
-      sessionCount.value = 0
-      showToast(
-        "success",
-        res.sessions > 0
-          ? `Logged out ${res.sessions} session(s)`
-          : "No active sessions",
-      )
-    } catch (e: unknown) {
-      showErrorToast(e, "Failed to log out user")
-    }
+    const res = await post_force_logout(p.value.public_id)
+    sessionCount.value = 0
+    showToast(
+      "success",
+      res.sessions > 0
+        ? `Logged out ${res.sessions} session(s)`
+        : "No active sessions",
+    )
   } finally {
     loggingOut.value = false
   }

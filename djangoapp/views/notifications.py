@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, ClassVar
 from urllib.parse import urlparse
 
 from django.contrib.sessions.models import Session
+from django.urls import path
 from django.utils import timezone
 from inertia import InertiaResponse
 from ninja import Query, Router
@@ -25,8 +26,9 @@ from djangoapp.models import (
     UserSessionIndex,
     vapid_public_key,
 )
-from djangoapp.ninja_api import ApiError, make_ninja_api
+from djangoapp.ninja_api import ApiError, ExportedSchemaMixin, make_ninja_api
 from djangoapp.shortcuts import user_or_404
+from djangoapp.views.pages import parse_query
 
 if TYPE_CHECKING:
     from django.db.models.query import QuerySet
@@ -42,7 +44,7 @@ PAGE_SIZE = 50
 router = Router()
 
 
-class NotificationsPageProps(PydanticBaseModel):
+class NotificationsPageProps(PydanticBaseModel, ExportedSchemaMixin):
     notifications: list[NotificationItem]
     unread_count: int
     # The base64url public half of the VAPID keypair, derived at render —
@@ -55,22 +57,22 @@ class NotificationsPageProps(PydanticBaseModel):
     has_more: bool = False
 
 
-class NotificationPageResponse(PydanticBaseModel):
+class NotificationPageResponse(PydanticBaseModel, ExportedSchemaMixin):
     """One ``Load more`` chunk from GET /notifications/api/page."""
 
     notifications: list[NotificationItem]
     has_more: bool
 
 
-class MessageResponse(PydanticBaseModel):
+class MessageResponse(PydanticBaseModel, ExportedSchemaMixin):
     id: str = ""
 
 
-class CountResponse(PydanticBaseModel):
+class CountResponse(PydanticBaseModel, ExportedSchemaMixin):
     count: int
 
 
-class SelectedIdsSchema(PydanticBaseModel):
+class SelectedIdsSchema(PydanticBaseModel, ExportedSchemaMixin):
     """The checkbox selection acting on the list page (bulk actions).
 
     ``public_ids`` carries the checked rows; owner-scoping happens in the
@@ -83,11 +85,11 @@ class SelectedIdsSchema(PydanticBaseModel):
     public_ids: list[str] = Field(min_length=1, max_length=500)
 
 
-class SubscribeResponse(PydanticBaseModel):
+class SubscribeResponse(PydanticBaseModel, ExportedSchemaMixin):
     subscribed: bool
 
 
-class PushSubscriptionSchema(PydanticBaseModel):
+class PushSubscriptionSchema(PydanticBaseModel, ExportedSchemaMixin):
     """A browser PushSubscription, flattened from the Push API shape."""
 
     endpoint: str = Field(min_length=1, max_length=500)
@@ -113,7 +115,7 @@ class PushSubscriptionSchema(PydanticBaseModel):
         return v
 
 
-class PushUnsubscribeSchema(PydanticBaseModel):
+class PushUnsubscribeSchema(PydanticBaseModel, ExportedSchemaMixin):
     endpoint: str = Field(min_length=1, max_length=500)
 
 
@@ -131,7 +133,7 @@ def _own_notification_or_404(request: HttpRequest, public_id: str) -> Notificati
     return notification
 
 
-class NotificationsQueryParams(PydanticBaseModel):
+class NotificationsQueryParams(PydanticBaseModel, ExportedSchemaMixin):
     """The list page's query params, parsed once for both consumers.
 
     ``kind`` filters rows to one kind (empty = all); ``after`` is the
@@ -171,18 +173,16 @@ def _page_rows(user: User, kind: str, after: str = "") -> QuerySet[Notification,
     return rows
 
 
-@router.get("/", response=None, include_in_schema=False)
-def notifications_page(
-    request: HttpRequest, params: Query[NotificationsQueryParams]
-) -> HttpResponse:
+def notifications_page(request: HttpRequest) -> HttpResponse:
     """Render the notifications list (component ``Notifications``).
 
-    First PAGE_SIZE rows, ``?kind=``-filtered (ninja parses the query string
-    into ``NotificationsQueryParams``); "Load more" pages older rows via
-    /api/page. ``unread_count`` stays GLOBAL — it feeds the page's header
-    actions, while the navbar badge count is the shared prop.
+    First PAGE_SIZE rows, ``?kind=``-filtered (``parse_query`` validates the
+    query string into ``NotificationsQueryParams``); "Load more" pages older
+    rows via /api/page. ``unread_count`` stays GLOBAL — it feeds the page's
+    header actions, while the navbar badge count is the shared prop.
     """
     user = user_or_404(request)
+    params = parse_query(request, NotificationsQueryParams)
     rows = list(_page_rows(user, params.kind)[: PAGE_SIZE + 1])
     props = NotificationsPageProps(
         notifications=[n.to_item() for n in rows[:PAGE_SIZE]],
@@ -378,3 +378,10 @@ def delete_notification(request: HttpRequest, public_id: str) -> MessageResponse
 # POST/DELETE routes ride make_ninja_api's default csrf_guard (token +
 # Origin/Referer); the frontend's ky layer sends X-CSRFToken always.
 notifications_api = make_ninja_api("notifications", router, prefix="notifications")
+
+
+# Pages are plain Django views (ninja hosts JSON only); djangoapp/urls.py
+# mounts these BEFORE the APIs. Same path as the old ninja page op.
+page_urls = [
+    path("notifications/", notifications_page, name="notifications-page"),
+]

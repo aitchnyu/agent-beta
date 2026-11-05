@@ -291,9 +291,9 @@ const detailOf = (entry: ErrorEntry): ErrorDetail => ({
 })
 
 /**
- * A ninja 422 validation failure, returned (never thrown) by the ninja*
- * helpers in utils/http.ts. Forms keep the scoped child and render fields
- * by path (errorAtPath); bind every field the payload validates.
+ * A ninja 422 validation failure, thrown by the ninja* helpers in
+ * utils/http.ts. Forms catch it and render fields by path (errorAtPath);
+ * everything else lets it fly to main.ts' global toast (firstMessage).
  */
 export class NinjaError extends Error {
   private readonly entries: readonly ErrorEntry[]
@@ -308,6 +308,30 @@ export class NinjaError extends Error {
     this.name = "NinjaError"
     this.entries = entries
     this.prefix = prefix
+  }
+
+  /**
+   * The first entry's user-visible line (same pipeline FieldError uses) —
+   * the toast face of a thrown 422 that no form scoped inline. Prefers
+   * the model-level entry (loc `["__root__"]`, or empty for pydantic v2
+   * model validators): the server's whole-payload copy beats a field
+   * error as toast text.
+   */
+  firstMessage(): string | null {
+    const scope = this.prefix
+    const isRoot = (loc: readonly LocSegment[]): boolean =>
+      loc.length === scope.length ||
+      (loc.length === scope.length + 1 && loc[scope.length] === "__root__")
+    const entry: ErrorEntry | undefined =
+      this.entries.find((e) => {
+        const loc = [...(e.loc ?? [])]
+        return (
+          loc.length >= scope.length &&
+          scope.every((segment, i) => loc[i] === segment) &&
+          isRoot(loc)
+        )
+      }) ?? this.entries[0]
+    return entry === undefined ? null : messageFor(detailOf(entry))
   }
 
   /**

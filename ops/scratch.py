@@ -47,9 +47,7 @@ MAIN_DIR = Path(__file__).resolve().parent.parent
 SCRATCH_DIR = MAIN_DIR.parent / "scratch"
 
 
-def visible_files_hash(
-    directory: Path, *, prefix: str = "", exclude: tuple[str, ...] = ()
-) -> str:
+def visible_files_hash(directory: Path, *, prefix: str = "", exclude: tuple[str, ...] = ()) -> str:
     """Compute the sha256 of a directory's git-visible files.
 
     Tracked + untracked-but-not-ignored files (git ls-files), sorted
@@ -79,11 +77,7 @@ def visible_files_hash(
         # dist/ is not gitignored (the deploy needs the bundle), so the
         # exclude list must drop it here: otherwise this function's own
         # marker file would change every hash and break the skip.
-        if (
-            name
-            and path.is_file()
-            and not name.startswith(tuple(e + "/" for e in exclude))
-        ):
+        if name and path.is_file() and not name.startswith(tuple(e + "/" for e in exclude)):
             digest.update((prefix + name).encode())
             digest.update(path.read_bytes())
     return digest.hexdigest()

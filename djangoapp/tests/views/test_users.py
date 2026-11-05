@@ -405,7 +405,7 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
     def _submit(self, payload: dict[str, object]) -> None:
         # ninja parses the pydantic UserUpdateSchema from a JSON body.
         self.client.post(
-            f"/users/edit/{self.target.public_id}",
+            f"/users/api/{self.target.public_id}/edit",
             data=payload,
             content_type="application/json",
         )
@@ -442,7 +442,7 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
         """POST updates editable fields and returns the target public id."""
         self.client.force_login(self.superuser)
         response = self.client.post(
-            f"/users/edit/{self.target.public_id}",
+            f"/users/api/{self.target.public_id}/edit",
             data=self._payload(),
             content_type="application/json",
         )
@@ -493,7 +493,7 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
         payload["is_superuser"] = False
         payload["is_active"] = False
         response = self.client.post(
-            f"/users/edit/{self.superuser.public_id}",
+            f"/users/api/{self.superuser.public_id}/edit",
             data=payload,
             content_type="application/json",
         )
@@ -508,7 +508,7 @@ class UserEditViewTests(QueryBudgetInertiaTestCase):
         payload = self._payload()
         payload["email"] = "not-an-email"
         response = self.client.post(
-            f"/users/edit/{self.target.public_id}",
+            f"/users/api/{self.target.public_id}/edit",
             data=payload,
             content_type="application/json",
         )

@@ -1,18 +1,22 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from "vue"
-import { router } from "@inertiajs/vue3"
+import { router, usePage } from "@inertiajs/vue3"
 import PageTitle from "../../components/PageTitle.vue"
 import DropdownMenu from "../../components/DropdownMenu.vue"
 import HumanizedTime from "../../components/HumanizedTime.vue"
 import {
   type NotificationItem,
-  CountResponseSchema,
-  MessageResponseSchema,
-  NotificationPageResponseSchema,
   NotificationsPagePropsSchema,
-  SelectedIdsSchema,
 } from "../../schemas/notifications"
-import { getJSON, postJSON } from "../../utils/http"
+import {
+  get_notifications_page_api,
+  post_clear_all,
+  post_delete_selected,
+  post_mark_all_read,
+  post_mark_read,
+  post_mark_selected_read,
+  post_send_test_notification,
+} from "../../schemas/notifications_sdk"
 import { useAppPage } from "../../utils/useAppPage"
 import { showToast, confirmAction } from "../../utils/sweetalert"
 import {
@@ -22,9 +26,9 @@ import {
   resubscribePush,
 } from "../../utils/push"
 
-// useAppPage parses reactively (computed inside): partial reloads (e.g.
-// the test button's targeted refresh) swap page props in place, and the
-// watcher below re-seeds the local list state from each fresh parse.
+// useAppPage parses reactively (computed inside): Inertia swaps the whole
+// page object on every visit/reload, and the watcher below re-seeds the
+// local list state from each fresh parse of the swapped props.
 const { data: p } = useAppPage(NotificationsPagePropsSchema)
 const notifications = ref<NotificationItem[]>(p.value.notifications)
 const unreadCount = ref(p.value.unread_count)
@@ -40,10 +44,18 @@ const kind = computed(() => p.value.kind)
 // swap (otherwise stale-cursored appends would land on a fresh page-1 list
 // and silently hide the rows in between for the session).
 const listEpoch = ref(0)
+// Re-seed only when the server ACTUALLY resends the notifications prop.
+// Watching the parsed array would fire on any page-props change (useAppPage
+// re-parses on every swap), re-seeding from the stale props that a targeted
+// partial reload (e.g. the badge-only reload below) never refreshed — that
+// reverts local row updates like a just-marked-read row.
+const page = usePage()
 watch(
-  () => p.value.notifications,
-  (rows) => {
-    notifications.value = rows
+  () =>
+    (page.props as unknown as { props: { notifications: unknown } }).props
+      .notifications,
+  () => {
+    notifications.value = p.value.notifications
     unreadCount.value = p.value.unread_count
     hasMore.value = p.value.has_more
     listEpoch.value++
@@ -147,7 +159,7 @@ async function onResubscribe(): Promise<void> {
 async function onSendTest(): Promise<void> {
   testBusy.value = true
   try {
-    MessageResponseSchema.parse(await postJSON("/notifications/api/test"))
+    await post_send_test_notification()
   } finally {
     testBusy.value = false
   }
@@ -168,7 +180,7 @@ function notifyBadge(): void {
 }
 
 async function onMarkRead(item: NotificationItem): Promise<void> {
-  await postJSON(`/notifications/api/${item.public_id}/read`)
+  await post_mark_read(item.public_id)
   if (!item.read) {
     item.read = true
     unreadCount.value = Math.max(0, unreadCount.value - 1)
@@ -184,7 +196,7 @@ async function onOpen(item: NotificationItem): Promise<void> {
 }
 
 async function onMarkAllRead(): Promise<void> {
-  await postJSON("/notifications/api/read-all")
+  await post_mark_all_read()
   for (const n of notifications.value) n.read = true
   unreadCount.value = 0
   notifyBadge()
@@ -200,7 +212,7 @@ async function onClearAll(): Promise<void> {
     ))
   )
     return
-  await postJSON("/notifications/api/clear")
+  await post_clear_all()
   notifications.value = []
   unreadCount.value = 0
   hasMore.value = false
@@ -279,11 +291,10 @@ async function onLoadMore(): Promise<void> {
   const epoch = listEpoch.value
   loadingMore.value = true
   try {
-    const params = new URLSearchParams({ after: last.public_id })
-    if (kind.value) params.set("kind", kind.value)
-    const page = NotificationPageResponseSchema.parse(
-      await getJSON(`/notifications/api/page?${params.toString()}`),
-    )
+    const page = await get_notifications_page_api({
+      after: last.public_id,
+      kind: kind.value || undefined,
+    })
     // A partial reload swapped the list while we were fetching — drop the
     // response (its cursor belongs to the old list).
     if (epoch !== listEpoch.value) return
@@ -298,12 +309,7 @@ async function onLoadMore(): Promise<void> {
 
 async function onMarkSelectedRead(): Promise<void> {
   const ids = [...selected.value]
-  CountResponseSchema.parse(
-    await postJSON(
-      "/notifications/api/read-selected",
-      SelectedIdsSchema.parse({ public_ids: ids }),
-    ),
-  )
+  await post_mark_selected_read({ public_ids: ids })
   const idSet = new Set(ids)
   let newlyRead = 0
   for (const n of notifications.value) {
@@ -329,12 +335,7 @@ async function onDeleteSelected(): Promise<void> {
     ))
   )
     return
-  CountResponseSchema.parse(
-    await postJSON(
-      "/notifications/api/delete-selected",
-      SelectedIdsSchema.parse({ public_ids: ids }),
-    ),
-  )
+  await post_delete_selected({ public_ids: ids })
   const idSet = new Set(ids)
   unreadCount.value = Math.max(
     0,

@@ -30,6 +30,8 @@ from django.utils import timezone
 from inertia import InertiaResponse
 from ninja import File, Form, Router, Schema, UploadedFile
 
+from djangoapp.ninja_api import ExportedSchemaMixin
+
 from djangoapp.media import serve_file
 from djangoapp.models import SKIP_ROW_VERSION_CHECK
 from djangoapp.shortcuts import maybe_user
@@ -42,7 +44,7 @@ if TYPE_CHECKING:
 router = Router()
 
 
-class DownloadOutSchema(Schema):
+class DownloadOutSchema(Schema, ExportedSchemaMixin):
     """pk-free serialisation of a download (``stored_name`` — the storage
     path — is public: it IS the anonymous download URL; the integer pk
     never leaves)."""
@@ -55,7 +57,7 @@ class DownloadOutSchema(Schema):
     row_version: int
 
 
-class DownloadDeletedSchema(Schema):
+class DownloadDeletedSchema(Schema, ExportedSchemaMixin):
     """Delete reply — a body, not a bare 204, so JSON clients parse cleanly."""
 
     deleted: str

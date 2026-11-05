@@ -10,10 +10,9 @@ at ``main/ourapp/`` and you can navigate up to that parent (to browse ``scratch/
 but no further. Path traversal (``..``, absolute paths, symlink escapes) is
 confined in :class:`PathWrapper` (resolve + ``is_relative_to`` → 404).
 
-Served by a django-ninja ``NinjaAPI`` (the same shape as ``/git`` and
-``/manage``): each op returns an Inertia page or a ``FileResponse`` with
-``response=None``, and raises ``Http404`` for misses (mapped to a consistent
-JSON body by the registered error handlers). Mounted in :mod:`djangoapp.urls`.
+Plain Django views (``page_urls`` below, mounted in :mod:`djangoapp.urls`):
+each op returns an Inertia page or a ``FileResponse`` and raises ``Http404``
+for misses (the project's ``handler404`` renders the friendly 404 page).
 """
 
 from __future__ import annotations
@@ -26,13 +25,12 @@ from typing import TYPE_CHECKING
 
 from django.conf import settings
 from django.http import FileResponse, Http404, HttpRequest, HttpResponseBase
-from django.urls import register_converter
+from django.urls import path
 from inertia import InertiaResponse
-from ninja import Router
 from pydantic import BaseModel
 
-from djangoapp.ninja_api import make_ninja_api
 from djangoapp.views import require_superuser
+from djangoapp.views.pages import RelPathConverter  # noqa: F401 - registers "relpath"
 
 if TYPE_CHECKING:
     from typing import IO
@@ -190,31 +188,6 @@ class PathWrapper:
         return entries
 
 
-class _RelPathConverter:
-    """Django path converter matching zero or more segments (``.*``).
-
-    The built-in ``path`` converter requires ≥1 char (``.+``), so it can't serve
-    the browse root (``/files/``, ``rel=""``). Matching ``.*`` lets one
-    ``/{relpath:rel}`` route serve both the root and subpaths — no dedicated
-    trailing-slash route. Registered globally below (Django converters are
-    process-wide by design); this module is imported by the URLconf.
-    """
-
-    regex = r".*"
-
-    def to_python(self, value: str) -> str:
-        return value
-
-    def to_url(self, value: str) -> str:  # pragma: no cover -- only reverse() calls this
-        return value
-
-
-# "relpath" — a path that may be empty (repo root). See _RelPathConverter.
-register_converter(_RelPathConverter, "relpath")
-
-files_router = Router()
-
-
 def _serve(target: PathWrapper, *, attachment: bool, content_type: str) -> FileResponse:
     """Stream a file's bytes — as a download (attachment) or inline (raw)."""
     if not target.is_file:
@@ -228,9 +201,8 @@ def _serve(target: PathWrapper, *, attachment: bool, content_type: str) -> FileR
 
 
 # Byte-serving routes are registered before the browse catch-all so /files/raw/...
-# and /files/download/... win over /files/{path:rel} (which would otherwise grab
+# and /files/download/... win over the /files/<path> browse catch-all
 # "raw/<rest>" / "download/<rest>" as a browse path).
-@files_router.get("/raw/{path:rel}", response=None)
 def file_raw(request: HttpRequest, rel: str) -> FileResponse:
     """Serve a file's bytes inline with its real Content-Type (``/files/raw/...``).
 
@@ -256,7 +228,6 @@ def file_raw(request: HttpRequest, rel: str) -> FileResponse:
     return response
 
 
-@files_router.get("/download/{path:rel}", response=None)
 def file_download(request: HttpRequest, rel: str) -> FileResponse:
     """Serve a file's bytes as a download attachment (``/files/download/...``)."""
     require_superuser(request)
@@ -313,20 +284,23 @@ def _browse(request: HttpRequest, rel: str) -> HttpResponseBase:
     )
 
 
-# ``/files`` (no slash) needs its own route — a Django pattern can't make the
-# leading slash optional. ``/files/`` (the root, rel="") and every subpath share
-# the one catch-all below: ``{relpath:rel}`` uses _RelPathConverter (matches
-# zero-or-more segments), so the empty-root case lands on the same route.
-@files_router.get("", response=None)
+# Pages are plain Django views (ninja hosts JSON only); djangoapp/urls.py
+# mounts these BEFORE the APIs. ``/files`` and ``/files/<path>`` keep their
+# old shapes; the relpath converter matches zero segments, so the browse root
+# (rel="") and subpaths share the one catch-all.
 def file_browser(request: HttpRequest) -> HttpResponseBase:
     """``GET /files`` — browse the repo root (BASE_DIR.parent)."""
     return _browse(request, "")
 
 
-@files_router.get("/{relpath:rel}", response=None)
 def file_browser_path(request: HttpRequest, rel: str) -> HttpResponseBase:
     """``GET /files/`` (root) and ``GET /files/<path>`` — browse a dir or preview a file."""
     return _browse(request, rel)
 
 
-files_api = make_ninja_api("files", files_router)
+page_urls = [
+    path("files/raw/<path:rel>", file_raw, name="files-raw"),
+    path("files/download/<path:rel>", file_download, name="files-download"),
+    path("files", file_browser, name="files-root"),
+    path("files/<relpath:rel>", file_browser_path, name="files-browse"),
+]

@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { Link } from "@inertiajs/vue3"
 import { z } from "zod"
-import { FactSchema, TopicSchema } from "../schemas/facts"
+import { FactOutSchema, TopicOutSchema } from "../schemas/facts_sdk"
 import { useAppPage } from "../../system/utils/useAppPage"
 import "../styles/app.scss"
 
 // The Inertia page data is nested under `props` (page.props.props).
 const FactsPagePropsSchema = z.object({
-  fact: FactSchema.nullable(),
-  topics: TopicSchema.array(),
+  fact: FactOutSchema.nullable(),
+  topics: TopicOutSchema.array(),
 })
 
 // Parsed reactively (computed inside useAppPage): reload-safe.

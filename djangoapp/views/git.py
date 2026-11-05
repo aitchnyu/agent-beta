@@ -7,10 +7,10 @@ worktree's pending files together (main, then scratch); an uncommitted *diff*
 takes a ``worktree`` segment (``main``/``scratch``). Commit views read ``main``
 only.
 
-Served by a django-ninja ``NinjaAPI`` (the same shape as ``/manage``): each op
-renders an Inertia page with ``response=None``, and raises :class:`ApiError` /
-:class:`django.http.Http404` for misses (mapped to a consistent JSON body by the
-registered error handlers). Mounted in :mod:`djangoapp.urls`.
+Plain Django views (``page_urls`` below, mounted in :mod:`djangoapp.urls`):
+each op renders an Inertia page and raises :class:`NotFound` /
+:class:`django.http.Http404` for misses (the project's ``handler404`` renders
+the friendly 404 page).
 """
 
 from __future__ import annotations
@@ -18,12 +18,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from django.http import Http404, HttpRequest, HttpResponseBase
+from django.urls import path
 from inertia import InertiaResponse
-from ninja import Router
 from pydantic import BaseModel
 
-from djangoapp.ninja_api import ApiError, make_ninja_api
+from djangoapp.ninja_api import NotFound
 from djangoapp.views import git_data, require_superuser
+from djangoapp.views.pages import RelPathConverter  # noqa: F401 - registers "relpath"
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -36,10 +37,11 @@ WORKTREES = ("main", "scratch")
 
 
 def _worktree_or_404(worktree: str) -> str:
-    """Return ``worktree`` if it's one the viewer knows, else raise ApiError(404)."""
+    """Return ``worktree`` if it's one the viewer knows, else raise NotFound."""
     if worktree not in WORKTREES:
         msg = f"Unknown worktree: {worktree}"
-        raise ApiError(404, type="worktree_unknown", msg=msg)
+        msg_0 = "worktree_unknown"
+        raise NotFound(msg_0, msg)
     return worktree
 
 
@@ -80,9 +82,6 @@ class GitCommitProps(BaseModel):
     files: list[git_data.CommitFile]
 
 
-git_router = Router()
-
-
 def _parse_page(request: HttpRequest) -> int:
     """``?page=`` as an int ≥ 1 (invalid/missing → 1)."""
     raw = request.GET.get("page", "1")
@@ -94,9 +93,8 @@ def _parse_page(request: HttpRequest) -> int:
 
 # The list routes keep the URL contract the old re_paths had: ``/uncommitted``
 # accepted an optional trailing slash (so the nav link lands on
-# ``/git/uncommitted/``) while ``/commits`` did not. ninja routes are anchored,
-# so the trailing slash is expressed in the path itself.
-@git_router.get("/uncommitted", response=None)
+# ``/git/uncommitted/``) while ``/commits`` did not; both spellings are
+# explicit paths here.
 def git_uncommitted_list(request: HttpRequest) -> HttpResponseBase:
     """``GET /git/uncommitted`` — uncommitted files for ``main`` and ``scratch``.
 
@@ -119,13 +117,11 @@ def git_uncommitted_list(request: HttpRequest) -> HttpResponseBase:
 
 
 # Trailing-slash twin of the route above (see the comment on git_uncommitted_list).
-@git_router.get("/uncommitted/", response=None)
 def git_uncommitted_list_slash(request: HttpRequest) -> HttpResponseBase:
     """``GET /git/uncommitted/`` — same as :func:`git_uncommitted_list`."""
     return git_uncommitted_list(request)
 
 
-@git_router.get("/uncommitted/{worktree}/{path:rel}", response=None)
 def git_uncommitted_diff(request: HttpRequest, worktree: str, rel: str) -> HttpResponseBase:
     """``GET /git/uncommitted/<worktree>/<path>`` — one uncommitted file's diff."""
     require_superuser(request)
@@ -152,7 +148,6 @@ def git_uncommitted_diff(request: HttpRequest, worktree: str, rel: str) -> HttpR
     )
 
 
-@git_router.get("/commits", response=None)
 def git_commit_list(request: HttpRequest) -> HttpResponseBase:
     """``GET /git/commits?page=N`` — paginated commit list (25/page, newest first)."""
     require_superuser(request)
@@ -165,7 +160,6 @@ def git_commit_list(request: HttpRequest) -> HttpResponseBase:
     )
 
 
-@git_router.get("/commits/{commit_id}", response=None)
 def git_commit_file_list(request: HttpRequest, commit_id: str) -> HttpResponseBase:
     """``GET /git/commits/<commit_id>`` — a commit's changed files."""
     require_superuser(request)
@@ -178,7 +172,6 @@ def git_commit_file_list(request: HttpRequest, commit_id: str) -> HttpResponseBa
     )
 
 
-@git_router.get("/commits/{commit_id}/{path:rel}", response=None)
 def git_commit_file_diff(request: HttpRequest, commit_id: str, rel: str) -> HttpResponseBase:
     """``GET /git/commits/<commit_id>/<path>`` — a file's diff in a commit."""
     require_superuser(request)
@@ -209,8 +202,26 @@ def _commit_or_404(commit_id: str) -> tuple[git_data.CommitSummary, list[git_dat
     found = git_data.commit(commit_id)
     if found is None:
         msg = f"Unknown commit: {commit_id}"
-        raise ApiError(404, type="commit_unknown", msg=msg)
+        msg_0 = "commit_unknown"
+        raise NotFound(msg_0, msg)
     return found
 
 
-git_api = make_ninja_api("git", git_router)
+# Pages are plain Django views (ninja hosts JSON only); djangoapp/urls.py
+# mounts these BEFORE the APIs. Same paths as the old ninja page ops.
+page_urls = [
+    path("git/uncommitted", git_uncommitted_list, name="git-uncommitted"),
+    path("git/uncommitted/", git_uncommitted_list_slash, name="git-uncommitted-slash"),
+    path(
+        "git/uncommitted/<str:worktree>/<path:rel>",
+        git_uncommitted_diff,
+        name="git-uncommitted-diff",
+    ),
+    path("git/commits", git_commit_list, name="git-commits"),
+    path("git/commits/<str:commit_id>", git_commit_file_list, name="git-commit"),
+    path(
+        "git/commits/<str:commit_id>/<path:rel>",
+        git_commit_file_diff,
+        name="git-commit-diff",
+    ),
+]

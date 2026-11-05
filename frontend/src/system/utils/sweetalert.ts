@@ -4,6 +4,7 @@ import DOMPurify from "dompurify"
 import {
   ApiErrorSchema,
   DetailStringSchema,
+  NinjaError,
   UserVisibleError,
 } from "./pydanticErrors"
 
@@ -100,6 +101,11 @@ export const showErrorToast = async (
     // hence the longer timer).
     title = e.userTitle
     userHtml = sanitizeToastHtml(e.userHtml)
+  } else if (e instanceof NinjaError) {
+    // A thrown 422 that no form scoped inline: the first field's
+    // server-authored line is the best copy available.
+    title = e.firstMessage() ?? "Validation error — submit it again"
+    detail = ""
   } else if (e instanceof HttpResponseError) {
     title =
       serverMessage(e.response.data) ?? messageForStatus(e.response.status)

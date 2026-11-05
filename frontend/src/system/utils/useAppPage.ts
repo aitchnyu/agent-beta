@@ -6,8 +6,8 @@ import { SharedPropsSchema } from "../schemas/sharedProps"
 /**
  * Parse the shared viewer props (`user`, `viewer_is_superuser`, …) —
  * the top level Inertia merges on every page via SharedPropsMiddleware.
- * Computed inside: Inertia mutates props in place on reloads and
- * partial reloads, so both levels stay live.
+ * Computed inside: Inertia swaps the whole page object on every
+ * visit/reload, so the parse must live in a computed to stay live.
  * For shared chrome components that read no feature data.
  */
 export function useSharedProps() {
@@ -18,10 +18,10 @@ export function useSharedProps() {
 /**
  * Parse an Inertia page payload's two levels, reactively.
  *
- * The page's own data lives under the inner `props` key (views pass
- * `{"props": …}`); `shared` carries the viewer profile from
- * useSharedProps above. Both levels stay live across reloads and
- * partial reloads.
+ * The page's data lives under the inner `props` key (views pass
+ * `{"props": …}`); `shared` is useSharedProps above. Inertia swaps the
+ * whole page object on every visit/reload — parse inside a computed; a
+ * captured `page.props` snapshot goes stale on the next swap.
  *
  * Usage: `const { shared, data: p } = useAppPage(FeaturePropsSchema)`
  * — `p.value.x` in script, `p.x` in template.

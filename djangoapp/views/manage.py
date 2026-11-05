@@ -20,19 +20,17 @@ from django.apps import apps
 from django.core.paginator import Paginator
 from django.db import models
 from django.http import Http404, HttpRequest, HttpResponse
+from django.urls import path
 from inertia import InertiaResponse
 from inertia.utils import defer
-from ninja import (
-    Query,
-    Router,
-)
 from pydantic import BaseModel as PydanticBaseModel
 from pydantic import Field, field_validator
 
 from djangoapp.models import BaseModel, BaseModelUpdateLog, user_profile
 from djangoapp.models.base import User
-from djangoapp.ninja_api import make_ninja_api
+from djangoapp.ninja_api import ExportedSchemaMixin
 from djangoapp.views import require_superuser
+from djangoapp.views.pages import parse_query
 
 if TYPE_CHECKING:
     from datetime import datetime
@@ -63,7 +61,7 @@ class ModelItem(PydanticBaseModel):
     row_count: int
 
 
-class ModelListProps(PydanticBaseModel):
+class ModelListProps(PydanticBaseModel, ExportedSchemaMixin):
     models: list[ModelItem]
 
 
@@ -121,7 +119,7 @@ class RowListFilters(PydanticBaseModel):
         return v
 
 
-class ModelRowsProps(PydanticBaseModel):
+class ModelRowsProps(PydanticBaseModel, ExportedSchemaMixin):
     model_name: str
     columns: list[ColumnDef]
     rows: list[RowItem]
@@ -129,7 +127,7 @@ class ModelRowsProps(PydanticBaseModel):
     filters: RowListFilters
 
 
-class RowDetailProps(PydanticBaseModel):
+class RowDetailProps(PydanticBaseModel, ExportedSchemaMixin):
     model_name: str
     public_id: str
     columns: list[ColumnDef]
@@ -148,9 +146,6 @@ def _allowed_sorts(model_cls: type[models.Model]) -> set[str]:
 
 def _resolve_sort(model_cls: type[models.Model], sort: str) -> str:
     return sort if sort in _allowed_sorts(model_cls) else "-id"
-
-
-manage_router = Router()
 
 
 def _ourapp_models() -> list[type[models.Model]]:
@@ -318,7 +313,6 @@ def _row_logs(model_cls: type[BaseModel], pk: int) -> list[dict[str, Any]]:
     ]
 
 
-@manage_router.get("/models", response=None)
 def models_page(request: HttpRequest) -> HttpResponse:
     """List every ourapp model with its docstring and live row count."""
     require_superuser(request)
@@ -334,15 +328,14 @@ def models_page(request: HttpRequest) -> HttpResponse:
     return InertiaResponse(request, "system/manage/ModelList", {"props": props.model_dump()})
 
 
-@manage_router.get("/models/{model_name}/list", response=None)
 def model_rows_page(
     request: HttpRequest,
     model_name: str,
-    filters: Query[RowListFilters],
 ) -> HttpResponse:
     """List rows of a model, paginated and sorted newest-first (built-ins only)."""
     require_superuser(request)
     model_cls = _model_or_404(model_name)
+    filters = parse_query(request, RowListFilters)
     # The list drops ``public_id`` as a COLUMN: the row's enter-icon link IS
     # the detail affordance, so the raw id reads as noise here (the detail
     # page still shows it; non-BaseModel rows have none anyway).
@@ -376,7 +369,6 @@ def model_rows_page(
     return InertiaResponse(request, "system/manage/ModelRows", {"props": props.model_dump()})
 
 
-@manage_router.get("/models/{model_name}/id/{public_id}", response=None)
 def row_detail_page(
     request: HttpRequest,
     model_name: str,
@@ -426,9 +418,6 @@ def row_detail_page(
     )
 
 
-manage_api = make_ninja_api("manage", manage_router)
-
-
 # Re-export for type-checkers that scan module members.
 __all__ = [
     "ColumnDef",
@@ -441,8 +430,6 @@ __all__ = [
     "RowItem",
     "RowListFilters",
     "RowListPagination",
-    "manage_api",
-    "manage_router",
     "model_rows_page",
     "models_page",
     "row_detail_page",
@@ -451,3 +438,16 @@ __all__ = [
 # Kept honest against BaseModel.get_absolute_url() in djangoapp/models/base.py:
 # the detail route (model_rows_page/row_detail_page) must equal
 # MANAGE_MODELS_URL_PREFIX + "/<model>/id/<id>".
+
+
+# Pages are plain Django views (ninja hosts JSON only); djangoapp/urls.py
+# mounts these BEFORE the APIs. Same paths as the old ninja page ops.
+page_urls = [
+    path("manage/models", models_page, name="manage-models"),
+    path("manage/models/<str:model_name>/list", model_rows_page, name="manage-model-rows"),
+    path(
+        "manage/models/<str:model_name>/id/<str:public_id>",
+        row_detail_page,
+        name="manage-row-detail",
+    ),
+]

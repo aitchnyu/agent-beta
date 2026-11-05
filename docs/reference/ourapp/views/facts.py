@@ -19,11 +19,13 @@ from django.http import Http404, HttpRequest
 from inertia import InertiaResponse
 from ninja import Schema
 
+from djangoapp.ninja_api import ExportedSchemaMixin
+
 from ourapp.models import Fact, Topic
 
 
 
-class TopicOutSchema(Schema):
+class TopicOutSchema(Schema, ExportedSchemaMixin):
     """pk-free serialisation of a topic."""
 
     public_id: str
@@ -31,7 +33,7 @@ class TopicOutSchema(Schema):
     slug: str
 
 
-class FactOutSchema(Schema):
+class FactOutSchema(Schema, ExportedSchemaMixin):
     """pk-free serialisation of a fact (nested topic, no integer pk)."""
 
     public_id: str

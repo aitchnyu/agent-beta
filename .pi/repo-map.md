@@ -45,8 +45,22 @@ run as ONE turn; the session never compacts — the operator can.
   e2e, no re-runs.
 - Before each deploy: `main/`'s dirty files must all be pending in
   scratch, else STOP (BlockerAsk).
+- Ninja = JSON only; pages are plain Django views (per-module
+  `page_urls` mounted before the APIs). Page URLs serve the Inertia
+  protocol (HTML or page JSON under `X-Inertia`) — `router.reload({only})`
+  is a page call, never a data call; data goes through the generated
+  sdk functions.
 - Formatting/lint ≠ deploy points — fold into the next batch;
   `cd ../scratch && ./run lintfix` after every write batch.
+- Payload schemas + typed client: regenerate a feature's sdk on demand
+  — `cd ../scratch && ./run djangomanage generatesdk djangoapp.views.users
+  frontend/src/system/schemas/users_sdk.ts`. Reads the feature's
+  routers + `ExportedSchemaMixin`-marked pydantic models; emits zod
+  schemas (exact class names) + typed client
+  functions (`{method}_{view}`, e.g. `post_set_price`) wrapping
+  `ninjaPost` — commit the sdk; regenerate on payload changes, never
+  hand-edit. Page-props models carry the same marker (no separate
+  registry).
 - Edits via `edit`, one surgical diff per spot; never script batches
   or wholesale rewrites.
 
@@ -98,12 +112,20 @@ Copy from the §9 skeletons first; the full reference files back them.
   `djangoapp.shortcuts`; ownership failure = 404 not 403.
 - Payloads pk-free (`public_id` only); page data nested under `props`
   → pages parse BOTH levels via `useAppPage(FeaturePropsSchema)` from
-  `system/utils/useAppPage.ts` — returns `{ shared, data }`, computed
-  inside (reload-safe: Inertia mutates props in place); every payload
-  stays zod-parsed; HTTP via
-  `frontend/src/system/utils/http.ts` (`postJSON`/`ninjaPost`); toasts via
-  `showToast`/`showErrorToast`; inline field errors via `FieldError`
-  + `errorAtPath`.
+  `frontend/src/system/utils/useAppPage.ts` — returns `{ shared, data }`,
+  computed inside (Inertia swaps the whole page object on every
+  visit/reload; parsing inside a computed is what keeps it live); every
+  payload stays zod-parsed; HTTP via
+  `frontend/src/system/utils/http.ts` (`ninjaPost`/`ninjaGet`/
+  `ninjaDelete` — non-2xx throws: a 422 as `NinjaError`, the rest via
+  the taxonomy; toast-only callers let it fly to main.ts' handlers);
+  toasts via `showToast`/`showErrorToast`; inline field errors via
+  `FieldError` + `errorAtPath`.
+- Page routes taking a `public_id` path param use `<uuid:public_id>` —
+  pages resolve before API mounts, so a bare `<str:public_id>` page
+  route shadows same-shape API paths (e.g. `POST /chores/create` under
+  `chores/<str:public_id>`); the UUID converter can't match fixed
+  segments like `create`.
 - Pages render `<PageTitle :value="…"/>`.
 - zod: one component → inline; one feature →
   `frontend/src/app/schemas/<feature>.ts`; framework →
@@ -129,7 +151,7 @@ Copy from the §9 skeletons first; the full reference files back them.
   `docs/reference/ourapp/tests/test_todos_views.py`,
   `docs/reference/ourapp/tests/test_todos_playwright.py`
 - Frontend: `docs/reference/frontend/src/pages/TodosPage.vue`,
-  `docs/reference/frontend/src/schemas/todos.ts`
+  `docs/reference/frontend/src/schemas/todos_sdk.ts`
 - Wiring: `docs/reference/ourapp/urls.py` +
   `docs/reference/ourapp/views/__init__.py`
 
@@ -168,7 +190,7 @@ the full file only when an excerpt runs out.
      docs/reference/ourapp/{models,views,tests} todos files,
      docs/reference/ourapp/models/facts.py,
      docs/reference/ourapp/views/__init__.py, docs/reference/ourapp/urls.py,
-     docs/reference/frontend/src/{schemas/todos.ts,pages/TodosPage.vue},
+     docs/reference/frontend/src/{schemas/todos_sdk.ts,pages/TodosPage.vue},
      and djangoapp/tests/_base.py; changing any side means updating the
      other. steer.md stage [3] and .pi/agents/coder.md cite this as
      "§9" — update them on renumber. -->
@@ -277,18 +299,18 @@ JSON bodies: resp.json() on test-client responses — json.loads
 only for plain strings (e.g. playwright's `request.post_data`).
 
 **Frontend schema + page** — from
-`docs/reference/frontend/src/schemas/todos.ts` +
+`docs/reference/frontend/src/schemas/todos_sdk.ts` +
 `docs/reference/frontend/src/pages/TodosPage.vue`:
 
 ```ts
-export const TodoSchema = z.object({
+export const TodoOutSchema = z.object({
   public_id: z.string(), row_version: z.number().int().nonnegative(), … })
-export type TodoOut = z.infer<typeof TodoSchema>
+
 
 // page: useAppPage parses BOTH levels reactively (computed inside —
-// reload-safe); mutate via postJSON, then let props re-render the list
+// reload-safe); mutate via the GENERATED sdk fn, then let props re-render
 const { data: p } = useAppPage(TodosPagePropsSchema)   // ../../system/utils/useAppPage
 const todos = computed(() => p.value.todos)
-await postJSON(`/todos/${todo.public_id}/toggle`, { expected_row_version: todo.row_version })
+await post_toggle_todo(todo.public_id, { expected_row_version: todo.row_version })
 await router.reload()   // server is source of truth after every mutation
 ```

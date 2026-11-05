@@ -7,8 +7,7 @@
 // (Session → UserSessionIndex → PushSubscription), and the one-shot
 // just_logged_in flag drives rebindAfterLogin() on the next landing.
 
-import { deleteJSON, postJSON } from "./http"
-import { SubscribeResponseSchema } from "../schemas/notifications"
+import { delete_unsubscribe, post_subscribe } from "../schemas/notifications_sdk"
 
 // Vite copies frontend/public/ verbatim under the static root (vite.config
 // base) — the SW lives at a stable, unhashed URL.
@@ -98,13 +97,7 @@ async function registerSubscription(
     await subscription.unsubscribe()
     throw new Error("The browser returned an incomplete push subscription")
   }
-  const response = SubscribeResponseSchema.parse(
-    await postJSON("/notifications/api/subscriptions", {
-      endpoint,
-      p256dh,
-      auth,
-    }),
-  )
+  const response = await post_subscribe({ endpoint, p256dh, auth })
   if (!response.subscribed) {
     throw new Error("The server did not accept the push subscription")
   }
@@ -152,9 +145,7 @@ export async function disablePush(): Promise<void> {
     ? await registration.pushManager.getSubscription()
     : null
   if (!subscription) return
-  await deleteJSON("/notifications/api/subscriptions", {
-    endpoint: subscription.endpoint,
-  }).catch(() => {})
+  await delete_unsubscribe({ endpoint: subscription.endpoint }).catch(() => {})
   await subscription.unsubscribe()
 }
 

@@ -54,10 +54,18 @@ docs/reference/
 
 ## Conventions
 
-Fat models/thin views, ninja routers + Inertia pages, zod-parsed payloads,
-public ids only, tests per feature + layer — all of it is
-`.pi/steer.md` ("Feature workflow"); this app follows it exactly
-and this README doesn't restate it.
+<!-- MAINTAIN-CONSISTENCY app-conventions — these layout/frontend rules are
+     restated in .pi/steer.md (Feature workflow) and
+     djangoapp/tests/testapp/README.md; change all three together. -->
+
+Fat models/thin views, ninja routers + Inertia pages, public ids only,
+tests per feature + layer — all of it is `.pi/steer.md` ("Feature
+workflow"); this app follows it exactly and this README doesn't restate it.
+
+Payload shapes live in `frontend/src/schemas/<feature>_sdk.ts` — the exact
+shape `generatesdk` emits (zod consts named after the pydantic classes +
+`{method}_{view}` calls); pages import from the sdk. The two multipart
+uploads stay on `postForm`.
 
 ## Workflow
 

@@ -2,12 +2,7 @@
 import { defineAsyncComponent, reactive, ref } from "vue"
 import { router } from "@inertiajs/vue3"
 import PageTitle from "../../components/PageTitle.vue"
-import {
-  UserEditPropsSchema,
-  UserMessageResponseSchema,
-} from "../../schemas/users"
-import { showErrorToast } from "../../utils/sweetalert"
-import { postJSON } from "../../utils/http"
+import { UserEditProps, post_edit_submit } from "../../schemas/users_sdk"
 import { useAppPage } from "../../utils/useAppPage"
 
 // Quill ships in its own lazy chunk (RichTextEditor + quill); the async
@@ -16,12 +11,11 @@ const RichTextEditor = defineAsyncComponent(
   () => import("../../components/RichTextEditor.vue"),
 )
 
-const { data: p } = useAppPage(UserEditPropsSchema)
+const { data: p } = useAppPage(UserEditProps)
 const pathPrefix = p.value.path_prefix
 
 // username is read-only; the rest are editable. Mutations go through the
-// app's HTTP layer (utils/http.ts: CSRF hook + errors normalized to the
-// @inertiajs/core classes showErrorToast already understands).
+// generated client
 const form = reactive({
   first_name: p.value.target.first_name,
   last_name: p.value.target.last_name,
@@ -37,18 +31,14 @@ const isSubmitting = ref(false)
 async function onSubmit() {
   isSubmitting.value = true
   try {
-    const res = UserMessageResponseSchema.parse(
-      await postJSON(`${pathPrefix}/edit/${p.value.target.public_id}`, {
-        ...form,
-      }),
-    )
+    const res = await post_edit_submit(p.value.target.public_id, {
+      ...form,
+    })
     // Server echoes the edited user's public id; confirm it matches the target.
     if (res.id !== p.value.target.public_id) {
       throw new Error("Saved a different user than expected")
     }
     router.visit(`${pathPrefix}/id/${p.value.target.public_id}`)
-  } catch (e: unknown) {
-    showErrorToast(e, "Failed to update user")
   } finally {
     isSubmitting.value = false
   }

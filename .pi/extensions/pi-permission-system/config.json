@@ -94,6 +94,7 @@
       "./run djangomanage listusers *": "allow",
       "./run djangomanage makeloginlink *": "allow",
       "./run djangomanage promotetosuperuser *": "allow",
+      "./run djangomanage generatesdk *": "allow",
       "./run test *": "allow",
       "./run test": "allow",
       "./run playwrighttest *": "allow",

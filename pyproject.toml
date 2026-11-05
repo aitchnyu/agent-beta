@@ -87,6 +87,18 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# The sdk generator reflects over ninja/pydantic internals: operation and
+# annotation objects are honestly Any, _router_registrations is ninja's only
+# mount registry, and the zod type-map is one flat chain per kind — the
+# branch budget keeps every mapping rule visible in a single function.
+"djangoapp/management/commands/generatesdk.py" = [
+    "ANN401",  # ninja's operation/param/annotation objects are untyped
+    "SLF001",  # _router_registrations: ninja's only mount registry
+    "C901",  # the zod type-map is one visible chain per kind
+    "PLR0911",  # ditto — one return per mapped kind
+    "PLR0912",  # ditto
+    "PLR0915",  # add_call emits one client fn in linear steps
+]
 # Tests legitimately reach into private fields and compare against literal
 # status codes / pagination counts that read better as numbers than named consts.
 "djangoapp/tests/**/*.py" = [

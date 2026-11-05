@@ -1,34 +1,28 @@
 import { usePage } from "@inertiajs/vue3"
-import { z } from "zod"
-import { postJSON } from "./http"
+import type { z } from "zod"
+import { ClientErrorBody, post_submit } from "../schemas/client_errors_sdk"
 
 // Backend sink for uncaught browser errors. CSRF is not required for this
 // endpoint (see djangoapp/views/client_errors.py), so both the Inertia client
 // POST and the sendBeacon fallback land without a csrftoken cookie.
 const ENDPOINT = "/client-errors"
 
-// Cap the stack before sending — must stay in sync with
-// djangoapp.views.client_errors._MAX_STACK_INPUT, or a long browser stack 422s
-// (pydantic max_length) and the report is silently dropped.
-const MAX_STACK_CHARS = 5000
+// Clamp the capped fields BEFORE parsing: the generated schema mirrors the
+// backend Field max_lengths (djangoapp.views.client_errors) and REJECTS
+// over-length values instead of truncating them, so an unclamped long stack
+// or message would fail safeParse and the report would be silently dropped.
+const MAX_CHARS = {
+  message: 2000,
+  stack: 5000,
+  filename: 500,
+  url: 2000,
+  userAgent: 500,
+  vueInfo: 200,
+} as const
 
-// The contract for a client error report. Mirrors the backend
-// `djangoapp.views.client_errors.ClientErrorBody` (camelCase wire keys — the
-// pydantic model aliases userAgent/vueInfo), so there is one source of truth:
-// payloads are validated against this schema before they're sent.
-export const ClientErrorPayloadSchema = z.object({
-  message: z.string(),
-  stack: z.string(),
-  filename: z.string(),
-  lineno: z.number().nullable(),
-  colno: z.number().nullable(),
-  url: z.string(),
-  userAgent: z.string(),
-  vueInfo: z.string().optional(),
-  public_id: z.string().nullable(),
-})
-
-export type ClientErrorPayload = z.infer<typeof ClientErrorPayloadSchema>
+// The payload contract is the GENERATED one (client_errors_sdk.ts, built from
+// the backend ClientErrorBody — camelCase wire keys via the pydantic aliases).
+export type ClientErrorPayload = z.infer<typeof ClientErrorBody>
 
 // The most recent payload — flushed via sendBeacon on pagehide ONLY while a POST
 // is in flight (cleared on success), so an error that already landed isn't
@@ -64,21 +58,28 @@ function wirePageHide(): void {
 export async function reportClientError(
   payload: ClientErrorPayload,
 ): Promise<void> {
-  // Validate against the shared contract; safeParse so a malformed payload can't
-  // throw out of this reporter.
-  const parsed = ClientErrorPayloadSchema.safeParse(payload)
+  // Validate against the shared contract (clamped first — see MAX_CHARS);
+  // safeParse so a malformed payload can't throw out of this reporter.
+  const clamped = { ...payload }
+  for (const field of Object.keys(MAX_CHARS) as Array<keyof typeof MAX_CHARS>) {
+    const value = clamped[field]
+    if (typeof value === "string") clamped[field] = value.slice(0, MAX_CHARS[field])
+  }
+  const parsed = ClientErrorBody.safeParse(clamped)
   if (!parsed.success) return
   const valid = parsed.data
-  valid.stack = valid.stack.slice(0, MAX_STACK_CHARS)
   inFlightPayload = valid
   wirePageHide()
   try {
-    await postJSON(ENDPOINT, valid)
+    await post_submit(valid)
     // Delivered — drop the in-flight copy so the pagehide beacon doesn't
     // duplicate it. Keep it only while in flight / on failure.
-    if (inFlightPayload === valid) inFlightPayload = null
+    if (inFlightPayload === valid) {
+      inFlightPayload = null
+    }
   } catch {
-    // ignore — reporting must never throw
+    // ignore — reporting must never throw; the in-flight copy stays for
+    // the pagehide beacon to retry.
   }
 }
 

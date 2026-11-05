@@ -1,39 +1,31 @@
 <script setup lang="ts">
-import { Link, router, useHttp } from "@inertiajs/vue3"
+import { Link, router } from "@inertiajs/vue3"
 import { computed, onMounted, ref } from "vue"
 import type { z } from "zod"
 import Multiselect from "vue-multiselect"
 import PageTitle from "../../components/PageTitle.vue"
 import {
-  UserListPropsSchema,
-  UserSearchItemSchema,
-  UserSearchResponseSchema,
-} from "../../schemas/users"
-import { showErrorToast } from "../../utils/sweetalert"
+  UserListProps,
+  UserSearchItem,
+  get_search,
+} from "../../schemas/users_sdk"
 import { useAppPage } from "../../utils/useAppPage"
 
-type UserSearchItem = z.infer<typeof UserSearchItemSchema>
+type SearchedUser = z.infer<typeof UserSearchItem>
 
-const { data: p } = useAppPage(UserListPropsSchema)
+const { data: p } = useAppPage(UserListProps)
 const pathPrefix = p.value.path_prefix
 
 // Jump-to-profile search (single-select that navigates on pick).
-const selectedUser = ref<UserSearchItem | null>(null)
-const userOptions = ref<UserSearchItem[]>([])
-
-const searchHttp = useHttp({ q: "" })
+const selectedUser = ref<SearchedUser | null>(null)
+const userOptions = ref<SearchedUser[]>([])
 
 async function searchUsers(query: string) {
-  try {
-    searchHttp.q = query
-    const data = await searchHttp.get(`${pathPrefix}/api/search`)
-    userOptions.value = UserSearchResponseSchema.parse(data).users
-  } catch (e: unknown) {
-    showErrorToast(e, "Failed to load users")
-  }
+  const res = await get_search({ q: query })
+  userOptions.value = res.users
 }
 
-function goToProfile(value: UserSearchItem | null) {
+function goToProfile(value: SearchedUser | null) {
   if (!value) return
   router.visit(`${pathPrefix}/id/${value.public_id}`)
 }

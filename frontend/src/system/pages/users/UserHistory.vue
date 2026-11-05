@@ -1,12 +1,13 @@
 <script setup lang="ts">
+import type { z } from "zod"
 import { Link } from "@inertiajs/vue3"
 import PageTitle from "../../components/PageTitle.vue"
 import RichTextViewer from "../../components/RichTextViewer.vue"
-import { UserHistoryPropsSchema } from "../../schemas/users"
+import { UserHistoryProps } from "../../schemas/users_sdk"
 import { formatDateTime } from "../../utils/time"
 import { useAppPage } from "../../utils/useAppPage"
 
-const { data: p } = useAppPage(UserHistoryPropsSchema)
+const { data: p } = useAppPage(UserHistoryProps)
 const pathPrefix = p.value.path_prefix
 
 function actionLabel(action: string): string {
@@ -26,19 +27,10 @@ function actionLabel(action: string): string {
   }
 }
 
-type StrChange = { old: string; new: string }
-type BoolChange = { old: boolean; new: boolean }
-type Changes = {
-  first_name: StrChange | null
-  last_name: StrChange | null
-  email: StrChange | null
-  description: StrChange | null
-  has_public_profile: BoolChange | null
-  is_active: BoolChange | null
-  is_staff: BoolChange | null
-  is_superuser: BoolChange | null
-  login_link_minutes: number | null
-}
+// The changes shape rides the generated schema (users_sdk.ts) — the
+// pydantic defaults make keys optional, and diffsFor skips absent/null
+// changes alike.
+type Changes = z.infer<typeof UserHistoryProps>["entries"][number]["changes"]
 
 // Only the old→new diff fields render as diffs; the admin-action payload
 // field (login_link_minutes) gets its own summary.

@@ -42,6 +42,20 @@ and ask the operator).
   `head djangoapp/...`) silently targets `main/`'s tree. Every scratch
   operation carries the `cd ../scratch && …` prefix; `lintfix` refuses
   to run from `main/` as a backstop.
+- Ninja hosts JSON only; pages are plain Django views (each module's
+  `page_urls`, mounted before the APIs in `djangoapp/urls.py`). Page URLs
+  speak the Inertia protocol — HTML on a navigation, the page JSON under
+  `X-Inertia` — so `router.reload({only: […]})` is a PAGE call, never a
+  data call. Feature data uses the generated `<feature>_sdk.ts` functions
+  (`ninjaPost`/`ninjaGet`/`ninjaDelete`); the raw `postJSON`/`getJSON`
+  are there for legacy purposes.
+- Backend payload changes regenerate the frontend contract:
+  `cd ../scratch && ./run djangomanage generatesdk djangoapp.views.users
+  frontend/src/system/schemas/users_sdk.ts` — reads routers +
+  pydantic models marked with `ExportedSchemaMixin`,
+  page-props models included), emits zod schemas + typed client
+  functions (`{method}_{view}`) into one `<feature>_sdk.ts`; never
+  hand-edit, regenerate and commit when the feature imports it.
 
 <!-- MAINTAIN-CONSISTENCY coder-contract — the fresh-shell rule above is
      restated in .pi/agents/coder.md; change both together. -->
@@ -540,6 +554,9 @@ keeps this list in sync with the commands dir; never let it drift):
   user totals. The replacement for hand-rolled python introspection.
 - `makeloginlink <email>` — one-time login URL for an existing user.
 - `promotetosuperuser <email>` — grant staff + superuser.
+- `generatesdk <module> <out>` — regenerate a feature's typed zod client
+  (`<feature>_sdk.ts`) from its `ExportedSchemaMixin` models + routers —
+  repo-map §2 has the full model.
 - `backupmarker <set|…>` — the backup-marker sentinel (NOT allowlisted —
   it writes; the checkframework2 gate drives its backup round-trip).
 - `addoauth <provider> <client_id> <secret>` — register an OAuth login
@@ -1131,6 +1148,9 @@ Read code in this priority order:
      change both together. -->
  2. **The reference next** — `docs/reference/` as a complete, copyable
     example (model + ninja API + urls + Inertia page + test).
+    <!-- MAINTAIN-CONSISTENCY app-conventions — the layout/frontend rules
+         are restated in docs/reference/README.md and
+         djangoapp/tests/testapp/README.md; change all three together. -->
     - **Search it before writing from memory** —
       `rg -n "<symbol|idiom>" docs/reference/` (from `main/`) answers
       import styles, route shapes, and test idioms in seconds.
@@ -1347,6 +1367,10 @@ raise ApiError(
       `SKIP_ROW_VERSION_CHECK` when a single writer owns the row).
 - [ ] Returns a pydantic schema (data) or `InertiaResponse` (page) — never a raw
       dict or the ORM row.
+- [ ] If a `schemas/<feature>_sdk.ts` file mirrors this API's payloads and
+      this change alters them (fields, types, nullability), regenerate it
+      in the same batch: `cd ../scratch && ./run djangomanage generatesdk
+      <package.module:api>` — a stale mirror is a silently wrong contract.
 - [ ] Raises 404 on a missing row, an ownership/permission failure, or a stale
       `row_version` (`save_plus` raises `Http404` itself) — never renders
       an empty or broken page.
@@ -1655,9 +1679,10 @@ schema. POST a JSON body to a ninja Schema endpoint:
 
 When a FORM submits and needs validation errors inline, use the
 `ninja*` family (`ninjaPost`/`ninjaGet`/`ninjaDelete`) instead: the
-response zod schema comes first, success is parsed by it, and a 422 comes
-back as a returned `NinjaError` (§ Forms & validation errors) instead of
-a throw. Everything else behaves exactly like the plain helpers.
+response zod schema comes first, success is parsed by it, and any
+non-2xx THROWS — a 422 as a `NinjaError` (§ Forms & validation errors),
+everything else via the taxonomy. Toast-only callers let it fly to
+main.ts' global handlers; forms catch `NinjaError` to scope it inline.
 
 Streaming (SSE) responses use `streamPost` from the same module; multipart
 uploads use `postForm`; form-shaped state may use Inertia v3's `useHttp`.
@@ -1674,8 +1699,10 @@ uploads use `postForm`; form-shaped state may use Inertia v3's `useHttp`.
   `pages/git/`, file utils in `pages/files/`); only cross-module helpers
   stay in `utils/`.
 - Parse every server payload with a zod schema; make standalone HTTP
-  calls via `utils/http.ts` and wrap every call in `try/catch` +
-  `showErrorToast`.
+  calls via `utils/http.ts` and let failures throw — main.ts' global
+  handlers toast and report them. Catch only when the site has its own
+  recovery to run first (then re-throw, or scope a `NinjaError` inline
+  for forms).
 
 Zod schemas live with their consumers:
 
@@ -1717,27 +1744,33 @@ def validate_end_date(cls, value: date, info: ValidationInfo[None]) -> date:
 - ctx carries values the copy interpolates server-side:
   `PydanticCustomError("x_too_big", "At most {n}", {"n": 5})`
 - cross-field rules read `info.data` — declare fields context-first
+- rules that belong to no single field raise the same
+  `PydanticCustomError` from `model_validator`; the 422 entry is
+  model-level (loc `__root__`, or empty in pydantic v2), and the
+  frontend's `NinjaError.firstMessage()` prefers it as the toast copy
+  for a 422 no form scoped
 - never plain `ValueError` for user-reachable rules: the frontend masks
   pydantic's generic `value_error` with "Check this value"
 
 #### Frontend — the submit handler
 
-It catches nothing: network and server failures fly to main.ts' central
-handlers, which toast and report them (client error handling is central,
-not per-form):
+It catches nothing except the validation error itself: network and
+server failures fly to main.ts' central handlers, which toast and report
+them (client error handling is central, not per-form):
 
 ```typescript
 const errors = ref<NinjaError | null>(null)   // cleared on edit
 
-const result = await ninjaPost(TodoSchema, "/todos/create", {
-  text: text.value,
-  expected_row_version: 0,
-})
-if (result instanceof NinjaError) {
-  errors.value = result.childForPath(["body", "payload"])
-  return
+try {
+  const result = await ninjaPost(TodoSchema, "/todos/create", {
+    text: text.value,
+    expected_row_version: 0,
+  })
+  emit("created", result)   // parsed TodoOut
+} catch (e) {
+  if (!(e instanceof NinjaError)) throw e   // not validation — global toast
+  errors.value = e.childForPath(["body", "payload"])
 }
-emit("created", result)   // parsed TodoOut
 ```
 
 #### Template — flag the input, show the message under it

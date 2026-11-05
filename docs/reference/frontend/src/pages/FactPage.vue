@@ -2,14 +2,14 @@
 import { Link } from "@inertiajs/vue3"
 import { z } from "zod"
 import PageTitle from "../../system/components/PageTitle.vue"
-import { FactSchema, TopicSchema } from "../schemas/facts"
+import { FactOutSchema, TopicOutSchema } from "../schemas/facts_sdk"
 import { useAppPage } from "../../system/utils/useAppPage"
 import "../styles/app.scss"
 
 // One specific fact by public_id (a stable permalink; non-null or the route 404s).
 const FactPagePropsSchema = z.object({
-  fact: FactSchema,
-  topics: TopicSchema.array(),
+  fact: FactOutSchema,
+  topics: TopicOutSchema.array(),
 })
 
 // Parsed reactively (computed inside useAppPage): reload-safe.
