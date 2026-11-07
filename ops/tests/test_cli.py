@@ -7,7 +7,7 @@ import io
 import unittest
 from unittest.mock import patch
 
-from ops import cli, scratch, testsuite
+from ops import cli, postdeploychecks, scratch, testsuite
 
 
 class DispatchTests(unittest.TestCase):
@@ -16,7 +16,7 @@ class DispatchTests(unittest.TestCase):
     - test_test_command_parses_full_and_labels, --full lands in args.full, labels pass through
     - test_full_flag_position_independent, --full works after the labels too
     - test_unknown_flags_become_extra, flags manage.py owns ride in extra
-    - test_scratch_trio_dispatches, createscratch reaches the Command's run
+    - test_scratch_commands_dispatch, createscratch reaches the Command's run
     - test_playwrighttest_and_screenshots_wiring, labels + extra reach the suite commands
     - test_unknown_command_exits_with_usage, a bad name prints the command list and exits 1
     - test_no_command_exits_with_usage, bare invocation is also a usage error
@@ -45,11 +45,13 @@ class DispatchTests(unittest.TestCase):
         self.assertFalse(args.full)
         self.assertEqual(extra, ["--noinput", "--parallel", "2"])
 
-    def test_scratch_trio_dispatches(self) -> None:
+    def test_scratch_commands_dispatch(self) -> None:
         for command, klass in (
             ("createscratch", scratch.Createscratch),
+            ("checkscratch", scratch.Checkscratch),
             ("deployscratch", scratch.Deployscratch),
             ("cleanscratch", scratch.Cleanscratch),
+            ("postdeploychecks", postdeploychecks.Postdeploychecks),
         ):
             with self.subTest(command=command), patch.object(klass, "run") as run:
                 cli.main([command])

@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/gotgenes/pi-packages/main/packages/pi-permission-system/schemas/permissions.schema.json",
   "permissionReviewLog": true,
-  "promptTimeoutMs": 300000,
+  "promptTimeoutMs": 90000,
   "permission": {
     "*": "ask",
     "subagent": "allow",
@@ -71,7 +71,9 @@
       "sudo -u postgres pgbackrest --stanza=desmo info": "allow",
       "sudo -u postgres pgbackrest --stanza=desmo check": "allow",
       "./run createscratch": "allow",
+      "./run checkscratch": "allow",
       "./run deployscratch": "allow",
+      "./run postdeploychecks": "allow",
       "./run cleanscratch": "allow",
       "./run checkframework1": "allow",
       "./run checkmarkdownd2 *": "allow",

@@ -1,10 +1,11 @@
-"""The scratch lifecycle: createscratch, deployscratch, cleanscratch.
+"""The scratch lifecycle: createscratch, checkscratch, deployscratch, cleanscratch.
 
 scratch/ is the agent's edit tree — a copy of main/ sharing its git
 history under a frozen ``scratch-baseline`` ref. createscratch builds
-it, deployscratch checks the edits in scratch and ships them to main/
-live (nothing deploys red), cleanscratch discards it. ``./run``'s
-trio commands are thin wrappers over this module's CLI (ops.cli).
+it, checkscratch runs the check battery in scratch (the between-batches
+gate; nothing deploys), deployscratch runs the same battery and ships
+the tree to main/ live (nothing deploys red), cleanscratch discards it.
+``./run``'s commands are thin wrappers over this module's CLI (ops.cli).
 
 The exact guard/refusal/hint message strings are load-bearing: the VM
 gate and steer.md assert them.
@@ -258,6 +259,53 @@ def rsync_exclude_lines(lines: Iterable[str], direction_filter: str) -> list[str
     ]
 
 
+def porcelain_paths(status_output: str) -> list[str]:
+    """Parse `git status --porcelain=v2 -z` output into plain paths.
+
+    v2 is git's structured machine format (status has no --json):
+    `1 …` ordinary (8 header fields, then the path), `2 …` rename (9
+    header fields, then the NEW path — the original follows as a bare
+    NUL field and is dropped: the new path is what a deploy would
+    write), `u …` unmerged (10 header fields), `? …` untracked.
+    quotePath=false upstream means no quote-stripping.
+    """
+    paths: list[str] = []
+    rename_next = False
+    for token in status_output.split("\0"):
+        if not token:
+            continue
+        if rename_next:
+            rename_next = False  # the rename's original path — drop it
+            continue
+        if token.startswith("? "):
+            paths.append(token[2:])
+        elif token.startswith("1 "):
+            paths.append(token.split(" ", 8)[8])
+        elif token.startswith("2 "):
+            paths.append(token.split(" ", 9)[9])
+            rename_next = True
+        elif token.startswith("u "):
+            paths.append(token.split(" ", 10)[10])
+    return paths
+
+
+def uncovered_dirty_files(main_dirty: Sequence[str], scratch_changed: Sequence[str]) -> list[str]:
+    """Main/-dirty files scratch does NOT carry — a deploy would lose them.
+
+    The deploy rsyncs scratch/ → main/ with --delete, so any main/ edit
+    absent from scratch's changed-set would be silently overwritten or
+    deleted. `frontend/dist/` is excluded: the deploy itself generates
+    the bundle (built_frontend writes scratch's dist/, the rsync carries
+    it), so dist is always "dirty" in main by design.
+    """
+    carried = set(scratch_changed)
+    return sorted(
+        path
+        for path in main_dirty
+        if path and path not in carried and not path.startswith("frontend/dist/")
+    )
+
+
 # ── Git/rsync plumbing ──────────────────────────────────────────────────
 
 
@@ -418,6 +466,199 @@ def run_smoke_tests() -> None:
     )
 
 
+def _load_env() -> None:
+    """Load main/'s .env (dev) or the VM's credentials file into os.environ.
+
+    Plain KEY="value" lines + comments only — no command substitution,
+    by convention.
+    """
+    env_path = MAIN_DIR / ".env"
+    if not env_path.is_file() and is_running_on_vm():
+        env_path = VM_ENV_FILE
+    if not env_path.is_file():
+        print(
+            "Warning: no .env (dev) or /etc/credentials/desmo/.env.vm (VM) — relying on ambient environment.",
+            file=sys.stderr,
+        )
+        return
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip(), value.strip()
+        if not QUOTED_VALUE.fullmatch(value):
+            # A ` #` starts a trailing comment — strip it, then let
+            # the quote strip below see the clean value.
+            value = value.split(" #", 1)[0].strip()
+        if QUOTED_VALUE.fullmatch(value):
+            value = value[1:-1]
+        os.environ[key] = value
+
+
+def _changed_set() -> tuple[list[str], FastPath]:
+    """Return the scratch changed-set vs its frozen baseline + untracked files.
+
+    One listing, computed once — the fast-path gate and the framework
+    watch both classify this same set. Refuses on a partial changed-set.
+    """
+    exit_code, baseline = shell.capture(
+        "git", "rev-parse", "--verify", "scratch-baseline", cwd=SCRATCH_DIR
+    )
+    if exit_code != 0 or not baseline:
+        shell.die("REFUSING: no scratch-baseline ref — re-run ./run createscratch")
+    exit_code, diff_files = shell.capture(
+        "git", "diff", "--name-only", baseline, cwd=SCRATCH_DIR, quiet_stderr=False
+    )
+    if exit_code != 0:
+        shell.die(
+            f"REFUSING: git diff failed in {SCRATCH_DIR} — no deploy on a partial changed-set."
+        )
+    exit_code, untracked_files = shell.capture(
+        "git", "ls-files", "--others", "--exclude-standard", cwd=SCRATCH_DIR, quiet_stderr=False
+    )
+    if exit_code != 0:
+        shell.die(
+            f"REFUSING: git ls-files failed in {SCRATCH_DIR} — no deploy on a partial changed-set."
+        )
+    changed = sorted({*diff_files.splitlines(), *untracked_files.splitlines()})
+    return changed, classify_changed_files(changed)
+
+
+def _check_battery(changed: Sequence[str], fast_path: FastPath) -> None:
+    """Run the check battery in scratch — everything deployscratch checks.
+
+    Shared by checkscratch (the between-batches gate) and deployscratch
+    (nothing deploys red). Never touches main/.
+    """
+    if fast_path.docs_or_frontend_only:
+        print(
+            "Fast path: frontend/docs-only changes — no backend checks, backup, migrate, or restarts."
+        )
+        if fast_path.frontend_changed:
+            # Lint + build the SPA in scratch; the bundle rides the rsync.
+            shell.run_step("npm run lint", "npm", "run", "lint", cwd=SCRATCH_DIR / "frontend")
+            built_frontend(SCRATCH_DIR / "frontend")
+            # Real pages in a real browser — lint and build cannot catch
+            # runtime breakage; the smoke pass can (kept for framework
+            # frontend edits — the app-surface classification decides).
+            if fast_path.frontend_framework_changed:
+                run_smoke_tests()
+            else:
+                print(
+                    "No framework-file changes (outside the app surface) — skipping scratch-test-subset smoke."
+                )
+        # Design docs: validate every d2 fence in each changed file.
+        # Deleted/renamed-away paths list here too — nothing to validate,
+        # rsync --delete carries the removal.
+        for relative_path in [path for path in changed if DOCS_MD.match(path)]:
+            doc_path = SCRATCH_DIR / relative_path
+            if not doc_path.is_file():
+                continue
+            shell.run_step(
+                f"node deploy/checkmarkdownd2.mjs {relative_path}",
+                "node",
+                str(MAIN_DIR / "deploy" / "checkmarkdownd2.mjs"),
+                str(doc_path),
+            )
+        step_banner("check battery (fast)")
+    else:
+        # The scratch/ fast loop: the agent's edits checked without the
+        # unchanged framework suite or the slow browser pass — those stay
+        # in main/'s checkframework1.
+        print("Running ruff format --check (formatting drift)")
+        shell.run_step(
+            "uv run ruff format --check",
+            "uv",
+            "run",
+            "ruff",
+            "format",
+            *RUFF_COLOR,
+            "--check",
+            cwd=SCRATCH_DIR,
+        )
+        print("Running ruff check (lint)")
+        shell.run_step(
+            "uv run ruff check", "uv", "run", "ruff", "check", *RUFF_COLOR, cwd=SCRATCH_DIR
+        )
+        print("Running mypy for type checking")
+        shell.run_step("uv run mypy .", "uv", "run", "mypy", *MYPY_COLOR, ".", cwd=SCRATCH_DIR)
+        print("Running ourapp tests (scoped; the framework suite runs in main/)")
+        shell.run_step(
+            "./run test --full ourapp",
+            "uv",
+            "run",
+            "manage.py",
+            "test",
+            *DJANGO_NO_COLOR,
+            "--exclude-tag",
+            "playwright",
+            "ourapp",
+            "--noinput",
+            cwd=SCRATCH_DIR,
+            env=test_redis_env(),
+        )
+        print("Running frontend linting")
+        shell.run_step("npm run lint", "npm", "run", "lint", cwd=SCRATCH_DIR / "frontend")
+        print("Running frontend build (type-check + vite in one pass)")
+        built_frontend(SCRATCH_DIR / "frontend")
+        # Framework-file watch: edits outside the app surface mean framework
+        # code changed → run the scratch-test-subset smoke (an early-warning
+        # fraction of checkframework1; the full suite still gates in main/).
+        outside = framework_files(changed)
+        if outside:
+            print("=== framework files changed — running scratch-test-subset smoke tests ===")
+            print(f"  {len(outside)} files:")
+            for changed_path in outside:
+                print(f"  {changed_path}")
+            run_smoke_tests()
+        else:
+            print(
+                "No framework-file changes (outside the app surface) — skipping scratch-test-subset smoke."
+            )
+        step_banner("check battery")
+
+
+def backup_in_flight() -> bool:
+    """Whether a pgbackrest backup is running right now (the stanza's lock).
+
+    A probe failure reads as not-running — a deploy must not stall on a
+    broken probe; the pre-migration backup below would COALESCE with a
+    running one (the safety copy silently never runs).
+    """
+    exit_code, probe_output = shell.capture(
+        "sudo", "-u", "postgres", "pgbackrest", "--stanza=desmo", "info", "--output=json"
+    )
+    if exit_code != 0:
+        return False
+    try:
+        return bool(json.loads(probe_output)[0]["status"]["lock"]["backup"]["held"])
+    except ValueError, IndexError, KeyError, TypeError:
+        return False
+
+
+class Checkscratch(Command):
+    """Run the check battery in scratch — the between-batches gate.
+
+    Everything deployscratch checks, minus the deploy tail (rsync,
+    backup, migrate, collectstatic, restarts) — check between batches
+    without handing the user anything. Never mutates main/; works on
+    dev and the VM.
+    """
+
+    name = "checkscratch"
+
+    @staticmethod
+    def run(_args: argparse.Namespace, _extra: list[str]) -> None:
+        _load_env()
+        _require_main_run("checkscratch")
+        if not SCRATCH_DIR.is_dir():
+            shell.die(f"Refusing: {SCRATCH_DIR} not found. Run createscratch first.")
+        changed, fast_path = _changed_set()
+        _check_battery(changed, fast_path)
+        print("Check battery green — scratch/ is deploy-ready (main/ untouched).")
+
+
 class Deployscratch(Command):
     """Deploy: check battery in scratch, then rsync → main/, live.
 
@@ -433,31 +674,7 @@ class Deployscratch(Command):
     @staticmethod
     def run(_args: argparse.Namespace, _extra: list[str]) -> None:
         # ── environment ──
-        # Plain KEY="value" lines + comments only — no command substitution,
-        # by convention. main/'s .env (dev) first, else the VM's single
-        # credentials file.
-        env_path = MAIN_DIR / ".env"
-        if not env_path.is_file() and is_running_on_vm():
-            env_path = VM_ENV_FILE
-        if not env_path.is_file():
-            print(
-                "Warning: no .env (dev) or /etc/credentials/desmo/.env.vm (VM) — relying on ambient environment.",
-                file=sys.stderr,
-            )
-        else:
-            for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-                line = raw_line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                key, value = key.strip(), value.strip()
-                if not QUOTED_VALUE.fullmatch(value):
-                    # A ` #` starts a trailing comment — strip it, then let
-                    # the quote strip below see the clean value.
-                    value = value.split(" #", 1)[0].strip()
-                if QUOTED_VALUE.fullmatch(value):
-                    value = value[1:-1]
-                os.environ[key] = value
+        _load_env()
 
         # ── guards ──
         _require_main_run("deployscratch")
@@ -465,135 +682,48 @@ class Deployscratch(Command):
             shell.die("Refusing: deployscratch deploys the VM's main.")
         if not SCRATCH_DIR.is_dir():
             shell.die(f"Refusing: {SCRATCH_DIR} not found. Run createscratch first.")
-        # Refuse the moment a backup is in flight — pgbackrest's own lock
-        # report, verified live (a probe failure reads as not-running; a
-        # deploy must not stall on a broken probe). The pre-migration backup
-        # below would COALESCE with a running one (the safety copy silently
-        # never runs).
-        backup_held = False
-        exit_code, probe_output = shell.capture(
-            "sudo", "-u", "postgres", "pgbackrest", "--stanza=desmo", "info", "--output=json"
-        )
-        if exit_code == 0:
-            try:
-                backup_held = bool(json.loads(probe_output)[0]["status"]["lock"]["backup"]["held"])
-            except ValueError, IndexError, KeyError, TypeError:
-                backup_held = False
-        if backup_held:
+        # Refuse the moment a backup is in flight — the pre-migration
+        # backup below would COALESCE with a running one (the safety copy
+        # silently never runs). A probe failure reads as not-running; a
+        # deploy must not stall on a broken probe.
+        if backup_in_flight():
             shell.die("Refusing: a backup is running — let it finish, then re-run deployscratch.")
 
         # ── changed-set vs the frozen baseline + untracked files ──
-        # One listing, computed once — the fast-path gate and the framework
-        # watch below both classify this same set.
-        exit_code, baseline = shell.capture(
-            "git", "rev-parse", "--verify", "scratch-baseline", cwd=SCRATCH_DIR
-        )
-        if exit_code != 0 or not baseline:
-            shell.die("REFUSING: no scratch-baseline ref — re-run ./run createscratch")
-        exit_code, diff_files = shell.capture(
-            "git", "diff", "--name-only", baseline, cwd=SCRATCH_DIR, quiet_stderr=False
+        changed, fast_path = _changed_set()
+
+        # ── deploy-loss guard ──
+        # rsync --delete would clobber main/-only edits, so every main/
+        # dirty file must ride in scratch's changed-set (dist/ excepted —
+        # the deploy generates it). Enforced HERE, so no agent ever
+        # hand-audits git state before deploying. -uall expands untracked
+        # dirs (porcelain would collapse them to `?? dir/` and let a
+        # carried new dir slip through); quotePath=false keeps paths
+        # comparable with scratch's listing.
+        exit_code, main_status = shell.capture(
+            "git",
+            "-c",
+            "core.quotePath=false",
+            "status",
+            "--porcelain=v2",
+            "-z",
+            "--untracked-files=all",
+            cwd=MAIN_DIR,
+            quiet_stderr=False,
         )
         if exit_code != 0:
+            shell.die(f"REFUSING: git status failed in {MAIN_DIR}.")
+        main_dirty = porcelain_paths(main_status)
+        uncovered = uncovered_dirty_files(main_dirty, changed)
+        if uncovered:
             shell.die(
-                f"REFUSING: git diff failed in {SCRATCH_DIR} — no deploy on a partial changed-set."
+                "REFUSING: main/ has dirty files not pending in scratch — a deploy "
+                f"would lose them: {', '.join(uncovered)}. Carry them into scratch "
+                "or commit them, then re-run."
             )
-        exit_code, untracked_files = shell.capture(
-            "git", "ls-files", "--others", "--exclude-standard", cwd=SCRATCH_DIR, quiet_stderr=False
-        )
-        if exit_code != 0:
-            shell.die(
-                f"REFUSING: git ls-files failed in {SCRATCH_DIR} — no deploy on a partial changed-set."
-            )
-        changed = sorted({*diff_files.splitlines(), *untracked_files.splitlines()})
-        fast_path = classify_changed_files(changed)
 
         # ── checks ──
-        if fast_path.docs_or_frontend_only:
-            print(
-                "Fast path: frontend/docs-only changes — no backend checks, backup, migrate, or restarts."
-            )
-            if fast_path.frontend_changed:
-                # Lint + build the SPA in scratch; the bundle rides the rsync.
-                shell.run_step("npm run lint", "npm", "run", "lint", cwd=SCRATCH_DIR / "frontend")
-                built_frontend(SCRATCH_DIR / "frontend")
-                # Real pages in a real browser — lint and build cannot catch
-                # runtime breakage; the smoke pass can (kept for framework
-                # frontend edits — the app-surface classification decides).
-                if fast_path.frontend_framework_changed:
-                    run_smoke_tests()
-                else:
-                    print(
-                        "No framework-file changes (outside the app surface) — skipping scratch-test-subset smoke."
-                    )
-            # Design docs: validate every d2 fence in each changed file.
-            # Deleted/renamed-away paths list here too — nothing to validate,
-            # rsync --delete carries the removal.
-            for relative_path in [path for path in changed if DOCS_MD.match(path)]:
-                doc_path = SCRATCH_DIR / relative_path
-                if not doc_path.is_file():
-                    continue
-                shell.run_step(
-                    f"node deploy/checkmarkdownd2.mjs {relative_path}",
-                    "node",
-                    str(MAIN_DIR / "deploy" / "checkmarkdownd2.mjs"),
-                    str(doc_path),
-                )
-            step_banner("check battery (fast)")
-        else:
-            # The scratch/ fast loop: the agent's edits checked without the
-            # unchanged framework suite or the slow browser pass — those stay
-            # in main/'s checkframework1.
-            print("Running ruff format --check (formatting drift)")
-            shell.run_step(
-                "uv run ruff format --check",
-                "uv",
-                "run",
-                "ruff",
-                "format",
-                *RUFF_COLOR,
-                "--check",
-                cwd=SCRATCH_DIR,
-            )
-            print("Running ruff check (lint)")
-            shell.run_step(
-                "uv run ruff check", "uv", "run", "ruff", "check", *RUFF_COLOR, cwd=SCRATCH_DIR
-            )
-            print("Running mypy for type checking")
-            shell.run_step("uv run mypy .", "uv", "run", "mypy", *MYPY_COLOR, ".", cwd=SCRATCH_DIR)
-            print("Running ourapp tests (scoped; the framework suite runs in main/)")
-            shell.run_step(
-                "./run test --full ourapp",
-                "uv",
-                "run",
-                "manage.py",
-                "test",
-                *DJANGO_NO_COLOR,
-                "--exclude-tag",
-                "playwright",
-                "ourapp",
-                "--noinput",
-                cwd=SCRATCH_DIR,
-                env=test_redis_env(),
-            )
-            print("Running frontend linting")
-            shell.run_step("npm run lint", "npm", "run", "lint", cwd=SCRATCH_DIR / "frontend")
-            print("Running frontend build (type-check + vite in one pass)")
-            built_frontend(SCRATCH_DIR / "frontend")
-            # Framework-file watch: edits outside the app surface mean framework
-            # code changed → run the scratch-test-subset smoke (an early-warning
-            # fraction of checkframework1; the full suite still gates in main/).
-            outside = framework_files(changed)
-            if outside:
-                print("=== framework files changed — running scratch-test-subset smoke tests ===")
-                print(f"  {len(outside)} files:")
-                for changed_path in outside:
-                    print(f"  {changed_path}")
-                run_smoke_tests()
-            else:
-                print(
-                    "No framework-file changes (outside the app surface) — skipping scratch-test-subset smoke."
-                )
-            step_banner("check battery")
+        _check_battery(changed, fast_path)
 
         # ── deploy files ──
         print(

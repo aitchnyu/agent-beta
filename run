@@ -490,9 +490,13 @@ _ops_cli() { # <command> [args…]
 
 createscratch() { _ops_cli createscratch "$@"; }
 
+checkscratch() { _ops_cli checkscratch "$@"; }
+
 deployscratch() { _ops_cli deployscratch "$@"; }
 
 cleanscratch() { _ops_cli cleanscratch "$@"; }
+
+postdeploychecks() { _ops_cli postdeploychecks "$@"; }
 
 help() {
   # Colored in a real terminal, plain when captured (pipes, agent logs) —
@@ -530,12 +534,18 @@ ${H}Checks${R}
 
 ${H}Scratch (the agent edit loop)${R}
   ${C}createscratch${R}       copy main/ → scratch/ + tag scratch-baseline
-  ${C}deployscratch${R}       checks, then deploy scratch/ → main/ (VM only). Backend
-                       diffs: scoped battery (ruff, mypy, ourapp tests — no browser
-                       pass), backup, migrate, restarts; frontend/docs-only
-                       diffs take a fast path (lint/build, + smoke if framework
-                       files changed, or fence checks)
+  ${C}checkscratch${R}        run the check battery in scratch — the between-batches
+                       gate; main/ untouched (works on dev too). Same scoping as
+                       deployscratch: backend diffs run ruff + mypy + ourapp tests +
+                       frontend lint/build (+ smoke on framework files); frontend/
+                       docs-only diffs take the fast path
+  ${C}deployscratch${R}       checks (same battery as checkscratch), then deploy
+                       scratch/ → main/ (VM only). Backend diffs: backup, migrate,
+                       restarts; frontend/docs-only diffs take a fast path
   ${C}cleanscratch${R}        remove scratch/
+  ${C}postdeploychecks${R}    the stage-[5] close-out audit: clean tree,
+                       migrations applied, scratch gone —
+                       one PASS/FAIL line each; exits nonzero on any FAIL
 
 ${H}Backups (pgbackrest — docs/backups.md)${R}
   ${C}backupdb${R}             run a backup NOW (weekly full + daily diff; the tool's own logs print)

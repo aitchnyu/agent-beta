@@ -10,9 +10,11 @@ from ops.scratch import (
     FastPath,
     classify_changed_files,
     framework_files,
+    porcelain_paths,
     rsync_exclude_lines,
     share_url_base,
     test_redis_env,
+    uncovered_dirty_files,
 )
 
 # The FastPath positions read as (docs_or_frontend_only, frontend, framework).
@@ -62,6 +64,75 @@ class ClassifyTests(unittest.TestCase):
     def test_framework_file_kills_the_fast_path(self) -> None:
         changed = ["frontend/src/app/pages/Todos.vue", "run"]
         self.assertEqual(classify_changed_files(changed), NOT_FAST)
+
+
+class PorcelainPathsTests(unittest.TestCase):
+    """The porcelain=v2 -z parser: ordinary, rename, untracked records.
+
+    - test_plain_and_untracked, `1 …` and `? …` records yield their paths
+    - test_rename_keeps_new_path, the NUL-continued original path is dropped
+    - test_unmerged_yields_path, `u …` records parse by field count
+    - test_empty_and_junk_dropped, blank NUL fields and junk skipped
+    """
+
+    def test_plain_and_untracked(self) -> None:
+        self.assertEqual(
+            porcelain_paths(
+                "1 .M N... 100644 100644 100644 a a TODO.md\0"
+                "? ourapp/newmod/x.py\0"
+            ),
+            ["TODO.md", "ourapp/newmod/x.py"],
+        )
+
+    def test_rename_keeps_new_path(self) -> None:
+        # -z renames: `2 …` header + NEW path, then the original bare.
+        self.assertEqual(
+            porcelain_paths(
+                "2 R. N... 100644 100644 100644 a b R100 ourapp/views/new.py\0"
+                "ourapp/views/old.py\0"
+            ),
+            ["ourapp/views/new.py"],
+        )
+
+    def test_unmerged_yields_path(self) -> None:
+        self.assertEqual(
+            porcelain_paths(
+                "u DA N... 100644 100644 100644 a b c d ourapp/conflict.py\0"
+            ),
+            ["ourapp/conflict.py"],
+        )
+
+    def test_empty_and_junk_dropped(self) -> None:
+        self.assertEqual(porcelain_paths("\0\0ab\0! ignored/\0"), [])
+
+
+class UncoveredDirtyFilesTests(unittest.TestCase):
+    """The deploy-loss guard: main/-dirty files scratch doesn't carry.
+
+    - test_main_only_edit_is_uncovered, a file dirty in main but absent from scratch is listed
+    - test_everything_carried_is_covered, main-dirty files also in scratch's changed-set pass
+    - test_dist_bundle_is_always_excluded, frontend/dist/ never counts (the deploy generates it)
+    """
+
+    def test_main_only_edit_is_uncovered(self) -> None:
+        uncovered = uncovered_dirty_files(
+            ["ourapp/views/todos.py", "TODO.md"], ["ourapp/views/todos.py"]
+        )
+        self.assertEqual(uncovered, ["TODO.md"])
+
+    def test_everything_carried_is_covered(self) -> None:
+        self.assertEqual(
+            uncovered_dirty_files(["run", "ops/scratch.py"], ["run", "ops/scratch.py", "ourapp/x.py"]),
+            [],
+        )
+
+    def test_dist_bundle_is_always_excluded(self) -> None:
+        self.assertEqual(
+            uncovered_dirty_files(
+                ["frontend/dist/main-abc.js", "frontend/dist/.build-sha"], []
+            ),
+            [],
+        )
 
 
 class FrameworkFilesTests(unittest.TestCase):
