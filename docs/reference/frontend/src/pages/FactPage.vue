@@ -4,7 +4,7 @@ import { z } from "zod"
 import PageTitle from "../../system/components/PageTitle.vue"
 import { FactOutSchema, TopicOutSchema } from "../schemas/facts_sdk"
 import { useAppPage } from "../../system/utils/useAppPage"
-import "../styles/app.scss"
+import "../styles/facts.scss"
 
 // One specific fact by public_id (a stable permalink; non-null or the route 404s).
 const FactPagePropsSchema = z.object({

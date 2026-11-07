@@ -1,3 +1,43 @@
+Make it happen earlier:why
+3. Docs and code together (coder owns doc updates per batch)
+Was it still doing groundwork? Did coder launch as soon as possible?
+`no string literals inside `raise`` - repeal this
+sdk paths were wrong
+Did agents have to restart? Wy only image is snapshot?
+Why think about dirty files on its own?/
+Feed final coder reviewer results as and when they come in
+Did 2 agents review images?
+Why multiple rounds for image review
+CSS - append to app.scss to reduce diffs
+
+dont deploy, except with intention to present user with new mockup or to give final deliverable to user. But start reviewer after each phase, make them review stuff. Then try to deploy. But I want automated ways to check code is fine. What do you think. Wait for my approval.
+
+test_loginlink_requires_csrf_token - accumulate users
+
+Remove this line. Its fragile
+```
+        self.assertEqual(page["props"], {})
+```
+
+It changed to
+
+```
+        # The chores summary card is the signed-in-only page prop; with no
+        # chores yet it is all zeros.
+        self.assertEqual(
+            page["props"],
+            {
+                "chores_summary": {
+                    "active_count": 0,
+                    "overdue_count": 0,
+                    "next": None,
+                },
+            },
+        ) 
+```
+
+Comment that agent should try not touch existing methods since upstream improvements will cause merge conflicts.
+
 Tons of:
     const page = await get_notifications_page_api({
       after: last.public_id,
@@ -366,10 +406,6 @@ Can choose multiple machines, no more init and dev in run, slim down pi command
 convert checkframework1 and gate to python script
 provision-full and delete-vm should have a prefix
 vm provsion should print 
-
-
-
-Can we avoid NinjaError special case? 
 
 Test dbs get backed up
 Run the uv, npm, playwright installs in parallel?

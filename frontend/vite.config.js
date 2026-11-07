@@ -1,26 +1,23 @@
+import { fileURLToPath } from "node:url"
 import { defineConfig } from "vite"
 import vue from "@vitejs/plugin-vue"
 
-// One lazy d2 bundle + one small eager shared chunk:
-//   d2 — @d2lang/d2 (WASM renderer, web worker, fonts) + @panzoom in a
-//     SINGLE chunk that loads on the first diagram render; components/d2.ts's
-//     `import("@d2lang/d2")` is the lazy boundary.
-//   vendor-shared — packages and bundler helpers that BOTH the entry and
-//     d2 need (dompurify, lodash-*, dayjs, es-toolkit, khroma, …, plus
-//     vite's preload helper). Rolldown assigns a module to exactly one
-//     chunk, and whenever a module the entry needs is captured by (or parked
-//     inside) the d2 chunk, main.js gains a STATIC import edge into the
-//     whole ~11.5 MB bundle — the regression that keeps returning. This group
-//     is the pressure valve: those modules live in a small chunk the entry
-//     imports directly, and d2 imports it lazily like everyone else.
-// test_files.py pins the outcome: a page without diagrams requests no
-// d2-* chunk at all.
+// Chunking (pinned by test_files.py: a page without diagrams requests no
+// d2-* chunk): @d2lang/d2 + @panzoom ship as ONE lazy chunk — components/d2.ts's
+// `import("@d2lang/d2")` is the boundary — and vendor-shared holds packages
+// both the entry and d2 need (the pressure valve keeping main.js from
+// gaining a static import edge into the ~11.5 MB d2 bundle, the regression
+// that keeps returning).
 const D2_BUNDLE = /node_modules[\\/](@d2lang|@panzoom)[\\/]/
 const VENDOR_SHARED =
   /node_modules[\\/](dompurify|lodash-es|lodash\.isequal|dayjs|es-toolkit|khroma|stylis|ts-dedent|uuid)[\\/]|vite[/\\]preload-helper/
 
 export default defineConfig({
   plugins: [vue()],
+  // `@` → src/: generated sdks import http.ts depth-independently.
+  resolve: {
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
+  },
   // Assets/chunks (incl. dynamic-import chunks) resolve under the host static
   // URL /static/djangoapp/, where Django serves them (see base.html).
   base: "/static/djangoapp/",

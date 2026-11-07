@@ -5,7 +5,7 @@
 // One file per NinjaAPI; this per-feature split is for readability.
 
 import { z } from "zod"
-import { ninjaPost } from "../../system/utils/http"
+import { ninjaPost } from "@/system/utils/http"
 
 export const TodoOutSchema = z.object({
   public_id: z.string(),

@@ -5,8 +5,10 @@ import { z } from "zod"
 import { FactOutSchema } from "../schemas/facts_sdk"
 import { useAppPage } from "../../system/utils/useAppPage"
 // Side-effect import: the app ships its own styles from styles/app.scss, so the
-// feature is self-contained (no edit to the framework's main.scss).
+// feature is self-contained (no edit to the framework's main.scss). The
+// fact-of-day link's styles live in facts.scss.
 import "../styles/app.scss"
+import "../styles/facts.scss"
 
 // The landing page's own props: the Fact of the Day (today's fixed pick,
 // chosen by a Huey daily cron, or null). Login state is the shared viewer

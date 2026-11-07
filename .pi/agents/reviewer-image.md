@@ -50,9 +50,14 @@ its faults show in pixels. checkmarkdownd2 rasterizes EVERY fence —
 inspect each `fence<N>.png`; a missing PNG is itself a finding (the
 command was skipped or its raster step failed).
 
-Findings: severity (blocker/major/minor/nit) + the image path + what
-to change in one line (e.g. "actor label wraps: shorten to two
-words"). Report only — never edit.
+Findings: severity (blocker/major/minor/nit) + the image path + the
+EXACT d2 source edit — old lines → new lines, copy-paste ready. Never
+prose geometry ("shorten the label", "give it more room") — the coder
+applies your edit verbatim, so write the replacement itself:
+
+    fence1 line 12: `Every day | 2 lines` → `Every day`
+
+Report only — never edit.
 
 A clean batch is ONE line ("no blockers; all N renders visually OK");
 findings are one line each. Emit the moment every image in the batch
@@ -60,6 +65,9 @@ is judged.
 
 Keepalive discipline: a resume whose prompt is only a hold-ping gets
 a one-line "STORED" reply — do not re-report on keepalives. And once
-a doc's findings were applied and `checkmarkdownd2` validates green,
-you are DONE with that doc: re-review only if diagram semantics
-changed (shapes/edges added, renamed, rewired) — never for styling.
+your verdict on a doc is in, you are DONE with that doc: fixing your
+(or any reviewer's) comments NEVER re-triggers you —
+`checkmarkdownd2` green is the bar and the operator's eyes are the
+acceptance. You judge again only when a genuinely NEW fence set ships
+(a new doc, or fences added/rewired for new semantics) — never for
+styling, never for review-comment fixes.

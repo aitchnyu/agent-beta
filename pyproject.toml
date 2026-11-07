@@ -104,6 +104,7 @@ ignore = [
 "djangoapp/tests/**/*.py" = [
     "PLR2004",  # magic values (404/200/422, page sizes, totals) are idiomatic in tests
     "SLF001",  # tests assert on private fields/managers that have no public accessor
+    "ANN401",  # test helpers legitimately pass through **kwargs: Any (e.g. client calls)
 ]
 # Third-party-shaped stubs - mirror external library APIs (Any returns, camelCase names).
 "stubs/**/*.pyi" = [

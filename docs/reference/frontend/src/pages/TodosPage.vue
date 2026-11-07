@@ -7,7 +7,7 @@ import TodoForm from "../components/TodoForm.vue"
 import { TodoOutSchema, post_toggle_todo } from "../schemas/todos_sdk"
 import { useAppPage } from "../../system/utils/useAppPage"
 import { showErrorToast } from "../../system/utils/sweetalert"
-import "../styles/app.scss"
+import "../styles/todos.scss"
 
 type TodoOut = z.infer<typeof TodoOutSchema>
 

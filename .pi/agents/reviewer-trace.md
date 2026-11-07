@@ -24,16 +24,20 @@ execute anything — you trace connections by reading.
   and permission assumptions across layers.
 - Findings: severity (blocker/major/minor/nit) + file:line + the concrete
   fix. Report only — never edit.
-- Working notes (familiarize): store the diff and touched files,
-  then write notes — every seam/claim/edge-case of your duty as a
-  checkable line (file:line + what to confirm), each marked
-  holds-on-this-diff / cannot-tell-yet / not-covered. Reply "STORED
+- Working notes (familiarize): you spawn at stage-1 start, when only
+  the requirement digest alone — nothing is approved yet, no diff exists —
+  no diff yet. Anchor your duty's seams in the repo (and the digest's
+  claims as FUTURE seams), then write notes — every seam/claim/edge
+  case of your duty as a checkable line (file:line + what to
+  confirm), each marked cannot-tell-yet / not-covered (nothing
+  holds yet — there is no code). Reply "STORED
   + N notes" and hold. Notes are claims, NEVER verdicts or findings
   — no conclusions exist before the final diff. At verify you
   RECONCILE: re-read only the delta the prompt pastes, uphold or
   flip every note it touches, open notes for what is new; every
   "holds" is re-confirmed against the final diff (a lookup against
-  your notes, not a re-derivation). A large delta means
+  your notes, not a re-derivation). A large delta — or a fresh
+  spawn after an aged-out hold — means
   re-familiarize from the full diff.
 - Emit the moment every check in your duty is answered: a clean
   verdict is ONE line ("no blockers, no majors; verified: <seam or

@@ -54,8 +54,9 @@ and ask the operator).
   frontend/src/system/schemas/users_sdk.ts` — reads routers +
   pydantic models marked with `ExportedSchemaMixin`,
   page-props models included), emits zod schemas + typed client
-  functions (`{method}_{view}`) into one `<feature>_sdk.ts`; never
-  hand-edit, regenerate and commit when the feature imports it.
+  functions (`{method}_{view}`) into one `<feature>_sdk.ts` (http.ts
+  via the `@` alias); never hand-edit, regenerate and commit when the
+  feature imports it.
 
 <!-- MAINTAIN-CONSISTENCY coder-contract — the fresh-shell rule above is
      restated in .pi/agents/coder.md; change both together. -->
@@ -87,7 +88,7 @@ and ask the operator).
 
 ## Feature workflow
 
-You build features through six stages; every stage transition is my explicit
+You build features through five stages; every stage transition is my explicit
 choice (never advance on "ok"/"sure"/silence — end the stage with the
 choice menu below and WAIT for my explicit pick). I run the TUI session, Django, and the dev server myself — you
 edit `scratch/` and deploy via `deployscratch`, only once I've said to
@@ -104,172 +105,121 @@ yourself.
 request
   |
   v
-[1] MOCKUPS             /mockup/<page>, static or interactive, no props
-  |   share links (MockupGate) --> user picks:
-  |      revise ......... back to [1]
-  |      write docs ........... to [2] — coder GROUNDWORK spawns here
-  v
-[2] DESIGN DOCS          use cases, data + its changes, dev reference
-  |   share doc + mockup links (DocsGate) --> user picks:
+[1] MOCKUPS + DOCS      mockup pages + the INITIAL doc (3 sections, rest
+  |   `pending`) authored together; coder GROUNDWORK + reviewer
+  |   FAMILIARIZE spawn at stage start (the warm-up); ONE deploy —
+  |   the mockup+doc presentation; image judge: ONE verdict.
+  |   share doc + mockup links (MockupDocsGate) --> user picks:
   |      revise docs/mockups ... back as directed
-  |      docs ................. to [3] (approved, code follows)
-  |      docs and code ........ to [3] (doc rides the batches)
+  |      approve .............. to [2] — image verdict + gate notes
+  |                            ride the coder digest
   v
-[3] CODE                 scratch, deployscratch per batch, mockups graduate
+[2] CODE                 coder batches with `./run checkscratch` between
+  |                      them (NO deploys); each batch fills the pending
+  |                      doc sections it implements; mockups graduate
+  v
+[3] AGENT REVIEW + fixes  reviewers resumed from stage-1 familiarize;
+  |                      ONE fix cycle; image verdicts are FINAL (fixes
+  |                      are never re-reviewed); then the FINAL deploy —
+  |                      the deliverable (battery trips: fix, deploy again)
+  v
+[4] OFFER TO COMMIT      CommitOffer — commits stay the human's call
   |
   v
-[4] AGENT REVIEW + design-doc updates
-  |
-  v
-[5] OFFER TO COMMIT      CommitOffer — commits stay the human's call
-  |
-  v
-[6] FINAL CHECKLIST      clean tree, one commit, migrations run, scratch gone,
+[5] FINAL CHECKLIST      clean tree, one commit, migrations run, scratch gone,
                          one-sentence report
 ```
 
 Stage rules carry the TECHNICAL constraints only — every message shape
 lives in [Stage messages](#stage-messages):
 
-- **[1] Mockups** — `createscratch` **once**, then mockup pages
-  (mechanics: [Mockups](#mockups)): real Vue
-  components with hardcoded markup — **no props** (hardcode repeated
-  items), reuse the app's CSS, superuser-only pages at `/mockup/<page>`;
-  a superuser-only link on the homepage is allowed. Client-side state and
-  links BETWEEN mockup pages are fine from the start — still no backend
-  API calls, nothing saves. Frontend-only edits keep the battery light —
-  build something you can think up and test FAST. Bundle the workflow
-  questions into MockupGate (one round) — and ask them BEFORE writing
-  the first mockup: requirement answers reshape the design, and a
-  mockup built on unasked questions gets thrown away. Deployed flow per
-  batch: lintfix in scratch → `./run deployscratch` → share the links —
-  a green deploy IS the verification ([Mockups](#mockups)).
-- **[2] Design docs** — the design doc (per the [Feature docs](#feature-docs)
-  outline) joins the mockups; share doc + mockup links via DocsGate.
-  Validate the fences with `./run checkmarkdownd2`; the image
-  reviewer spawned in background judges the renders — you NEVER view
-  them yourself. Its verdict lands in the DocsGate message
-  (see [The review round](#the-review-round-stage-4)).
-- **[3] Code — only after explicit approval.**
-   - **Docs + code together** (DocsGate pick): the doc is approved as
-     an evolving outline and the coder owns it — each batch also
-     updates the design-doc section it implemented ([Feature docs]
-     rules, same scratch tree). The gate approved direction, not
-     final prose; [4]'s review round then judges doc and app
-     together, and [4]'s doc-update step becomes verification.
-    - The coder launches EARLY — at the MockupGate "write docs"
-      pick, while you write the docs — as GROUNDWORK, in background:
-      "read the doc-independent list; study the approved mockups +
-      requirement; draft the preliminary models-first plan from
-      them; reply 'GROUNDWORK DONE + preliminary plan' via
-      ask_parent and hold." The groundwork reads:
-      - .pi/repo-map.md §9 (copy-me skeletons)
-      - the reference files
-      - pyproject.toml's ruff + mypy sections
-      - the annotated exemplar `ourapp/tests/test_home_views.py`
-      - steer.md's `field_validator`/`ValidationInfo` example under
-        "Forms & validation errors"
-    - At DocsGate-send, WAVE 2: resume it with the models-first
-      digest (and the design doc itself under the docs+code option —
-      it owns those sections from batch 1). It RECONCILES the
-      preliminary plan against the digest — flip or uphold plan
-      lines, never a full re-plan — and replies "READY + final
-      plan", then holds. Requirements already final at spawn
-      (docs+code pick, or a restarted feature)? The prompt is
-      "requirements final — no hold: read, draft the plan, then
-      implement." The open question holds the session alive past
-      the 45m retention — any gate length; planning generation is
-      spent during mockups/docs, not on the implement critical
-      path. Paste the preliminary plan into the DocsGate message —
-      the operator reviews the plan WITH the docs and catches
-      scope drift at the gate.
-   - On approval, RESUME the prep session — its agent id rides in the
-     READY ask_parent result; pass that id as the `resume` option with
-     prompt "implement" (mid-prep pivot path: the id comes from the
-     spawn record — there is no READY result).
-   - Fresh spawn only when: its session aged out, a session switch
-     cleared its records, or the gate sent you back to revise docs or
-     mockups — then re-spawn with the PREP prompt plus the revised
-     digest. Never implement against a plan it no longer holds; a
-     fresh spawn re-pays the whole orientation.
-   - It runs in BACKGROUND — you stay live to orchestrate the
-     reviewers. NEVER wait on the prep: no get_subagent_result
-     polling, no "checking whether it finished" — the READY ask
-     arrives on its own, and approval steers mid-prep. Keep working
-     the gate and stage messages meanwhile.
-    - Each notify_parent ping is an ACCEPTED batch, and YOU deploy
-      it: check main/'s `git status --short` shows only files also
-      pending in scratch (equality via `git diff --no-index`), then —
-      from `main/` — run `./run deployscratch` and steer
-      "deployed — next batch". The coder never deploys; its
-      forwarded asks block on operator presence.
-   - Its FINAL green report arrives as an ask_parent that HOLDS the
-     session for the fix round — answer it with the triaged code
-     fixes, or "release" to let it complete.
-   - If approval lands while the prep is still running (no READY
-     yet), steer it with "implement" instead of waiting — background
-     agents take steering mid-run, and the coder pivots to batch 1
-     on the spot.
-   - The operator watches its tool calls; its permission asks forward
-     to you.
-  - You stay the planner — verify each green batch it reports, keep
-    the docs current (docs+code option: the coder keeps the doc
-    current — verify each batch's doc edits); never implement
-    yourself while a coder run is
-    open. Continue in the SAME `../scratch/` (no second
-    `createscratch` unless sent back). The implement-loop contract
-    lives in `.pi/agents/coder.md`.
-  - Mockups graduate into the real feature: the coder evolves the
-    mockup pages (real URL, real props/endpoints) and DELETES the
-    `Mockup<Name>.vue` page, its homepage link, AND the homepage
-    placeholder block when the real page lands — the EMPTY state must
-    render ("No chores yet", never placeholder text).
-- **[4] Agent review + doc updates** —
-  - paste the coder's suite/battery outputs as the evidence; run the
-    checks yourself only where the coder had no coverage
-  - the reviewers were familiarized during stage 3 (skip familiarize
-    when they spawn with the final diff already in hand) and verified at
-    the final green — triage their findings as they land (see
-    [The review round](#the-review-round-stage-4))
-   - then answer the coder's held final-green ask with the accepted
-     code fixes, labeled by owner (coder-owned doc sections vs
-     parent-applied doc fixes) — it resumes the SAME session, which
-     still holds the plan and loop state (a session switch between
-     rounds clears subagent records — if the resume is refused,
-     re-spawn fresh with the fix list and the final diff); you fix
-     the docs
-   - update the design doc to match the code (docs+code option: the
-     coder kept it current per batch — verify, and apply reviewer
-     doc fixes)
-   - the [4] close is ONE cycle — fixes, doc updates, screenshot
-     captures: resume the coder once, tick each item onto the fix
-     list first (a dropped item costs a round trip), and ship it
-     all with a single `./run deployscratch`; an extra cycle needs
-     an operator-reported regression, not polish
-- **[5] Offer to commit** — CommitOffer; never commit unasked.
-- **[6] Final checklist** — after the commit lands, audit the job yourself
-  (the operator's recurring catches — never make them catch one again),
-  then close out with ONE sentence:
-  - [ ] `git status` clean (no dangling files — check for framework drift
-        you touched, however small)
-  - [ ] single feature commit (merge if the operator's fixes or framework
-        drift split it — offer, don't do it unasked)
-  - [ ] all migrations and production scripts executed (migrate ran,
-        seed/setup commands applied to the live DB)
-  - [ ] scratch gone (`./run cleanscratch` — offer if it holds anything
-        uncommitted)
+- **[1] Mockups + docs — one stage, one gate, one deploy.**
+   - `createscratch` once, then author mockup pages (mechanics:
+     [Mockups](#mockups)) AND the initial design doc together. The doc
+     fills exactly three sections — "Who can do what", "The data"
+     (with its d2 fences), "How the data changes" (with its fences);
+     every later section stays a `pending` marker until the coder
+     fills it in [2] ([Feature docs](#feature-docs)). Bundle the
+     workflow questions into the gate, BEFORE the first mockup.
+   - Warm-up spawns at stage start, parallel to authoring: coder
+     GROUNDWORK (doc-independent reads + preliminary plan, then holds —
+     reading list in `.pi/agents/coder.md`) and the reviewer fleet
+     FAMILIARIZE on the requirement digest (no diff exists yet).
+   - Presentation deploy: lintfix → `./run deployscratch` → share doc +
+     mockup links; a green deploy IS the verification. The image judge
+     spawns on the doc's rendered fences — ONE verdict, landing in the
+     gate message (you never view renders yourself). MockupDocsGate =
+     doc + mockup links + image verdict + preliminary plan; picks:
+     revise / approve.
+- **[2] Code — only after the gate's explicit approval.**
+   - Resume the GROUNDWORK session with the digest: requirement, the
+     approved initial doc, the image verdict, gate notes. It reconciles
+     the preliminary plan (flip or uphold, never re-plan) and
+     implements. Fresh spawn only on age-out, session switch, or
+     send-back — never implement against a plan it no longer holds
+     (full contract: `.pi/agents/coder.md`).
+   - It runs in background: pings arrive on their own — never poll,
+     never wait; keep orchestrating meanwhile. The operator watches its
+     tool calls; permission asks forward to you.
+   - **No deploys during [2].** Each batch: the coder runs
+     `./run checkscratch` before reporting green; you steer "next
+     batch". Nothing reaches `main/` until [3]'s final deploy.
+   - Each batch also fills the `pending` doc sections it implements
+     ([Feature docs](#feature-docs)); you verify each batch's doc
+     edits — you stay the planner, never implementing while a coder
+     run is open, same scratch tree throughout.
+   - Mockups graduate into the real feature (real URL, real props/
+     endpoints; DELETE the `Mockup<Name>.vue` + homepage link +
+     placeholder block — the EMPTY state must render).
+- **[3] Agent review + fixes + the FINAL deploy —**
+   - paste the coder's suite/battery outputs as the evidence; run the
+     checks yourself only where the coder had no coverage
+   - the reviewers were familiarized at stage-1 start — resume them for
+     VERIFY at the coder's final green (a resume refused for age means
+     re-spawn fresh with familiarize+verify in one prompt) — and triage
+     their findings as they land (see
+     [The review round](#the-review-round-stage-3))
+    - then answer the coder's held final-green ask with the accepted
+      code fixes, labeled by owner (coder-owned doc sections vs
+      parent-applied doc fixes) — it resumes the SAME session, which
+      still holds the plan and loop state (a session switch between
+      rounds clears subagent records — if the resume is refused,
+      re-spawn fresh with the fix list and the final diff); you fix
+      the docs
+    - **Image verdicts are FINAL**: the image judge ran once at the
+      gate; fixing its (or any reviewer's) diagram comments never
+      re-triggers it — apply the prescriptions, `checkmarkdownd2`
+      green is the bar, and the operator's eyes on the doc link are
+      the acceptance
+    - the [3] close is ONE cycle — fixes, doc updates, screenshot
+      captures: resume the coder once, tick each item onto the fix
+      list first (a dropped item costs a round trip)
+    - **then the FINAL deploy** — `./run deployscratch` from `main/`.
+      This is the deliverable; if its battery trips, fix and deploy
+      again. An extra fix cycle needs an operator-reported regression,
+      not polish
+- **[4] Offer to commit** — CommitOffer; never commit unasked.
+- **[5] Final checklist** — after the commit lands, run `./run postdeploychecks`
+  and fix anything red yourself before reporting (the operator's
+  recurring catches — never make them catch one again: dangling files,
+  split commits, missed migrations, scratch left behind). Then close
+  out with ONE sentence:
+  - [ ] `./run postdeploychecks` — every line PASS (tree clean,
+        migrations applied, scratch gone)
   - [ ] single sentence report to user — the whole close-out is one line:
         what shipped, where it lives, that the checklist is green.
 
-**One turn through [3]→[5].** Code, deploy, review, triage/fixes, and doc
-updates run as ONE batch ending at the CommitOffer. From your seat:
+**One turn through [2]→[4].** Code, checkscratch, review, triage/fixes, doc
+updates, and the final deploy run as ONE batch ending at the CommitOffer.
+From your seat:
 
-1. the coder codes + deploys per batch (the operator watches live);
-2. run the reviewer round (familiarized during the coder run, verified
-   at its final green);
-3. triage findings — the coder fixes code, you fix docs — redeploy;
-4. update the docs;
-5. make the CommitOffer.
+1. the coder codes in batches with checkscratch between them (the
+   operator watches live);
+2. run the reviewer round (familiarized at stage-1 start, verified at
+   the coder's final green);
+3. triage findings — the coder fixes code, you fix docs;
+4. verify the coder-filled doc sections against the code;
+5. the final deploy, then make the CommitOffer.
 
 You never compact this session — the mechanical churn lives in coder
 subagents, so your context grows at planner pace. If a session truly
@@ -277,7 +227,7 @@ runs long, the operator `/compact`s it; you never do, and you never
 wait on one.
 
 Never stop between them to report, and never sit on completed reviewer
-results; process them before the turn ends. Only MockupGate/DocsGate
+results; process them before the turn ends. Only the MockupDocsGate
 gates or a genuine question pause for the operator.
 
 Keep OPENING turns small — a plan of ≤10 lines, then the first tool
@@ -301,10 +251,13 @@ gap — spend them on decisions, not on serialization:
   still run free;
 - put ALL of a file's edits in one `edit` call — N surgical diffs,
   one round trip;
-- after a failing suite run, fix every failure you understand in one
-  batch, then rerun once — never one symptom per run-edit-run cycle.
+- after a failing lint/test run, fix every failure you understand in
+  one batch — all of them, in parallel — then rerun only after you
+  believe all are addressed; never one symptom per run-edit-run cycle.
+  The copy-me code (exemplar, §9 skeletons, reference files) already
+  satisfies these rules — copy it exactly and most never fire.
 
-### The review round (stage 4)
+### The review round (stage 3)
 
 <!-- MAINTAIN-CONSISTENCY review-fleet — the duty lines below are the
      source of truth for reviewer-{correctness,conventions,
@@ -312,10 +265,11 @@ gap — spend them on decisions, not on serialization:
      review's rules are docs/d2.md's; logging claims are docs/logging.md's.
      Change both sides together. -->
 
-Fresh reviewers per feature run — the bench is held only from the
-coder's first green to its final (inside the 45m subagent retention);
-doc-only work with no coder run spawns them when the review runs.
-How many:
+Fresh reviewers per feature run — the bench familiarizes at stage-1
+start (on the requirement digest) and holds through the gate and the
+coder run; verify resumes those sessions (aged-out holds re-spawn fresh
+with familiarize+verify in one prompt). Doc-only work with no coder run
+spawns them when the review runs. How many:
 
 - **Significant diff** — touches backend AND frontend, any framework file,
   or more than ~10 files → all FOUR rule-focused reviewers
@@ -326,10 +280,11 @@ How many:
   - `reviewer-mirrors` — config/allowlist mirrors, run verbs vs help,
     command flags vs inventory
   - `reviewer-trace` — cross-layer wiring, render-vs-validate ground truth
-  Plus `reviewer-image` when docs changed.
-  - Spawning early (familiarize or validation time): judge the fleet
-    from the DocsGate plan, and re-check at verify — if the final
-    diff outgrew the call, add a fresh reviewer.
+  Plus `reviewer-image` when docs changed — ONE verdict per artifact set;
+    diagram fixes from ANY round are never re-reviewed by it; the
+    findings contract (exact d2 edits) lives in reviewer-image.md.
+- The stage-1 familiarize judged the requirement; at verify, re-check
+  against the final diff — if it outgrew the call, add a fresh reviewer.
 - **Small diff** — anything else: the single `reviewer`, as before — it
   carries the diagram duty when docs changed (its agent file has the
   contract).
@@ -599,9 +554,9 @@ screenshots, no "just checking the authed view": mockup pages are
 superuser-only, and the operator's click is the first real check. There is
 NO allowlisted path that rasters a scratch page — `./run screenshots`
 regenerates committed README PNGs only — and improvising one (inline
-playwright python) is the 635s-dialog class; the DocsGate image reviewer
-judges the d2 rasters, never mockup pages. Announced links may carry
-`:8000`; that port serves the operator only.
+playwright python) is the 635s-dialog class; the MockupDocsGate image
+reviewer judges the d2 rasters, never mockup pages. Announced links may
+carry `:8000`; that port serves the operator only.
 
 - **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
   deploy as `/files/main/ourapp/docs/<feature>.md`. Structure and writing
@@ -627,20 +582,24 @@ judges the d2 rasters, never mockup pages. Announced links may carry
   - No tests; the real feature writes them.
   - Editing existing code is normal work — just not part of adding a
     mockup.
-- **Becoming real (stage 3)** — build the feature at its real URL with
+- **Becoming real (stage 2)** — build the feature at its real URL with
   real props/endpoints. DELETE the `Mockup<Name>.vue` + its homepage link
-  in the same change. (Abandoned: delete the files; the next
-  `deployscratch`'s rsync `--delete` retires them from `main/`.)
+  in the same change. (Abandoned: delete the files; the final deploy's
+  rsync `--delete` retires them from `main/`.)
 
 ### Feature docs
 
 Every feature gets one doc: `ourapp/docs/<feature>.md`.
 
 #### The doc's life
-It is drafted in `../scratch/` at stage 2, so it reaches
-`main/` with the first deployscratch. It is updated at stage 4 to match the
-code. From then on it is kept current with every change, diagrams included.
-In chat, link it as `<base>/files/main/ourapp/docs/<feature>.md`.
+It is drafted in `../scratch/` at stage 1 as the INITIAL doc — exactly
+three filled sections ("Who can do what", "The data" with its d2
+fences, "How the data changes" with its fences) plus every later
+section as a `pending` marker — and reaches `main/` with the stage-1
+presentation deploy. The coder fills the pending sections during stage
+2, in the batch that implements them; stage 3 verifies them against
+the code. From then on it is kept current with every change, diagrams
+included. In chat, link it as `<base>/files/main/ourapp/docs/<feature>.md`.
 
 #### Two audiences, one file
 The front of the doc, however long the plain language needs — is the feature in plain
@@ -752,8 +711,8 @@ them with pan/zoom controls.
   validator already emits SVGs (`/tmp/desmo/render-*`); look at them
   yourself before the doc goes live. A diagram shipped uneyeballed
   costs a fix loop that dwarfs the check.
-- **One diagram fix round at DocsGate** — validate, render, fix the
-  faults the pass finds, deploy. Deeper polish (aspect ratios,
+- **One diagram fix round at the stage-1 gate** — validate, render,
+  fix the faults the pass finds, deploy. Deeper polish (aspect ratios,
   pixel-perfect widths) only when the operator asks; the reviewer's
   thoroughness never defines done for the stage.
 - Icons stay local: copy a lucide SVG (grep
@@ -768,9 +727,10 @@ them with pan/zoom controls.
   changed files at deploy time automatically.
 - **Fresh eyes: the image reviewer spawns the moment validation
   renders exist** — right after `checkmarkdownd2` passes, in
-  background; it judges while you deploy and compose the DocsGate
-  message, and its verdict lands IN the gate message. Collect every
-  doc whose fences you generated or edited;
+  background; it judges while you deploy and compose the
+  MockupDocsGate message, and its verdict lands IN the gate message —
+  its ONE verdict; diagram fixes are never re-reviewed by it. Collect
+  every doc whose fences you generated or edited;
   the spawn prompt for the diagram-duty reviewer (the single `reviewer`,
   or `reviewer-image` in a multi-reviewer run) carries, per doc: the
   doc path, the pasted `./run checkmarkdownd2` output, and the render dir
@@ -932,20 +892,12 @@ may hold uncommitted work from a prior task; `./run cleanscratch` wipes it).
 
 **Never deploy over uncommitted work you can't account for.** The deploy
 rsync is `--delete` and never commits, so `main/` routinely holds
-deployed-but-uncommitted changes. Before each `./run deployscratch`, check
-`main/`'s `git status --short` against scratch's pending changes: every
-dirty file in `main/` must ALSO be pending in scratch (the normal loop —
-a previous deploy put it there). A file dirty in `main/` but untouched in
-scratch is an operator hotfix or hand-edit the rsync would silently
-overwrite or delete — STOP and report it (BlockerAsk) instead of deploying.
-
-**A deploy is for a change worth showing** — a substantive edit batch or a
-stage boundary. Formatting/lint/mypy fixes are NOT deploy points: fold them
-into the next batch, or work them through the scratch-side loop
-(`cd ../scratch && ./run lintfix && ./run test ourapp.tests.…` — checks
-without the deploy tail) and deploy only when something real changed. A
-"fix two characters → full battery → rsync → restart" cycle is wasted
-minutes and operator trust; batch the fixes, then deploy once.
+deployed-but-uncommitted changes — `deployscratch` refuses on its own
+when a dirty file isn't carried in scratch. During stage 2, between
+batches, use `./run checkscratch` (the same battery, main/ untouched);
+deploy only when something real changed. A "fix two characters → full
+battery → rsync → restart" cycle is wasted minutes and operator trust;
+batch the fixes, then deploy once.
 
 **On the VM, Playwright browsers are preinstalled** — one shared cache
 (`PLAYWRIGHT_BROWSERS_PATH`, exported by `./run`'s env) with chromium's system
@@ -997,9 +949,10 @@ message):
 Keep it tight. For a trivial change a single sentence is enough; don't pad.
 
 ### Stage messages
-Every approval-gated stage transition (the mockup/doc gates — MockupGate, DocsGate —
-and the commit gate — CommitOffer) ends with a **choice menu** — the concrete options as the message's
-LAST lines — never advance such a stage without my explicit reply matching
+Every approval-gated stage transition (the mockup+doc gate —
+MockupDocsGate — and the commit gate — CommitOffer) ends with a
+**choice menu** — the concrete options as the message's LAST lines —
+never advance such a stage without my explicit reply matching
 an option. (BlockerAsk/FinalReport are report-and-continue stages — no gate menu, but when
 their verdict line ASKS for a decision it uses the same numbered shape; a
 pure report closes on a plain statement.)
@@ -1031,22 +984,19 @@ We need to do this. Here are your choices
 Choose
 ```
 
-- **MockupGate — mockups**
+- **MockupDocsGate — mockups + the initial design doc (one gate)**
   - [ ] one line of intent
   - [ ] mockup links, each labeled `(mockup quality)`
         (e.g. `[todos (mockup quality)](<base>/mockup/MockupTodos)`)
   - [ ] what's interactive (state, cross-page links), if any
-  - [ ] bundled workflow questions, if any (one round)
-  - [ ] menu: 1. revise mockups 2. write down design docs — then `Choose`
-  - [ ] shaped per [Message structure](#message-structure-the-single-rule)
-- **DocsGate — design docs**
-  - [ ] models-first plan digest
+  - [ ] the initial design-doc link — 3 filled sections (Who can do
+        what / The data / How the data changes) + the pending markers
+  - [ ] the image reviewer's one-line verdict on the doc fences
   - [ ] the coder's preliminary plan from groundwork (paste it —
         the operator reviews the plan WITH the docs)
-  - [ ] design-doc link + mockup links
-  - [ ] menu: 1. revise docs/mockups 2. docs — approved, code
-        follows 3. docs and code together (doc rides the batches) —
-        then `Choose`
+  - [ ] bundled workflow questions, if any (one round)
+  - [ ] menu: 1. revise mockups/docs 2. approve — implement — then
+        `Choose`
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
 - **BlockerAsk — blocker**
   - [ ] what failed
@@ -1067,7 +1017,7 @@ Choose
   - a re-attached standing offer repeats the feature line + the links —
     never bare numbers
   - shaped per [Message structure](#message-structure-the-single-rule)
-- **CloseOut — post-commit close-out** (stage [6]; no menu — it runs after the
+- **CloseOut — post-commit close-out** (stage [5]; no menu — it runs after the
   commit lands):
   - the checklist stated as done, one line (clean tree, single feature
     commit, migrations + production scripts executed, scratch gone);
@@ -1546,6 +1496,13 @@ of guessing. Verified commands live in **docs/logging.md** (read it first);
 run the queries inside the VM (`multipass exec desmo -- …`).
 
 ### Writing tests
+- Existing test methods are upstream surface: a feature EXTENDS by
+  ADDING its own asserts/tests, never by editing existing ones —
+  upstream improvements change shared payloads, and exact-equality
+  asserts on shared dicts (e.g. `props == {}`) turn into merge
+  conflicts. A feature's own props assert specifically, never the
+  whole dict.
+
 Playwright e2e below covers the frontend too; the unit bullet covers
 [Backend](#backend) models/views.
 - **Check your work with `./run test <labels…>`** — the quick way to run
@@ -1692,7 +1649,10 @@ uploads use `postForm`; form-shaped state may use Inertia v3's `useHttp`.
   `frontend/src/` — pages in `pages/<Name>.vue` (Inertia component name =
   path, e.g. `Home`), components in `components/`, shared zod modules in
   `schemas/`, styles in `styles/app.scss` (imported as a side-effect by
-  the page component, so the app is self-contained).
+  the page component, so the app is self-contained). Feature styles
+  APPEND below the `Feature styles` marker at the end of that file —
+  never interleave into the upstream-owned part above it, so framework
+  updates merge clean.
 - Framework code lives under `frontend/src/system/` with the same subdirs
   plus `icons/`.
 - Module-owned helpers colocate with their pages/components (git utils in
@@ -2023,12 +1983,13 @@ invoke either.
 rides the shell guard like any other command; it asks the operator
 when needed.)
 
-`./run deployscratch` IS allowlisted (in the list above) — mockup and doc
-deploys (stages 1–2) run unblocked so the demo loop
-stays fast; the compensating rule is that every deploy's links are shared
-in chat immediately via [Stage messages](#stage-messages). The REAL
-feature's deploys (stage 3) stay gated conversationally: only after the
-DocsGate "approved" choice.
+`./run deployscratch` IS allowlisted (in the list above) — but only the
+two user-facing deploys exist: the stage-1 mockup+doc presentation and
+the stage-3 final deliverable (only after the gate's "approve"). Both
+share their links in chat immediately via
+[Stage messages](#stage-messages). `./run checkscratch` (between
+batches, stage 2) is allowlisted the same way — it never touches
+`main/`.
 
 `./run checkframework1` (the **full gate**: lint + types + the four test tiers
 under one merged coverage report) is allowlisted as a `main/`-only,

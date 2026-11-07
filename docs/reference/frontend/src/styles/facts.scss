@@ -1,0 +1,19 @@
+// Facts page styles — imported as a side-effect by the facts pages
+// (`import "../styles/facts.scss"`); one scss file per feature keeps each
+// page's styles findable and upstream merges clean.
+
+.ours-facts-page {
+  max-width: 48rem;
+}
+
+.ours-fact-text {
+  font-size: 1.15rem;
+}
+
+.ours-topics-list {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+}

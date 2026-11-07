@@ -13,11 +13,14 @@ must exist; when the test fails, refresh this map.
 
 ## 1. Feature workflow
 
-Six stages, each transition an explicit operator pick: [1] Mockups →
-MockupGate → [2] Design docs → DocsGate → [3] Code (scratch,
-`deployscratch` per batch) → [4] Agent review + doc updates →
-[5] CommitOffer → [6] Final checklist → one-sentence close. Stages 3–5
-run as ONE turn; the session never compacts — the operator can.
+Five stages, each transition an explicit operator pick: [1] Mockups +
+initial doc (authored together, ONE presentation deploy) →
+MockupDocsGate → [2] Code (scratch, `./run checkscratch` between
+batches, NO deploys) → [3] Agent review + ONE fix cycle + the FINAL
+deploy → [4] CommitOffer → [5] Final checklist → one-sentence close.
+Stages 2–4 run as ONE turn; the session never compacts — the operator
+can. `deployscratch` runs exactly twice per feature: the stage-1
+mockup+doc presentation and the stage-3 deliverable.
 
 - Mockups: `frontend/src/app/pages/Mockup<Name>.vue`, served verbatim
   by the hatch route `/mockup/<page>` (plain view `mockup_page` in
@@ -25,26 +28,35 @@ run as ONE turn; the session never compacts — the operator can.
   no props/backend, superuser-only, `div.mockup` wrapper.
   `?props=<base64url JSON>` presets state (`_B64JsonProps`).
   Graduation = real page + DELETE mockup + homepage link.
-- Reviewer (docs): the doc `reviewer-image` spawns in background at
-  docs VALIDATION — its verdict lands in the DocsGate message.
+- The initial doc ships exactly three filled sections ("Who can do
+  what" / "The data" / "How the data changes", fences included) plus
+  `pending` markers for the rest; the coder fills pending sections in
+  the batch that implements them.
+- Warm-up at stage-1 start: the `coder` spawns as GROUNDWORK
+  (background) and the reviewer fleet FAMILIARIZES on the requirement
+  digest; both hold through the gate. The image reviewer spawns when
+  the doc's validation renders exist — ONE verdict; fixing its
+  comments never re-triggers it.
 - Reviewers (code): correctness / conventions / mirrors / trace for big
-  diffs (single `reviewer` otherwise) familiarize in background at the
-  coder's FIRST green, verify at its final green; round 2 resumes them
-  on the fix diff. The `coder` agent implements
-  stage 3 (background):
-  prep-spawned at DocsGate-send, resumed to implement on approval,
-  resumed again for reviewer-found fixes.
+  diffs (single `reviewer` otherwise) — familiarized at stage-1 start,
+  verified at the coder's final green; round 2 resumes them on the fix
+  diff. The `coder` agent implements
+  stage 2 (background): groundwork at stage-1 start, resumed to
+  implement at the gate's approval, resumed again for reviewer-found
+  fixes.
 
 ## 2. Scratch discipline
 
 - `../scratch/` is the edit surface; `main/` reachable only via
   deploy. `./run createscratch` (wipes existing — ask first),
-  `./run deployscratch` FROM `main/` (battery → rsync `--delete` →
-  migrate/restart on backend diff), `./run cleanscratch`.
-- Green `deployscratch` IS the whole verification — no post-deploy
-  e2e, no re-runs.
-- Before each deploy: `main/`'s dirty files must all be pending in
-  scratch, else STOP (BlockerAsk).
+  `./run checkscratch` FROM `main/` (the battery alone — the
+  between-batches gate; never touches main/), `./run deployscratch`
+  FROM `main/` (same battery → rsync `--delete` → migrate/restart on
+  backend diff), `./run cleanscratch`.
+- A green battery (`checkscratch` or the deploy's own) IS the whole
+  verification — no post-deploy e2e, no re-runs. `deployscratch`
+  refuses on its own if `main/` holds dirty files scratch doesn't
+  carry — follow its file list.
 - Ninja = JSON only; pages are plain Django views (per-module
   `page_urls` mounted before the APIs). Page URLs serve the Inertia
   protocol (HTML or page JSON under `X-Inertia`) — `router.reload({only})`
@@ -57,10 +69,13 @@ run as ONE turn; the session never compacts — the operator can.
   frontend/src/system/schemas/users_sdk.ts`. Reads the feature's
   routers + `ExportedSchemaMixin`-marked pydantic models; emits zod
   schemas (exact class names) + typed client
-  functions (`{method}_{view}`, e.g. `post_set_price`) wrapping
-  `ninjaPost` — commit the sdk; regenerate on payload changes, never
-  hand-edit. Page-props models carry the same marker (no separate
-  registry).
+  functions (`{method}_{view}`, e.g. `post_set_price`) importing
+  http.ts through the `@` alias (`@/system/utils/http` — depth-
+  independent, regen never needs a hand fix) — commit the sdk;
+  regenerate on payload changes, never hand-edit. Page-props models
+  carry the same marker (no separate registry). Known gap: only
+  routers mounted DIRECTLY on a NinjaAPI are walked — nested
+  `router.add_router(...)` mounts are invisible to it.
 - Edits via `edit`, one surgical diff per spot; never script batches
   or wholesale rewrites.
 
@@ -228,6 +243,7 @@ form — from `docs/reference/ourapp/models/facts.py`:
 **View module** — from `docs/reference/ourapp/views/todos.py`:
 
 ```python
+_MAX_TEXT_LEN: Final = 500  # module constants: Final, never ClassVar (mypy misc)
 router = Router()
 
 class TodoOutSchema(Schema):   # pk-free: public_id, never the int pk

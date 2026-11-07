@@ -1,6 +1,7 @@
-// App-specific styles, kept with the app under styles/.
-// Imported as a side-effect by the page components (`import "../styles/app.scss"`),
-// so the app is self-contained and needs no edit to the system stylesheet.
+// App-wide styles (home, mockup hatch) — imported as a side-effect by the
+// page components (`import "../styles/app.scss"`). Per-feature styles live
+// in their own file beside this one (facts.scss, todos.scss) — one scss
+// file per feature keeps styles findable and upstream merges clean.
 
 .home-container {
   max-width: 32rem;
@@ -37,41 +38,23 @@
   font: inherit;
 }
 
-// ---- Facts + Todos ----
+.mockup {
+  position: relative;
 
-.ours-facts-page,
-.ours-todos-page {
-  max-width: 48rem;
-}
-
-.ours-fact-text {
-  font-size: 1.15rem;
-}
-
-.ours-topics-list {
-  list-style: none;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem 1.5rem;
-}
-
-.ours-todos-list {
-  list-style: none;
-  padding: 0;
-}
-
-.ours-todo-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #eee;
-}
-
-.ours-todo-completed span {
-  text-decoration: line-through;
-  color: #888;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    background-image: repeating-linear-gradient(
+      45deg,
+      rgba(0, 0, 0, 0.05) 0,
+      rgba(0, 0, 0, 0.05) 6px,
+      transparent 6px,
+      transparent 14px
+    );
+  }
 }
 
 // The black stripes vanish on the dark surface — flip to white there.
@@ -86,3 +69,9 @@
     );
   }
 }
+
+// ── Feature styles — APPEND BELOW, never interleave ────────────────────
+// Everything ABOVE this marker is upstream-owned: a framework update may
+// replace it wholesale. Feature styles ride below the marker so upstream
+// diffs stay clean.
+// ────────────────────────────────────────────────────────────────────────

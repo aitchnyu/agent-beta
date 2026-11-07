@@ -1,8 +1,8 @@
 """Tests for the home view (``GET /``)."""
 
-# MAINTAIN-CONSISTENCY test-exemplar — named in .pi/steer.md ("[3]
-# Code" PREP prompt) and .pi/agents/coder.md as the annotated
-# ourapp/tests/ exemplar new test files copy. Keep its patterns
+# MAINTAIN-CONSISTENCY test-exemplar — named in .pi/agents/coder.md
+# (GROUNDWORK reading list) as the annotated ourapp/tests/ exemplar new
+# test files copy. Keep its patterns
 # representative: BaseInertiaTestCase + the inertia harness,
 # HTTPStatus enums, the TYPE_CHECKING-only _MonkeyPatchedWSGIResponse
 # annotation, per-test docstrings, noqa discipline. The paired PREP
@@ -34,37 +34,28 @@ class HomeViewTests(BaseInertiaTestCase):
 
     def test_anonymous_home(self) -> None:
         """Anon GET / has Home with no page props (shared viewer anonymous)."""
-        # Full payload for reference (not asserted — features add props):
-        # {
-        #     "props": {},
-        #     # Shared viewer props (SharedPropsMiddleware) are anonymous
-        #     # here; no SocialApps configured → empty provider list.
-        #     "user": None,
-        #     "viewer_is_superuser": False,
-        #     "login_providers": [],
-        #     "unread_notifications": 0,
-        #     "just_logged_in": False,
-        # }
+        # Full anon payload (reference, not asserted): props {}, user None,
+        # viewer_is_superuser False, login_providers [], unread 0,
+        # just_logged_in False.
+        # Upstream surface: a feature EXTENDS by ADDING its own asserts or
+        # tests — never by editing existing methods. Upstream improvements
+        # change shared payloads, and exact-equality asserts on shared dicts
+        # (like "props is {}") turn into merge conflicts.
         self.inertia.get("/")
         self.assertComponentUsed("Home")
         page = self.props()
-        self.assertEqual(page["props"], {})
         self.assertIsNone(page["user"])
 
     def test_authenticated_home(self) -> None:
         """Authed GET / carries identity via the shared user prop (pk-free)."""
-        # Full payload for reference (not asserted — features add props):
-        # {
-        #     "props": {},
-        #     "user": {"public_id": "<…>", "title": "Alice Smith"},
-        #     "viewer_is_superuser": False,
-        #     # Signed-in requests get null — no provider lookup runs.
-        #     "login_providers": None,
-        #     "unread_notifications": 0,
-        #     # force_login IS a login: the first render after it
-        #     # carries the one-shot rebind flag.
-        #     "just_logged_in": True,
-        # }
+        # Full payload (reference, not asserted): props {}, user {public_id,
+        # title "Alice Smith"}, viewer_is_superuser False, login_providers
+        # None (signed-in), unread_notifications 0, just_logged_in True.
+        # Upstream surface: a feature EXTENDS by ADDING its own asserts or
+        # tests — never by editing existing methods. Upstream improvements
+        # change shared payloads, and exact-equality asserts on shared dicts
+        # turn into merge conflicts. A feature's own props assert
+        # SPECIFICALLY, never the whole dict.
         user = User.objects.create_user(
             username="alice",
             first_name="Alice",
@@ -74,7 +65,6 @@ class HomeViewTests(BaseInertiaTestCase):
         self.inertia.get("/")
         self.assertComponentUsed("Home")
         page = self.props()
-        self.assertEqual(page["props"], {})
         # The shared viewer prop carries the identity the page gates on.
         self.assertEqual(page["user"]["public_id"], user.public_id)
         self.assertEqual(page["user"]["title"], "Alice Smith")

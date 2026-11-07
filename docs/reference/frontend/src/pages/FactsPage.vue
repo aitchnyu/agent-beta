@@ -3,7 +3,7 @@ import { Link } from "@inertiajs/vue3"
 import { z } from "zod"
 import { FactOutSchema, TopicOutSchema } from "../schemas/facts_sdk"
 import { useAppPage } from "../../system/utils/useAppPage"
-import "../styles/app.scss"
+import "../styles/facts.scss"
 
 // The Inertia page data is nested under `props` (page.props.props).
 const FactsPagePropsSchema = z.object({

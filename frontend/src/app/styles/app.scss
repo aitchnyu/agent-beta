@@ -66,7 +66,8 @@
   color: #888;
 }
 
-// The black stripes vanish on the dark surface — flip to white there.
+// The black stripes vanish on the dark surface — flip to white there; the
+// todos demo list's light border gets the same dark flip.
 @media (prefers-color-scheme: dark) {
   .mockup::before {
     background-image: repeating-linear-gradient(
@@ -77,4 +78,14 @@
       transparent 14px
     );
   }
+
+  .ours-todo-item {
+    border-bottom-color: #444;
+  }
 }
+
+// ── Feature styles — APPEND BELOW, never interleave ────────────────────
+// Everything ABOVE this marker is upstream-owned: a framework update may
+// replace it wholesale. Feature styles ride below the marker so upstream
+// diffs stay clean.
+// ────────────────────────────────────────────────────────────────────────
