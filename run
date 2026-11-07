@@ -518,9 +518,10 @@ ${H}Checks${R}
   ${C}lintfix${R}             ruff format + ruff check, oxlint + prettier + eslint templates (writes)
   ${C}test${R} [args…]        Django tests — quiet logs, failfast, auto keepdb on unchanged migrations; --full = full run; other flags pass to manage.py
   ${C}typecheck${R}           mypy (backend); the frontend type-check (vue-tsgo) rides npm run build
-  ${C}djangomanage generatesdk${R} <module> <out>
+  ${C}djangomanage generatesdk${R} <api-symbol> <out>
                        regenerate a feature's typed client + zod schemas
-                       (ExportedSchemaMixin models + routers) — repo-map §2
+                       (endpoint-reachable models of that NinjaAPI,
+                       nested mounts included) — repo-map §2
   ${C}checkmarkdownd2${R} [file.md]
                         validate every d2 fence (file args also render
                         each to .svg + .png in a fresh /tmp/desmo/ dir;

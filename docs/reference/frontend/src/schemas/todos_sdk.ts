@@ -1,7 +1,7 @@
 // MAINTAIN-CONSISTENCY repo-map: excerpted in .pi/repo-map.md §9 — change both together.
 // ILLUSTRATIVE — hand-written stand-in. Generate the real file in the
 // overlay scratch (README §Workflow), where this app is importable:
-//   cd ../scratch && ./run djangomanage generatesdk ourapp.views frontend/src/app/schemas/ourapp_sdk.ts
+//   cd ../scratch && ./run djangomanage generatesdk ourapp.views.api frontend/src/app/schemas/ourapp_sdk.ts
 // One file per NinjaAPI; this per-feature split is for readability.
 
 import { z } from "zod"

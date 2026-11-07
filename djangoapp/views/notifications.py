@@ -26,7 +26,7 @@ from djangoapp.models import (
     UserSessionIndex,
     vapid_public_key,
 )
-from djangoapp.ninja_api import ApiError, ExportedSchemaMixin, make_ninja_api
+from djangoapp.ninja_api import ApiError, make_ninja_api
 from djangoapp.shortcuts import user_or_404
 from djangoapp.views.pages import parse_query
 
@@ -44,7 +44,7 @@ PAGE_SIZE = 50
 router = Router()
 
 
-class NotificationsPageProps(PydanticBaseModel, ExportedSchemaMixin):
+class NotificationsPageProps(PydanticBaseModel):
     notifications: list[NotificationItem]
     unread_count: int
     # The base64url public half of the VAPID keypair, derived at render —
@@ -57,22 +57,22 @@ class NotificationsPageProps(PydanticBaseModel, ExportedSchemaMixin):
     has_more: bool = False
 
 
-class NotificationPageResponse(PydanticBaseModel, ExportedSchemaMixin):
+class NotificationPageResponse(PydanticBaseModel):
     """One ``Load more`` chunk from GET /notifications/api/page."""
 
     notifications: list[NotificationItem]
     has_more: bool
 
 
-class MessageResponse(PydanticBaseModel, ExportedSchemaMixin):
+class MessageResponse(PydanticBaseModel):
     id: str = ""
 
 
-class CountResponse(PydanticBaseModel, ExportedSchemaMixin):
+class CountResponse(PydanticBaseModel):
     count: int
 
 
-class SelectedIdsSchema(PydanticBaseModel, ExportedSchemaMixin):
+class SelectedIdsSchema(PydanticBaseModel):
     """The checkbox selection acting on the list page (bulk actions).
 
     ``public_ids`` carries the checked rows; owner-scoping happens in the
@@ -85,11 +85,11 @@ class SelectedIdsSchema(PydanticBaseModel, ExportedSchemaMixin):
     public_ids: list[str] = Field(min_length=1, max_length=500)
 
 
-class SubscribeResponse(PydanticBaseModel, ExportedSchemaMixin):
+class SubscribeResponse(PydanticBaseModel):
     subscribed: bool
 
 
-class PushSubscriptionSchema(PydanticBaseModel, ExportedSchemaMixin):
+class PushSubscriptionSchema(PydanticBaseModel):
     """A browser PushSubscription, flattened from the Push API shape."""
 
     endpoint: str = Field(min_length=1, max_length=500)
@@ -115,7 +115,7 @@ class PushSubscriptionSchema(PydanticBaseModel, ExportedSchemaMixin):
         return v
 
 
-class PushUnsubscribeSchema(PydanticBaseModel, ExportedSchemaMixin):
+class PushUnsubscribeSchema(PydanticBaseModel):
     endpoint: str = Field(min_length=1, max_length=500)
 
 
@@ -133,7 +133,7 @@ def _own_notification_or_404(request: HttpRequest, public_id: str) -> Notificati
     return notification
 
 
-class NotificationsQueryParams(PydanticBaseModel, ExportedSchemaMixin):
+class NotificationsQueryParams(PydanticBaseModel):
     """The list page's query params, parsed once for both consumers.
 
     ``kind`` filters rows to one kind (empty = all); ``after`` is the

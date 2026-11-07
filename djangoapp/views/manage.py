@@ -28,7 +28,6 @@ from pydantic import Field, field_validator
 
 from djangoapp.models import BaseModel, BaseModelUpdateLog, user_profile
 from djangoapp.models.base import User
-from djangoapp.ninja_api import ExportedSchemaMixin
 from djangoapp.views import require_superuser
 from djangoapp.views.pages import parse_query
 
@@ -61,7 +60,7 @@ class ModelItem(PydanticBaseModel):
     row_count: int
 
 
-class ModelListProps(PydanticBaseModel, ExportedSchemaMixin):
+class ModelListProps(PydanticBaseModel):
     models: list[ModelItem]
 
 
@@ -119,7 +118,7 @@ class RowListFilters(PydanticBaseModel):
         return v
 
 
-class ModelRowsProps(PydanticBaseModel, ExportedSchemaMixin):
+class ModelRowsProps(PydanticBaseModel):
     model_name: str
     columns: list[ColumnDef]
     rows: list[RowItem]
@@ -127,7 +126,7 @@ class ModelRowsProps(PydanticBaseModel, ExportedSchemaMixin):
     filters: RowListFilters
 
 
-class RowDetailProps(PydanticBaseModel, ExportedSchemaMixin):
+class RowDetailProps(PydanticBaseModel):
     model_name: str
     public_id: str
     columns: list[ColumnDef]

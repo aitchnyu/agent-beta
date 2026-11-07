@@ -1,17 +1,25 @@
-"""Generate <feature>_sdk.ts for one module: zod schemas + typed client.
+"""Generate <feature>_sdk.ts for one API: zod schemas + typed client.
 
-Walks the module's routers and ``ExportedSchemaMixin``-marked pydantic
-models, emitting one file:
+usage: manage.py generatesdk <api-symbol> <out-file-under-frontend/>
+  <api-symbol>  dotted symbol of the NinjaAPI instance — e.g.
+                ourapp.views.api or djangoapp.views.users.users_api
+  <out>         output file path, relative to cwd
 
-- a zod const per model, exact class name (``LogoutResponse``); fields
-  verbatim — ``Decimal`` → ``z.string()``, ``Literal`` → ``z.enum``,
-  ``X | None`` → ``.nullable()``, defaults → ``.optional()``, Field
-  constraints → the matching zod; dependencies come before their users.
+Walks the api's router tree — nested ``add_router`` mounts included,
+prefixes joined — and emits one file:
+
+- a zod const per pydantic model REACHABLE from an endpoint: response
+  models, request bodies, GET query models, and their transitive field
+  references (``X | None`` → ``.nullable()``, defaults → ``.optional()``,
+  Field constraints → the matching zod; dependencies come first). No
+  marker class — endpoints are the contract, reachability is inclusion.
+  Inertia PAGE props are not generated: hand-write them in a
+  ``<feature>_props.ts`` schema file.
 - a ``{method}_{view}`` function per JSON operation wrapping
-  ninjaPost/ninjaGet/ninjaDelete (CSRF + 422→NinjaError stay in http.ts).
-  URLs carry the API's mount prefix; scalars are query params, pydantic
-  params are bodies on writes / query models on GETs; non-JSON or
-  unexported operations are skipped with a comment.
+  ninjaPost/ninjaGet/ninjaDelete (CSRF + a thrown NinjaError ride
+  http.ts). URLs carry the joined mount prefixes; scalars are query
+  params, pydantic params are bodies on writes / query models on GETs;
+  non-JSON operations skip with a comment.
 
 Example shape (from ``users_sdk.ts``):
 
@@ -31,9 +39,6 @@ Example shape (from ``users_sdk.ts``):
       body: z.input<typeof UserUpdateSchema>,
     ) => ninjaPost(MessageResponse, `/users/api/${publicId}/edit`, body)
 
-    // skipped: GET /users/list — no response schema (page op)
-
-usage: manage.py generatesdk <module> <out-file-under-frontend/>
 The output is generated code: regenerate, never hand-edit.
 """
 
@@ -41,7 +46,6 @@ from __future__ import annotations
 
 import enum
 import importlib
-import pkgutil
 import re
 from datetime import date, datetime
 from decimal import Decimal
@@ -50,11 +54,9 @@ from typing import TYPE_CHECKING, Any, Literal, Union, get_args, get_origin
 from uuid import UUID
 
 from django.core.management.base import BaseCommand, CommandError
-from ninja import NinjaAPI
+from ninja import NinjaAPI, Router
 from ninja.constants import NOT_SET
 from pydantic import BaseModel
-
-from djangoapp.ninja_api import ExportedSchemaMixin
 
 if TYPE_CHECKING:
     import argparse
@@ -67,53 +69,85 @@ NoneType = type(None)
 
 
 class Command(BaseCommand):
-    help = "Generate a typed zod client (<feature>_sdk.ts) for a module's routers."
+    help = "Generate a typed zod client (<feature>_sdk.ts) for one NinjaAPI."
 
     def add_arguments(self, parser: argparse.ArgumentParser) -> None:
-        parser.add_argument("module", help="package.module whose routers to read")
+        parser.add_argument("api", help="dotted symbol of the NinjaAPI instance (module.api)")
         parser.add_argument(
             "out",
             help="output file path, relative to cwd (e.g. frontend/src/system/schemas/users_sdk.ts)",
         )
 
     def handle(self, **options: Any) -> None:
-        module_name = str(options["module"])
-        out_file = str(options["out"])
-        try:
-            module = importlib.import_module(module_name)
-        except ImportError as exc:
-            msg = f"cannot import {module_name!r}: {exc}"
-            raise CommandError(msg) from exc
-
+        api = _resolve_api(str(options["api"]))
         generator = _SdkGenerator()
-        flagged = list(_flagged_models(module))
-        apis = [
-            member for name in dir(module) if isinstance(member := getattr(module, name), NinjaAPI)
-        ]
-        if not apis and not flagged:
-            msg = f"no NinjaAPI or exported schemas found in {module_name!r}"
-            raise CommandError(msg)
-        for api in apis:
-            for registration in api._router_registrations:
-                prefix, router = registration[0], registration[1]
-                probe = NinjaAPI()
-                probe.add_router("", router)
-                for path, path_view in router.path_operations.items():
-                    full_path = ("" if not prefix else "/" + prefix.strip("/")) + path
-                    for operation in path_view.operations:
-                        methods = {m.lower() for m in operation.methods} & HTTP_METHODS
-                        if not methods:
-                            continue
-                        if len(methods) > 1:
-                            msg = f"{full_path}: multiple methods on one operation"
-                            raise CommandError(msg)
-                        generator.add_call(operation, full_path, methods.pop())
-        for model in flagged:
-            generator.collect(model)
+        for prefix, router in _mounts(api):
+            for path, path_view in router.path_operations.items():
+                full_path = prefix + path
+                for operation in path_view.operations:
+                    methods = {m.lower() for m in operation.methods} & HTTP_METHODS
+                    if not methods:
+                        continue
+                    if len(methods) > 1:
+                        msg = f"{full_path}: multiple methods on one operation"
+                        raise CommandError(msg)
+                    generator.add_call(operation, full_path, methods.pop())
 
         rendered = generator.render()
-        Path(out_file).parent.mkdir(parents=True, exist_ok=True)
-        Path(out_file).write_text(rendered, encoding="utf-8")
+        Path(str(options["out"])).parent.mkdir(parents=True, exist_ok=True)
+        Path(str(options["out"])).write_text(rendered, encoding="utf-8")
+
+
+def _resolve_api(symbol: str) -> NinjaAPI:
+    """Resolve a dotted ``module.api`` symbol to its NinjaAPI instance."""
+    module_path, _, attr = symbol.rpartition(".")
+    if not module_path:
+        msg = f"{symbol!r} must be a dotted path to the API instance (module.api)"
+        raise CommandError(msg)
+    try:
+        module = importlib.import_module(module_path)
+    except ImportError as exc:
+        msg = f"cannot import {module_path!r}: {exc}"
+        raise CommandError(msg) from exc
+    try:
+        api = getattr(module, attr)
+    except AttributeError as exc:
+        msg = f"{module_path!r} has no attribute {attr!r}"
+        raise CommandError(msg) from exc
+    if not isinstance(api, NinjaAPI):
+        msg = f"{symbol!r} is a {type(api).__name__}, not a NinjaAPI instance"
+        raise CommandError(msg)
+    return api
+
+
+def _mounts(api: NinjaAPI) -> Iterator[tuple[str, Router]]:
+    """Yield (prefix, router) for every mount in the api's router tree.
+
+    Nested ``add_router`` mounts recurse with their prefixes joined, so
+    a feature router combined under a parent router emits at its full
+    path — the shape generatesdk's api symbol may point at.
+    """
+
+    def walk(prefix: str, router: Router) -> Iterator[tuple[str, Router]]:
+        yield prefix, router
+        for nested in getattr(router, "_routers", []):
+            yield from walk(_join(prefix, nested[0]), nested[1])
+
+    for registration in api._router_registrations:
+        prefix = registration[0]
+        root = "" if not prefix else "/" + prefix.strip("/")
+        yield from walk(root, registration[1])
+
+
+def _join(prefix: str, sub: str) -> str:
+    """Join a nested mount prefix onto its parent's.
+
+    A ``/``-mounted router (``add_router("/", child)`` — the combined-api
+    pattern) contributes nothing: ninja serves the child at the parent's
+    path, and a naive join would emit ``//path`` URLs that 404.
+    """
+    stripped = sub.strip("/")
+    return prefix if not stripped else prefix + "/" + stripped
 
 
 class _ModelSet:
@@ -176,9 +210,6 @@ class _SdkGenerator:
         self.skipped: list[str] = []
         self._fn_names: set[str] = set()
 
-    def collect(self, model: type[BaseModel]) -> None:
-        self.models.add(model)
-
     def add_call(self, operation: Any, path: str, method: str) -> None:
         fn_name = f"{method}_{operation.view_func.__name__}"
         if fn_name in self._fn_names:
@@ -188,12 +219,7 @@ class _SdkGenerator:
 
         response_model = _unwrap_response(operation, "200") or _unwrap_response(operation, "201")
         if response_model is None:
-            self.skipped.append(f"{method.upper()} {path} — no response schema (page op)")
-            return
-        if not issubclass(response_model, ExportedSchemaMixin):
-            self.skipped.append(
-                f"{method.upper()} {path} — response schema {response_model.__name__} not exported"
-            )
+            self.skipped.append(f"{method.upper()} {path} — no response schema (non-JSON)")
             return
         self.models.add(response_model)
 
@@ -207,11 +233,6 @@ class _SdkGenerator:
         for param in operation.signature.params:
             annotation = param.annotation
             if isinstance(annotation, type) and issubclass(annotation, BaseModel):
-                if not issubclass(annotation, ExportedSchemaMixin):
-                    self.skipped.append(
-                        f"{method.upper()} {path} — schema {annotation.__name__} not exported"
-                    )
-                    return
                 if method == "get":
                     if query_model is not None:
                         msg = f"{path}: more than one query model"
@@ -280,7 +301,7 @@ class _SdkGenerator:
         chunks = [
             (
                 "// Auto-generated by ./run djangomanage generatesdk — zod schemas\n"
-                "// from ExportedSchemaMixin models + typed client fns over http.ts.\n"
+                "// from the api's endpoint models + typed client fns over http.ts.\n"
                 "// Regenerate on payload changes; never hand-edit.\n"
             ),
             *imports,
@@ -412,27 +433,3 @@ def _ts_type(annotation: Any) -> str:
 
 def _camel(name: str) -> str:
     return re.sub(r"_([a-z])", lambda match: match.group(1).upper(), name)
-
-
-def _flagged_models(module: object) -> Iterator[type[BaseModel]]:
-    """Yield the module tree's ExportedSchemaMixin-marked BaseModel subclasses."""
-    seen: set[type[BaseModel]] = set()
-    yield from _flagged_in_module(module, seen)
-    if hasattr(module, "__path__"):
-        for info in pkgutil.walk_packages(module.__path__, prefix=f"{module.__name__}."):  # type: ignore[attr-defined]
-            submodule = importlib.import_module(info.name)
-            yield from _flagged_in_module(submodule, seen)
-
-
-def _flagged_in_module(module: object, seen: set[type[BaseModel]]) -> Iterator[type[BaseModel]]:
-    for name in dir(module):
-        candidate = getattr(module, name)
-        if (
-            isinstance(candidate, type)
-            and issubclass(candidate, BaseModel)
-            and candidate not in seen
-            and candidate.__module__.startswith(str(getattr(module, "__name__", "")))
-            and issubclass(candidate, ExportedSchemaMixin)
-        ):
-            seen.add(candidate)
-            yield candidate

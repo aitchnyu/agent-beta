@@ -3,7 +3,7 @@ import type { z } from "zod"
 import { Link } from "@inertiajs/vue3"
 import PageTitle from "../../components/PageTitle.vue"
 import RichTextViewer from "../../components/RichTextViewer.vue"
-import { UserHistoryProps } from "../../schemas/users_sdk"
+import { UserHistoryProps } from "../../schemas/users_props"
 import { formatDateTime } from "../../utils/time"
 import { useAppPage } from "../../utils/useAppPage"
 
@@ -27,7 +27,7 @@ function actionLabel(action: string): string {
   }
 }
 
-// The changes shape rides the generated schema (users_sdk.ts) — the
+// The changes shape rides the hand props schema (users_props.ts) — the
 // pydantic defaults make keys optional, and diffsFor skips absent/null
 // changes alike.
 type Changes = z.infer<typeof UserHistoryProps>["entries"][number]["changes"]

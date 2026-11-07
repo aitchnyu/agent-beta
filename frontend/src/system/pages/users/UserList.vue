@@ -4,11 +4,8 @@ import { computed, onMounted, ref } from "vue"
 import type { z } from "zod"
 import Multiselect from "vue-multiselect"
 import PageTitle from "../../components/PageTitle.vue"
-import {
-  UserListProps,
-  UserSearchItem,
-  get_search,
-} from "../../schemas/users_sdk"
+import { UserSearchItem, get_search } from "../../schemas/users_sdk"
+import { UserListProps } from "../../schemas/users_props"
 import { useAppPage } from "../../utils/useAppPage"
 
 type SearchedUser = z.infer<typeof UserSearchItem>

@@ -24,7 +24,7 @@ from ninja import Router
 from pydantic import BaseModel, ConfigDict, Field
 
 from djangoapp.logging import get_logger
-from djangoapp.ninja_api import ApiError, ExportedSchemaMixin, make_ninja_api
+from djangoapp.ninja_api import ApiError, make_ninja_api
 from djangoapp.redis_client import redis_client
 from djangoapp.shortcuts import maybe_user
 
@@ -55,7 +55,7 @@ _MAX_STACK_CHARS = 500
 _MAX_STACK_INPUT = 5000
 
 
-class ClientErrorBody(BaseModel, ExportedSchemaMixin):
+class ClientErrorBody(BaseModel):
     """A single frontend-reported error."""
 
     # extra="forbid" makes the no-injection guarantee explicit: a client can't
@@ -81,7 +81,7 @@ class ClientErrorBody(BaseModel, ExportedSchemaMixin):
     public_id: str | None = None
 
 
-class ClientErrorAck(BaseModel, ExportedSchemaMixin):
+class ClientErrorAck(BaseModel):
     """The sink's minimal JSON ack (it used to answer 204 No Content)."""
 
     accepted: bool = True

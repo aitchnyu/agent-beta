@@ -50,13 +50,14 @@ and ask the operator).
   (`ninjaPost`/`ninjaGet`/`ninjaDelete`); the raw `postJSON`/`getJSON`
   are there for legacy purposes.
 - Backend payload changes regenerate the frontend contract:
-  `cd ../scratch && ./run djangomanage generatesdk djangoapp.views.users
-  frontend/src/system/schemas/users_sdk.ts` — reads routers +
-  pydantic models marked with `ExportedSchemaMixin`,
-  page-props models included), emits zod schemas + typed client
-  functions (`{method}_{view}`) into one `<feature>_sdk.ts` (http.ts
-  via the `@` alias); never hand-edit, regenerate and commit when the
-  feature imports it.
+  `cd ../scratch && ./run djangomanage generatesdk djangoapp.views.users.users_api
+  frontend/src/system/schemas/users_sdk.ts` — reads the api's router
+  tree (nested mounts included) and emits zod schemas for every model
+  REACHABLE from an endpoint (responses, bodies, query models, transitive
+  field refs) plus typed client functions (`{method}_{view}`) into one
+  `<feature>_sdk.ts` (http.ts via the `@` alias); never hand-edit —
+  regenerate and commit when the feature imports it. PAGE props are not
+  generated: hand-write them in a `<feature>_props.ts` schema file.
 
 <!-- MAINTAIN-CONSISTENCY coder-contract — the fresh-shell rule above is
      restated in .pi/agents/coder.md; change both together. -->
@@ -509,8 +510,9 @@ keeps this list in sync with the commands dir; never let it drift):
   user totals. The replacement for hand-rolled python introspection.
 - `makeloginlink <email>` — one-time login URL for an existing user.
 - `promotetosuperuser <email>` — grant staff + superuser.
-- `generatesdk <module> <out>` — regenerate a feature's typed zod client
-  (`<feature>_sdk.ts`) from its `ExportedSchemaMixin` models + routers —
+- `generatesdk <api-symbol> <out>` — regenerate a feature's typed zod
+  client (`<feature>_sdk.ts`) from its NinjaAPI (endpoint-reachable
+  models only; page props hand-written in `<feature>_props.ts`) —
   repo-map §2 has the full model.
 - `backupmarker <set|…>` — the backup-marker sentinel (NOT allowlisted —
   it writes; the checkframework2 gate drives its backup round-trip).

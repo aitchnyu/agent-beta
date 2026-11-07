@@ -65,17 +65,19 @@ mockup+doc presentation and the stage-3 deliverable.
 - Formatting/lint ≠ deploy points — fold into the next batch;
   `cd ../scratch && ./run lintfix` after every write batch.
 - Payload schemas + typed client: regenerate a feature's sdk on demand
-  — `cd ../scratch && ./run djangomanage generatesdk djangoapp.views.users
-  frontend/src/system/schemas/users_sdk.ts`. Reads the feature's
-  routers + `ExportedSchemaMixin`-marked pydantic models; emits zod
-  schemas (exact class names) + typed client
+  — `cd ../scratch && ./run djangomanage generatesdk
+  djangoapp.views.users.users_api
+  frontend/src/system/schemas/users_sdk.ts` (<api-symbol> = dotted
+  path to the NinjaAPI instance). Walks the api's router tree —
+  nested `add_router` mounts included, prefixes joined — and emits
+  zod schemas for every model REACHABLE from an endpoint (responses,
+  bodies, GET query models, transitive field refs) + typed client
   functions (`{method}_{view}`, e.g. `post_set_price`) importing
   http.ts through the `@` alias (`@/system/utils/http` — depth-
   independent, regen never needs a hand fix) — commit the sdk;
-  regenerate on payload changes, never hand-edit. Page-props models
-  carry the same marker (no separate registry). Known gap: only
-  routers mounted DIRECTLY on a NinjaAPI are walked — nested
-  `router.add_router(...)` mounts are invisible to it.
+  regenerate on payload changes, never hand-edit. PAGE props are not
+  generated: hand-write them in a `<feature>_props.ts` schema file
+  (e.g. frontend/src/system/schemas/users_props.ts).
 - Edits via `edit`, one surgical diff per spot; never script batches
   or wholesale rewrites.
 

@@ -81,13 +81,6 @@ def _wants_html(request: HttpRequest) -> bool:
     return "text/html" in request.headers.get("Accept", "") and not request.headers.get("X-Inertia")
 
 
-class ExportedSchemaMixin:
-    """Marker: this schema joins the generated frontend SDK (repo-map §2).
-
-    Keep it empty — shared config would change every exported model.
-    """
-
-
 class NotFound(Http404):
     """A 404 that works on both surfaces.
 

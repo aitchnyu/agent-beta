@@ -24,7 +24,6 @@ from django.http import Http404, HttpRequest
 from inertia import InertiaResponse
 from ninja import Router, Schema
 
-from djangoapp.ninja_api import ExportedSchemaMixin
 import pydantic
 
 from djangoapp.models import Notification, User
@@ -34,7 +33,7 @@ from ourapp.models import Todo
 router = Router()
 
 
-class TodoOutSchema(Schema, ExportedSchemaMixin):
+class TodoOutSchema(Schema):
     """pk-free serialisation of a todo (never send the integer pk)."""
 
     public_id: str
@@ -44,7 +43,7 @@ class TodoOutSchema(Schema, ExportedSchemaMixin):
     owner_public_id: str
 
 
-class TodoCreateSchema(Schema, ExportedSchemaMixin):
+class TodoCreateSchema(Schema):
     """Create payload (text + the required version; a create is always 0)."""
 
     text: str
@@ -70,7 +69,7 @@ class TodoCreateSchema(Schema, ExportedSchemaMixin):
         return self
 
 
-class TodoToggleSchema(Schema, ExportedSchemaMixin):
+class TodoToggleSchema(Schema):
     """Toggle payload: the todo's row_version as the client last saw it."""
 
     expected_row_version: int

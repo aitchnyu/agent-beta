@@ -2,7 +2,8 @@
 import { defineAsyncComponent, reactive, ref } from "vue"
 import { router } from "@inertiajs/vue3"
 import PageTitle from "../../components/PageTitle.vue"
-import { UserEditProps, post_edit_submit } from "../../schemas/users_sdk"
+import { post_edit_submit } from "../../schemas/users_sdk"
+import { UserEditProps } from "../../schemas/users_props"
 import { useAppPage } from "../../utils/useAppPage"
 
 // Quill ships in its own lazy chunk (RichTextEditor + quill); the async

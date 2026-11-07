@@ -1,11 +1,13 @@
 """Unit tests for the ``generatesdk`` command (pydantic → zod + client).
 
-Drives ``manage.py generatesdk`` against the synthetic module
-``djangoapp.tests.sdk_fixture`` and pins the emitted TypeScript: models
-marked with ``ExportedSchemaMixin`` become zod consts (exact class names,
-Decimal → z.string(), Literal → z.enum, nullable/optional fields), client
-functions named ``{method}_{view}`` wrap ninjaPost/ninjaGet/ninjaDelete,
-and ops without a JSON response (or with an unmarked schema) skip visibly.
+Drives ``manage.py generatesdk <api-symbol>`` against the synthetic api
+``djangoapp.tests.sdk_fixture.fixture_api`` (whose op router nests one
+add_router level under the mounted router) and pins the emitted
+TypeScript: every model REACHABLE from an endpoint (responses, bodies,
+query models, transitive field refs) becomes a zod const, client
+functions named ``{method}_{view}`` wrap ninjaPost/ninjaGet/ninjaDelete
+with the JOINED mount prefix in their URLs, props-shaped models not
+referenced by any endpoint never emit, and non-JSON ops skip visibly.
 """
 
 from __future__ import annotations
@@ -14,6 +16,7 @@ from io import StringIO
 from pathlib import Path
 
 from django.core.management import call_command
+from django.core.management.base import CommandError
 
 from djangoapp.tests._base import BaseTestCase
 
@@ -23,20 +26,21 @@ OUT_PATH = Path("djangoapp/tests/out/sdk_fixture_sdk.ts")
 class GeneratesdkTests(BaseTestCase):
     """``generatesdk`` output contract, driven against ``sdk_fixture``.
 
-    - test_flagged_models_exported_with_exact_names, marked models → zod consts under class names
+    - test_endpoint_models_exported_with_exact_names, reachable models → zod consts under class names
     - test_decimal_maps_to_string, Decimal → z.string()
     - test_literal_becomes_enum, string Literal → z.enum
     - test_nullable_and_optional, defaulted optional field → .nullable().optional()
     - test_dependencies_emitted_before_users, referenced models precede their users
-    - test_unflagged_model_not_exported, unmarked model is never a schema export
+    - test_body_model_emits_and_rides_the_client, a request body model emits and types the fn's body arg
+    - test_props_model_not_referenced_never_emits, endpoint-unreachable models never emit
     - test_get_named_method_view_with_typed_query, GET → ninjaGet + typed query model
     - test_post_named_method_view_with_scalar_query, scalar POST param rides params
     - test_delete_named_method_view_wraps_ninja_delete, DELETE → ninjaDelete
-    - test_page_op_skipped_visibly, an op with no JSON response skips with a comment
-    - test_mount_prefix_appears_in_urls, URLs carry the API mount prefix
-    - test_unflagged_schema_op_skipped_visibly, unmarked response schema skips, named
-    - test_api_less_module_emits_schemas_only, an API-less module (pages only)
-      still exports its flagged models, with no client functions
+    - test_non_json_op_skipped_visibly, an op with no JSON response skips with a comment
+    - test_nested_mount_prefix_joins_in_urls, a router nested via add_router emits at its joined path
+    - test_symbol_must_be_dotted, a bare name errors with the expected shape hint
+    - test_symbol_must_resolve, an unknown attribute errors naming the module
+    - test_symbol_must_be_an_api, a non-NinjaAPI attribute errors naming its type
     """
 
     emitted: str = ""
@@ -45,7 +49,7 @@ class GeneratesdkTests(BaseTestCase):
     def setUpClass(cls) -> None:
         super().setUpClass()
         out = StringIO()
-        call_command("generatesdk", "djangoapp.tests.sdk_fixture", OUT_PATH, stdout=out)
+        call_command("generatesdk", "djangoapp.tests.sdk_fixture.fixture_api", OUT_PATH, stdout=out)
         with OUT_PATH.open(encoding="utf-8") as handle:
             cls.emitted = handle.read()
 
@@ -54,11 +58,11 @@ class GeneratesdkTests(BaseTestCase):
         OUT_PATH.unlink()
         super().tearDownClass()
 
-    def test_flagged_models_exported_with_exact_names(self) -> None:
-        """Marked models export as zod consts under their class names."""
+    def test_endpoint_models_exported_with_exact_names(self) -> None:
+        """Every endpoint-reachable model exports as a zod const."""
         self.assertIn("export const Item = z.object({", self.emitted)
-        self.assertIn("export const ItemPageProps = z.object({", self.emitted)
         self.assertIn("export const ItemResponse = z.object({", self.emitted)
+        self.assertIn("export const Filters = z.object({", self.emitted)
 
     def test_decimal_maps_to_string(self) -> None:
         """Decimal → z.string() (money is a string on the wire)."""
@@ -76,12 +80,24 @@ class GeneratesdkTests(BaseTestCase):
         """Referenced models are emitted before the models that use them."""
         self.assertLess(
             self.emitted.index("export const Item ="),
-            self.emitted.index("export const ItemPageProps ="),
+            self.emitted.index("export const ItemResponse ="),
         )
 
-    def test_unflagged_model_not_exported(self) -> None:
-        """An unmarked model is never a schema export (a skip may name it)."""
-        self.assertNotIn("export const SecretInternal", self.emitted)
+    def test_body_model_emits_and_rides_the_client(self) -> None:
+        """A request body model emits and types the client fn's body arg."""
+        self.assertIn("export const ItemCreate = z.object({", self.emitted)
+        self.assertIn(
+            "export const post_create_item = (body: z.input<typeof ItemCreate>) =>",
+            self.emitted,
+        )
+        self.assertIn(
+            "ninjaPost(ItemResponse, `/fixture/nested/items/create`, body)",
+            self.emitted,
+        )
+
+    def test_props_model_not_referenced_never_emits(self) -> None:
+        """A model unreachable from any endpoint (page props) never emits."""
+        self.assertNotIn("ItemPageProps", self.emitted)
 
     def test_get_named_method_view_with_typed_query(self) -> None:
         """A GET op takes a typed query model and wraps ninjaGet with params."""
@@ -90,7 +106,7 @@ class GeneratesdkTests(BaseTestCase):
             self.emitted,
         )
         self.assertIn(
-            "ninjaGet(ItemResponse, `/fixture/items`, { params: query })",
+            "ninjaGet(ItemResponse, `/fixture/nested/items`, { params: query })",
             self.emitted,
         )
 
@@ -101,7 +117,7 @@ class GeneratesdkTests(BaseTestCase):
             self.emitted,
         )
         self.assertIn(
-            "ninjaPost(ItemResponse, `/fixture/items/${publicId}/price`, undefined, { params: query })",
+            "ninjaPost(ItemResponse, `/fixture/nested/items/${publicId}/price`, undefined, { params: query })",
             self.emitted,
         )
 
@@ -112,36 +128,46 @@ class GeneratesdkTests(BaseTestCase):
             self.emitted,
         )
         self.assertIn(
-            "ninjaDelete(ItemResponse, `/fixture/items/${publicId}`)",
+            "ninjaDelete(ItemResponse, `/fixture/nested/items/${publicId}`)",
             self.emitted,
         )
 
-    def test_page_op_skipped_visibly(self) -> None:
+    def test_non_json_op_skipped_visibly(self) -> None:
         """An op with no JSON response skips with a visible comment."""
-        self.assertIn("// skipped: GET /fixture/page — no response schema (page op)", self.emitted)
-
-    def test_mount_prefix_appears_in_urls(self) -> None:
-        """Generated URLs carry the API's mount prefix (/fixture here)."""
-        self.assertIn("`/fixture/items`,", self.emitted)
-        self.assertIn("`/fixture/items/${publicId}/price`,", self.emitted)
-
-    def test_unflagged_schema_op_skipped_visibly(self) -> None:
-        """An op whose response schema isn't marked skips, naming the schema."""
         self.assertIn(
-            "// skipped: POST /fixture/internal — response schema SecretInternal not exported",
+            "// skipped: GET /fixture/nested/page — no response schema (non-JSON)",
             self.emitted,
         )
 
-    def test_api_less_module_emits_schemas_only(self) -> None:
-        """A module with no NinjaAPI (pages only) still exports its schemas."""
-        # djangoapp.views.manage lost its API when its ops became page views;
-        # its flagged props models must still reach the sdk.
-        out = Path("djangoapp/tests/out/manage_sdk.ts")
-        try:
-            call_command("generatesdk", "djangoapp.views.manage", out)
-            with out.open(encoding="utf-8") as handle:
-                emitted = handle.read()
-        finally:
-            out.unlink()
-        self.assertIn("export const ModelListProps = z.object({", emitted)
-        self.assertNotIn("ninjaPost(", emitted)
+    def test_nested_mount_prefix_joins_in_urls(self) -> None:
+        """A router nested via add_router emits at the JOINED path."""
+        self.assertIn("`/fixture/nested/items`,", self.emitted)
+
+    def test_root_nested_mount_contributes_no_path(self) -> None:
+        """A ``/``-mounted router (the combined-api pattern) emits at the
+        parent's path — a naive join would 404 on ``//path``.
+        """
+        from djangoapp.management.commands.generatesdk import _join
+
+        self.assertEqual(_join("", "/"), "")
+        self.assertEqual(_join("/fixture", "/"), "/fixture")
+        self.assertEqual(_join("/fixture", ""), "/fixture")
+        self.assertEqual(_join("/fixture", "/nested"), "/fixture/nested")
+
+    def test_symbol_must_be_dotted(self) -> None:
+        """A bare symbol name errors with the dotted-shape hint."""
+        with self.assertRaises(CommandError) as ctx:
+            call_command("generatesdk", "notdotted", "x.ts")
+        self.assertIn("dotted path", str(ctx.exception))
+
+    def test_symbol_must_resolve(self) -> None:
+        """An unknown attribute errors naming the module."""
+        with self.assertRaises(CommandError) as ctx:
+            call_command("generatesdk", "djangoapp.tests.sdk_fixture.no_api", "x.ts")
+        self.assertIn("has no attribute 'no_api'", str(ctx.exception))
+
+    def test_symbol_must_be_an_api(self) -> None:
+        """A non-NinjaAPI attribute errors naming its actual type."""
+        with self.assertRaises(CommandError) as ctx:
+            call_command("generatesdk", "djangoapp.tests.sdk_fixture.router", "x.ts")
+        self.assertIn("is a Router, not a NinjaAPI", str(ctx.exception))

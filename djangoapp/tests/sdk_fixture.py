@@ -1,7 +1,9 @@
-"""Synthetic module for generatesdk unit tests: an api + flagged models.
+"""Synthetic module for generatesdk unit tests: an api with a nested mount.
 
 Imported only by ``djangoapp/tests/test_generatesdk.py`` — never part of
-the running app (no urls.py wiring).
+the running app (no urls.py wiring). The op router sits ONE add_router
+level under the mounted router, so the generator's recursive walk and
+prefix joining are pinned by the tests.
 """
 
 from decimal import Decimal
@@ -10,7 +12,7 @@ from typing import TYPE_CHECKING, Literal
 from ninja import Router
 from pydantic import BaseModel
 
-from djangoapp.ninja_api import ExportedSchemaMixin, make_ninja_api
+from djangoapp.ninja_api import make_ninja_api
 
 if TYPE_CHECKING:
     from django.http import HttpRequest
@@ -18,9 +20,7 @@ if TYPE_CHECKING:
 router = Router()
 
 
-class Item(BaseModel, ExportedSchemaMixin):
-    """flagged."""
-
+class Item(BaseModel):
     public_id: str
     quantity: int
     price: Decimal
@@ -29,30 +29,27 @@ class Item(BaseModel, ExportedSchemaMixin):
     tags: list[str]
 
 
-class ItemPageProps(BaseModel, ExportedSchemaMixin):
-    """flagged."""
+class ItemPageProps(BaseModel):
+    """Page props — unreachable from any endpoint; must NOT emit."""
 
     items: list[Item]
     path_prefix: str
 
 
-class Filters(BaseModel, ExportedSchemaMixin):
-    """flagged."""
-
+class Filters(BaseModel):
     q: str = ""
     page: int = 1
 
 
-class ItemResponse(BaseModel, ExportedSchemaMixin):
-    """flagged."""
-
+class ItemResponse(BaseModel):
     item: Item
 
 
-class SecretInternal(BaseModel):
-    """unflagged — must NOT appear in the sdk."""
+class ItemCreate(BaseModel):
+    """Request body model — reachable via the create op; must emit."""
 
-    key: str
+    label: Literal["a", "b"]
+    quantity: int = 1
 
 
 @router.get("/items", response=ItemResponse)
@@ -62,6 +59,11 @@ def list_items(request: HttpRequest, filters: Filters) -> ItemResponse:
 
 @router.post("/items/{public_id}/price", response=ItemResponse)
 def set_price(request: HttpRequest, public_id: str, price: Decimal) -> ItemResponse:
+    raise NotImplementedError
+
+
+@router.post("/items/create", response=ItemResponse)
+def create_item(request: HttpRequest, payload: ItemCreate) -> ItemResponse:
     raise NotImplementedError
 
 
@@ -75,11 +77,11 @@ def page(request: HttpRequest) -> None:
     raise NotImplementedError
 
 
-@router.post("/internal", response=SecretInternal)
-def internal(request: HttpRequest) -> SecretInternal:
-    raise NotImplementedError
-
+# The op router nests ONE add_router level under the mounted router: the
+# walk must recurse and join prefixes (/fixture/nested/...).
+parent_router = Router()
+parent_router.add_router("nested", router)
 
 # Mounted with a prefix so generated URLs carry /fixture (the users and
 # notifications pattern).
-fixture_api = make_ninja_api("fixture", router, prefix="fixture")
+fixture_api = make_ninja_api("fixture", parent_router, prefix="fixture")

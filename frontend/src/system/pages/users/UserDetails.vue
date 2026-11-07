@@ -7,10 +7,10 @@ import RichTextViewer from "../../components/RichTextViewer.vue"
 import {
   LoginLinkRequest,
   LoginLinkResponse,
-  UserDetailsProps,
   post_issue_login_link,
   post_force_logout,
 } from "../../schemas/users_sdk"
+import { UserDetailsProps } from "../../schemas/users_props"
 import { confirmAction, showToast } from "../../utils/sweetalert"
 import { formatDateTime } from "../../utils/time"
 import { useAppPage } from "../../utils/useAppPage"

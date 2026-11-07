@@ -29,7 +29,7 @@ from djangoapp.models import (
     UserHistoryEntryItem,
     UserSessionIndex,
 )
-from djangoapp.ninja_api import ApiError, ExportedSchemaMixin, NotFound, make_ninja_api
+from djangoapp.ninja_api import ApiError, NotFound, make_ninja_api
 from djangoapp.utils import sanitize_html
 from djangoapp.views.pages import parse_query
 
@@ -61,14 +61,14 @@ class UserListFilters(PydanticBaseModel):
     q: str = ""
 
 
-class UserListProps(PydanticBaseModel, ExportedSchemaMixin):
+class UserListProps(PydanticBaseModel):
     path_prefix: str
     users: list[UserListItem]
     pagination: UserListPagination
     filters: UserListFilters
 
 
-class UserDetailsProps(PydanticBaseModel, ExportedSchemaMixin):
+class UserDetailsProps(PydanticBaseModel):
     path_prefix: str
     public_id: str
     first_name: str
@@ -106,12 +106,12 @@ class UserEditItem(PydanticBaseModel):
     is_superuser: bool
 
 
-class UserEditProps(PydanticBaseModel, ExportedSchemaMixin):
+class UserEditProps(PydanticBaseModel):
     path_prefix: str
     target: UserEditItem
 
 
-class UserUpdateSchema(PydanticBaseModel, ExportedSchemaMixin):
+class UserUpdateSchema(PydanticBaseModel):
     """Editable user fields. ``username`` is intentionally absent (read-only)."""
 
     first_name: str = Field(min_length=1)
@@ -139,39 +139,39 @@ class UserUpdateSchema(PydanticBaseModel, ExportedSchemaMixin):
         return v
 
 
-class UserHistoryProps(PydanticBaseModel, ExportedSchemaMixin):
+class UserHistoryProps(PydanticBaseModel):
     path_prefix: str
     target_public_id: str
     target_title: str
     entries: list[UserHistoryEntryItem]
 
 
-class MessageResponse(PydanticBaseModel, ExportedSchemaMixin):
+class MessageResponse(PydanticBaseModel):
     id: str = ""
 
 
-class LoginLinkRequest(PydanticBaseModel, ExportedSchemaMixin):
+class LoginLinkRequest(PydanticBaseModel):
     """Issue payload; the allowlist is the UI's TTL select (minutes)."""
 
     ttl_minutes: Literal[60, 480, 1440] = 60
 
 
-class LoginLinkResponse(PydanticBaseModel, ExportedSchemaMixin):
+class LoginLinkResponse(PydanticBaseModel):
     url: str
     expires_at: str
 
 
-class LogoutResponse(PydanticBaseModel, ExportedSchemaMixin):
+class LogoutResponse(PydanticBaseModel):
     sessions: int
 
 
-class UserSearchItem(PydanticBaseModel, ExportedSchemaMixin):
+class UserSearchItem(PydanticBaseModel):
     public_id: str
     username: str
     title: str
 
 
-class UserSearchResponse(PydanticBaseModel, ExportedSchemaMixin):
+class UserSearchResponse(PydanticBaseModel):
     users: list[UserSearchItem]
 
 
