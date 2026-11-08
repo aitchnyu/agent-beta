@@ -44,10 +44,7 @@ Create the file inside the project dir or my agent will pause and wait for my ap
 
 Run uv command instead of running python/python3 directly.
 
-Try not to generate multiline bash commands. My agent thinks each line is a command and wait for me to .
-
-Do not run `rm` or `ls` in bash. Use the tool calls.
-Do not use curl to read urls. Use browser tool call.
+Announce any `rm` before running it — deletions are never silent.
 When opening or sharing the app's URL, prefer `https://localhost:8000/` over `http://localhost:8000/` — https is the deployed origin, some features may be https-only.
 
 ## In-VM scripts
@@ -313,7 +310,7 @@ Counterexamples (both fixed in steer.md):
   launch timing in one paragraph — each rule now sits on its own point
 
 ## Frontend
-Do not introduce inline css or Vue scoped styles. Ensure rules are in main.css.  
+Do not introduce inline css or Vue scoped styles. Feature rules go in `app/styles/app.scss` (below the append marker); framework rules in the system stylesheets.
 Do not create `<a href='#'>...` with click handlers till I explicitly ask you.  
 Do not run `npm run build-only` except when I explicitly mention.  
 Use `await` with `try/catch`, not `.then(…).catch(…)` chains.  
@@ -324,7 +321,7 @@ When you run npm commands, do not `cd ..` or it will cause my harness to interru
 
 `npm run dev` shouldn't be run from an agent since it does not terminate.
 
-Every client-side HTTP call must go through the framework's `utils/http.ts` (`postJSON`/`getJSON`/`streamPost`), be wrapped in `try/catch`, call `showErrorToast(e, fallback)` in the catch, and parse the response with a zod schema when the page has one. No silent `console.error`, no bare `catch {}` that swallows the error, and never `throw` after toasting (it double-toasts via the global handler).
+Every client-side HTTP call must go through the framework's `utils/http.ts` (`postJSON`/`getJSON`/`streamPost`), be wrapped in `try/catch`, call `showErrorToast(e, fallback)` in the catch, and parse the response with a zod schema when the page has one. No silent `console.error`, no bare `catch {}` that swallows the error, and never `throw` after toasting (it double-toasts via the global handler). Form submits are the exception pattern: rethrow anything that is not a `NinjaError` (`if (!(e instanceof NinjaError)) throw e`), surface field errors via `childForPath` — `main.ts` toasts `NinjaError` globally.
 
 ## Linting
 I have added linting commands in backend and frontend. When I ask you backend changes, run first backend lint command, make fixes and then run same command till it passes. Do not report something is fixed till the command succeeds. Then run second lint command the same way. Ensure all lint commands are done.  
@@ -349,7 +346,7 @@ After changing TS/frontend code, run these in order:
 1. Lint fix `cd frontend && npm run lint:fix`  
 2. Type check: `cd frontend && npm run type-check`  
 3. Lint: `cd frontend && npm run lint`  
-4. Final check: `./run checkframework1` (this checks backend and then frontend)
+4. Final check (host-side dev): `./run checkframework1` (this checks backend and then frontend; in the pi workflow the gate is `./run checkscratch` in ../scratch on the VM)
 
 Playwright tests are at: `./run playwrighttest`
 It forwards test labels: `./run playwrighttest djangoapp.tests.playwright.test_users` runs just that module (Django intersects the label with the `--tag playwright` filter); no label = the full tagged suite.
@@ -358,7 +355,7 @@ It forwards test labels: `./run playwrighttest djangoapp.tests.playwright.test_u
 When you encounter Playwright tests failing, consider that a showstopper. Isolate one failing module with the direct command above (it will be time consuming to run the full suite) and diagnose it.
 
 Dont change any timeout settings for Playwright tests. Everything is expected to run before timeout. I dont want any statement like `timeout=5000` in my tests. 
-Use only `page.wait_for_url` or `page.wait_for_selector` for Playwright tests except to debug stuff. Add classes to the html elements to facilitate this. page.wait_for_event, page.wait_for_timeout, page.wait_for_function, page.wait_for_load_state will lead to fragile, hard to understand tests. Do not use them except temporarily.
+Use only `page.wait_for_url` or `page.wait_for_selector` for Playwright tests except to debug stuff. Prefer role/label locators (`get_by_role`, `get_by_label` with `exact=True`); add a stable class only when neither fits. page.wait_for_event, page.wait_for_timeout, page.wait_for_function, page.wait_for_load_state will lead to fragile, hard to understand tests. Do not use them except temporarily.
 
 Assert page state with Playwright's web-first `expect(locator).to_be_visible() / to_have_text(...) / to_have_count(...) / to_have_attribute(...)` (`from playwright.sync_api import expect`), NOT Django-style snapshots of page values. `expect` auto-retries until the assertion holds (or times out), so async Inertia renders don't flake, and the assertion reads as a claim about the page rather than about Python values:
 - ✗ `self.assertEqual(page.locator(".x").count(), 1)` — instant snapshot; races the render.
@@ -383,13 +380,9 @@ page.on("console", handle_console)
 
 ### Finally
 
-`./run checkframework1`
+The completion gate is the full battery: `./run checkscratch` from ../scratch on the VM (the pi workflow), or `./run checkframework1` host-side in main/ — both run every stage. If a stage fails, iterate on just that stage's command (a failing command reruns in a fraction of the time), then re-run the gate.
 
-The checkframework1 runs all the individual commands. For example, if playwright tests fail, run playwright test command only, preferably run only the failing tests till they pass, then run checkframework1.
-
-To save time, iterate and run the failing commands. Running failing command will take a fraction of the time.
-
-For example, when this happens, keep fixing and running `npm run lint` many times before running checkframework1.
+For example, when this happens, keep fixing and running `npm run lint` many times before re-running the gate.
 
 ```bash
 Running frontend linting
@@ -406,7 +399,7 @@ Running frontend linting
 ```
 
 
-Only after `./run checkframework1` succeeds till the finish, you can say the task is complete. If there are errors, you must fix them and keep iterating till checkframework1 passes.
+Only after the gate succeeds to the finish can you say the task is complete. If there are errors, you must fix them and keep iterating till the gate passes.
 
 ## Review
 I may ask you to review code. If its a commit or a set of commits, check the changed prompts file. Verify each checklist item is correctly reflected in code, especially when conflicting checklist items exist. Check the code itself. Find any security issues and put them as high priority.

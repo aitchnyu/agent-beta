@@ -114,7 +114,8 @@ class Playwrighttest(LabelsCommand):
         parser = super().build_parser()
         parser.add_argument(
             "--pdbrc",
-            help="path to a .pdbrc file — pdb reads it via HOME (Playwright's "
+            help="path to a .pdbrc file — the file must literally be named .pdbrc "
+            "(HOME is set to its parent, and pdb reads $HOME/.pdbrc; Playwright's "
             "driver owns stdin, so piping commands cannot reach pdb)",
         )
         return parser

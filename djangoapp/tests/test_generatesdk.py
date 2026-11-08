@@ -12,8 +12,11 @@ referenced by any endpoint never emit, and non-JSON ops skip visibly.
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from django.core.management.base import CommandError
 
+from djangoapp.management.commands import generatesdk
 from djangoapp.management.commands.generatesdk import _join, render_sdk
 from djangoapp.tests._base import BaseTestCase
 
@@ -157,3 +160,14 @@ class GeneratesdkTests(BaseTestCase):
         with self.assertRaises(CommandError) as ctx:
             render_sdk("djangoapp.tests.sdk_fixture.router")
         self.assertIn("is a Router, not a NinjaAPI", str(ctx.exception))
+
+    def test_out_must_resolve_inside_scratch(self) -> None:
+        """An out path escaping ../scratch refuses before any write."""
+        with (
+            patch.object(generatesdk, "require_scratch_run"),
+            self.assertRaises(CommandError) as ctx,
+        ):
+            generatesdk.Command().handle(
+                api="djangoapp.tests.sdk_fixture.fixture_api", out="../main/x.ts"
+            )
+        self.assertIn("must resolve inside ../scratch", str(ctx.exception))

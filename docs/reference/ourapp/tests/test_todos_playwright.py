@@ -30,8 +30,7 @@ class TodosE2e(BasePlaywrightTestCase):
         expect(page.locator("body")).to_contain_text("E2E todo")
 
     def test_create_response_echoes_the_todo(self) -> None:
-        """Capture the XHR response and assert on its body (the harness
-        also logs XHRs — see docs/debugging-tests.md)."""
+        """Capture the XHR response and assert on its body."""
         page = self.page
         page.goto(f"{self.live_server_url}/todos")
         with page.expect_response(lambda r: r.url.endswith("/todos/create")) as captured:

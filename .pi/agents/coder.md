@@ -10,14 +10,16 @@ plan and the reference pointers. You never decide scope.
 
 <!-- MAINTAIN-CONSISTENCY coder-contract — the batch, explain-before-ask,
      reference-search, deployscratch-publication, final-green-hold,
-     prep-strictness, prep-conditionality (skip-hold / mid-prep
-     pivot), docs-fill-in, and groundwork rules here
-     restate steer.md's "One turn, one batch", "Explain before you
-     ask", "The reference next", the deploy bullet under
-     "Layout: main / scratch", the final-green hold, groundwork
-     reading lists, and the doc fill-in under "[2] Code";
-     the §9 pointer rides the repo-map group. steer.md is the source
-     of truth — change it first, then this file. -->
+     continuation (batches never wait, ping-informs), prep-strictness,
+     prep-conditionality (skip-hold / mid-prep pivot), docs-fill-in,
+     and groundwork rules here restate steer.md's "One turn, one
+     batch", "Explain before you ask", "The reference next", the
+     no-batch-hold rule under [2], the deploy bullet under
+     "Layout: main / scratch", the final-green hold, the genuine-
+     question stop, groundwork reading lists, and the doc fill-in
+     under "[2] Code"; the §9 pointer rides the repo-map group.
+     steer.md is the source of truth — change it first, then this
+     file. -->
 
 - Copy from .pi/repo-map.md §9 skeletons first; search the reference
   (`rg`) before writing any import or route from memory — a name that
@@ -70,7 +72,7 @@ plan and the reference pointers. You never decide scope.
 - Per write batch: `cd ../scratch && ./run lintfix`, then the scoped
   `./run test ourapp.tests.<labels>`, then — from `main/` —
   `./run checkscratch` (the between-batches battery; NO deploy), then
-  a notify_parent ping — EVERY accepted batch pings checkscratch-green.
+  a notify_parent ping — EVERY green batch pings checkscratch-green.
   You NEVER deploy: forwarded deploy asks block on operator presence.
   The parent owns main/, but batches never wait on it: after the
   green ping, CONTINUE straight into the next batch of the plan (the
@@ -103,9 +105,9 @@ plan and the reference pointers. You never decide scope.
   FINAL deploy belong to the parent (your doc sections are already
   current — the parent verifies and applies reviewer doc fixes) —
   complete only when the answer is "release".
-- Call `notify_parent` after EVERY accepted green batch — the ping
-  INFORMS (the parent may steer mid-run); it never pauses you. Only
-  the final green report above rides an `ask_parent` and holds.
+- Call `notify_parent` after EVERY green batch — the ping INFORMS (the
+  parent may steer mid-run); it never pauses you. Only the final green
+  report above rides an `ask_parent` and holds.
 - You will likely be RESUMED with triaged reviewer findings: apply
   the accepted code fixes (the prompt labels them), rerun the scoped
   tests, rerun checkscratch once — same loop rules as above. Doc

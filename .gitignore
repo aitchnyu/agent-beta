@@ -66,4 +66,3 @@ frontend/.eslintcache
 # bundle lives in djangoapp/static/djangoapp). Ignored, yet still carried
 # by the deploy's direction filter — see deployscratch in ops/scratch.py.
 frontend/dist/
-

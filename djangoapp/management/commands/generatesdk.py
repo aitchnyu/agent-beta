@@ -58,7 +58,7 @@ from ninja import NinjaAPI, Router
 from ninja.constants import NOT_SET
 from pydantic import BaseModel
 
-from ops.scratch import require_scratch_run
+from ops.scratch import SCRATCH_DIR, require_scratch_run
 
 if TYPE_CHECKING:
     import argparse
@@ -82,10 +82,14 @@ class Command(BaseCommand):
 
     def handle(self, **options: Any) -> None:
         require_scratch_run(friendly_name="generatesdk")
+        out = Path(str(options["out"]))
+        resolved = out.resolve() if out.is_absolute() else (Path.cwd() / out).resolve()
+        if not resolved.is_relative_to(SCRATCH_DIR.resolve()):
+            msg = f"<out> must resolve inside ../scratch — got {options['out']}"
+            raise CommandError(msg)
         rendered = render_sdk(str(options["api"]))
-        path = Path(str(options["out"]))
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(rendered, encoding="utf-8")
+        resolved.parent.mkdir(parents=True, exist_ok=True)
+        resolved.write_text(rendered, encoding="utf-8")
 
 
 def render_sdk(api_symbol: str) -> str:

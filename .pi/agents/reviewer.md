@@ -35,8 +35,9 @@ Its inputs arrive in your spawn prompt the same way — the pasted
 `./run checkmarkdownd2` output and the render dir it printed, holding
 one `fence<N>.svg` + `fence<N>.png` pair per fence (1-based, doc
 order). Diagram findings join the MUST-FIX/NICE-TO-HAVE list with
-evidence (fence file or doc line) and a replacement fence when
-clearer than prose — else marked UNVALIDATED.
+evidence (fence file or doc line), each phrased as the exact d2
+fence edit that fixes it — a prose-only description is not a
+deliverable finding.
 
 <!-- MAINTAIN-CONSISTENCY diagram-review — the capture contract
      (fence<N>.svg in a fresh /tmp/desmo run dir + viewBox) and the

@@ -173,7 +173,7 @@ def require_scratch_run(*, friendly_name: str) -> None:
     main/; commands that emit tracked output (screenshots, generatesdk)
     must run from ../scratch so the output rides the pipeline.
     """
-    if Path.cwd().name != "scratch":
+    if Path.cwd() != SCRATCH_DIR:
         shell.die(
             f"Refusing: '{friendly_name}' writes tracked files — run it from ../scratch "
             "(a main-side run would mutate the deployed tree)."
@@ -279,8 +279,9 @@ def porcelain_paths(status_output: str) -> list[str]:
     v2 is git's structured machine format (status has no --json):
     `1 …` ordinary (8 header fields, then the path), `2 …` rename (9
     header fields, then the NEW path — the original follows as a bare
-    NUL field and is dropped: the new path is what a deploy would
-    write), `u …` unmerged (10 header fields), `? …` untracked.
+    NUL field and is KEPT too: a rename leaves BOTH sides dirty, and
+    the deploy-loss guard must see the original the receiver still
+    carries), `u …` unmerged (10 header fields), `? …` untracked.
     quotePath=false upstream means no quote-stripping.
     """
     paths: list[str] = []
@@ -289,7 +290,8 @@ def porcelain_paths(status_output: str) -> list[str]:
         if not token:
             continue
         if rename_next:
-            rename_next = False  # the rename's original path — drop it
+            rename_next = False  # the rename's original path — keep it
+            paths.append(token)
             continue
         if token.startswith("? "):
             paths.append(token[2:])
@@ -522,14 +524,28 @@ def _changed_set() -> tuple[list[str], FastPath]:
     if exit_code != 0 or not baseline:
         shell.die("REFUSING: no scratch-baseline ref — re-run ./run createscratch")
     exit_code, diff_files = shell.capture(
-        "git", "diff", "--name-only", baseline, cwd=SCRATCH_DIR, quiet_stderr=False
+        "git",
+        "-c",
+        "core.quotePath=false",
+        "diff",
+        "--name-only",
+        baseline,
+        cwd=SCRATCH_DIR,
+        quiet_stderr=False,
     )
     if exit_code != 0:
         shell.die(
             f"REFUSING: git diff failed in {SCRATCH_DIR} — no deploy on a partial changed-set."
         )
     exit_code, untracked_files = shell.capture(
-        "git", "ls-files", "--others", "--exclude-standard", cwd=SCRATCH_DIR, quiet_stderr=False
+        "git",
+        "-c",
+        "core.quotePath=false",
+        "ls-files",
+        "--others",
+        "--exclude-standard",
+        cwd=SCRATCH_DIR,
+        quiet_stderr=False,
     )
     if exit_code != 0:
         shell.die(

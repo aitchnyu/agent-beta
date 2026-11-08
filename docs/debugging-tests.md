@@ -2,7 +2,9 @@
 
 A failing test debugs from inside its frame: rerun the same label with
 `--pdb`. All commands and outputs below are real, captured from a
-deliberately failing test pair. Unit runs and Playwright runs both stay
+deliberately failing test pair in a since-retired feature session —
+its module labels are illustrative, the command SHAPES are what you
+copy. Unit runs and Playwright runs both stay
 allowlisted — the debugger commands ride along without a prompt.
 
 ## The rule: evidence before edits
@@ -35,10 +37,11 @@ attach a listener and re-drive the page:
 [(200, 'complete', '{"public_id": "…", "row_version": 1, …}')]
 ```
 
-(`expect_response` is a context manager — its `.value` exists only
-inside `with`, so at the prompt the listener is the form that works.
-In-test, the reference exemplar `test_create_response_echoes_the_todo`
-shows the `with page.expect_response(…)` assertion.)
+(`expect_response` is a context manager — actions go INSIDE the
+`with`, but its `.value` is readable only AFTER the block exits; at
+the pdb prompt the listener is the form that works. In-test, the
+reference exemplar `test_create_response_echoes_the_todo` shows the
+`with page.expect_response(…)` assertion.)
 
 ## Read the DB row (at the pdb prompt)
 

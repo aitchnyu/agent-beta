@@ -75,7 +75,7 @@ class PorcelainPathsTests(unittest.TestCase):
     """The porcelain=v2 -z parser: ordinary, rename, untracked records.
 
     - test_plain_and_untracked, `1 …` and `? …` records yield their paths
-    - test_rename_keeps_new_path, the NUL-continued original path is dropped
+    - test_rename_keeps_both_paths, the NUL-continued original path is kept (the guard needs it)
     - test_unmerged_yields_path, `u …` records parse by field count
     - test_empty_and_junk_dropped, blank NUL fields and junk skipped
     """
@@ -86,13 +86,16 @@ class PorcelainPathsTests(unittest.TestCase):
             ["TODO.md", "ourapp/newmod/x.py"],
         )
 
-    def test_rename_keeps_new_path(self) -> None:
-        # -z renames: `2 …` header + NEW path, then the original bare.
+    def test_rename_keeps_both_paths(self) -> None:
+        """-z renames keep the original bare path too.
+
+        The guard must see the original the receiver still carries.
+        """
         self.assertEqual(
             porcelain_paths(
                 "2 R. N... 100644 100644 100644 a b R100 ourapp/views/new.py\0ourapp/views/old.py\0"
             ),
-            ["ourapp/views/new.py"],
+            ["ourapp/views/new.py", "ourapp/views/old.py"],
         )
 
     def test_unmerged_yields_path(self) -> None:
@@ -198,15 +201,18 @@ class ShareBaseTests(unittest.TestCase):
 class FilterExcludesTests(unittest.TestCase):
     """The rsync --exclude-from line filter over gitignored listings.
 
-    - test_deploy_direction_drops_the_built_bundle, djangoapp/static/ rides both ways instead
+    - test_deploy_direction_drops_the_carried_dirs, djangoapp/static/ and frontend/dist/ ride the deploy instead
     - test_create_direction_also_drops_env, .env rides to scratch (the deploy re-excludes it)
     - test_rule_prefixes_and_glob_metachars_ride_out, rsync-syntax names are dropped as junk
     - test_blank_lines_never_reach_rsync, empty lines cannot become rules
     """
 
-    def test_deploy_direction_drops_the_built_bundle(self) -> None:
-        lines = ["djangoapp/static/", "media/", ".venv/"]
-        self.assertEqual(rsync_exclude_lines(lines, r"^djangoapp/static/"), ["media/", ".venv/"])
+    def test_deploy_direction_drops_the_carried_dirs(self) -> None:
+        lines = ["djangoapp/static/", "frontend/dist/", "media/", ".venv/"]
+        self.assertEqual(
+            rsync_exclude_lines(lines, r"^(djangoapp/static|frontend/dist)/"),
+            ["media/", ".venv/"],
+        )
 
     def test_create_direction_also_drops_env(self) -> None:
         lines = [".env", "djangoapp/static/", "dbbackups/"]

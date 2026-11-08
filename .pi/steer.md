@@ -153,11 +153,11 @@ lives in [Stage messages](#stage-messages):
      summary's shape, list vs detail split). Authoring starts only
      after the answers arrive; never bake assumptions into mockups and
      let the gate catch them. Then author mockup pages (mechanics:
-      [Mockups](#mockups)) AND the initial design doc together. The doc
-      fills exactly three sections — "Who can do what", "The data"
-      (with its d2 fences), "How the data changes" (with its fences);
-      every later section stays a `pending` marker until the coder
-      fills it in [2] ([Feature docs](#feature-docs)).
+     [Mockups](#mockups)) AND the initial design doc together. The doc
+     fills exactly three sections — "Who can do what", "The data"
+     (with its d2 fences), "How the data changes" (with its fences);
+     every later section stays a `pending` marker until the coder
+     fills it in [2] ([Feature docs](#feature-docs)).
    - Warm-up spawns at stage start, parallel to authoring: coder
      GROUNDWORK (doc-independent reads + preliminary plan, then holds —
      reading list in `.pi/agents/coder.md`) and the reviewer fleet
@@ -181,14 +181,16 @@ lives in [Stage messages](#stage-messages):
    - It runs in background: pings arrive on their own — never poll,
      never wait; keep orchestrating meanwhile. The operator watches its
      tool calls; permission asks forward to you.
-    - **No deploys during [2].** The coder runs its batches back to
-      back on its own — `./run checkscratch` between them, a green
-      ping after each — NEVER holding for a "next batch" steer (every
-      hold is dead time plus a parent round trip; the plan it holds
-      already lists the batches). You steer asynchronously, only to
-      REDIRECT (scope change, a fix, an operator note) — it applies
-      mid-run at the next boundary. Nothing reaches `main/` until
-      [3]'s final deploy.
+   - **No deploys during [2].** The coder runs its batches back to
+     back on its own — `./run checkscratch` between them, a green
+     ping after each — NEVER holding for a "next batch" steer (every
+     hold is dead time plus a parent round trip; the plan it holds
+     already lists the batches). You steer asynchronously, only to
+     REDIRECT (scope change, a fix, an operator note) — it applies
+     mid-run at the next boundary. The coder stops only at final
+     green or to ask a genuine question (`ask_parent`); every other
+     boundary just continues. Nothing reaches `main/` until [3]'s
+     final deploy.
    - Each batch also fills the `pending` doc sections it implements
      ([Feature docs](#feature-docs)); you verify each batch's doc
      edits — you stay the planner, never implementing while a coder
@@ -1052,8 +1054,10 @@ Choose
 operator picks. Background notifications landing meanwhile — a
 reviewer finishing, a subagent completing — are absorbed silently:
 steer, collect, triage, but never echo them as new messages, and never
-re-ack the open menu ("still waiting on your pick"). Re-send only the
-FULL menu (never bare numbers), and only if it scrolled away or state
+re-ack the open menu ("still waiting on your pick"). While the ask is
+open, watched-state lines (a batch going green, verdicts landing)
+wait too — they ride the turn after the pick. Re-send only the FULL
+menu (never bare numbers), and only if it scrolled away or state
 materially changed.
 
 - **MockupDocsGate — mockups + the initial design doc (one gate)**
@@ -1066,7 +1070,6 @@ materially changed.
   - [ ] the image reviewer's one-line verdict on the doc fences
   - [ ] the coder's preliminary plan from groundwork (paste it —
         the operator reviews the plan WITH the docs)
-  - [ ] bundled workflow questions, if any (one round)
   - [ ] menu: 1. revise mockups/docs 2. approve — implement — then
         `Choose`
   - [ ] shaped per [Message structure](#message-structure-the-single-rule)
@@ -1648,10 +1651,10 @@ instant snapshots. One import per file:
 Content, not the network:
 - Do: bare `page.goto(url)` (default `load`), then wait on something
   specific (`expect(...)`, a locator action, `wait_for_selector`)
-- Don't: `wait_until="networkidle"` on pages with background traffic —
-  passing visits pay the settle window (~0.8s each; test_client_errors
-  dropped it for `expect_request`) and failing tests time
-  through networkidle + timeout chains
+- Don't: `wait_until="networkidle"` — EVER (see the e2e checklist
+  rule); passing visits pay the settle window (~0.8s each;
+  test_client_errors dropped it for `expect_request`) and failing
+  tests time through networkidle + timeout chains
 - Keep timeouts small — the base's 2s default is deliberate; 5s only for
   Inertia reload chains
 
