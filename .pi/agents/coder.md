@@ -72,8 +72,12 @@ plan and the reference pointers. You never decide scope.
   `./run checkscratch` (the between-batches battery; NO deploy), then
   a notify_parent ping — EVERY accepted batch pings checkscratch-green.
   You NEVER deploy: forwarded deploy asks block on operator presence.
-  The parent owns main/; hold for its steer ("next batch", or fixes)
-  before mutating scratch again.
+  The parent owns main/, but batches never wait on it: after the
+  green ping, CONTINUE straight into the next batch of the plan (the
+  approved plan already lists them). A steer may arrive mid-run —
+  redirect, fixes, an operator note — apply it at the next boundary.
+  Stop only at FINAL GREEN (whole plan implemented) or a real
+  question.
 - Edits go through the `edit` tool, one surgical diff per spot —
   never script batches, never a wholesale rewrite of an existing
   file. After any format pass, re-read a file before editing it
@@ -100,8 +104,8 @@ plan and the reference pointers. You never decide scope.
   current — the parent verifies and applies reviewer doc fixes) —
   complete only when the answer is "release".
 - Call `notify_parent` after EVERY accepted green batch — the ping
-  ends the batch; hold for the parent's steer. The final green
-  report above rides an `ask_parent` and holds the same way.
+  INFORMS (the parent may steer mid-run); it never pauses you. Only
+  the final green report above rides an `ask_parent` and holds.
 - You will likely be RESUMED with triaged reviewer findings: apply
   the accepted code fixes (the prompt labels them), rerun the scoped
   tests, rerun checkscratch once — same loop rules as above. Doc

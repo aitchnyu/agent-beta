@@ -147,13 +147,17 @@ Stage rules carry the TECHNICAL constraints only — every message shape
 lives in [Stage messages](#stage-messages):
 
 - **[1] Mockups + docs — one stage, one gate, one deploy.**
-   - `createscratch` once, then author mockup pages (mechanics:
-     [Mockups](#mockups)) AND the initial design doc together. The doc
-     fills exactly three sections — "Who can do what", "The data"
-     (with its d2 fences), "How the data changes" (with its fences);
-     every later section stays a `pending` marker until the coder
-     fills it in [2] ([Feature docs](#feature-docs)). Bundle the
-     workflow questions into the gate, BEFORE the first mockup.
+   - `createscratch` once. Then, BEFORE any authoring: ONE message to
+     the operator with your remaining design questions — the choices
+     the mockups are about to freeze (what each page shows, the
+     summary's shape, list vs detail split). Authoring starts only
+     after the answers arrive; never bake assumptions into mockups and
+     let the gate catch them. Then author mockup pages (mechanics:
+      [Mockups](#mockups)) AND the initial design doc together. The doc
+      fills exactly three sections — "Who can do what", "The data"
+      (with its d2 fences), "How the data changes" (with its fences);
+      every later section stays a `pending` marker until the coder
+      fills it in [2] ([Feature docs](#feature-docs)).
    - Warm-up spawns at stage start, parallel to authoring: coder
      GROUNDWORK (doc-independent reads + preliminary plan, then holds —
      reading list in `.pi/agents/coder.md`) and the reviewer fleet
@@ -177,9 +181,14 @@ lives in [Stage messages](#stage-messages):
    - It runs in background: pings arrive on their own — never poll,
      never wait; keep orchestrating meanwhile. The operator watches its
      tool calls; permission asks forward to you.
-    - **No deploys during [2].** Each batch: the coder runs
-      `./run checkscratch` before reporting green; you steer "next
-      batch". Nothing reaches `main/` until [3]'s final deploy.
+    - **No deploys during [2].** The coder runs its batches back to
+      back on its own — `./run checkscratch` between them, a green
+      ping after each — NEVER holding for a "next batch" steer (every
+      hold is dead time plus a parent round trip; the plan it holds
+      already lists the batches). You steer asynchronously, only to
+      REDIRECT (scope change, a fix, an operator note) — it applies
+      mid-run at the next boundary. Nothing reaches `main/` until
+      [3]'s final deploy.
    - Each batch also fills the `pending` doc sections it implements
      ([Feature docs](#feature-docs)); you verify each batch's doc
      edits — you stay the planner, never implementing while a coder
@@ -995,6 +1004,13 @@ message):
 
 Keep it tight. For a trivial change a single sentence is enough; don't pad.
 
+**Notification receipts are not messages.** A background completion
+that needs nothing from the operator — a familiarize stored, a
+subagent still running, "nothing needed from you" — never produces a
+user-facing message: absorb it and keep working. Speak when state the
+operator is watching changes, in ONE line (a batch went green; all
+verdicts are in). "Still running" snapshots are noise by definition.
+
 ### Stage messages
 Every approval-gated stage transition (the mockup+doc gate —
 MockupDocsGate — and the commit gate — CommitOffer) ends with a
@@ -1030,6 +1046,15 @@ We need to do this. Here are your choices
 
 Choose
 ```
+
+**An ask is terminal.** Once a message closes with numbered choices +
+`Choose` (a gate menu or a BlockerAsk), it is the LAST word until the
+operator picks. Background notifications landing meanwhile — a
+reviewer finishing, a subagent completing — are absorbed silently:
+steer, collect, triage, but never echo them as new messages, and never
+re-ack the open menu ("still waiting on your pick"). Re-send only the
+FULL menu (never bare numbers), and only if it scrolled away or state
+materially changed.
 
 - **MockupDocsGate — mockups + the initial design doc (one gate)**
   - [ ] one line of intent
