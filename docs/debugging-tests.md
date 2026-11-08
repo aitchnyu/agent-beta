@@ -5,6 +5,56 @@ A failing test debugs from inside its frame: rerun the same label with
 deliberately failing test pair. Unit runs and Playwright runs both stay
 allowlisted — the debugger commands ride along without a prompt.
 
+## The rule: evidence before edits
+
+Lint failures batch-fix. A bug — the same test failing unexpectedly
+twice — is investigated ONE at a time: reproduce it, then gather
+evidence READ-ONLY (response bodies, DB rows, page state) before the
+next edit. Never hypothesis→patch→rerun through a surprise; each failed
+guess is a turn spent confirming nothing.
+
+Isolate first — rerun the single failing label, not the module:
+
+```bash
+cd ../scratch && ./run test ourapp.tests.test_chores_views.ChoreEndpointTests.test_edit_updates_and_bumps_row_version
+cd ../scratch && ./run playwrighttest ourapp.tests.test_chores_playwright.ChoresE2e.test_detail_edit_saves
+```
+
+## Data-flow evidence: response bodies
+
+For a request that "succeeded but nothing changed", the response body
+answers it — old state echoed means the request was wrong (suspect the
+fill), new state means the server or the reload. At the pdb prompt,
+attach a listener and re-drive the page:
+
+```
+(Pdb) !rs = []
+(Pdb) !page.on("response", lambda r: rs.append(r) if "/chores" in r.url else None)
+(Pdb) !page.get_by_role("button", name="Done", exact=True).click()
+(Pdb) p [(r.status, r.url.rsplit("/", 1)[-1], r.text()[:120]) for r in rs]
+[(200, 'complete', '{"public_id": "…", "row_version": 1, …}')]
+```
+
+(`expect_response` is a context manager — its `.value` exists only
+inside `with`, so at the prompt the listener is the form that works.
+In-test, the reference exemplar `test_create_response_echoes_the_todo`
+shows the `with page.expect_response(…)` assertion.)
+
+## Read the DB row (at the pdb prompt)
+
+Under `--pdb` the ORM is right there in the failing frame. Anything not
+imported yet, import with the `!` statement prefix first:
+
+```
+(Pdb) !from ourapp.models import Chore
+(Pdb) p list(Chore.objects.values("title", "row_version", "created_by_id"))
+[{'title': 'E2E old', 'row_version': 1, 'created_by_id': 43}]
+```
+
+Ground truth about what the server actually stored — settles "did the
+write land?" (row_version bumped but the title is old ⇒ the request was
+wrong, not the server) without a new command or a permission prompt.
+
 ## Unit tests — commands in a here-string
 
 ```bash
@@ -46,12 +96,12 @@ run answers in one command:
 The payload is flat; the key is `open_due_on` and already holds the
 `+3 days` value the test wanted.
 
-## Playwright tests — feed pdb from an rc under /tmp/desmo
+## Playwright tests — feed pdb from an rc via --pdbrc
 
 Playwright's node driver takes over the process's stdin. Commands piped
-to pdb never arrive — observed: the prompt prints, hits EOF, and quits.
-Feed pdb from an rc file in a throwaway HOME instead (random dir under
-/tmp/desmo, so nothing collides with a later session):
+to pdb never arrive — the prompt prints, hits EOF, and quits. Write an
+rc file (throwaway dir under /tmp/desmo, so nothing collides with a
+later session) and point `--pdbrc` at it:
 
 ```
 # write tool → /tmp/desmo/pdb-debug7/.pdbrc   (random name each time)
@@ -66,13 +116,11 @@ q
 ```
 
 ```bash
-HOME=/tmp/desmo/pdb-debug7 ./run playwrighttest ourapp.tests.test_debug_demo_playwright --pdb
+cd ../scratch && ./run playwrighttest ourapp.tests.test_debug_demo_playwright --pdb --pdbrc /tmp/desmo/pdb-debug7/.pdbrc
 ```
 
-- An assignment prefix (`HOME=… cmd`) is stripped before the allowlist
-  matches, so the command still rides `./run playwrighttest *`. Do NOT
-  write `env HOME=…` — the `env` command is an indirection wrapper and
-  prompts.
+- `--pdbrc` sets the child's HOME to the rc's directory — pdb reads
+  `$HOME/.pdbrc` — so no `HOME=` prefix on the command itself.
 - Keep the rc out of the repo root: a repo-root `.pdbrc` executes on
   **every** later pdb session — including unit runs — and its `q` ends
   them early.
@@ -97,6 +145,10 @@ What the live page can show at the prompt:
 - `!page.evaluate("() => JSON.stringify(x)")` — state with no DOM face:
   Inertia's page object, stores, localStorage. `JSON.stringify` so it
   prints instead of returning an opaque handle.
+- `!page.on("response", lambda r: print("RESP:", r.status, r.url, r.text()[:200]))`
+  then any action — live response bodies, same pattern as the console
+  listener (the collect-then-read form is in "Data-flow evidence"
+  above).
 - `!_ = page.screenshot(path="/tmp/desmo/debug.png")` — for layout and
   geometry text can't show; `_ =` swallows the returned PNG bytes pdb
   would otherwise echo.

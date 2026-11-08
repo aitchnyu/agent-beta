@@ -50,7 +50,7 @@ class ReferenceScreenshots(BaseScreenshotTestCase):
             text="The reference app is a worked example you can copy.", topic=topic
         )
         FactOfTheDay.choose_for_today()
-        self.page.goto(f"{self.live_server_url}/", wait_until="networkidle")
+        self.page.goto(f"{self.live_server_url}/")
         self.page.get_by_text("worked example you can copy").first.wait_for()
         self.capture_below_navbar("home")
 
@@ -58,17 +58,17 @@ class ReferenceScreenshots(BaseScreenshotTestCase):
         """facts.png — a visitor opens /facts and reads facts grouped by topic."""
         topic = Topic.objects.create(name="cars", slug="cars")
         Fact.objects.create(text="E2E fact about cars", topic=topic)
-        self.page.goto(f"{self.live_server_url}/facts", wait_until="networkidle")
+        self.page.goto(f"{self.live_server_url}/facts")
         self.page.get_by_text("E2E fact about cars").first.wait_for()
         self.capture_below_navbar("facts")
 
     def test_todos(self) -> None:
         """todos.png — a user opens /todos, adds two todos, completes the first."""
-        self.page.goto(f"{self.live_server_url}/todos", wait_until="networkidle")
-        self.page.get_by_label("New todo").fill("Read the reference docs")
+        self.page.goto(f"{self.live_server_url}/todos")
+        self.page.get_by_label("New todo", exact=True).fill("Read the reference docs")
         self.page.get_by_role("button", name="Add todo").click()
         self.page.wait_for_selector(".ours-todo-item")
-        self.page.get_by_label("New todo").fill("Ship something small")
+        self.page.get_by_label("New todo", exact=True).fill("Ship something small")
         self.page.get_by_role("button", name="Add todo").click()
         self.page.wait_for_selector(".ours-todo-item")
         # Complete the first so the shot shows both states.
@@ -87,6 +87,6 @@ class ReferenceScreenshots(BaseScreenshotTestCase):
         Download(file=SimpleUploadedFile("field-notes.txt", b"reference notes")).save_plus(
             actor=admin, expected_row_version=0
         )
-        self.page.goto(f"{self.live_server_url}/downloads", wait_until="networkidle")
+        self.page.goto(f"{self.live_server_url}/downloads")
         self.page.get_by_text("field-notes.txt").first.wait_for()
         self.capture_below_navbar("downloads")

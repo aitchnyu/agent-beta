@@ -47,9 +47,16 @@ plan and the reference pointers. You never decide scope.
   start batch 1 as soon as the essential reads are in, planning on
   the fly.
 - One turn, one batch: independent calls leave together, all of a
-  file's edits go in one call, every understood test failure gets
-  fixed before the next run. ALWAYS relative paths (`../scratch/...`)
-  — absolute `/srv/...` paths sit outside the working tree and every
+  file's edits go in one call. A failing LINT run batch-fixes — every
+  understood failure in one pass, then a single rerun. A failing TEST
+  run splits by kind: understood failures (your math, a missing
+  import) batch-fix like lint; a BUG — the same test failing
+  unexpectedly twice — is investigated one at a time, read-only
+  evidence BEFORE the next edit (docs/debugging-tests.md: response
+  bodies and the DB row at the `--pdb` prompt, page state). A
+  transient that never replays is a harness flake — rerun
+  once and move on. ALWAYS relative paths (`../scratch/...`) —
+  absolute `/srv/...` paths sit outside the working tree and every
   one becomes a permission ask.
 - Each bash call starts a FRESH shell in the session cwd (main/) —
   cwd does not stick between calls. A bare relative path (`find

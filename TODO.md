@@ -1,3 +1,93 @@
+Why complex rsyncs?
+
+Why wait for image reviewer?
+No more image reviewer?
+--
+
+1. fix every understood lint failure, investigate bugs one at a time with grounded evidence, with debugging
+3. explain the data stuff, have an exemplar in reference app.
+In debugging docs, have examples of those techniques 
+And have example how to run test command, for both backend and playwright, so no piped output and other mistakes
+
+Try your new debugging techniques with the code you were stuck with.
+
+--
+exact exemplar 
+
+wait_until="networkidle"
+
+_log_response - log only non-200 or does existing methods do that?
+--
+
+It WAS red — we shipped 4c1fa80 without a final lintfix/typecheck pass: 5 lint errors across three ops/djangoapp test files plus a mypy error (Postdeploychecks.run(None, [])) — the stage-1 presentation deploy halted on our own code; main burned ~2:30 fixing "upstream" mid-presentation and its own deploy battery rejected the tree.
+
+Two-voiced docs: repo-map §5's sdk example shows the system/schemas/ path while app features canonically emit to app/schemas/ — the mirrors reviewer had to resolve the "canon" by cross-reading the reference before clearing it.
+
+The e2e phantom: an intermittent lazy-FK 500 plus a get_by_label substring-matching two fields sent the coder as far as reading Django 6.1's fetch_modes source before concluding "it's a test bug" (24 min) — made worse by lintfix auto-deleting its debug prints mid-hunt.
+
+The guard flagged a state it created itself: yesterday's deploy-loss guard blocked the final deploy over mockup files its own stage-1 deploy left untracked in main/ and graduation correctly deleted from scratch — main trusted the refusal and reached for rm, which timed out twice unattended. That's the session's top lever: the pending-deletion blind spot, which will block every graduating feature until fixed.
+
+--
+Grounded answer — the ordering was never confused; deploy-then-commit is exactly what happened. Here is the actual chain:
+
+ 1. The workflow's design is deploy → commit. Deploys ship ../scratch/ → main/ and deliberately never commit. Commits in main/
+ stay the human's call until the commit offer. So "code ready → deploy → offer commit" is the designed sequence, and I followed
+ it.
+
+ 2. The final deploy fired on schedule — and was refused by its own guard. After your approval, the review round, and the fix
+ cycle (all green), I ran the final deploy. It refused: main/ held two uncommitted files the deploy would delete — the stage-1
+ mockup pages, which graduation had removed from scratch. The guard can't tell "intentionally retired" from "about to lose work,"
+ so it blocks any rsync that would delete unaccounted files. That's a data-loss safety, not an ordering rule.
+
+ 3. The root cause was an interaction, not confusion:
+ - stage 1's presentation deploy put the mockups in main/ uncommitted (deploys never commit);
+ - graduation then deleted them in scratch;
+ - so at final-deploy time they existed only as uncommitted files in main/, and the guard's two legal exits were "commit them" or
+   "delete them by hand."
+
+ 4. The pause you saw was the guard, plus absent approvals. Deleting needed your approval — the prompt timed out twice with nobody
+ at the TUI (90s each), and my standing rule for refused infra is stop-and-ask, never hand-route around it. When you returned, you
+ said commit (and denied the hand-deletion), so I took the guard's other exit: commit main/'s state → guard passes → deploy runs →
+ everything folded into the single feature commit 5db55dc.
+--
+
+Analyse the last pi session. When should we launch coder background agent? We should launch reviewer background agents later to avoid visual clutter.
+
+Why existing codebase was considered buggy?
+
+Why was operator kept in dark after taking requirements? Agent should ask questions and inform about progress/.
+
+Why did we have messages after this? This is noise to user
+```
+ We need your call before implementation starts:
+
+ 1. Revise mockups or docs — tell me what to change
+ 2. Approve — the coder implements for real
+
+ Choose
+```
+
+Show mockups and docs soon
+
+Dont wait for parents batch steering. Just inform, Continue async
+
+Why wait for image reviewer?
+No more image reviewer?
+
+when to launch coder background? And reviewers?
+Why didnt you use coder for scratch?
+
+Assume tests and deploys could be flaky.
+------------
+
+For lever 1, Im considering
+
+generatesdk module.api module1 module2 out/file.ts
+
+It will include the props classes if its an instances of Export, and all BaseModel if its needed by an endpoint. 
+
+Check if any edge cases are not handled.
+
 Make it happen earlier:why
 3. Docs and code together (coder owns doc updates per batch)
 Was it still doing groundwork? Did coder launch as soon as possible?

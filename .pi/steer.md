@@ -4,6 +4,18 @@ You are the pi TUI agent (`./run pi`) for this app. You build and
 edit the **single user app** (`ourapp/`) and its frontend
 (`frontend/src/{pages,components,schemas,styles}`).
 
+## Source of truth
+
+**This file is the source of truth for agent rules.** Other md files
+derive from it — they restate or expand, never invent rules (the
+MAINTAIN-CONSISTENCY comments bind each file to its steer section).
+Where this file delegates a TOPIC to a dedicated doc (diagrams →
+`docs/d2.md`, logging → `docs/logging.md`, test debugging →
+`docs/debugging-tests.md`), that doc is the source instead. A rule
+missing from its source is drift: add it there first. Derived files
+add examples and mechanics — never obligations, permissions, or
+prohibitions.
+
 ## Role & scope
 This repo is a **template with one user app**, `ourapp/` — a normal Django app
 (models subclass `djangoapp.models.BaseModel`; endpoints live in a django-ninja
@@ -156,22 +168,27 @@ lives in [Stage messages](#stage-messages):
    - Resume the GROUNDWORK session with the digest: requirement, the
      approved initial doc, the image verdict, gate notes. It reconciles
      the preliminary plan (flip or uphold, never re-plan) and
-     implements. Fresh spawn only on age-out, session switch, or
+     implements. If the approval steer arrives while groundwork is
+     still mid-read, it pivots immediately — batch 1 starts once the
+     essential reads are in, no finished-plan ceremony. Fresh spawn
+     only on age-out, session switch, or
      send-back — never implement against a plan it no longer holds
      (full contract: `.pi/agents/coder.md`).
    - It runs in background: pings arrive on their own — never poll,
      never wait; keep orchestrating meanwhile. The operator watches its
      tool calls; permission asks forward to you.
-   - **No deploys during [2].** Each batch: the coder runs
-     `./run checkscratch` before reporting green; you steer "next
-     batch". Nothing reaches `main/` until [3]'s final deploy.
+    - **No deploys during [2].** Each batch: the coder runs
+      `./run checkscratch` before reporting green; you steer "next
+      batch". Nothing reaches `main/` until [3]'s final deploy.
    - Each batch also fills the `pending` doc sections it implements
      ([Feature docs](#feature-docs)); you verify each batch's doc
      edits — you stay the planner, never implementing while a coder
      run is open, same scratch tree throughout.
    - Mockups graduate into the real feature (real URL, real props/
      endpoints; DELETE the `Mockup<Name>.vue` + homepage link +
-     placeholder block — the EMPTY state must render).
+     placeholder block — the EMPTY state must render). A change
+     touching shared chrome (homepage, navbar, auth walls) lands its
+     e2e regression net in the SAME batch.
 - **[3] Agent review + fixes + the FINAL deploy —**
    - paste the coder's suite/battery outputs as the evidence; run the
      checks yourself only where the coder had no coverage
@@ -252,11 +269,20 @@ gap — spend them on decisions, not on serialization:
   still run free;
 - put ALL of a file's edits in one `edit` call — N surgical diffs,
   one round trip;
-- after a failing lint/test run, fix every failure you understand in
-  one batch — all of them, in parallel — then rerun only after you
-  believe all are addressed; never one symptom per run-edit-run cycle.
-  The copy-me code (exemplar, §9 skeletons, reference files) already
-  satisfies these rules — copy it exactly and most never fire.
+- lint failures BATCH-FIX: every understood failure in one pass, in
+  parallel, then a single rerun — never one symptom per
+  run-edit-run cycle.
+- never script edit batches (`sed`/`python3` rewrites) or
+  wholesale-rewrite an existing file — the `edit` tool, one surgical
+  diff per spot; after a format pass, re-read a file before editing
+  it again.
+- test failures split by kind. An UNDERSTOOD failure (your math, a
+  missing import) batch-fixes like lint. A BUG — the same test failing
+  unexpectedly twice — gets the opposite treatment: isolate it, then
+  gather read-only evidence (response bodies, DB row, page state —
+  docs/debugging-tests.md) BEFORE the next edit, one bug at a time.
+  A transient that never replays is a harness flake: rerun once and
+  move on.
 
 ### The review round (stage 3)
 
@@ -454,7 +480,8 @@ print(User.objects.count())
 **`./run lintfix` normalizes formatting to the committed ruff config** — never
 logic, but it REWRITES files, so it runs in `scratch/` only
 (`cd ../scratch && ./run lintfix`) and refuses from `main/`: a forgotten prefix
-must never mutate the deployed tree. Run it the moment `deployscratch` flags
+must never mutate the deployed tree. Run it after every write batch
+(before the scoped tests), and the moment `deployscratch` flags
 formatting, on any file (framework included — drift is exactly what it clears).
 Don't stop to debate whether formatting a file is "allowed".
 
@@ -652,7 +679,8 @@ Skip a section that doesn't apply; never pad one.
      clamping)
 5. **What you see.** The UI walkthrough — pages, groups, buttons, feedback.
    - Embed each screen's generated screenshot (the screenshot suite writes
-     them to `docs/screenshots/`).
+     them to `docs/screenshots/`). A diff that changes a page rendered
+     there regenerates that PNG in the same batch.
 6. **History (optional).** Notable behavior changes over time — a
    capability added or removed, a rule changed. A first release skips this.
 7. **For developers.** Field rules, algorithm internals, the endpoints,
@@ -757,7 +785,9 @@ them with pan/zoom controls.
       rounded, icons rendering, size uniformity, clipped text, note
       placement, dark-mode contrast; arrows never pass THROUGH a
       box or strike out label text — grazing (an edge touching a
-      boundary or label tangentially) is acceptable
+      boundary or label tangentially) is acceptable; arrows never
+      REVERSE direction — reorder the endpoints instead (the image
+      reviewer flags pass-through or reversing edges only)
     - cross-doc consistency — the User actor identical, connection
       phrasing, delete-rule labels, state circles
   - It inspects the rendered PNG rasters — checkmarkdownd2 writes one
@@ -831,16 +861,29 @@ Run through every box; the order is the order you build in.
       **every** API endpoint (pages + data) there, and register it in
       `ourapp/views/__init__.py`'s combining Router
       (`router.add_router("/", <feature>.router)` — that Router feeds
-      `make_ninja_api`).
+      `make_ninja_api`). Page path params use `<uuid:public_id>` — a
+      bare `<str:>` shadows same-shape API paths.
 - [ ] **Tests** — one file per layer, flat under `ourapp/tests/`:
     - [ ] model/manager behaviour in `ourapp/tests/test_<feature>_models.py`
     - [ ] every endpoint in `ourapp/tests/test_<feature>_views.py` (state + return
           value, pk-free, 404 on missing/forbidden)
     - [ ] each command in `ourapp/tests/test_<feature>_commands.py`
     - [ ] every Inertia page end-to-end in `ourapp/tests/test_<feature>_playwright.py`
+          — `get_by_label` ALWAYS passes `exact=True` (labels are static
+          text and label matching is a case-insensitive substring —
+          "Chore title" silently matches "New chore title"; `get_by_role`
+          keeps default matching — accessible names can be dynamic);
+          NEVER `wait_until="networkidle"` — plain `goto()` plus
+          `expect()`'s auto-retry is the contract (networkidle drops on
+          quiet/polling pages); a transient failure that never replays
+          under the same inputs
+          is a harness flake (the live server hiccups — dropped POSTs,
+          one-off 500s): rerun the module once and move on; investigate
+          only when it repeats
 - [ ] **Frontend** — page in `frontend/src/app/pages/<Name>.vue` with its zod
       schemas declared inline in the component (shared shapes in
-      `frontend/src/system/schemas/<feature>.ts`), side-effect styles in
+      `frontend/src/app/schemas/<feature>.ts`; framework-only shapes in
+      `system/schemas/`), side-effect styles in
       `app/styles/app.scss`.
 - [ ] **PageTitle** — the page renders `<PageTitle :value="…"/>` (import from
       `system/components/PageTitle.vue`); see "For every Inertia page" below.
@@ -1099,7 +1142,9 @@ Read code in this priority order:
      are restated (scoped to the implement loop) in .pi/agents/coder.md;
      change both together. -->
  2. **The reference next** — `docs/reference/` as a complete, copyable
-    example (model + ninja API + urls + Inertia page + test).
+    example (model + ninja API + urls + Inertia page + test). Write in
+    the repo's style so lintfix stays a no-op (sorted imports, the
+    reference's formatting habits).
     <!-- MAINTAIN-CONSISTENCY app-conventions — the layout/frontend rules
          are restated in docs/reference/README.md and
          djangoapp/tests/testapp/README.md; change all three together. -->
@@ -1262,7 +1307,9 @@ useAppPage(FeaturePropsSchema)` (`system/utils/useAppPage.ts`; computed
 inside, so reloads re-render; `p.value.x` in
 script, `p.x` in template). The exact JSON shapes (page vs data
 responses) are in `docs/reference/README.md` ("Response shapes"). Add/change a
-model → `./run djangomanage makemigrations ourapp`.
+model → `./run djangomanage makemigrations ourapp`. Models are final
+before `makemigrations`; a generated migration is never deleted
+mid-loop unless the schema intent changed.
 
 For the authenticated user in queries, use `djangoapp.shortcuts`:
 `user_or_404(request)` (raises 404 when anonymous — keep the page's existence

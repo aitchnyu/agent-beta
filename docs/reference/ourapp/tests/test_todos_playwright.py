@@ -23,17 +23,28 @@ class TodosE2e(BasePlaywrightTestCase):
     def test_create_todo_renders(self) -> None:
         "Add a todo via the form and see it on the page."
         page = self.page
-        page.goto(f"{self.live_server_url}/todos", wait_until="networkidle")
-        page.get_by_label("New todo").fill("E2E todo")
+        page.goto(f"{self.live_server_url}/todos")
+        page.get_by_label("New todo", exact=True).fill("E2E todo")
         page.get_by_role("button", name="Add todo").click()
         page.wait_for_selector(".ours-todo-item")
         expect(page.locator("body")).to_contain_text("E2E todo")
 
+    def test_create_response_echoes_the_todo(self) -> None:
+        """Capture the XHR response and assert on its body (the harness
+        also logs XHRs — see docs/debugging-tests.md)."""
+        page = self.page
+        page.goto(f"{self.live_server_url}/todos")
+        with page.expect_response(lambda r: r.url.endswith("/todos/create")) as captured:
+            page.get_by_label("New todo", exact=True).fill("Echo me")
+            page.get_by_role("button", name="Add todo").click()
+        body = captured.value.json()
+        self.assertEqual(body["text"], "Echo me")
+
     def test_toggle_todo_completes(self) -> None:
         "Clicking toggle marks the todo complete."
         page = self.page
-        page.goto(f"{self.live_server_url}/todos", wait_until="networkidle")
-        page.get_by_label("New todo").fill("Toggle me")
+        page.goto(f"{self.live_server_url}/todos")
+        page.get_by_label("New todo", exact=True).fill("Toggle me")
         page.get_by_role("button", name="Add todo").click()
         page.wait_for_selector(".ours-todo-item")
         # The toggle POSTs then reloads the list; wait for the completed class.

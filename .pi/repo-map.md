@@ -19,7 +19,7 @@ MockupDocsGate → [2] Code (scratch, `./run checkscratch` between
 batches, NO deploys) → [3] Agent review + ONE fix cycle + the FINAL
 deploy → [4] CommitOffer → [5] Final checklist → one-sentence close.
 Stages 2–4 run as ONE turn; the session never compacts — the operator
-can. `deployscratch` runs exactly twice per feature: the stage-1
+can. `deployscratch` has two deploy points per feature — the stage-1
 mockup+doc presentation and the stage-3 deliverable.
 
 - Mockups: `frontend/src/app/pages/Mockup<Name>.vue`, served verbatim
@@ -68,7 +68,11 @@ mockup+doc presentation and the stage-3 deliverable.
   — `cd ../scratch && ./run djangomanage generatesdk
   djangoapp.views.users.users_api
   frontend/src/system/schemas/users_sdk.ts` (<api-symbol> = dotted
-  path to the NinjaAPI instance). Walks the api's router tree —
+  path to the NinjaAPI instance). Output path follows the feature:
+  framework features (djangoapp.views.*) →
+  `frontend/src/system/schemas/<feature>_sdk.ts`; app features
+  (ourapp.views.api) → `frontend/src/app/schemas/<feature>_sdk.ts`
+  (the reference trio is the exemplar). Walks the api's router tree —
   nested `add_router` mounts included, prefixes joined — and emits
   zod schemas for every model REACHABLE from an endpoint (responses,
   bodies, GET query models, transitive field refs) + typed client
@@ -77,7 +81,7 @@ mockup+doc presentation and the stage-3 deliverable.
   independent, regen never needs a hand fix) — commit the sdk;
   regenerate on payload changes, never hand-edit. PAGE props are not
   generated: hand-write them in a `<feature>_props.ts` schema file
-  (e.g. frontend/src/system/schemas/users_props.ts).
+  beside the sdk.
 - Edits via `edit`, one surgical diff per spot; never script batches
   or wholesale rewrites.
 

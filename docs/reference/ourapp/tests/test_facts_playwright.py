@@ -29,13 +29,13 @@ class FactsE2e(BasePlaywrightTestCase):
     def test_seeded_fact_renders(self) -> None:
         "An ORM-seeded fact renders on the live /facts page."
         page = self.page
-        page.goto(f"{self.live_server_url}/facts", wait_until="networkidle")
+        page.goto(f"{self.live_server_url}/facts")
         expect(page.locator("body")).to_contain_text("E2E fact about cars")
 
     def test_topic_page_renders_fact(self) -> None:
         "/facts/<slug> renders a fact from that topic."
         page = self.page
-        page.goto(f"{self.live_server_url}/facts/cars", wait_until="networkidle")
+        page.goto(f"{self.live_server_url}/facts/cars")
         expect(page.locator("body")).to_contain_text("E2E fact about cars")
 
     def test_missing_topic_404(self) -> None:

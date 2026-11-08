@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import unittest
+from argparse import Namespace
+from pathlib import Path
 from unittest.mock import patch
 
+from ops import scratch, shell
+from ops import testsuite as tst
 from ops.scratch import (
     FastPath,
     classify_changed_files,
@@ -77,10 +82,7 @@ class PorcelainPathsTests(unittest.TestCase):
 
     def test_plain_and_untracked(self) -> None:
         self.assertEqual(
-            porcelain_paths(
-                "1 .M N... 100644 100644 100644 a a TODO.md\0"
-                "? ourapp/newmod/x.py\0"
-            ),
+            porcelain_paths("1 .M N... 100644 100644 100644 a a TODO.md\0? ourapp/newmod/x.py\0"),
             ["TODO.md", "ourapp/newmod/x.py"],
         )
 
@@ -88,17 +90,14 @@ class PorcelainPathsTests(unittest.TestCase):
         # -z renames: `2 …` header + NEW path, then the original bare.
         self.assertEqual(
             porcelain_paths(
-                "2 R. N... 100644 100644 100644 a b R100 ourapp/views/new.py\0"
-                "ourapp/views/old.py\0"
+                "2 R. N... 100644 100644 100644 a b R100 ourapp/views/new.py\0ourapp/views/old.py\0"
             ),
             ["ourapp/views/new.py"],
         )
 
     def test_unmerged_yields_path(self) -> None:
         self.assertEqual(
-            porcelain_paths(
-                "u DA N... 100644 100644 100644 a b c d ourapp/conflict.py\0"
-            ),
+            porcelain_paths("u DA N... 100644 100644 100644 a b c d ourapp/conflict.py\0"),
             ["ourapp/conflict.py"],
         )
 
@@ -128,9 +127,7 @@ class UncoveredDirtyFilesTests(unittest.TestCase):
 
     def test_dist_bundle_is_always_excluded(self) -> None:
         self.assertEqual(
-            uncovered_dirty_files(
-                ["frontend/dist/main-abc.js", "frontend/dist/.build-sha"], []
-            ),
+            uncovered_dirty_files(["frontend/dist/main-abc.js", "frontend/dist/.build-sha"], []),
             [],
         )
 
@@ -241,6 +238,60 @@ class TestRedisEnvTests(unittest.TestCase):
     def test_test_redis_env_keeps_other_environment(self) -> None:
         with patch.dict(os.environ, {"OTHER_SETTING": "kept"}, clear=True):
             self.assertEqual(test_redis_env().get("OTHER_SETTING"), "kept")
+
+
+class PlaywrighttestPdbrcTests(unittest.TestCase):
+    """The --pdbrc flag: HOME for the child, refused on a missing file.
+
+    - test_pdbrc_sets_child_home, the rc's parent dir becomes HOME in the test env
+    - test_pdbrc_without_flag_leaves_env_alone, no flag → no HOME override
+    - test_pdbrc_missing_file_refuses, a nonexistent rc dies before running
+    """
+
+    def test_pdbrc_sets_child_home(self) -> None:
+        captured: dict[str, dict[str, str] | None] = {}
+
+        def fake_run(*_args: object, env: dict[str, str] | None = None, **_kw: object) -> None:
+            captured["env"] = env
+
+        with tempfile.TemporaryDirectory() as home:
+            rc = Path(home) / ".pdbrc"
+            rc.write_text("q\n", encoding="utf-8")
+            with (
+                patch.object(scratch, "built_frontend"),
+                patch.object(scratch, "test_redis_env", return_value={"REDIS": "1"}),
+                patch.object(shell, "run", side_effect=fake_run),
+                patch.object(tst, "_write_keepdb_marker"),
+            ):
+                tst.Playwrighttest.run(Namespace(labels=[], full=False, pdbrc=str(rc)), [])
+        env = captured["env"]
+        assert env is not None
+        self.assertEqual(env["HOME"], home)
+        self.assertEqual(env["REDIS"], "1")
+
+    def test_pdbrc_without_flag_leaves_env_alone(self) -> None:
+        captured: dict[str, dict[str, str] | None] = {}
+
+        def fake_run(*_args: object, env: dict[str, str] | None = None, **_kw: object) -> None:
+            captured["env"] = env
+
+        with (
+            patch.object(scratch, "built_frontend"),
+            patch.object(scratch, "test_redis_env", return_value={"REDIS": "1"}),
+            patch.object(shell, "run", side_effect=fake_run),
+            patch.object(tst, "_write_keepdb_marker"),
+        ):
+            tst.Playwrighttest.run(Namespace(labels=[], full=False, pdbrc=None), [])
+        env = captured["env"]
+        assert env is not None
+        self.assertNotIn("HOME", env)
+
+    def test_pdbrc_missing_file_refuses(self) -> None:
+        with (
+            patch.object(scratch, "built_frontend"),
+            self.assertRaises(SystemExit),
+        ):
+            tst.Playwrighttest.run(Namespace(labels=[], full=False, pdbrc="/nonexistent/rc"), [])
 
 
 if __name__ == "__main__":

@@ -17,8 +17,17 @@ class Command:
     name: str
 
     def build_parser(self) -> argparse.ArgumentParser:
-        """Build the command's parser — override to add arguments."""
-        return argparse.ArgumentParser(prog=f"ops.cli {self.name}", description=self.__doc__)
+        """Build the command's parser — override to add arguments.
+
+        allow_abbrev=False: these commands pass unknown flags through to
+        the tool they wrap (manage.py test), and an abbreviated flag
+        would silently eat the next token (--pdb abbreviating --pdbrc).
+        """
+        return argparse.ArgumentParser(
+            prog=f"ops.cli {self.name}",
+            description=self.__doc__,
+            allow_abbrev=False,
+        )
 
     @staticmethod
     def run(args: argparse.Namespace, extra: list[str]) -> None:

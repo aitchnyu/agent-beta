@@ -109,12 +109,28 @@ class Playwrighttest(LabelsCommand):
     name = "playwrighttest"
     labels_help = "test labels; none = full suite"
 
+    def build_parser(self) -> argparse.ArgumentParser:
+        """Build the labels parser plus --pdbrc (a HOME for pdb's rc)."""
+        parser = super().build_parser()
+        parser.add_argument(
+            "--pdbrc",
+            help="path to a .pdbrc file — pdb reads it via HOME (Playwright's "
+            "driver owns stdin, so piping commands cannot reach pdb)",
+        )
+        return parser
+
     @staticmethod
     def run(args: argparse.Namespace, extra: list[str]) -> None:
         scratch.built_frontend(scratch.MAIN_DIR / "frontend")
         # Same keepdb-by-marker caching as `test`: reuse desmo_db_test
         # while no migration changed.
         flags = ["--keepdb"] if _keepdb_hint() else []
+        env = scratch.test_redis_env()
+        if args.pdbrc:
+            rc = Path(args.pdbrc)
+            if not rc.is_file():
+                shell.die(f"--pdbrc: {rc} is not a file")
+            env["HOME"] = str(rc.parent)
         shell.run(
             "uv",
             "run",
@@ -127,7 +143,7 @@ class Playwrighttest(LabelsCommand):
             *flags,
             *args.labels,
             *extra,
-            env=scratch.test_redis_env(),
+            env=env,
         )
         _write_keepdb_marker()
 

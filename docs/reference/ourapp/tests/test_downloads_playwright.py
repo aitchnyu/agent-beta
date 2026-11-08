@@ -46,8 +46,8 @@ class DownloadsE2e(BasePlaywrightTestCase):
     def test_upload_lists_download(self) -> None:
         """Upload via the form; the row renders with its download link."""
         page = self.page
-        page.goto(f"{self.live_server_url}/downloads", wait_until="networkidle")
-        page.get_by_label("File to share").set_input_files(
+        page.goto(f"{self.live_server_url}/downloads")
+        page.get_by_label("File to share", exact=True).set_input_files(
             self._pick("e2e-upload.txt", b"e2e download bytes")
         )
         page.get_by_role("button", name="Upload").click()
@@ -66,7 +66,7 @@ class DownloadsE2e(BasePlaywrightTestCase):
         download.save_plus(actor=self.admin, expected_row_version=0)
         old_name = download.file.name
         page = self.page
-        page.goto(f"{self.live_server_url}/downloads", wait_until="networkidle")
+        page.goto(f"{self.live_server_url}/downloads")
         expect(page.locator(".ours-downloads-table tbody tr")).to_have_count(1)
         # The hidden shared picker receives the file; the row's Replace
         # button targets it at this row.
@@ -86,7 +86,7 @@ class DownloadsE2e(BasePlaywrightTestCase):
         )
         download.save_plus(actor=self.admin, expected_row_version=0)
         page = self.page
-        page.goto(f"{self.live_server_url}/downloads", wait_until="networkidle")
+        page.goto(f"{self.live_server_url}/downloads")
         page.get_by_test_id(f"delete-{download.public_id}").click()
         expect(page.locator(".ours-downloads-table")).to_have_count(0)
         self.assertEqual(Download.objects.count(), 0)

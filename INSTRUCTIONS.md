@@ -1,5 +1,15 @@
 Use README.md as basic reference.
 
+## Source of truth
+
+`.pi/steer.md` is the source of truth for agent rules. Other md files
+derive from it — restate or expand, never invent rules. Where steer
+delegates a topic to a dedicated doc (diagrams → `docs/d2.md`, logging
+→ `docs/logging.md`, test debugging → `docs/debugging-tests.md`), that
+doc is the source instead. A rule missing from its source is drift:
+add it there first. Derived files add examples and mechanics — never
+obligations, permissions, or prohibitions.
+
 ## Environment files
 Dev env config lives in root `.env` (gitignored), copied from `.env.example`.
 The test VM has NO operator env file: its whole config is the tracked static

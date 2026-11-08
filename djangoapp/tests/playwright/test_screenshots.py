@@ -83,7 +83,7 @@ class BaseScreenshotTestCase(BasePlaywrightTestCase):
             def test_files(self) -> None:
                 \"\"\"files.png — a user opens /files and sees their shelf.\"\"\"
                 self.page.goto(
-                    f"{self.live_server_url}/files", wait_until="networkidle"
+                    f"{self.live_server_url}/files"
                 )
                 self.capture_below_navbar("files")
     """
