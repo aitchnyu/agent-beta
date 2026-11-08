@@ -5,7 +5,9 @@ from __future__ import annotations
 import contextlib
 import io
 import unittest
+from argparse import Namespace
 from pathlib import Path
+from typing import ClassVar
 from unittest.mock import patch
 
 from ops import postdeploychecks, shell
@@ -19,16 +21,16 @@ class PostdeploychecksTests(unittest.TestCase):
     - test_run_exits_nonzero_on_failure, SystemExit(1) when a check fails
     """
 
-    GREEN = [
+    GREEN: ClassVar[list[tuple[int, str]]] = [
         (0, ""),
         (0, ""),
     ]
 
     def run_audit(
-        self, captures: list[tuple[int, str]], scratch_exists: bool
+        self, captures: list[tuple[int, str]], *, scratch_exists: bool
     ) -> list[tuple[bool, str]]:
         """Drive _audit_lines with canned capture outputs in call order."""
-        sentinel = Path("/tmp") if scratch_exists else Path("/nonexistent/probe-scratch")
+        sentinel = Path.cwd() if scratch_exists else Path("/nonexistent/probe-scratch")
         with (
             patch.object(shell, "capture", side_effect=captures),
             patch.object(postdeploychecks, "SCRATCH_DIR", sentinel),
@@ -45,9 +47,11 @@ class PostdeploychecksTests(unittest.TestCase):
         captures = [
             (
                 0,
-                "1 .M N... 100644 100644 100644 a a TODO.md\0"
-                "1 .M N... 100644 100644 100644 a a ourapp/views/todos.py\0"
-                "? frontend/dist/x.js\0",
+                (
+                    "1 .M N... 100644 100644 100644 a a TODO.md\0"
+                    "1 .M N... 100644 100644 100644 a a ourapp/views/todos.py\0"
+                    "? stray-note.txt\0"
+                ),
             ),
             (1, ""),  # migrate --check: pending
         ]
@@ -55,17 +59,21 @@ class PostdeploychecksTests(unittest.TestCase):
         self.assertEqual([ok for ok, _ in results], [False, False, False])
         self.assertIn("TODO.md", results[0][1])
         self.assertIn("ourapp/views/todos.py", results[0][1])
-        self.assertNotIn("frontend/dist", results[0][1])  # deploy-generated
+        self.assertIn("stray-note.txt", results[0][1])  # untracked strays count
         self.assertIn("pending migrations", results[1][1])
         self.assertIn("cleanscratch", results[2][1])
 
     def test_run_exits_nonzero_on_failure(self) -> None:
         sentinel = Path("/nonexistent/probe-scratch")
         with (
-            patch.object(shell, "capture", side_effect=[(0, "1 .M N... 100644 100644 100644 a a x\0"), (0, "")]),
+            patch.object(
+                shell,
+                "capture",
+                side_effect=[(0, "1 .M N... 100644 100644 100644 a a x\0"), (0, "")],
+            ),
             patch.object(postdeploychecks, "SCRATCH_DIR", sentinel),
             contextlib.redirect_stdout(io.StringIO()),
             self.assertRaises(SystemExit) as ctx,
         ):
-            postdeploychecks.Postdeploychecks.run(None, [])
+            postdeploychecks.Postdeploychecks.run(Namespace(), [])
         self.assertEqual(ctx.exception.code, 1)

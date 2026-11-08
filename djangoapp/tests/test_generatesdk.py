@@ -1,6 +1,6 @@
 """Unit tests for the ``generatesdk`` command (pydantic → zod + client).
 
-Drives ``manage.py generatesdk <api-symbol>`` against the synthetic api
+Drives ``render_sdk`` against the synthetic api
 ``djangoapp.tests.sdk_fixture.fixture_api`` (whose op router nests one
 add_router level under the mounted router) and pins the emitted
 TypeScript: every model REACHABLE from an endpoint (responses, bodies,
@@ -12,15 +12,10 @@ referenced by any endpoint never emit, and non-JSON ops skip visibly.
 
 from __future__ import annotations
 
-from io import StringIO
-from pathlib import Path
-
-from django.core.management import call_command
 from django.core.management.base import CommandError
 
+from djangoapp.management.commands.generatesdk import _join, render_sdk
 from djangoapp.tests._base import BaseTestCase
-
-OUT_PATH = Path("djangoapp/tests/out/sdk_fixture_sdk.ts")
 
 
 class GeneratesdkTests(BaseTestCase):
@@ -48,15 +43,7 @@ class GeneratesdkTests(BaseTestCase):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        out = StringIO()
-        call_command("generatesdk", "djangoapp.tests.sdk_fixture.fixture_api", OUT_PATH, stdout=out)
-        with OUT_PATH.open(encoding="utf-8") as handle:
-            cls.emitted = handle.read()
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        OUT_PATH.unlink()
-        super().tearDownClass()
+        cls.emitted = render_sdk("djangoapp.tests.sdk_fixture.fixture_api")
 
     def test_endpoint_models_exported_with_exact_names(self) -> None:
         """Every endpoint-reachable model exports as a zod const."""
@@ -144,11 +131,10 @@ class GeneratesdkTests(BaseTestCase):
         self.assertIn("`/fixture/nested/items`,", self.emitted)
 
     def test_root_nested_mount_contributes_no_path(self) -> None:
-        """A ``/``-mounted router (the combined-api pattern) emits at the
-        parent's path — a naive join would 404 on ``//path``.
-        """
-        from djangoapp.management.commands.generatesdk import _join
+        """A ``/``-mounted router (the combined-api pattern) emits at the parent's path.
 
+        A naive join would 404 on ``//path``.
+        """
         self.assertEqual(_join("", "/"), "")
         self.assertEqual(_join("/fixture", "/"), "/fixture")
         self.assertEqual(_join("/fixture", ""), "/fixture")
@@ -157,17 +143,17 @@ class GeneratesdkTests(BaseTestCase):
     def test_symbol_must_be_dotted(self) -> None:
         """A bare symbol name errors with the dotted-shape hint."""
         with self.assertRaises(CommandError) as ctx:
-            call_command("generatesdk", "notdotted", "x.ts")
+            render_sdk("notdotted")
         self.assertIn("dotted path", str(ctx.exception))
 
     def test_symbol_must_resolve(self) -> None:
         """An unknown attribute errors naming the module."""
         with self.assertRaises(CommandError) as ctx:
-            call_command("generatesdk", "djangoapp.tests.sdk_fixture.no_api", "x.ts")
+            render_sdk("djangoapp.tests.sdk_fixture.no_api")
         self.assertIn("has no attribute 'no_api'", str(ctx.exception))
 
     def test_symbol_must_be_an_api(self) -> None:
         """A non-NinjaAPI attribute errors naming its actual type."""
         with self.assertRaises(CommandError) as ctx:
-            call_command("generatesdk", "djangoapp.tests.sdk_fixture.router", "x.ts")
+            render_sdk("djangoapp.tests.sdk_fixture.router")
         self.assertIn("is a Router, not a NinjaAPI", str(ctx.exception))

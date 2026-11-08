@@ -166,6 +166,20 @@ def _require_main_run(command: str) -> None:
         )
 
 
+def require_scratch_run(*, friendly_name: str) -> None:
+    """Refuse tracked-file-writing commands run outside scratch/.
+
+    The deploy rsync is the only sanctioned writer of tracked files in
+    main/; commands that emit tracked output (screenshots, generatesdk)
+    must run from ../scratch so the output rides the pipeline.
+    """
+    if Path.cwd().name != "scratch":
+        shell.die(
+            f"Refusing: '{friendly_name}' writes tracked files — run it from ../scratch "
+            "(a main-side run would mutate the deployed tree)."
+        )
+
+
 def is_running_on_vm() -> bool:
     """Report whether this is the VM.
 
@@ -289,21 +303,21 @@ def porcelain_paths(status_output: str) -> list[str]:
     return paths
 
 
-def uncovered_dirty_files(main_dirty: Sequence[str], scratch_changed: Sequence[str]) -> list[str]:
-    """Main/-dirty files scratch does NOT carry — a deploy would lose them.
+def uncovered_dirty_files(
+    main_dirty: Sequence[str],
+    scratch_changed: Sequence[str],
+    scratch_tracked: Sequence[str],
+) -> list[str]:
+    """Main/-dirty edits a deploy would silently overwrite.
 
-    The deploy rsyncs scratch/ → main/ with --delete, so any main/ edit
-    absent from scratch's changed-set would be silently overwritten or
-    deleted. `frontend/dist/` is excluded: the deploy itself generates
-    the bundle (built_frontend writes scratch's dist/, the rsync carries
-    it), so dist is always "dirty" in main by design.
+    Safe: scratch carries the change, or no longer carries the file at
+    all (rsync --delete removes it — a graduation deletion or main-only
+    clutter, both correct removals). Unsafe: scratch still has the file
+    unchanged, so the rsync would silently revert a main-side edit.
     """
     carried = set(scratch_changed)
-    return sorted(
-        path
-        for path in main_dirty
-        if path and path not in carried and not path.startswith("frontend/dist/")
-    )
+    tracked = set(scratch_tracked)
+    return sorted(path for path in main_dirty if path and path not in carried and path in tracked)
 
 
 # ── Git/rsync plumbing ──────────────────────────────────────────────────
@@ -619,7 +633,7 @@ def _check_battery(changed: Sequence[str], fast_path: FastPath) -> None:
         step_banner("check battery")
 
 
-def backup_in_flight() -> bool:
+def is_backup_in_flight() -> bool:
     """Whether a pgbackrest backup is running right now (the stanza's lock).
 
     A probe failure reads as not-running — a deploy must not stall on a
@@ -686,16 +700,19 @@ class Deployscratch(Command):
         # backup below would COALESCE with a running one (the safety copy
         # silently never runs). A probe failure reads as not-running; a
         # deploy must not stall on a broken probe.
-        if backup_in_flight():
+        if is_backup_in_flight():
             shell.die("Refusing: a backup is running — let it finish, then re-run deployscratch.")
 
         # ── changed-set vs the frozen baseline + untracked files ──
         changed, fast_path = _changed_set()
 
         # ── deploy-loss guard ──
-        # rsync --delete would clobber main/-only edits, so every main/
-        # dirty file must ride in scratch's changed-set (dist/ excepted —
-        # the deploy generates it). Enforced HERE, so no agent ever
+        # rsync --delete would clobber main/-side edits to files scratch
+        # still carries unchanged — those must ride in scratch's
+        # changed-set (dist/ excepted, the deploy generates it). A
+        # main/-dirty path scratch no longer has at all is a carried
+        # deletion (graduation) or main-only clutter — the deploy
+        # removes it, which is correct. Enforced HERE, so no agent ever
         # hand-audits git state before deploying. -uall expands untracked
         # dirs (porcelain would collapse them to `?? dir/` and let a
         # carried new dir slip through); quotePath=false keeps paths
@@ -714,12 +731,24 @@ class Deployscratch(Command):
         if exit_code != 0:
             shell.die(f"REFUSING: git status failed in {MAIN_DIR}.")
         main_dirty = porcelain_paths(main_status)
-        uncovered = uncovered_dirty_files(main_dirty, changed)
+        exit_code, tracked_files = shell.capture(
+            "git",
+            "-c",
+            "core.quotePath=false",
+            "ls-files",
+            "-z",
+            cwd=SCRATCH_DIR,
+            quiet_stderr=False,
+        )
+        if exit_code != 0:
+            shell.die(f"REFUSING: git ls-files failed in {SCRATCH_DIR}.")
+        scratch_tracked = [path for path in tracked_files.split("\0") if path]
+        uncovered = uncovered_dirty_files(main_dirty, changed, scratch_tracked)
         if uncovered:
             shell.die(
-                "REFUSING: main/ has dirty files not pending in scratch — a deploy "
-                f"would lose them: {', '.join(uncovered)}. Carry them into scratch "
-                "or commit them, then re-run."
+                "REFUSING: main/ has dirty edits to files scratch carries unchanged — "
+                f"a deploy would silently overwrite them: {', '.join(uncovered)}. "
+                "Carry the edits into scratch or commit them, then re-run."
             )
 
         # ── checks ──
@@ -733,7 +762,7 @@ class Deployscratch(Command):
         # (exit 23), and scratch's files are default-user-owned. `.git` never
         # rides a deploy: scratch only borrowed main's history (git never
         # lists it, so no derived exclude covers it).
-        excludes = rsync_excludes_file(r"^djangoapp/static/", SCRATCH_DIR, MAIN_DIR)
+        excludes = rsync_excludes_file(r"^(djangoapp/static|frontend/dist)/", SCRATCH_DIR, MAIN_DIR)
         shell.run(
             "sudo",
             "rsync",

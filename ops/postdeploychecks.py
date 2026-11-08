@@ -22,9 +22,8 @@ def _audit_lines() -> list[tuple[bool, str]]:
     """Run every checklist check and return (ok, label) pairs, in order."""
     results: list[tuple[bool, str]] = []
 
-    # 1. Clean tree — frontend/dist/ excluded: deploy-generated,
-    #    rsync-carried, untracked by design (gitignore would drop it from
-    #    the deploy rsync).
+    # 1. Clean tree — ignored runtime state never appears in porcelain,
+    #    so anything listed here is real drift.
     exit_code, status = shell.capture(
         "git",
         "-c",
@@ -38,7 +37,7 @@ def _audit_lines() -> list[tuple[bool, str]]:
     if exit_code != 0:
         results.append((False, f"tree: git status failed in {MAIN_DIR}"))
     else:
-        files = [path for path in porcelain_paths(status) if not path.startswith("frontend/dist/")]
+        files = porcelain_paths(status)
         results.append(
             (not files, "tree clean" if not files else f"tree dirty: {', '.join(files)}")
         )

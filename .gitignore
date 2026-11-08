@@ -62,6 +62,8 @@ dbbackups/
 # the cached template-lint runs; must never ride the rsync into main/.
 frontend/.eslintcache
 
-# generatesdk unit-test output (djangoapp/tests/out/) — written by the
-# test, removed on teardown; ignore it so a crashed run leaves no trace.
-djangoapp/tests/out/
+# frontend/dist/ holds only the .build-sha rebuild-skip marker (vite's
+# bundle lives in djangoapp/static/djangoapp). Ignored, yet still carried
+# by the deploy's direction filter — see deployscratch in ops/scratch.py.
+frontend/dist/
+

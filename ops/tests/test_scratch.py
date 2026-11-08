@@ -106,28 +106,38 @@ class PorcelainPathsTests(unittest.TestCase):
 
 
 class UncoveredDirtyFilesTests(unittest.TestCase):
-    """The deploy-loss guard: main/-dirty files scratch doesn't carry.
+    """The deploy-loss guard: edits a deploy would silently overwrite.
 
-    - test_main_only_edit_is_uncovered, a file dirty in main but absent from scratch is listed
+    - test_main_edit_of_scratch_carried_file_is_uncovered, main-dirty file scratch still carries unchanged is listed
+    - test_scratch_absent_paths_are_carried_deletions, main-dirty paths absent from scratch's tree pass (graduation / clutter)
     - test_everything_carried_is_covered, main-dirty files also in scratch's changed-set pass
-    - test_dist_bundle_is_always_excluded, frontend/dist/ never counts (the deploy generates it)
     """
 
-    def test_main_only_edit_is_uncovered(self) -> None:
+    def test_main_edit_of_scratch_carried_file_is_uncovered(self) -> None:
         uncovered = uncovered_dirty_files(
-            ["ourapp/views/todos.py", "TODO.md"], ["ourapp/views/todos.py"]
+            ["ourapp/views/todos.py", "TODO.md"],
+            ["ourapp/views/todos.py"],
+            ["ourapp/views/todos.py", "TODO.md"],
         )
         self.assertEqual(uncovered, ["TODO.md"])
 
-    def test_everything_carried_is_covered(self) -> None:
+    def test_scratch_absent_paths_are_carried_deletions(self) -> None:
         self.assertEqual(
-            uncovered_dirty_files(["run", "ops/scratch.py"], ["run", "ops/scratch.py", "ourapp/x.py"]),
+            uncovered_dirty_files(
+                ["frontend/src/ours/pages/MockupTodos.vue", "stray-note.txt"],
+                [],
+                ["run", "ops/scratch.py"],
+            ),
             [],
         )
 
-    def test_dist_bundle_is_always_excluded(self) -> None:
+    def test_everything_carried_is_covered(self) -> None:
         self.assertEqual(
-            uncovered_dirty_files(["frontend/dist/main-abc.js", "frontend/dist/.build-sha"], []),
+            uncovered_dirty_files(
+                ["run", "ops/scratch.py"],
+                ["run", "ops/scratch.py", "ourapp/x.py"],
+                ["run"],
+            ),
             [],
         )
 

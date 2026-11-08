@@ -51,6 +51,8 @@ Grounded answer — the ordering was never confused; deploy-then-commit is exact
  everything folded into the single feature commit 5db55dc.
 --
 
+.build-sha should be in .gitignore
+
 Analyse the last pi session. When should we launch coder background agent? We should launch reviewer background agents later to avoid visual clutter.
 
 Why existing codebase was considered buggy?

@@ -582,7 +582,9 @@ verification — trust it and send the links. No probing, no python, no
 screenshots, no "just checking the authed view": mockup pages are
 superuser-only, and the operator's click is the first real check. There is
 NO allowlisted path that rasters a scratch page — `./run screenshots`
-regenerates committed README PNGs only — and improvising one (inline
+(from `../scratch` only — it writes tracked PNGs and refuses from
+`main/`) regenerates committed README PNGs only — and improvising one
+(inline
 playwright python) is the 635s-dialog class; the MockupDocsGate image
 reviewer judges the d2 rasters, never mockup pages. Announced links may
 carry `:8000`; that port serves the operator only.

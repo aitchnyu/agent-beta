@@ -159,6 +159,7 @@ class Screenshots(LabelsCommand):
 
     @staticmethod
     def run(args: argparse.Namespace, extra: list[str]) -> None:
+        scratch.require_scratch_run(friendly_name="screenshots")
         env = scratch.test_redis_env()
         env["GENERATE_SCREENSHOTS"] = "1"
         scratch.built_frontend(scratch.MAIN_DIR / "frontend")

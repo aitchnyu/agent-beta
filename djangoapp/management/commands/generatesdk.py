@@ -58,6 +58,8 @@ from ninja import NinjaAPI, Router
 from ninja.constants import NOT_SET
 from pydantic import BaseModel
 
+from ops.scratch import require_scratch_run
+
 if TYPE_CHECKING:
     import argparse
     from collections.abc import Iterator
@@ -79,23 +81,29 @@ class Command(BaseCommand):
         )
 
     def handle(self, **options: Any) -> None:
-        api = _resolve_api(str(options["api"]))
-        generator = _SdkGenerator()
-        for prefix, router in _mounts(api):
-            for path, path_view in router.path_operations.items():
-                full_path = prefix + path
-                for operation in path_view.operations:
-                    methods = {m.lower() for m in operation.methods} & HTTP_METHODS
-                    if not methods:
-                        continue
-                    if len(methods) > 1:
-                        msg = f"{full_path}: multiple methods on one operation"
-                        raise CommandError(msg)
-                    generator.add_call(operation, full_path, methods.pop())
+        require_scratch_run(friendly_name="generatesdk")
+        rendered = render_sdk(str(options["api"]))
+        path = Path(str(options["out"]))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(rendered, encoding="utf-8")
 
-        rendered = generator.render()
-        Path(str(options["out"])).parent.mkdir(parents=True, exist_ok=True)
-        Path(str(options["out"])).write_text(rendered, encoding="utf-8")
+
+def render_sdk(api_symbol: str) -> str:
+    """Resolve the api symbol, walk its mounts, return the sdk file text."""
+    api = _resolve_api(api_symbol)
+    generator = _SdkGenerator()
+    for prefix, router in _mounts(api):
+        for path, path_view in router.path_operations.items():
+            full_path = prefix + path
+            for operation in path_view.operations:
+                methods = {m.lower() for m in operation.methods} & HTTP_METHODS
+                if not methods:
+                    continue
+                if len(methods) > 1:
+                    msg = f"{full_path}: multiple methods on one operation"
+                    raise CommandError(msg)
+                generator.add_call(operation, full_path, methods.pop())
+    return generator.render()
 
 
 def _resolve_api(symbol: str) -> NinjaAPI:
