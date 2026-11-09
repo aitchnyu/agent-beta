@@ -2,13 +2,10 @@ import { fileURLToPath } from "node:url"
 import { defineConfig } from "vite"
 import vue from "@vitejs/plugin-vue"
 
-// Chunking (pinned by test_files.py: a page without diagrams requests no
-// d2-* chunk): @d2lang/d2 + @panzoom ship as ONE lazy chunk — components/d2.ts's
-// `import("@d2lang/d2")` is the boundary — and vendor-shared holds packages
-// both the entry and d2 need (the pressure valve keeping main.js from
-// gaining a static import edge into the ~11.5 MB d2 bundle, the regression
-// that keeps returning).
-const D2_BUNDLE = /node_modules[\\/](@d2lang|@panzoom)[\\/]/
+// Chunking: @panzoom ships as its own lazy chunk; vendor-shared holds
+// packages both the entry and lazy features need. The ~11MB d2 engine
+// never enters the graph — d2.ts loads it by URL from a verbatim asset.
+const PANZOOM_BUNDLE = /node_modules[\\/]@panzoom[\\/]/
 const VENDOR_SHARED =
   /node_modules[\\/](dompurify|lodash-es|lodash\.isequal|dayjs|es-toolkit|khroma|stylis|ts-dedent|uuid)[\\/]|vite[/\\]preload-helper/
 
@@ -54,7 +51,7 @@ export default defineConfig({
         codeSplitting: {
           groups: [
             { name: "vendor-shared", test: VENDOR_SHARED, priority: 2 },
-            { name: "d2", test: D2_BUNDLE, priority: 1 },
+            { name: "panzoom", test: PANZOOM_BUNDLE, priority: 1 },
           ],
         },
       },

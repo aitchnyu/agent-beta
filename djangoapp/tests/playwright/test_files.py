@@ -36,7 +36,7 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
     - test_markdown_outline_renders_and_expands, the heading outline shows and its
       >600px cap expands via the toggle
     - test_no_d2_requests_without_diagrams, a diagram-free page fetches no
-      d2 chunk (the lazy-bundle tripwire)
+      d2 engine asset (the lazy-bundle tripwire)
     - test_markdown_hash_link_scrolls, an outline link scrolls its heading into view
     - test_markdown_links_to_other_files, relative links resolve to /files/<rel>;
       external and pure-hash links pass through
@@ -280,24 +280,23 @@ class FilesBrowserE2e(BasePlaywrightTestCase):
         expect(page.locator(".files-markdown")).to_contain_text("Other file")
 
     def test_no_d2_requests_without_diagrams(self) -> None:
-        """A page without diagrams downloads no d2 chunk.
+        """A page without diagrams downloads no d2 engine payload.
 
-        - d2 is one lazy bundle (vite.config.js); its only entry point is
-          the dynamic import on first diagram render
-        - the entry must never statically import it — that would make
-          every page fetch ~11.5 MB of WASM
-        - a chunk-graph regression shows up as d2 requests on this
-          diagram-free page: the tripwire for the bundle staying lazy
-        - resource entries are read after the render completes — a
-          diagram-free page never triggers the import, so there is
-          nothing to wait for
+        - d2 loads by URL from a verbatim ?url asset; the dynamic import
+          on first diagram render is its only entry point — a static
+          import would make every page fetch ~11 MB of WASM
+        - resource entries are read after the render — a diagram-free
+          page never triggers the import
+        - the filter covers both shipped names: the legacy chunk name
+          (`d2-…`) and the current asset (`assets/index-…`)
         """
         page = self.page
         page.goto(self._files("main/djangoapp/tests/filefixtures/other.md"))
         page.wait_for_selector('[data-files-state="rendered"]')
         d2_resources = page.evaluate(
             "performance.getEntriesByType('resource')"
-            ".map(e => e.name).filter(n => n.includes('/d2-'))"
+            ".map(e => e.name).filter(n => n.includes('/d2-')"
+            " || /\\/assets\\/index-[A-Za-z0-9_-]{8,}\\.js/.test(n))"
         )
         self.assertEqual(d2_resources, [])
 

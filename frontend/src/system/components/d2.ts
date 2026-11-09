@@ -1,10 +1,10 @@
 // D2 diagram rendering for the /files markdown viewer: fenced ```d2 blocks
-// compile and render to SVG through @d2lang/d2 (WASM, own lazy chunk via
-// vite.config.js's D2_BUNDLE regex — diagram-free pages fetch none of it,
-// the tripwire in test_files.py pins that).
+// compile and render to SVG through @d2lang/d2 — a ~11MB prebuilt file
+// loaded by URL as a verbatim ?url asset (never bundled; diagram-free
+// pages fetch none of it — the tripwire in test_files.py pins that).
 //
 // One D2 instance (and its web worker) is kept for the page's lifetime —
-// re-creating it per render would reload the ~11.5MB worker every time.
+// re-creating it per render would reload the ~11MB engine every time.
 // Compile errors throw with D2's ranged message (file:line:col) — the
 // caller (RichTextViewer) catches and shows the raw source deemphasized.
 
@@ -16,13 +16,23 @@ import DOMPurify from "dompurify"
 
 let d2Promise: Promise<import("@d2lang/d2").D2> | null = null
 
+// A failed load clears the cache so the next render retries.
+async function loadD2(): Promise<import("@d2lang/d2").D2> {
+  try {
+    const asset = await import("@d2lang/d2?url")
+    const mod = (await import(
+      /* @vite-ignore */ asset.default
+    )) as typeof import("@d2lang/d2")
+    return new mod.D2()
+  } catch (error) {
+    d2Promise = null
+    throw error
+  }
+}
+
 function getD2(): Promise<import("@d2lang/d2").D2> {
   if (!d2Promise) {
-    d2Promise = import("@d2lang/d2").then(({ D2 }) => new D2())
-    // A failed load clears the cache so the next render retries.
-    d2Promise.catch(() => {
-      d2Promise = null
-    })
+    d2Promise = loadD2()
   }
   return d2Promise
 }
@@ -77,7 +87,7 @@ export async function renderDiagram(source: string): Promise<string> {
 
 function isDiagramError(error: unknown): boolean {
   const raw = error instanceof Error ? error.message : String(error)
-  if (raw.startsWith('render failed:')) return true
+  if (raw.startsWith("render failed:")) return true
   try {
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) && parsed[0]?.errmsg !== undefined
@@ -92,8 +102,7 @@ function isDiagramError(error: unknown): boolean {
 //   - ctrl/cmd+wheel zooms
 //   - drag pans once zoomed
 //   - pinch zooms on touch
-// - @panzoom/panzoom rides the d2 chunk (vite.config.js D2_BUNDLE) — no
-//   extra request: the chunk is loaded by the time a diagram renders
+// - @panzoom/panzoom rides its own tiny lazy chunk
 // - returns the cleanup that unbinds panzoom's document-level move/up
 //   listeners — the caller must run it on re-render, or streaming passes
 //   stack dead listeners on detached nodes
