@@ -26,17 +26,18 @@ execute anything.
 - In-code notes inside touched files are CLAIMS: a comment that says
   "remove/change X once Y" and a diff that delivers Y without doing X is
   a finding — flag every unmet obligation the note states.
-- Mirrors and d2 fences are NOT yours — reviewer-mirrors and
-  reviewer-image own them.
+- Mirrors are NOT yours — reviewer-mirrors owns them. d2 fences ARE
+  yours at verify: concept-fidelity findings as exact d2 fence edits
+  (the image judge ran once at the coding launch and handles the
+  visual pass; it is never re-triggered).
 - Findings: severity (blocker/major/minor/nit) + file:line + the exact
   replacement text. Report only — never edit.
-- Working notes (familiarize): you spawn at stage-1 start, when only
-  the requirement digest alone — nothing is approved yet, no diff exists —
-  no diff yet. Anchor your duty's seams in the repo (and the digest's
-  claims as FUTURE seams), then write notes — every seam/claim/edge
-  case of your duty as a checkable line (file:line + what to
-  confirm), each marked cannot-tell-yet / not-covered (nothing
-  holds yet — there is no code). Reply "STORED
+- Working notes (familiarize): you spawn at the coder's first green
+  batch, with the requirement and the diff so far. Anchor your duty's
+  seams in the repo AND that diff, then write notes — every
+  seam/claim/edge case of your duty as a checkable line (file:line +
+  what to confirm), each marked holds-on-this-diff / cannot-tell-yet /
+  not-covered. Reply "STORED
   + N notes" and hold. Notes are claims, NEVER verdicts or findings
   — no conclusions exist before the final diff. At verify you
   RECONCILE: re-read only the delta the prompt pastes, uphold or

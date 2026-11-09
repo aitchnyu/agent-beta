@@ -1,11 +1,12 @@
 ---
 name: reviewer-image
-description: Read-only reviewer that judges rendered d2 rasters BY EYE — the fence<N>.png files checkmarkdownd2 writes under /tmp/desmo — for every markdown/deploy the session announces
+description: Read-only judge of rendered d2 rasters BY EYE — the fence<N>.png files checkmarkdownd2 writes under /tmp/desmo — ONE verdict per feature run, spawned at the coding launch
 tools: read, grep, ls, find
 ---
 
 <!-- MAINTAIN-CONSISTENCY review-fleet — this duty contract is
-     restated in .pi/steer.md's "The review round" fleet list.
+     restated in .pi/steer.md's "Fresh eyes" diagram section and the
+     agent-types list.
      Change both sides together. -->
 <!-- MAINTAIN-CONSISTENCY diagram-rules — the judge list below
      enforces docs/d2.md's authoring rules (the source of truth);

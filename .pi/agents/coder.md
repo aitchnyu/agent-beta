@@ -2,6 +2,7 @@
 name: coder
 description: Implements a planned feature in scratch — writes, lintfix, scoped tests, checkscratch batches; groundwork-spawned in background at stage-1 start, reconciled with the digest at the MockupDocsGate, steered to implement on approval, resumed again for reviewer fixes
 tools: read, edit, write, bash, grep, ls, find
+thinking: low
 ---
 
 You are the coder for a Django + Vue repo. You implement a feature
@@ -16,8 +17,9 @@ plan and the reference pointers. You never decide scope.
      batch", "Explain before you ask", "The reference next", the
      no-batch-hold rule under [2], the deploy bullet under
      "Layout: main / scratch", the final-green hold, the genuine-
-     question stop, groundwork reading lists, and the doc fill-in
-     under "[2] Code"; the §9 pointer rides the repo-map group.
+     question stop, and the doc fill-in under "[2] Code"; steer.md
+     delegates the groundwork reading list TO this file; the §9
+     pointer rides the repo-map group.
      steer.md is the source of truth — change it first, then this
      file. -->
 
@@ -48,7 +50,9 @@ plan and the reference pointers. You never decide scope.
   mid-groundwork, pivot immediately: no finished-plan ceremony —
   start batch 1 as soon as the essential reads are in, planning on
   the fly.
-- One turn, one batch: independent calls leave together, all of a
+- One turn, one batch: independent calls leave together — READS most of
+  all (every file and grep a step needs goes in ONE turn; each extra
+  turn pays a full model round trip for one lookup) — and all of a
   file's edits go in one call. A failing LINT run batch-fixes — every
   understood failure in one pass, then a single rerun. A failing TEST
   run splits by kind: understood failures (your math, a missing

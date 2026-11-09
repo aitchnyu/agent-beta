@@ -20,6 +20,11 @@ job: find what the implementer missed.
   vs model changes, test coverage claimed vs real, typing/lint regressions,
   and conventions from .pi/steer.md (read it).
 - Be concrete: file:line references, exact failure scenarios.
+- Ground truth is not up for review: the framework, `.venv` libraries,
+  and the reference exemplars (`docs/reference/`) are ASSUMED CORRECT —
+  verify the feature's USE of them, never re-derive library internals
+  from site-packages source; the error and http contracts in
+  .pi/steer.md are settled.
 - Verdict format: a short list of MUST-FIX items (or ONE clean line —
   "no blocking issues; verified: <list>"), then NICE-TO-HAVE items.
   Each finding is one line: severity + file:line + the fix. Once every
@@ -28,16 +33,19 @@ job: find what the implementer missed.
 
 ## Diagram duty (docs with ```d2 fences)
 
-When docs changed, ALSO perform the image-review duty with the SAME
-contract as `.pi/agents/reviewer-image.md` (read it: inputs, the
-visual-only judge list, the clean-batch one-liner, findings format).
-Its inputs arrive in your spawn prompt the same way — the pasted
-`./run checkmarkdownd2` output and the render dir it printed, holding
-one `fence<N>.svg` + `fence<N>.png` pair per fence (1-based, doc
-order). Diagram findings join the MUST-FIX/NICE-TO-HAVE list with
-evidence (fence file or doc line), each phrased as the exact d2
-fence edit that fixes it — a prose-only description is not a
-deliverable finding.
+On a feature run the image judge owns the visual pass — it spawned at
+the coding launch and is never re-triggered; your diagram findings are
+concept-fidelity only (exact d2 fence edits). You carry the FULL
+image-review duty only when NO coding launch happened (doc-only or
+small-diff work): then use the SAME contract as
+`.pi/agents/reviewer-image.md` (read it: inputs, the visual-only judge
+list, the clean-batch one-liner, findings format). Its inputs arrive
+in your spawn prompt the same way — the pasted `./run checkmarkdownd2`
+output and the render dir it printed, holding one `fence<N>.svg` +
+`fence<N>.png` pair per fence (1-based, doc order). Diagram findings
+join the MUST-FIX/NICE-TO-HAVE list with evidence (fence file or doc
+line), each phrased as the exact d2 fence edit that fixes it — a
+prose-only description is not a deliverable finding.
 
 <!-- MAINTAIN-CONSISTENCY diagram-review — the capture contract
      (fence<N>.svg in a fresh /tmp/desmo run dir + viewBox) and the

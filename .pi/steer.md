@@ -119,19 +119,21 @@ request
   |
   v
 [1] MOCKUPS + DOCS      mockup pages + the INITIAL doc (3 sections, rest
-  |   `pending`) authored together; coder GROUNDWORK + reviewer
-  |   FAMILIARIZE spawn at stage start (the warm-up); ONE deploy —
-  |   the mockup+doc presentation; image judge: ONE verdict.
+  |   `pending`) authored together; coder GROUNDWORK spawns at stage
+  |   start; ONE deploy — the mockup+doc presentation.
   |   share doc + mockup links (MockupDocsGate) --> user picks:
   |      revise docs/mockups ... back as directed
-  |      approve .............. to [2] — image verdict + gate notes
-  |                            ride the coder digest
+  |      approve .............. to [2] — the image judge launches
+  |                            with the coding (ONE verdict); the
+  |                            reviewer fleet rides the first green
+  |                            batch
   v
 [2] CODE                 coder batches with `./run checkscratch` between
   |                      them (NO deploys); each batch fills the pending
   |                      doc sections it implements; mockups graduate
   v
-[3] AGENT REVIEW + fixes  reviewers resumed from stage-1 familiarize;
+[3] AGENT REVIEW + fixes  reviewers resumed from the batch-1
+  |                      familiarize;
   |                      ONE fix cycle; image verdicts are FINAL (fixes
   |                      are never re-reviewed); then the FINAL deploy —
   |                      the deliverable (battery trips: fix, deploy again)
@@ -158,19 +160,24 @@ lives in [Stage messages](#stage-messages):
      (with its d2 fences), "How the data changes" (with its fences);
      every later section stays a `pending` marker until the coder
      fills it in [2] ([Feature docs](#feature-docs)).
-   - Warm-up spawns at stage start, parallel to authoring: coder
-     GROUNDWORK (doc-independent reads + preliminary plan, then holds —
-     reading list in `.pi/agents/coder.md`) and the reviewer fleet
-     FAMILIARIZE on the requirement digest (no diff exists yet).
+   - Warm-up spawn at stage start, parallel to authoring: coder
+      GROUNDWORK only (doc-independent reads + preliminary plan, then
+      holds — reading list in `.pi/agents/coder.md`). The reviewer
+      fleet launches AFTER coding starts (first green batch); the
+      image judge launches WITH the coding resume — see [2].
    - Presentation deploy: lintfix → `./run deployscratch` → share doc +
-     mockup links; a green deploy IS the verification. The image judge
-     spawns on the doc's rendered fences — ONE verdict, landing in the
-     gate message (you never view renders yourself). MockupDocsGate =
-     doc + mockup links + image verdict + preliminary plan; picks:
-     revise / approve.
+      mockup links; a green deploy IS the verification. The operator's
+      eyes on the rendered doc/mockups are the gate's image check.
+      MockupDocsGate = doc + mockup links + preliminary plan; picks:
+      revise / approve.
 - **[2] Code — only after the gate's explicit approval.**
-   - Resume the GROUNDWORK session with the digest: requirement, the
-     approved initial doc, the image verdict, gate notes. It reconciles
+   - TWO launches at approval, together: resume the GROUNDWORK session
+     with the digest (requirement, the approved initial doc, gate
+     notes), AND spawn the image judge on the rendered fences of the
+     initial doc — ONE verdict, landing mid-[2]; its diagram
+     corrections steer the coder asynchronously (next batch boundary).
+     The judge runs at coding launch ONLY — never at presentation,
+     never again in verify (its verdict is final). The coder reconciles
      the preliminary plan (flip or uphold, never re-plan) and
      implements. If the approval steer arrives while groundwork is
      still mid-read, it pivots immediately — batch 1 starts once the
@@ -203,7 +210,8 @@ lives in [Stage messages](#stage-messages):
 - **[3] Agent review + fixes + the FINAL deploy —**
    - paste the coder's suite/battery outputs as the evidence; run the
      checks yourself only where the coder had no coverage
-   - the reviewers were familiarized at stage-1 start — resume them for
+    - the reviewers were familiarized at the coder's first green
+      batch — resume them for
      VERIFY at the coder's final green (a resume refused for age means
      re-spawn fresh with familiarize+verify in one prompt) — and triage
      their findings as they land (see
@@ -216,8 +224,8 @@ lives in [Stage messages](#stage-messages):
       re-spawn fresh with the fix list and the final diff); you fix
       the docs
     - **Image verdicts are FINAL**: the image judge ran once at the
-      gate; fixing its (or any reviewer's) diagram comments never
-      re-triggers it — apply the prescriptions, `checkmarkdownd2`
+      coding launch; fixing its (or any reviewer's) diagram comments
+      never re-triggers it — apply the prescriptions, `checkmarkdownd2`
       green is the bar, and the operator's eyes on the doc link are
       the acceptance
     - the [3] close is ONE cycle — fixes, doc updates, screenshot
@@ -235,8 +243,9 @@ lives in [Stage messages](#stage-messages):
   out with ONE sentence:
   - [ ] `./run postdeploychecks` — every line PASS (tree clean,
         migrations applied, scratch gone)
-  - [ ] single sentence report to user — the whole close-out is one line:
-        what shipped, where it lives, that the checklist is green.
+  - [ ] single sentence report to user — what shipped, where it lives,
+        that the checklist is green — ending with the three links:
+        feature page, design doc, commit (see the CloseOut shape).
 
 **One turn through [2]→[4].** Code, checkscratch, review, triage/fixes, doc
 updates, and the final deploy run as ONE batch ending at the CommitOffer.
@@ -244,7 +253,8 @@ From your seat:
 
 1. the coder codes in batches with checkscratch between them (the
    operator watches live);
-2. run the reviewer round (familiarized at stage-1 start, verified at
+2. run the reviewer round (familiarized at the coder's first green
+   batch, verified at
    the coder's final green);
 3. triage findings — the coder fixes code, you fix docs;
 4. verify the coder-filled doc sections against the code;
@@ -303,9 +313,10 @@ gap — spend them on decisions, not on serialization:
      review's rules are docs/d2.md's; logging claims are docs/logging.md's.
      Change both sides together. -->
 
-Fresh reviewers per feature run — the bench familiarizes at stage-1
-start (on the requirement digest) and holds through the gate and the
-coder run; verify resumes those sessions (aged-out holds re-spawn fresh
+Fresh reviewers per feature run — the bench launches at the coder's
+first green batch (familiarize on the requirement + the diff so far)
+and holds through the coder run; verify resumes those sessions (aged-out
+holds re-spawn fresh
 with familiarize+verify in one prompt). Doc-only work with no coder run
 spawns them when the review runs. How many:
 
@@ -318,10 +329,11 @@ spawns them when the review runs. How many:
   - `reviewer-mirrors` — config/allowlist mirrors, run verbs vs help,
     command flags vs inventory
   - `reviewer-trace` — cross-layer wiring, render-vs-validate ground truth
-  Plus `reviewer-image` when docs changed — ONE verdict per artifact set;
-    diagram fixes from ANY round are never re-reviewed by it; the
-    findings contract (exact d2 edits) lives in reviewer-image.md.
-- The stage-1 familiarize judged the requirement; at verify, re-check
+  Diagram findings ride the rule reviewers (exact d2 edits, per
+  reviewer.md) — the image judge already ran once at the coding launch
+  and is never re-triggered.
+- The batch-1 familiarize judged the requirement + the early diff; at
+  verify, re-check
   against the final diff — if it outgrew the call, add a fresh reviewer.
 - **Small diff** — anything else: the single `reviewer`, as before — it
   carries the diagram duty when docs changed (its agent file has the
@@ -348,13 +360,15 @@ Spawn + feeding mechanics:
   already proved: paste the CODER's outputs (suite, battery) as the
   evidence. No coder coverage (doc edits, small fixes)? Run the
   checks yourself first — the feature's tests, `./run checkmarkdownd2`,
-  quick fixture probes — and paste those. Either way paste the
-   checkmarkdownd2 render dir path too; the command rasterizes each
-   fence<N>.svg into a fence<N>.png beside it and prints the file list —
-   the image reviewer reads the PNGs. Mockup pages are never
-   screenshotted (the Mockups section's no-python rule).
-   Reviewers read results; they never execute.
-- The image reviewer is ONE spawn for the WHOLE batch — a single
+  quick fixture probes — and paste those. Mockup pages are never
+  screenshotted (the Mockups section's no-python rule).
+  Reviewers read results; they never execute.
+- Ground truth is not up for review: the framework, `.venv` libraries,
+  and the reference exemplars are ASSUMED CORRECT — verify the feature's
+  use of them, never re-derive library internals from site-packages
+  source; the error and http contracts in this file are settled.
+- The image judge spawn contract (coding launch, not the review
+  round): ONE spawn for the WHOLE batch — a single
   subagent whose prompt lists every `fence<N>.svg` of every changed
   doc with its rule set ("judge fence1…fenceN of <doc> against the
   Diagrams rules"), reviewed in one pass. NEVER one subagent per fence
@@ -596,9 +610,9 @@ NO allowlisted path that rasters a scratch page — `./run screenshots`
 (from `../scratch` only — it writes tracked PNGs and refuses from
 `main/`) regenerates committed README PNGs only — and improvising one
 (inline
-playwright python) is the 635s-dialog class; the MockupDocsGate image
-reviewer judges the d2 rasters, never mockup pages. Announced links may
-carry `:8000`; that port serves the operator only.
+playwright python) is the 635s-dialog class; the image judge (spawned
+at the coding launch) judges the d2 rasters, never mockup pages.
+Announced links may carry `:8000`; that port serves the operator only.
 
 - **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
   deploy as `/files/main/ourapp/docs/<feature>.md`. Structure and writing
@@ -650,6 +664,12 @@ sections ("For developers") are the reference for people who will touch the
 code. Wrap every line at ~80 characters — long lines are hard to reread and
 diff. Keep sentences under ~120 characters too; when a sentence runs long,
 split it into points.
+
+#### Images carry captions
+Every embedded image — doc embeds, README screenshots — has a caption:
+the markdown alt text names what the image shows ("Chores list with the
+two-state filter", never "screenshot" or empty). An uncaptioned image
+explains nothing to the reader who can't see it.
 
 #### The premise
 Framed around the data — what is stored, how it changes,
@@ -756,8 +776,9 @@ them with pan/zoom controls.
   costs a fix loop that dwarfs the check.
 - **One diagram fix round at the stage-1 gate** — validate, render,
   fix the faults the pass finds, deploy. Deeper polish (aspect ratios,
-  pixel-perfect widths) only when the operator asks; the reviewer's
-  thoroughness never defines done for the stage.
+  pixel-perfect widths) only when the operator asks; the operator's
+  eyes on the gate links define done for the stage, and the image
+  judge's corrections arrive at coding launch.
 - Icons stay local: copy a lucide SVG (grep
   `frontend/node_modules/lucide-static/icons/`) to
   `djangoapp/static/icons/` with a concrete stroke hex, reference
@@ -768,14 +789,15 @@ them with pan/zoom controls.
   grammar, not semantics: an undeclared actor is just a shape — declare
   every actor as `shape: person` yourself. The docs fast path re-checks
   changed files at deploy time automatically.
-- **Fresh eyes: the image reviewer spawns the moment validation
-  renders exist** — right after `checkmarkdownd2` passes, in
-  background; it judges while you deploy and compose the
-  MockupDocsGate message, and its verdict lands IN the gate message —
-  its ONE verdict; diagram fixes are never re-reviewed by it. Collect
+- **Fresh eyes: the image judge spawns at the coding launch** — at the
+  gate's approval, together with the coder resume, on the renders the
+  presentation deploy already produced (`checkmarkdownd2` ran at stage
+  1); it judges in background while the coder builds batch 1, and its
+  ONE verdict steers diagram corrections at the next batch boundary —
+  diagram fixes are never re-reviewed by it. Collect
   every doc whose fences you generated or edited;
-  the spawn prompt for the diagram-duty reviewer (the single `reviewer`,
-  or `reviewer-image` in a multi-reviewer run) carries, per doc: the
+  the spawn prompt (the image judge on a feature run; the single
+  `reviewer` carrying the duty on doc-only work) carries, per doc: the
   doc path, the pasted `./run checkmarkdownd2` output, and the render dir
   it printed — one `fence<N>.svg` per fence (engine-identical to the
   viewer, own viewBox, dark theme embedded). The contract lives in the
@@ -1067,7 +1089,6 @@ materially changed.
   - [ ] what's interactive (state, cross-page links), if any
   - [ ] the initial design-doc link — 3 filled sections (Who can do
         what / The data / How the data changes) + the pending markers
-  - [ ] the image reviewer's one-line verdict on the doc fences
   - [ ] the coder's preliminary plan from groundwork (paste it —
         the operator reviews the plan WITH the docs)
   - [ ] menu: 1. revise mockups/docs 2. approve — implement — then
@@ -1097,9 +1118,11 @@ materially changed.
   - the checklist stated as done, one line (clean tree, single feature
     commit, migrations + production scripts executed, scratch gone);
   - which feature(s) shipped, in plain words;
-  - links: the design doc + the commit (its sha, or the repo URL for
-    it);
-  - the ONE-sentence report.
+  - the ONE-sentence report;
+  - ENDING with three links, markdown form `[label](<url>)`:
+    the feature page (`<base>/<path>`), the design doc
+    (`<base>/files/main/ourapp/docs/<feature>.md`), the commit
+    (`<base>/git/commits/<sha>`).
 
 ### Plan format — data models first
 That order is clearest for
@@ -1117,20 +1140,26 @@ are deployed pages — both shared as absolute links (see
 [Mockups](#mockups)).
 
 ### Todos and subagents
-Track multi-step work with a **checklist in your messages** — one item per
-step, marked done (`[x]`) as you complete it, repeated at the top of each
-stage report so I can watch progress across turns. The **subagent**
-tool is available (the package's builtins `general-purpose`/`Explore`/`Plan`,
-plus this repo's project agents in `.pi/agents/` — `reviewer`, `coder`,
-the rule-focused reviewers (correctness, conventions, mirrors, trace),
-plus `reviewer-image` when docs changed);
-use it for
-genuinely parallel independent research (parallel mode), and to **review
-your work** — before reporting done, spawn the reviewer to re-read the
-diff against the requirement and catch what you missed. Not for a single
-lookup (do that yourself). Subagents run under the SAME permission policy,
-and their `ask` decisions are FORWARDED to the operator's TUI — in headless
-runs (no UI anywhere) asks are denied, so keep subagent tasks allowlist-clean.
+- **Checklist in your messages** — one item per step, marked done (`[x]`)
+  as you complete it, repeated at the top of each stage report.
+- **Agent types** — the package builtins `general-purpose`/`Explore`/`Plan`
+  plus this repo's `.pi/agents/`: `coder`, `reviewer`, the rule-focused
+  reviewers (correctness, conventions, mirrors, trace), and
+  `reviewer-image` (the image judge, spawned at the coding launch).
+- **Use subagents for** parallel independent research (parallel mode) and
+  **reviewing your work** — before reporting done, spawn the reviewer to
+  re-read the diff against the requirement. Not for a single lookup (do
+  that yourself).
+- **Spend thinking where it pays** — the coder works in many cheap
+  turns; reviewers make one deep judgment:
+  - the coder file already pins `thinking: low` — raise it only for a
+    gnarly batch; leave reviewers at the session's level;
+  - any spawn accepts `thinking` (off | minimal | low | medium | high |
+    xhigh | max) and `model`;
+  - what you pass wins; otherwise the agent file's value applies.
+- **Permissions** — subagents run under the SAME policy; their `ask`
+  decisions are FORWARDED to the operator's TUI, and in headless runs
+  (no UI anywhere) asks are DENIED — keep subagent tasks allowlist-clean.
 
 ### Linking (absolute URLs, markdown only)
 Only absolute URLs are clickable in chat — link as markdown
