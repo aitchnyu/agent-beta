@@ -295,6 +295,11 @@ class BasePlaywrightTestCase(StaticLiveServerTestCase):
         # suppress keeps a dead page from masking the test's own failure.
         with suppress(Exception):
             self.page.wait_for_timeout(0)
+        # Park before the next setUp wipes cookies: a live document
+        # re-fetches with the wiped session (404 → the NEXT test's
+        # console sink). Before the check so failing tests park too.
+        with suppress(Exception):
+            self.page.goto("about:blank")
         if _console.errors:
             self.fail(f"Console errors detected: {_console.errors}")
         return super().tearDown()

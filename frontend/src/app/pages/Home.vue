@@ -1,8 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { Link } from "@inertiajs/vue3"
 import PageTitle from "../../system/components/PageTitle.vue"
-import { fileUrl } from "../../system/pages/files/files"
 import { useSharedProps } from "../../system/utils/useAppPage"
 // Side-effect import: the app ships its own styles from styles/app.scss, so
 // the app is self-contained (no edit to the system stylesheet).
@@ -26,34 +24,28 @@ const isAuthenticated = computed(() => shared.value.user !== null)
       <p class="home-placeholder-note text-muted">
         This is a placeholder app, not a finished product — add your features:
       </p>
-      <ul class="home-points">
-        <li>
-          <Link :href="fileUrl('main/ourapp')"><code>ourapp/</code></Link> — the
-          backend: one module per feature under models/, views/ and tests/
-          (Django models, Ninja endpoints, Huey tasks).
-        </li>
-        <li>
-          <Link :href="fileUrl('main/frontend/src/app/pages')"
-            ><code>frontend/src/app/pages/</code></Link
-          >
-          — the frontend: one Vue page per feature under pages/, plus the shared
-          styles.
-        </li>
-        <li>
-          <Link :href="fileUrl('main/docs/reference')"
-            ><code>docs/reference/</code></Link
-          >
-          — a complete worked example of both — copy a feature from there and
-          adapt it.
-        </li>
-      </ul>
+      <p class="home-placeholder-note text-muted">
+        Prompt pi to build your first feature — one message is enough:
+      </p>
+      <img
+        class="home-shot"
+        :src="'/static/pi/prompt-tracker.png'"
+        alt="prompting pi: I want to create a tracker for watering the plants — any logged in user can mark each day as done or not done"
+      />
     </template>
-    <div v-else class="home-status home-status-signed-out">
-      <p>You are not logged in. You may ask your agent:</p>
-      <ul class="home-points">
-        <li>Create a new superuser John Smith and send me a login link</li>
-        <li>Create a login link for John Smith</li>
-      </ul>
-    </div>
+    <template v-else>
+      <div class="home-status home-status-signed-out">
+        <p>You are not logged in.</p>
+      </div>
+      <p class="home-placeholder-note text-muted">
+        What prompting looks like — the first message carries the admin setup
+        and the feature together:
+      </p>
+      <img
+        class="home-shot"
+        :src="'/static/pi/prompt-superuser-tracker.png'"
+        alt="prompting pi: create a new superuser John Smith with john@example.com, send a login link, and request a plant-watering tracker in one message"
+      />
+    </template>
   </div>
 </template>

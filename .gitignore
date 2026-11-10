@@ -11,12 +11,13 @@ uploads/
 .idea/
 # Host frontend dependencies.
 node_modules/
-# Vite build output (main bundle, code-split chunks, source maps); generated.
-# allauth/ is EXCEPTED: the allauth-page stylesheet is a tracked source file
-# on a stable URL — not Vite output (emptyOutDir wipes static/djangoapp only).
+# Vite build output — generated; allauth/ excepted (tracked stylesheet,
+# emptyOutDir wipes static/djangoapp only).
 djangoapp/static/*
 !djangoapp/static/allauth/
+# icons/ + pi/: tracked page assets on stable URLs.
 !djangoapp/static/icons/
+!djangoapp/static/pi/
 !djangoapp/static/favicon.svg
 
 # Python lint/type caches.

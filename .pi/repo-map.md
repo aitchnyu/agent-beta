@@ -33,14 +33,15 @@ mockup+doc presentation and the stage-3 deliverable.
   `pending` markers for the rest; the coder fills pending sections in
   the batch that implements them.
 - Warm-up at stage-1 start: the `coder` spawns as GROUNDWORK
-  (background) and the reviewer fleet FAMILIARIZES on the requirement
-  digest; both hold through the gate. The image reviewer spawns when
-  the doc's validation renders exist — ONE verdict; fixing its
-  comments never re-triggers it.
-- Reviewers (code): correctness / conventions / mirrors / trace for big
-  diffs (single `reviewer` otherwise) — familiarized at stage-1 start,
-  verified at the coder's final green; round 2 resumes them on the fix
-  diff. The `coder` agent implements
+  (background) and holds through the gate. `reviewer-image` is a full
+  fleet member (spawns at the coder's first green batch; familiarize
+  notes the initial renders) whose verify judges the FRESH final
+  renders — one visual pass, never re-run after the fix cycle.
+- Reviewers (code): correctness / conventions / mirrors / trace /
+  reviewer-image for big diffs — the fleet familiarizes at the coder's
+  FIRST GREEN BATCH, verifies at final green; round 2 resumes them on
+  the fix diff. Small diffs get ONE specialist by center of gravity.
+  The `coder` agent implements
   stage 2 (background): groundwork at stage-1 start, resumed to
   implement at the gate's approval, resumed again for reviewer-found
   fixes.

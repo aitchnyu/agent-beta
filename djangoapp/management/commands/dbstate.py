@@ -20,16 +20,16 @@ class Command(BaseCommand):
     Example output (truncated):
 
         TABLES
-          account_emailaddress  ~0 rows
-          auth_user  ~3 rows
-          ourapp_chore  ~2 rows
+          account_emailaddress  0 (approx)
+          auth_user  3 (approx)
+          ourapp_chore  2 (approx)
         MIGRATIONS (ourapp / djangoapp / auth / contenttypes)
           djangoapp: 28 applied; last = 0028_backupmarker
           ourapp: 1 applied; last = 0001_initial
         USERS  4 total, 3 superuser(s)
     """
 
-    help = "Read-only DB snapshot: tables (estimated rows), applied migrations, users."
+    help = "Read-only DB snapshot: tables (approx row counts), applied migrations, users."
 
     def handle(self, **_options: Any) -> None:  # noqa: ANN401 # Django passes **options as untyped command flags
         with connection.cursor() as cur:
@@ -46,7 +46,7 @@ class Command(BaseCommand):
             )
             migrations = cur.fetchall()
 
-            self.stdout.write("TABLES (estimated rows)")
+            self.stdout.write("TABLES (approx rows)")
             if not tables:
                 self.stdout.write("  (no tables)")
             else:
@@ -60,7 +60,7 @@ class Command(BaseCommand):
                     [tables],
                 )
                 for name, estimate in cur.fetchall():
-                    self.stdout.write(f"  {name}  ~{estimate} rows")
+                    self.stdout.write(f"  {name}  {estimate} (approx)")
 
             self.stdout.write("MIGRATIONS (ourapp / djangoapp / auth / contenttypes)")
             per_app: dict[str, list[str]] = {}

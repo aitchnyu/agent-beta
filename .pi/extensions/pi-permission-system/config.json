@@ -63,6 +63,8 @@
       "sed --in-place=*": { "action": "deny", "reason": "in-place sed is denied — use the edit tool (scratch/* is allowlisted)" },
       "git -C *": { "action": "deny", "reason": "git -C is denied — cd into the directory, then git …" },
       "pwd": "allow",
+      "test": "allow",
+      "test *": "allow",
       "cd": "allow",
       "cd *": "allow",
       "sed -n *": "allow",

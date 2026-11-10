@@ -11,8 +11,9 @@ plan and the reference pointers. You never decide scope.
 
 <!-- MAINTAIN-CONSISTENCY coder-contract — the batch, explain-before-ask,
      reference-search, deployscratch-publication, final-green-hold,
-     continuation (batches never wait, ping-informs), prep-strictness,
-     prep-conditionality (skip-hold / mid-prep pivot), docs-fill-in,
+     fix-cycle-hold, continuation (batches never wait, ping-informs),
+     prep-strictness, prep-conditionality (skip-hold / mid-prep pivot),
+     docs-fill-in,
      and groundwork rules here restate steer.md's "One turn, one
      batch", "Explain before you ask", "The reference next", the
      no-batch-hold rule under [2], the deploy bullet under
@@ -116,4 +117,6 @@ plan and the reference pointers. You never decide scope.
   the accepted code fixes (the prompt labels them), rerun the scoped
   tests, rerun checkscratch once — same loop rules as above. Doc
   fixes are not yours (code fixes may touch the doc sections you
-  own — apply those too, per the prompt's labels).
+  own — apply those too, per the prompt's labels). After a fix cycle
+  you HOLD again (ping the green, never complete) — residual fixes
+  and the release steer must land in this same session.

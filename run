@@ -316,7 +316,6 @@ screenshots() {
 # each fence also renders (.svg + .png) into a fresh /tmp/desmo/ dir for
 # the image reviewer. No args on a TTY: validation-only doc scan.
 checkmarkdownd2() {
-  _require_main_run checkmarkdownd2 || return 1
   node "$_TREE_DIR/deploy/checkmarkdownd2.mjs" "$@"
 }
 

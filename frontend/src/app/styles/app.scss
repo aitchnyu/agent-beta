@@ -9,14 +9,11 @@
   max-width: 32rem;
 }
 
-// The landing page's bullet lists — the logged-in feature pointers and the
-// logged-out agent-prompt examples (shared, so both blocks look alike).
-.home-points {
-  padding-left: 1.25rem;
-
-  li {
-    margin: 0.25rem 0;
-  }
+// The pi screenshot on the placeholder page (setup shot for signed-out
+// visitors, tuning shot for signed-in ones) — image capped to the column.
+.home-shot {
+  max-width: 100%;
+  display: block;
 }
 
 // Design mockups (steer.md § Mockups): ONE crosshatch layer over the whole

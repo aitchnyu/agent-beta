@@ -1,3 +1,31 @@
+Dont report completion for groundwork
+Add `test` command
+Other permissions? Check each reviewer
+Why did coder finish groundwork too soon
+Why did you check logs?
+What is main analyzing? Whats it doing about screenshots?/
+Why do we have a reviewer agent, we have specialized reviewers only right?
+Why no lintfix for long lines
+kill reviewers
+Why placeholder didnt go?
+image reviewer?
+--
+
+Levers, in order of expected effect: lower the thinking level for main (its 89% stall share and 40% reasoning ratio make it the single biggest sink; the session log shows 3 thinking_level_change events — you already toggled it once); keep the coder's level but batch reads (its worst stalls preceded single-file reads — one turn deciding 4 reads kills 3 deliberations); and accept the r=0 gateway latency as provider-bound.
+
+Launch reviewers after coding to reduce visual clutter. Do the image review after coding.
+Why scratch reviewer took 7s for lintfix and deployscratch 19s, in mockup stage
+Whats the batch fixed as ?
+Why is correctness checking so much stuff if its tested?
+     - Design doc: Chores (https://localhost:8000/files/main/ourapp/docs/chores.md)
+Have captions for each images
+300s for timeouts for our commands
+Close out- link to feature, then doc, then commit
+
+Can coder and reviewer feed each other continously?
+
+cd ../scratch && ./run test ourapp.tests.test_home_views ourapp.tests.test_chores_views ourapp.tests.test_chores_models - 56 tests
+
 https://github.com/bcpierce00/unison
 
 Why wait for image reviewer?
@@ -533,3 +561,4 @@ Install playwright on first run?
 Store downthinking entries for models for implementing agent
 Use pipe, dont have managers
 Plantuml
+uv and pnpm for cached builds across folders
