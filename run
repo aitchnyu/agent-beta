@@ -317,7 +317,31 @@ screenshots() {
 # the image reviewer. No args on a TTY: validation-only doc scan.
 checkmarkdownd2() {
   _require_main_run checkmarkdownd2 || return 1
-  node "$_MAIN_DIR/deploy/checkmarkdownd2.mjs" "$@"
+  node "$_TREE_DIR/deploy/checkmarkdownd2.mjs" "$@"
+}
+
+# Which tree this ./run copy lives in; scratch/ is its sibling.
+_TREE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+_SCRATCH_DIR="$(dirname "$_TREE_DIR")/scratch"
+
+# Lifecycle verbs must run MAIN's copy: from scratch's copy both dirs
+# resolve to scratch — deploy would rsync it onto itself, create would
+# rm -rf its own tree.
+_require_main_run() {
+  if [ "$_TREE_DIR" = "$_SCRATCH_DIR" ]; then
+    echo "Refusing: this is scratch's own ./run — run '$1' from main/'s ./run instead." >&2
+    return 1
+  fi
+}
+
+# lintfix rewrites files: require the scratch ROOT as cwd — its
+# relative paths are tree-rooted, and from main/ they'd mutate the
+# deployed tree.
+_require_scratch_cwd() {
+  if [ "$(pwd)" != "$_SCRATCH_DIR" ]; then
+    echo "Refusing: '$1' runs against scratch/ — cd ../scratch first (bare relative paths from main/ target main/)." >&2
+    return 1
+  fi
 }
 
 # The full gate: lint + types in main/, then FOUR test stages — 1-3 under
@@ -343,9 +367,9 @@ checkframework1() {
   # previous gate run that died before combine leaves it behind. Same for
   # main's own .coverage.* strays: only a successful combine deletes them,
   # and folding stale ones in would corrupt the merged report.
-  rm -rf "$_MAIN_DIR/.coverage-stage"
-  mkdir -p "$_MAIN_DIR/.coverage-stage"
-  rm -f "$_MAIN_DIR"/.coverage.*
+  rm -rf "$_TREE_DIR/.coverage-stage"
+  mkdir -p "$_TREE_DIR/.coverage-stage"
+  rm -f "$_TREE_DIR"/.coverage.*
   echo "Running ruff format --check (formatting drift)"
   uv run ruff format $_RUFF_COLOR --check
   echo "Running ruff check (lint)"
@@ -369,7 +393,7 @@ checkframework1() {
   # The overlay replaces ourapp/ wholesale with fixture code — measure
   # --source=djangoapp only (never that ourapp/).
   _ops_cli createscratch
-  overlay_app "$_MAIN_DIR/djangoapp/tests/testapp"
+  overlay_app "$_TREE_DIR/djangoapp/tests/testapp"
   ( cd "$_SCRATCH_DIR"
     # typecheck only — lintfix would rewrite files and corrupt the
     # merged line data (main already ran the ruff gates).
@@ -378,17 +402,17 @@ checkframework1() {
       manage.py test $_DJANGO_NO_COLOR --exclude-tag playwright --noinput
   )
   # Stage the fragments out — the next createscratch wipes scratch.
-  mv "$_SCRATCH_DIR"/.coverage.* "$_MAIN_DIR/.coverage-stage/"
+  mv "$_SCRATCH_DIR"/.coverage.* "$_TREE_DIR/.coverage-stage/"
 
   echo "=== stage 4/4: reference app's own tests (scratch copy; not measured) ==="
   _ops_cli createscratch
-  overlay_app "$_MAIN_DIR/docs/reference"
+  overlay_app "$_TREE_DIR/docs/reference"
   # The reference app ships its own app-side frontend (pages, components,
   # schemas, styles); overlay them INTO the scratch's app/ tree so its
   # pages are in the built bundle (same as the old checkproject cycle 2).
   # System files stay the tree's own.
   for _dir in pages components schemas styles; do
-    rsync -a "$_MAIN_DIR/docs/reference/frontend/src/$_dir/" \
+    rsync -a "$_TREE_DIR/docs/reference/frontend/src/$_dir/" \
       "$_SCRATCH_DIR/frontend/src/app/$_dir/"
   done
   ( cd "$_SCRATCH_DIR"
@@ -402,9 +426,9 @@ checkframework1() {
   echo "Merging coverage from all four stages"
   # combine folds the testapp scratch's djangoapp/ onto main's via
   # [tool.coverage.paths] in pyproject.toml.
-  uv run coverage combine . "$_MAIN_DIR/.coverage-stage"
+  uv run coverage combine . "$_TREE_DIR/.coverage-stage"
   # The staged fragments are folded into .coverage now — drop the staging dir.
-  rm -rf "$_MAIN_DIR/.coverage-stage"
+  rm -rf "$_TREE_DIR/.coverage-stage"
   # Ratchet: the merged report must hold the measured floor (2026-10-04: 99.78%).
   # Raise when coverage improves; never lower it to make a regression pass.
   uv run coverage report -m --fail-under=99.78
@@ -431,9 +455,9 @@ checkframework2() {
   setenv
   echo "=== Rebuild the VM from scratch (destructive) ==="
   if multipass info desmo >/dev/null 2>&1; then
-    "$_MAIN_DIR/local-vm" delete
+    "$_TREE_DIR/local-vm" delete
   fi
-  "$_MAIN_DIR/local-vm" provision-full
+  "$_TREE_DIR/local-vm" provision-full
   echo "=== Run the in-VM gate (testapp overlay + 11 asserts) ==="
   multipass exec desmo -- sudo bash /srv/desmo/main/deploy/gate.sh gate
 }
@@ -447,36 +471,10 @@ lintfix() {
   npm run lint:fix
 }
 
-# main/ is this script's dir; scratch/ is its sibling (both under parent/).
-# Resolved once at load time so the scratch-lifecycle commands and
-# checkframework1's overlay stages stay free of path boilerplate.
-_MAIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-_SCRATCH_DIR="$(dirname "$_MAIN_DIR")/scratch"
-
 # Overlay an app's ourapp/ onto scratch/ourapp/ (full replace) —
 # checkframework1's stage-3/4 fixtures ride this.
 overlay_app() {
   rsync -a --delete "$1/ourapp/" "$_SCRATCH_DIR/ourapp/"
-}
-
-# Scratch-lifecycle commands must run MAIN's ./run: from scratch's own copy
-# both dirs resolve to scratch (deploy rsyncs scratch onto itself; create
-# rm -rf's its own tree). Refuse loudly.
-_require_main_run() {
-  if [ "$_MAIN_DIR" = "$_SCRATCH_DIR" ]; then
-    echo "Refusing: this is scratch's own ./run — run '$1' from main/'s ./run instead." >&2
-    return 1
-  fi
-}
-
-# lintfix rewrites files; a bare invocation from main/ would silently
-# target the deployed tree. Refuse loudly so a forgotten
-# `cd ../scratch &&` prefix can never mutate main/.
-_require_scratch_cwd() {
-  if [ "$(basename "$(pwd)")" != "scratch" ]; then
-    echo "Refusing: '$1' runs against scratch/ — cd ../scratch first (bare relative paths from main/ target main/)." >&2
-    return 1
-  fi
 }
 
 # The scratch lifecycle trio lives in ops/ (Python; ops/scratch.py).
@@ -484,7 +482,7 @@ _require_scratch_cwd() {
 # codes — and checkframework1 builds its stage-3/4 scratch copies through
 # the same CLI.
 _ops_cli() { # <command> [args…]
-  PYTHONUNBUFFERED=1 PYTHONPATH="$_MAIN_DIR${PYTHONPATH:+:$PYTHONPATH}" \
+  PYTHONUNBUFFERED=1 PYTHONPATH="$_TREE_DIR${PYTHONPATH:+:$PYTHONPATH}" \
     uv run python -m ops.cli "$@"
 }
 
