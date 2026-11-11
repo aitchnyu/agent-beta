@@ -136,9 +136,11 @@ const fileName = (entry: FileTreeEntry) =>
         ><code>{{ fileName(entry) }}</code></Link
       >
       <!-- Muted diff companion to the file-view name link. Deleted paths
-           only have the diff — the name IS the diff link, no duplicate. -->
+           only have the diff — the name IS the diff link, no duplicate.
+           Added/untracked files show no diff — the whole-file green wall
+           is noise; the file view IS the content. -->
       <Link
-        v-if="entry.status !== 'deleted'"
+        v-if="entry.status === 'modified'"
         class="git-file-link ms-2"
         :href="props.diffHref(entry.path)"
         >diff</Link

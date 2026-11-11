@@ -70,12 +70,35 @@
   font-size: 0.85rem;
 }
 
-// Plain-text preview: preserved formatting + wraps long lines; flows in the page
-// (the page's own scrollbar scrolls it, no inner scroll box).
+// Plain-text preview, line-numbered via CSS counters: one .files-line span
+// per line, its ::before renders the number — no gutter element to keep in
+// sync. Lines don't wrap (a wrapped line would drift past its number); long
+// lines scroll in the box (overflow-x: auto), matching .files-code.
+// white-space lives on the SPAN (not this block) so template whitespace
+// between spans never renders.
 .files-text {
   margin-top: 0.5rem;
-  white-space: pre-wrap;
   font-size: 0.85rem;
+  font-family: var(--bs-font-monospace);
+  overflow-x: auto;
+  counter-reset: line;
+}
+
+.files-line {
+  display: block;
+  white-space: pre;
+  line-height: 1.5;
+  counter-increment: line;
+}
+
+.files-line::before {
+  content: counter(line);
+  display: inline-block;
+  min-width: 2.5ch;
+  margin-right: 1ch;
+  text-align: right;
+  color: var(--bs-secondary-color);
+  user-select: none;
 }
 
 .files-image {

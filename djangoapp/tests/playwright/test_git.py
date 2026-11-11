@@ -21,7 +21,8 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
 
     - test_uncommitted_renders — /git/uncommitted/ lists both worktrees' files
       (main then scratch) as folder trees with new/mod status icons + colors;
-      each file links to its worktree diff and to the file url
+      each file links to the file url; modified files also carry a muted diff
+      link (deleted names ARE the diff link)
     - test_file_tree_folds — folder rows fold their subtree away and back,
       independently per folder
     - test_commit_list_renders — /git/commits shows the 3 subjects + a commit count
@@ -233,24 +234,26 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         page = self.page
         # Land on the commit's file list (loads the Inertia app + main.js).
         page.goto(f"{self.live_server_url}/git/commits/{self.short_b}")
-        page.get_by_role("link", name="endpoints.py").wait_for(state="visible")
-        # The name is the FILE-VIEW link now…
-        expect(page.get_by_role("link", name="endpoints.py")).to_have_attribute(
-            "href", "/files/main/TodoApp/endpoints.py"
+        page.get_by_role("link", name="app.py").wait_for(state="visible")
+        # The name is the FILE-VIEW link…
+        expect(page.get_by_role("link", name="app.py")).to_have_attribute(
+            "href", "/files/main/TodoApp/app.py"
         )
         # …so click the muted diff companion — a client-side Inertia swap
-        # to GitDiff. The row's title attribute is the full path (unique;
-        # has_text would also match the enclosing folder rows).
-        page.locator('li[title="TodoApp/endpoints.py"]').get_by_role(
+        # to GitDiff. Row selection: the title attribute is the full path
+        # (unique; has_text would also match the enclosing folder rows).
+        # app.py is MODIFIED in this commit — added/untracked rows carry
+        # no diff link (their file view IS the content).
+        page.locator('li[title="TodoApp/app.py"]').get_by_role(
             "link", name="diff", exact=True
         ).click()
-        # The URL advances (no rollback), and the diff renders (insert rows +
-        # the ADDED file tag diff2html derives from "new file mode").
-        page.wait_for_url(f"**/git/commits/{self.short_b}/TodoApp/endpoints.py")
+        # The URL advances — no rollback of the swap.
+        page.wait_for_url(f"**/git/commits/{self.short_b}/TodoApp/app.py")
+        # The modify diff renders both sides: insert and delete rows.
         page.wait_for_selector("[data-split-diff] .d2h-ins")
         diff = page.locator("[data-split-diff]")
         expect(diff.locator("[data-split-diff-side] .d2h-ins").first).to_be_visible()
-        expect(diff).to_contain_text("ADDED")
+        expect(diff.locator("[data-split-diff-side] .d2h-del").first).to_be_visible()
 
     def test_commit_navigation(self) -> None:
         """The commits → files → diff link chain works end-to-end.
