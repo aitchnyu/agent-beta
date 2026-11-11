@@ -1,171 +1,164 @@
-# Repo map — put your head down and research the repo through this file.
+# Repo map — read once, then fire your first batch in parallel.
 
 <!-- MAINTAIN-CONSISTENCY repo-map — this map is generated from
      .pi/steer.md (workflow, layout, commands — the source of truth);
      §9 skeletons excerpt docs/reference/**; diagram guidance derives
      from docs/d2.md. When the map disagrees, fix the map. -->
 
-Trust the files over the map. If the file structure changed too much,
-read a live session's logs to see the missteps, then rewrite this map
-streamlined.
-Sync test: `ops/tests/test_repo_map.py` — every repo path named here
-must exist; when the test fails, refresh this map.
+Trust the files over the map. This could be stale.
 
-## 1. Feature workflow
+Sync test: `ops/tests/test_repo_map.py` — every path named here must
+exist.
 
-Five stages, each transition an explicit operator pick: [1] Mockups +
-initial doc (authored together, ONE presentation deploy) →
-MockupDocsGate → [2] Code (scratch, `./run checkscratch` between
-batches, NO deploys) → [3] Agent review + ONE fix cycle + the FINAL
-deploy → [4] CommitOffer → [5] Final checklist → one-sentence close.
-Stages 2–4 run as ONE turn; the session never compacts — the operator
-can. `deployscratch` has two deploy points per feature — the stage-1
-mockup+doc presentation and the stage-3 deliverable.
+How to use this map (every role):
 
-- Mockups: `frontend/src/app/pages/Mockup<Name>.vue`, served verbatim
-  by the hatch route `/mockup/<page>` (plain view `mockup_page` in
-  `ourapp/views/home.py`, routed `ourapp/urls.py`) — hardcoded markup,
-  no props/backend, superuser-only, `div.mockup` wrapper.
-  `?props=<base64url JSON>` presets state (`_B64JsonProps`).
-  Graduation = real page + DELETE mockup + homepage link.
-- The initial doc ships exactly three filled sections ("Who can do
-  what" / "The data" / "How the data changes", fences included) plus
-  `pending` markers for the rest; the coder fills pending sections in
-  the batch that implements them.
-- Warm-up at stage-1 start: the `coder` spawns as GROUNDWORK
-  (background) and holds through the gate. `reviewer-image` is a full
-  fleet member (spawns at the coder's first green batch; familiarize
-  notes the initial renders) whose verify judges the FRESH final
-  renders — one visual pass, never re-run after the fix cycle.
-- Reviewers (code): correctness / conventions / mirrors / trace /
-  reviewer-image for big diffs — the fleet familiarizes at the coder's
-  FIRST GREEN BATCH, verifies at final green; round 2 resumes them on
-  the fix diff. Small diffs get ONE specialist by center of gravity.
-  The `coder` agent implements
-  stage 2 (background): groundwork at stage-1 start, resumed to
-  implement at the gate's approval, resumed again for reviewer-found
-  fixes.
+- Paths below are EXACT — never `ls`/`find`/re-read the map to locate
+  something a section already names; that hunt is the misstep this
+  map exists to prevent.
+- steer.md is SECTION-SCOPED reading: grep the heading, read that
+  span — never the full file (~2,300 lines).
+- One turn = ONE parallel batch of reads — your role's batch is §0.
+
+## 0. First parallel batch (per role)
+
+- CODER, after this map: the §7 exemplars + the feature's
+  `ourapp/docs/<feature>.md` + its `Mockup*.vue` pages — one batch.
+- MAIN, session open: this map + `.pi/agents/coder.md` — one batch.
+  Stage-1 authoring adds `docs/d2.md`, the §7 frontend pair, and
+  the homepage pair (`frontend/src/app/pages/Home.vue`,
+  `ourapp/docs/home.md`) — one batch.
+- REVIEWERS: your agent file + the diff's touched files + at most
+  the §9 skeleton for your layer.
+
+## 1. Feature workflow (steer § Feature workflow is the source)
+
+Five stages, operator-gated: [1] mockups + initial doc (authored
+together, ONE presentation deploy) → MockupDocsGate → [2] code in
+`../scratch/` (`./run checkscratch` between batches, NO deploys) →
+[3] review (four reviewers: correctness / conventions / trace /
+image) + ONE fix cycle + the FINAL deploy → [4] CommitOffer → [5]
+checklist close.
+
+- Mockups: `frontend/src/app/pages/Mockup<Name>.vue` served verbatim
+  at `/mockup/<page>` (plain view `mockup_page` in
+  `ourapp/views/home.py`, routed `ourapp/urls.py`) — hardcoded
+  markup, no props/backend, superuser-only, `div.mockup` wrapper,
+  `?props=<base64url JSON>` presets state. Graduation = real page +
+  DELETE mockup + homepage link.
+- The initial doc ships three filled sections ("Who can do what" /
+  "The data" / "How the data changes", fences included) plus
+  `pending` markers; the coder fills a marker in the batch that
+  implements it.
+- The `coder` spawns as GROUNDWORK at stage-1 start and holds through
+  the gate; the fleet familiarizes at the coder's FIRST green batch
+  and verifies at final green; reviewer-image is a full fleet member
+  (its visual pass judges fresh final renders).
 
 ## 2. Scratch discipline
 
-- `../scratch/` is the edit surface; `main/` reachable only via
+- `../scratch/` is the edit surface; `main/` is reachable only via
   deploy. `./run createscratch` (wipes existing — ask first),
-  `./run checkscratch` FROM `main/` (the battery alone — the
-  between-batches gate; never touches main/), `./run deployscratch`
-  FROM `main/` (same battery → rsync `--delete` → migrate/restart on
-  backend diff), `./run cleanscratch`.
-- A green battery (`checkscratch` or the deploy's own) IS the whole
-  verification — no post-deploy e2e, no re-runs. `deployscratch`
-  refuses on its own if `main/` holds dirty files scratch doesn't
-  carry — follow its file list.
+  `./run checkscratch` FROM `main/` (the between-batches battery,
+  never touches main/), `./run deployscratch` FROM `main/` (same
+  battery → rsync `--delete` → migrate/restart on backend diff),
+  `./run cleanscratch`.
+- A green battery IS the whole verification — no post-deploy e2e, no
+  re-runs. `deployscratch` refuses on its own when `main/` holds
+  dirty files scratch doesn't carry — follow its file list.
+- Formatting: `cd ../scratch && ./run lintfix` after every write
+  batch — it IS ruff + oxlint + prettier + eslint; no other format
+  command exists, don't hunt for one.
 - Ninja = JSON only; pages are plain Django views (per-module
   `page_urls` mounted before the APIs). Page URLs serve the Inertia
-  protocol (HTML or page JSON under `X-Inertia`) — `router.reload({only})`
-  is a page call, never a data call; data goes through the generated
-  sdk functions.
-- Formatting/lint ≠ deploy points — fold into the next batch;
-  `cd ../scratch && ./run lintfix` after every write batch.
-- Payload schemas + typed client: regenerate a feature's sdk on demand
-  — `cd ../scratch && ./run djangomanage generatesdk
-  djangoapp.views.users.users_api
-  frontend/src/system/schemas/users_sdk.ts` (<api-symbol> = dotted
-  path to the NinjaAPI instance). Output path follows the feature:
-  framework features (djangoapp.views.*) →
-  `frontend/src/system/schemas/<feature>_sdk.ts`; app features
-  (ourapp.views.api) → `frontend/src/app/schemas/<feature>_sdk.ts`
-  (the reference trio is the exemplar). Walks the api's router tree —
-  nested `add_router` mounts included, prefixes joined — and emits
-  zod schemas for every model REACHABLE from an endpoint (responses,
-  bodies, GET query models, transitive field refs) + typed client
-  functions (`{method}_{view}`, e.g. `post_set_price`) importing
-  http.ts through the `@` alias (`@/system/utils/http` — depth-
-  independent, regen never needs a hand fix) — commit the sdk;
-  regenerate on payload changes, never hand-edit. PAGE props are not
-  generated: hand-write them in a `<feature>_props.ts` schema file
-  beside the sdk.
+  protocol (HTML or page JSON under `X-Inertia`) — `router.reload
+  ({only})` is a page call, never a data call; data goes through the
+  generated sdk functions.
+- Payload schemas + typed client: `cd ../scratch && ./run
+  djangomanage generatesdk <api-symbol> <out>` (`<api-symbol>` =
+  dotted path to the NinjaAPI instance, e.g.
+  `djangoapp.views.users.users_api`; out follows the feature —
+  framework → `frontend/src/system/schemas/<feature>_sdk.ts`, app →
+  `frontend/src/app/schemas/<feature>_sdk.ts`). Walks nested mounts,
+  emits zod schemas + typed client fns (`{method}_{view}`) via the
+  `@` alias. Commit the sdk; regenerate on payload changes, never
+  hand-edit. PAGE props are not generated: hand-write
+  `<feature>_props.ts` beside the sdk.
 - Edits via `edit`, one surgical diff per spot; never script batches
   or wholesale rewrites.
 
-## 3. Doc conventions (.pi/steer.md § Feature docs)
+## 3. Doc conventions (steer § Feature docs)
 
 - One file per feature: `ourapp/docs/<feature>.md`; ~80-char wrap;
-  title = feature name only; two audiences (plain front, "For
-  developers" tail).
-- Outline: title+para · who-can-do-what (usecase-beta d2) · the data
-  (plain words then sql_table d2) · how data changes (exhaustive
-  change list + safety rails) · what you see (screenshots) · history
-  (optional) · for developers.
-- Diagrams: d2 fences, `direction: down` top-level, actors
-  `shape: person` pinned 180×160, use-case boxes `width: 240` +
-  `style.border-radius: 24` (never `shape: oval`); mandatory
-  `./run checkmarkdownd2 <file.md>` after every fence write.
+  title = feature name; plain front + "For developers" tail.
+- Outline: title+para · who-can-do-what (usecase d2) · the data
+  (plain words + sql_table d2) · how data changes (exhaustive list +
+  rails) · what you see (screenshots) · history (optional) · for
+  developers.
+- d2 fences: `direction: down`; actors `shape: person` 180×160;
+  use-case boxes `width: 240` + `style.border-radius: 24` (never
+  `shape: oval`); `./run checkmarkdownd2 <file.md>` after every
+  fence write.
 
 ## 4. BaseModel save_plus / row_version (`djangoapp/models/base.py`)
 
-- `SKIP_ROW_VERSION_CHECK = -1`; `class BaseModel`; `row_version`
-  default 0; `get_absolute_url()`.
+- `SKIP_ROW_VERSION_CHECK = -1`; `row_version` default 0;
+  `get_absolute_url()`.
 - `save_plus(*, actor, expected_row_version)`: create (0) stamps
   audit + one `created` log; update diffs pre-edit row → one
   `updated` log (no-op = no log); mismatch → `Http404`; bumps
-  `row_version`.
-- `delete_plus(*, actor)`: purges field history, writes lean
-  `deleted` tombstone, deletes row.
-- `BaseModelUpdateLog`; `Notification.record(...)` goes INSIDE
-  `transaction.atomic()`; push fan-out on `on_commit`.
-- FKs: `on_delete=models.RESTRICT` always; money = DecimalField;
-  never `get_user_model()` — `from djangoapp.models import User`;
-  m2m changes not logged.
+  `row_version`. `delete_plus(*, actor)`: purges field history,
+  lean `deleted` tombstone.
+- `Notification.record(...)` INSIDE `transaction.atomic()`; push
+  fan-out on `on_commit`. FKs: `on_delete=models.RESTRICT` always;
+  money = DecimalField; never `get_user_model()` — `from
+  djangoapp.models import User`.
 
 ## 5. Endpoints + Inertia pages pattern
 
-Copy from the §9 skeletons first; the full reference files back them.
+Copy from the §9 skeletons first; the §7 reference files back them.
 
-- Pages = PLAIN Django views in `ourapp/views/<feature>.py`, routed
-  `path(...)` in `ourapp/urls.py` (see also
-  `docs/reference/ourapp/urls.py`). JSON/file = `Router` endpoints
+- Pages = PLAIN views in `ourapp/views/<feature>.py`, routed
+  `path(...)` in `ourapp/urls.py`. JSON = `Router` endpoints
   (`@router.post("/todos/create", response=Schema)`).
-- `ourapp/views/__init__.py` combines feature routers onto one `Router`
-  (`router.add_router("/", <feature>.router)`) and builds the single API via
-  `make_ninja_api("ourapp", router, prefix="")` (error handlers + CSRF guard
-  ride along); mounted last in urls.py so page paths win.
+- `ourapp/views/__init__.py` combines feature routers and builds the
+  single API via `make_ninja_api("ourapp", router, prefix="")`
+  (error handlers + CSRF guard ride along); mounted LAST in urls.py
+  so page paths win.
 - Errors: `ApiError(status, *, type=, msg=, ctx=)` from
-  `djangoapp.ninja_api` — never `HttpError`.
-- Auth: `user_or_404(request)` / `maybe_user(request)` from
-  `djangoapp.shortcuts`; ownership failure = 404 not 403.
-- Payloads pk-free (`public_id` only); page data nested under `props`
-  → pages parse BOTH levels via `useAppPage(FeaturePropsSchema)` from
-  `frontend/src/system/utils/useAppPage.ts` — returns `{ shared, data }`,
-  computed inside (Inertia swaps the whole page object on every
-  visit/reload; parsing inside a computed is what keeps it live); every
-  payload stays zod-parsed; HTTP via
+  `djangoapp.ninja_api` — never `HttpError`. Auth:
+  `user_or_404` / `maybe_user` from `djangoapp.shortcuts`; ownership
+  failure = 404 not 403.
+- Payloads pk-free (`public_id`); page data nested under `props` →
+  pages parse BOTH levels via `useAppPage(FeaturePropsSchema)` from
+  `frontend/src/system/utils/useAppPage.ts` (computed inside —
+  Inertia swaps the whole page object every visit); HTTP via
   `frontend/src/system/utils/http.ts` (`ninjaPost`/`ninjaGet`/
-  `ninjaDelete` — non-2xx throws: a 422 as `NinjaError`, the rest via
-  the taxonomy; toast-only callers let it fly to main.ts' handlers);
-  toasts via `showToast`/`showErrorToast`; inline field errors via
-  `FieldError` + `errorAtPath`.
-- Page routes taking a `public_id` path param use `<uuid:public_id>` —
-  pages resolve before API mounts, so a bare `<str:public_id>` page
-  route shadows same-shape API paths (e.g. `POST /chores/create` under
-  `chores/<str:public_id>`); the UUID converter can't match fixed
-  segments like `create`.
-- Pages render `<PageTitle :value="…"/>`.
-- zod: one component → inline; one feature →
-  `frontend/src/app/schemas/<feature>.ts`; framework →
-  `system/schemas/`.
+  `ninjaDelete`; a 422 throws `NinjaError`); toasts
+  `showToast`/`showErrorToast`; inline errors `FieldError` +
+  `errorAtPath`.
+- Page routes with an id param use `<uuid:public_id>` — pages
+  resolve before API mounts, so a bare `<str:public_id>` page route
+  shadows same-shape API paths.
+- `<PageTitle :value="…"/>` on every page. zod: one component →
+  inline; one feature → `frontend/src/app/schemas/<feature>.ts`;
+  framework → `system/schemas/`.
 
 ## 6. Test layout
 
-- Flat: `ourapp/tests/test_<feature>_<layer>.py` (layers: `models`,
-  `views`, `commands`, `playwright`). Bases:
+- Flat: `ourapp/tests/test_<feature>_<layer>.py` (`models`, `views`,
+  `commands`, `playwright`). Bases:
   `djangoapp.tests._base.BaseTestCase` / `BaseInertiaTestCase` (fast
   hashers); playwright:
   `djangoapp.tests.playwright._base.BasePlaywrightTestCase` (carries
-  `playwright` tag + harness — no hand-tagging).
-- Class docstring = one-line description + one bullet per test in
-  declaration order.
-- Run: `./run test <labels…>` (fast, keepdb) / `./run test --full`.
+  the `playwright` tag + the shared-page harness — read
+  `djangoapp/tests/playwright/_base.py` BEFORE writing e2e; the
+  page/login helpers live there, not in site-packages).
+- Class docstring = one line + one bullet per test, declaration
+  order. Run: `./run test <labels…>` / `--full`; e2e:
+  `./run playwrighttest <labels…>`; README PNGs:
+  `./run screenshots`.
 
-## 7. Copy-me trio (see also `docs/reference/`)
+## 7. First parallel batch — the copy-me exemplars (ONE batch, no ls/find)
 
 - Backend: `docs/reference/ourapp/models/todos.py`,
   `docs/reference/ourapp/views/todos.py`
@@ -174,34 +167,28 @@ Copy from the §9 skeletons first; the full reference files back them.
   `docs/reference/ourapp/tests/test_todos_playwright.py`
 - Frontend: `docs/reference/frontend/src/pages/TodosPage.vue`,
   `docs/reference/frontend/src/schemas/todos_sdk.ts`
-- Wiring: `docs/reference/ourapp/urls.py` +
+- Wiring: `docs/reference/ourapp/urls.py`,
   `docs/reference/ourapp/views/__init__.py`
 
 ## 8. Gotchas that cost sessions time (don't rediscover)
 
 - **Django-model queries from a script**: `export
   DJANGO_SETTINGS_MODULE=djangoproject.settings && ./run python -c
-  'import django; django.setup(); from ourapp.models import Todo;
-  …'`. Everything else (settings env, allowlist) already rides
-  `./run`. Prefer `dbstate`/management commands when one exists —
-  and note `./run python -c` PROMPTS the operator by design; reserve
-  it for when no command answers the question. Code-phase only —
-  while a feature is a mockup, python stays untouched (steer's
-  no-probe/no-python rule): a mockup question is answered by the
-  operator's click on the deployed link, not a query.
+  'import django; django.setup(); …'` — everything else rides
+  `./run`. Prefer `./run djangomanage dbstate`/management commands;
+  `./run python -c`
+  PROMPTS by design. Code-phase only — a mockup question is answered
+  by the operator's click on the deployed link, not a query.
 - **JSON API surface**: introspect via the NinjaAPI instance, not the
-  filesystem: `from ourapp.views import api; [p for p in
-  api.urls]` (mount point + operation paths). Pages are NOT on api —
-  they are plain views (§5).
+  filesystem: `from ourapp.views import api; [p for p in api.urls]`.
+  Pages are NOT on api — plain views (§5).
 - **Inertia test helpers**: read `docs/reference/frontend/` first;
-  the live helpers sit in site-packages — do not go spelunking there.
-- **`dbbackups/` inside main/ is a postgres-owned island.** Never
-  chown/copy/write into it; pgbackrest (running as postgres) fails
-  the backup when its ownership changes.
-- **Gate leftover landmine**: a gate run leaves the DB at the assert-11
-  restore point — testapp migration rows included. If a fresh feature
-  500s with tables missing, check `django_migrations` for a colliding
-  `0001_initial`.
+  the live helpers sit in site-packages — no spelunking.
+- **`dbbackups/` inside main/ is a postgres-owned island** — never
+  chown/copy/write into it.
+- **Gate leftover landmine**: a gate run leaves the DB at the
+  assert-11 restore point — if a fresh feature 500s with tables
+  missing, check `django_migrations` for a colliding `0001_initial`.
 
 ## 9. Copy-me skeletons (read these BEFORE opening reference files)
 
@@ -236,8 +223,8 @@ class Todo(BaseModel):
         ordering: ClassVar[list[str]] = ["-created_at"]
 ```
 
-A `Meta.constraints` rule (uniqueness etc.) uses the same `ClassVar`
-form — from `docs/reference/ourapp/models/facts.py`:
+A `Meta.constraints` rule uses the same `ClassVar` form — from
+`docs/reference/ourapp/models/facts.py`:
 
 ```python
     class Meta:

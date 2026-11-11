@@ -70,34 +70,41 @@
   font-size: 0.85rem;
 }
 
-// Plain-text preview, line-numbered via CSS counters: one .files-line span
-// per line, its ::before renders the number — no gutter element to keep in
-// sync. Lines don't wrap (a wrapped line would drift past its number); long
-// lines scroll in the box (overflow-x: auto), matching .files-code.
-// white-space lives on the SPAN (not this block) so template whitespace
-// between spans never renders.
-.files-text {
+// Text files (code + plain): numbers gutter + content in ONE horizontal
+// scroll box so they scroll together. The wrapper is the ONLY scroller:
+// the reboot's `pre { overflow: auto }` (and hljs's on code.hljs) would
+// make each pre its own scroll box, shrink it to the wrapper's width,
+// and freeze the sticky gutter — force both visible so the pres keep
+// their content floor and the WRAPPER overflows instead.
+.files-lines {
+  display: flex;
   margin-top: 0.5rem;
-  font-size: 0.85rem;
-  font-family: var(--bs-font-monospace);
   overflow-x: auto;
-  counter-reset: line;
 }
 
-.files-line {
-  display: block;
-  white-space: pre;
+// Padding lives on the content pres (.files-code/.files-text) and the
+// gutter, not here — the hljs plate inside code is zeroed so line 1
+// pairs with gutter "1".
+.files-lines pre,
+.files-lines pre code.hljs {
+  margin: 0;
+  font-size: 0.85rem;
   line-height: 1.5;
-  counter-increment: line;
+  white-space: pre;
+  overflow: visible;
+  padding: 0;
 }
 
-.files-line::before {
-  content: counter(line);
-  display: inline-block;
-  min-width: 2.5ch;
-  margin-right: 1ch;
-  text-align: right;
+// The gutter stays put while long lines scroll (sticky-left); the opaque
+// plate (both themes) keeps sliding text from bleeding under it.
+.files-gutter {
+  position: sticky;
+  left: 0;
+  flex: none;
+  padding: 0.75rem 0.5rem 0.75rem 0.75rem;
   color: var(--bs-secondary-color);
+  background: var(--bs-body-bg);
+  text-align: right;
   user-select: none;
 }
 
@@ -179,14 +186,21 @@
   }
 }
 
-// Code: monospace, long lines scroll horizontally (wrapping code is unreadable).
-// The file viewer's code block (.files-code) — the git diff page renders via
-// diff2html (.diff-view in main.scss), not this box.
-.files-code {
+// Content pres: padding pairs line 1 with gutter "1" (the hljs plate
+// inside code is zeroed above). The git diff page renders via diff2html
+// (.diff-view in main.scss), not this box.
+.files-lines .files-code,
+.files-lines .files-text {
+  padding: 0.75rem;
+}
+
+// MarkdownView's raw-source mode uses the code classes OUTSIDE the
+// .files-lines wrapper — its own standalone scroll box.
+.files-raw-source {
   margin-top: 0.5rem;
   padding: 0.75rem;
-  overflow-x: auto;
   font-size: 0.85rem;
+  overflow-x: auto;
 }
 
 // Markdown heading outline (MarkdownOutline.vue), at the top of the markdown

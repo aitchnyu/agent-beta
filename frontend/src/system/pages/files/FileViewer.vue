@@ -29,13 +29,14 @@ const codeLang =
 const rendered = ref("")
 const previewReady = ref(false)
 
-// Plain text renders one span per line so CSS counters can number them
-// (.files-line::before) — no gutter element to keep in sync. A single
-// trailing newline is the file's terminator, not a line: strip it (an
-// empty file renders no rows at all).
-const textLines = computed(() =>
-  p.value.text === "" ? [] : p.value.text.replace(/\n$/, "").split("\n"),
-)
+// Text files carry a numbers gutter beside the content (highlighted and
+// plain alike — one mechanism). A single trailing newline is the file's
+// terminator, not a line: strip it (an empty file renders no numbers).
+const gutter = computed(() => {
+  if (p.value.text === "") return ""
+  const lineCount = p.value.text.replace(/\n$/, "").split("\n").length
+  return Array.from({ length: lineCount }, (_, i) => i + 1).join("\n")
+})
 // Component state for tests (wait on [data-files-state="rendered"] instead of
 // polling content magic strings) and a11y (aria-busy while still empty).
 const filesState = computed(() =>
@@ -83,17 +84,17 @@ onMounted(async () => {
       :rel="p.rel"
       @rendered="previewReady = true"
     />
-    <!-- Code: language detected from extension; highlight.js output is escaped. -->
-    <pre
-      v-else-if="codeLang"
-      class="files-code"
-    ><code :class="`hljs language-${codeLang}`" v-html="rendered"></code></pre>
-    <!-- Plain text: one span per line, numbered by CSS counters. Vue
-             interpolation escapes each line, so a file's <script> can't run. -->
-    <div v-else-if="p.kind === 'text'" class="files-text">
-      <span v-for="(line, i) in textLines" :key="i" class="files-line">{{
-        line
-      }}</span>
+    <!-- Text files (highlighted + plain): a numbers gutter beside the
+             content; one scroll box so gutter and content scroll together. -->
+    <div v-else-if="p.kind === 'text'" class="files-lines">
+      <pre class="files-gutter" aria-hidden="true">{{ gutter }}</pre>
+      <!-- Code: language detected from extension; highlight.js output is escaped. -->
+      <pre
+        v-if="codeLang"
+        class="files-code"
+      ><code :class="`hljs language-${codeLang}`" v-html="rendered"></code></pre>
+      <!-- Plain text: Vue interpolation escapes, so a file's <script> can't run. -->
+      <pre v-else class="files-text">{{ p.text }}</pre>
     </div>
     <img
       v-else-if="p.kind === 'image'"

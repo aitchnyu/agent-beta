@@ -1,5 +1,95 @@
-Line numbers for files
-Dont show diff for new files. Link to deleted files fail?
+gantt
+line numbers for highlight.
+review of our changes, squash
+update repo-map
+provision, does its behave as old after much of code gone?
+
+Dont read .env except as direct user request
+
+Move all coder requests to main?
+
+The message before approval for operator should look like this:
+
+```
+# geeky stuff
+
+# Conclusion
+
+link to mockup
+link to design doc
+
+1 correct mockups and docs
+2 approve
+```
+
+ie, user should be presented links and important info in the last few lines.
+
+✓ Coder groundwork: chore tracker completed
+  ↻7 · 12 tool uses · 15.6k token · 53.2s
+  ⎿  GROUNDWORK DONE + preliminary plan (models-first, holding for the gate):
+  transcript:
+sessions/2026-11-11T13-36-51-466Z_01a1cad3-5b08-7048-9354-a32c9b844716/tasks/2026-11-11T13-42-26-143Z_01a1cad8-765f-7048-9354-a330d
+10db4c2.jsonl
+
+ The groundwork is done — the coder holds with a preliminary plan. This is a background notification landing while the
+ DesignQuestions ask is open. Per "An ask is terminal": absorb silently, never echo as a new message. The notification says the
+ plan is stored; I'll use it in the gate message after the operator answers.
+
+ But wait — I'm in a turn now (the notification triggered a turn). The rule: "Once a message closes with numbered choices +
+ Choose... it is the LAST word until the operator picks. Background notifications landing meanwhile — a reviewer finishing, a
+ subagent completing — are absorbed silently: steer, collect, triage, but never echo them as new messages."
+
+ So this turn should NOT produce a user-facing message. I should just absorb it. But I need to output something minimal or
+ nothing? The notification turn — I can collect the full result so it's banked for the gate message. Let me get the full result
+ quietly (a tool call, not a user message), and then end with... hmm. Any output I produce is a user-facing message in this TUI?
+ The steer says never echo them as new messages. I should collect the result (so I have the plan when the gate comes) and end the
+ turn with essentially no new content — or a single terse line acknowledging nothing needed.
+
+ Actually — "GROUNDWORK is never reported in any form — not its completion, not its progress — the plan surfaces in the gate
+ message and nowhere else."
+
+ So: collect the result silently, end the turn with nothing that re-acks the open menu. But I have to write SOMETHING in my reply.
+ The safest is an extremely terse line that doesn't report the groundwork and doesn't re-ask: maybe just "(working — your picks
+ above still needed)". Hmm, that re-acks the open menu ("never re-ack the open menu").
+
+ Honestly the cleanest: just collect the result and output a minimal no-op line like "Noted — waiting on your picks." That IS
+ re-acking. Alternatively output nothing but the tool call... The turn requires a final text response though. I'll keep it to one
+ short line that adds no information and reopens nothing. Actually per the spirit: notifications are absorbed silently — the ideal
+ response is near-empty. I'll do the get_subagent_result call and reply with a single line like "…" — no. Let me think.
+
+ The notification handling: I'll fetch the full plan now (banking it for the gate message), and my visible reply should be minimal
+ — not reporting the groundwork. Something like a single sentence that doesn't mention it. But any sentence risks being noise. The
+ guidance for watched-state lines: "Speak when state the operator is watching changes" — groundwork is explicitly excluded from
+ reporting.
+
+ I'll reply with a minimal line: "(quiet turn — design picks above are still open; nothing else needed from you)". Hmm, that
+ re-acks.
+
+ The absolute minimum that doesn't violate: reply with a single period or "—". That seems weird but matches "absorb silently".
+ Maybe better: no text at all after the tool call — just the tool call and end. Can I end a turn with only a tool call and no
+ text? The harness usually wants some text, but a turn can end after tool results with an empty-ish reply. I'll output something
+ extremely short like "(nothing needed — picks above still open)" — no, re-ack.
+
+ I'll just say nothing meaningful: output "…" Actually let me look at the rule once more: "never echo them as new messages, and
+ never re-ack the open menu ('still waiting on your pick'). While the ask is open, watched-state lines (a batch going green,
+ verdicts landing) wait too — they ride the turn after the pick."
+
+ So the correct behavior: silent absorption. The turn's visible content should be nothing. I'll emit just the tool call and then a
+ bare minimal response. I think a single word like "Noted." is acceptable as non-echoing (it doesn't report groundwork, doesn't
+ re-ack the menu). Fine.
+
+
+ ▸ Get Agent Result  232b4e34-f774-4bf
+ ✓ coder · zai/glm-5.3-flash · 12 tool uses · 15.6k token · 2% · 53.2s
+   ⎿  Coder groundwork: chore tracker
+   ⎿  GROUNDWORK DONE + preliminary plan (models-first, holding for the gate):
+
+
+ Noted.
+```
+
+Show Line numbers for files in plain text mode in file view mode
+Dont show diff for new files. Dont link to deleted files in diff, but we can see current version.
 
 --
 
@@ -16,7 +106,6 @@ Permission prompts
 19:50:29	ls /srv/desmo/playwright-browsers/	external_directory_read
 
 Query
-
 
 Can you find the provision command output?
 Does repo still have that error

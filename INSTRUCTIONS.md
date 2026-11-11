@@ -305,7 +305,7 @@ chars and carry no signal):
 
 Counterexamples (both fixed in steer.md):
 
-- `reviewer-correctness (spec-vs-code drift, API contract, edge cases), reviewer-conventions (doc-claims-vs-code, mirrors, style), reviewer-trace (…)` — three reviewers packed into one sentence with parenthetical duty lists
+- `reviewer-correctness (spec-vs-code drift, API contract, edge cases), reviewer-conventions (doc-claims-vs-code, style), reviewer-trace (…)` — three reviewers packed into one sentence with parenthetical duty lists
 - a Stage-5 bullet running the resume call, the evidence rule, and the
   launch timing in one paragraph — each rule now sits on its own point
 
@@ -403,6 +403,21 @@ Only after the gate succeeds to the finish can you say the task is complete. If 
 
 ## Review
 I may ask you to review code. If its a commit or a set of commits, check the changed prompts file. Verify each checklist item is correctly reflected in code, especially when conflicting checklist items exist. Check the code itself. Find any security issues and put them as high priority.
+
+## Mirrors (host-side — never an in-session reviewer)
+The repo records the same facts in several places on purpose; the
+mechanized part is HOST duties, checked by plain-repo tests
+(`python3 -m unittest discover -s ops/tests` — no VM, no app env):
+
+- `ops/tests/test_steer_inventory.py` — steer's management-command
+  inventory vs the commands dir.
+- `ops/tests/test_repo_map.py` — every path repo-map.md names exists.
+
+The rest of the mirror pairs (steer's allowlist block vs the
+permission config; run verbs vs help vs scripts) are checked by eye
+when you touch steer's allowlist block, the permission config, `run`'s
+verbs/help, or management commands — fix drift BEFORE committing; the
+in-session review fleet no longer carries a mirrors reviewer.
 
 ## Commit messages
 

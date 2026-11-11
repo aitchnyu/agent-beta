@@ -224,11 +224,13 @@ lives in [Stage messages](#stage-messages):
       applying a fix cycle the coder HOLDS again (never completes) so
       later steers — residual fixes, release — land in-session; you fix
       the docs
-    - **The visual pass is FINAL**: reviewer-image judged the freshly
-      rendered fences at verify; fixing its (or any reviewer's) diagram
-      comments never re-triggers it — apply the prescriptions,
-      `checkmarkdownd2` green is the bar, and the operator's eyes on
-      the doc link are the acceptance
+    - **The visual pass is one pass, and its verdict stands**:
+      reviewer-image judged the freshly rendered fences at verify;
+      apply the prescriptions — `checkmarkdownd2` green is the bar,
+      and the operator's eyes on the doc link are the acceptance.
+      Its judge list is COMPLETE (an uncovered case is itself a
+      finding, never a research trip) and hard-framed — every fence
+      judged within two turns of the reads, then verdict.
     - the [3] close is ONE cycle — fixes, doc updates, screenshot
       captures: resume the coder once, tick each item onto the fix
       list first (a dropped item costs a round trip)
@@ -309,8 +311,8 @@ gap — spend them on decisions, not on serialization:
 ### The review round (stage 3)
 
 <!-- MAINTAIN-CONSISTENCY review-fleet — the duty lines below are the
-     source of truth for reviewer-{correctness,conventions,
-     mirrors,trace,image}.md (in .pi/agents/); reviewer-image's judge
+     source of truth for reviewer-{correctness,conventions,trace,
+     image}.md (in .pi/agents/); reviewer-image's judge
      list restates docs/d2.md's rules; logging claims are
      docs/logging.md's.
      Change both sides together. -->
@@ -323,14 +325,12 @@ with familiarize+verify in one prompt). Doc-only work with no coder run
 spawns them when the review runs. How many:
 
 - **Significant diff** — touches backend AND frontend, any framework file,
-  or more than ~10 files → all FIVE reviewers (`.pi/agents/`):
+  or more than ~10 files → all FOUR reviewers (`.pi/agents/`):
   - `reviewer-correctness` — spec-vs-code drift, API contract, edge cases
   - `reviewer-conventions` — doc-claims-vs-code, naming,
     comment style, TODO + in-code-note hygiene, placeholder/demo
     leftovers on surfaces the feature takes over; ALSO fence
     concept-fidelity (exact d2 edits)
-  - `reviewer-mirrors` — config/allowlist mirrors, run verbs vs help,
-    command flags vs inventory
   - `reviewer-trace` — cross-layer wiring, render-vs-validate ground truth
   - `reviewer-image` — the visual pass over rendered fences BY EYE
     (familiarize notes the initial renders; verify judges fresh final
@@ -340,13 +340,17 @@ spawns them when the review runs. How many:
   verify, re-check
   against the final diff — if it outgrew the call, add a fresh reviewer.
 - **Small diff** — anything else: ONE specialist matching the diff's
-  center of gravity — docs→`reviewer-conventions`, config/allowlists→
-  `reviewer-mirrors`, wiring→`reviewer-trace`, logic or ambiguous→
+  center of gravity — docs→`reviewer-conventions`,
+  wiring→`reviewer-trace`, logic or ambiguous→
   `reviewer-correctness`, visual/diagram-only→`reviewer-image`.
+  (Config/allowlist mirrors are NOT a reviewer's job — they are
+  host-side tests; see INSTRUCTIONS.md § Mirrors.)
 
 All reviewers report TERSELY and stop at the evidence: a clean
 verdict is ONE line ("no blockers, no majors; verified: <checked
-seams/claims>"), findings one line each — a list, not an essay, and
+seams/claims>"), findings one line each — severity
+(blocker/major/minor/nit) + file:line + the exact fix, always
+report-only, never edit — a list, not an essay, and
 never a seam-by-seam serialization of clean checks. Once every check
 in the duty is answered, emit — no re-derivation turns after the
 evidence. Reviewer wall clock is generation time; the report IS the
@@ -539,23 +543,35 @@ python3 -c '…'                      # same
 python3 - <<'EOF'                   # heredoc python — same class, same block
 ```
 
-Note: read-only shell inspection IS allowlisted (`rg`, `grep`, `find`, `cat`,
-`head`, `tail`, `ps`, `lsof`, …) and runs unblocked — but PREFER the
-read/glob/grep TOOLS when exploring (structured, source-linked results);
-shell forms earn their keep inside `&&` chains. Inline python in EVERY
-spelling (`-c`, heredoc, `python -`) is never allowlisted — it can do
-anything, so it always asks, and a heredoc probe is a stalled 90s ask for
-something a sanctioned path answers: DB questions go to `dbstate`
-(tables/counts/migrations/users), anything richer rides a scoped test.
-Related traps:
-redirects (`2>&1`, `2>/dev/null` — ALL of them)
-and command substitution bolted onto otherwise-allowed commands —
-**don't append redirects unless absolutely necessary**: the TUI captures
-full tool output (stderr included), discarding buys nothing, and an
-avoidable `2>/dev/null` turns an allowlisted line into a block. Same
-for **pipes to `tail`/`head`**: long output is already truncated from
-the MIDDLE (head and tail both stay visible) — `… | tail -20` buys
-nothing and throws away the start. Run the bare command.
+Notes on composing shell lines (every rule below is backed by a real ask
+— or a free run — from the Nov 10/11 sessions' permission log):
+
+- Read-only inspection (`rg`, `grep`, `find`, `cat`, `head`, `tail`,
+  `ps`, `lsof`, …) IS allowlisted and runs unblocked — but PREFER the
+  read/glob/grep TOOLS when exploring (structured, source-linked
+  results); shell forms earn their keep inside `&&` chains.
+- A pipe rides the allowlist when every segment is allowlisted:
+  `./run checkscratch 2>&1 | grep -a FAILED | head -25` ran free. One
+  un-allowlisted segment anywhere (`uv run`, bare python) asks for the
+  WHOLE line.
+- Writing outside the tree ASKS (the external-directory rule): the
+  coder's `> /tmp/cs.log` prompted; the same line writing `cs.log` in
+  the cwd ran free. `/tmp` artifacts belong to the `./run` wrappers
+  (render dirs, screenshots) — keep your own scratch files in the tree.
+  (Redirection itself is fine — `2>&1`, `2>/dev/null`, command
+  substitution all ride along on allowlisted lines; only the WRITE
+  TARGET outside the tree asks.)
+- Inline python in EVERY spelling (`-c`, heredoc, `python -`) is
+  never allowlisted — it can do anything, so it always asks (a stalled
+  90s). Sanctioned paths: DB questions → `./run djangomanage dbstate`
+  (tables/counts/migrations/users); anything richer → a scoped test.
+- Environment/config questions resolve in `djangoproject/settings.py`
+  and tests (`override_settings`) — NEVER by reading `.env` (the live
+  values are the machine's, not the code's; a test pins the zone it
+  means).
+- Run the bare command: stderr rides the tool result — discarding it
+  with `2>/dev/null` buys nothing, and appended `| tail`/`| head`
+  throw away output you may need on the next look.
 
 ### Management commands (synced with djangoapp/management/commands/)
 
@@ -1029,6 +1045,24 @@ unverified URL is worse than no URL: it wastes a round-trip) — for
 mockup links, a green deployscratch already satisfies this: the
 rsync put the file into `main/`; check nothing.
 
+An APPROVAL-asking message bottom-loads exactly this way — details and
+analysis above, then a Conclusion block carrying the links and the key
+facts, then the menu, so the last few lines hold everything needed to
+decide:
+
+```
+<the geeky stuff — analysis, findings, caveats>
+
+# Conclusion
+<link to the mockup>
+<link to the design doc>
+<important info — what approving means, one line each>
+
+1 <option>
+2 <option>
+Choose
+```
+
 When the work is done and the suite is green, close with a short markdown
 summary in exactly this shape — operator-level, no dev detail (endpoints,
 bundles, migrations, file lists live in the design doc, not in the
@@ -1226,7 +1260,7 @@ are deployed pages — both shared as absolute links (see
   as you complete it, repeated at the top of each stage report.
 - **Agent types** — the package builtins `general-purpose`/`Explore`/`Plan`
   plus this repo's `.pi/agents/`: `coder`, the rule-focused reviewers
-  (correctness, conventions, mirrors, trace), and `reviewer-image` (the
+  (correctness, conventions, trace), and `reviewer-image` (the
   visual pass over rendered fences — a full fleet member, spawned at
   the coder's first green batch).
 - **Use subagents for** parallel independent research (parallel mode) and
@@ -1428,6 +1462,24 @@ request, call a model/manager method, return a schema — never encode the rules
   `test_<feature>_<layer>.py` (`models`, `views`, `commands`, `playwright`).
   Playwright files subclass `BasePlaywrightTestCase` (tagged `playwright`), so
   `./run test` skips them and `./run playwrighttest` runs them.
+
+### Time (server + tests)
+`USE_TZ = True` with an env-driven `TIME_ZONE` — conventions, not choices:
+
+- Server "now" is always `django.utils.timezone.now()` — never bare
+  `datetime.now()`/`utcnow()`.
+- A DATE the business logic means (due days, badges, expiry days) is
+  `timezone.localdate(…)` — never `.date()` on an aware datetime: that
+  yields UTC's date, and the 23:59/00:00 boundary is exactly the bug
+  class (trace's midnight finding, Nov 11).
+- The frontend compares dates the SERVER sends, as strings — it never
+  reconstructs a date from a UTC timestamp client-side (display-only
+  humanized formatting in `system/` is exempt; this rule is for
+  business logic — badges, expiry, due states).
+- A test's outcome must not depend on the machine's current time, its
+  live TIME_ZONE, or `.env`: freeze the clock at the boundary (23:59 or
+  00:00) and set the zone explicitly with
+  `override_settings(TIME_ZONE=…)`.
 
 ### APIs & pages
 The frontend half of this contract — HTTP helpers, forms, NinjaError
@@ -2112,7 +2164,8 @@ the operator. Diagnose with allowed tools first (the `bash` map in
 `sudo -u postgres pgbackrest --stanza=desmo info` are allowlisted;
 `git -C` is deny-listed — cd into the repo and run bare `git …`;
 `./run python -c` always asks —
-reach for `dbstate`/management commands first and save `python -c`
+reach for `./run djangomanage dbstate`/management commands first and
+save `python -c`
 for when nothing else can answer). Read-only checks lean on the git
 family — bare and starred `git diff`/`git status`/`git log` are
 allowlisted, and `git diff --no-index <a> <b>` is the cross-tree
