@@ -4,8 +4,9 @@
 # hand): deploy/install.sh, the curl|bash entry that seeds from a
 # published git ref and exports BASE_URL. ./local-vm provision-full runs
 # that same installer for you. Build-only: the driver refuses an existing
-# instance, and phase 0 refuses a VM that already holds generated
-# secrets. One linear function, phase-banner'd — read it top to bottom.
+# instance, and phase 0 refuses any VM where /srv/desmo already exists
+# (any prior provision, complete or half-failed, leaves it behind). One
+# linear function, phase-banner'd — read it top to bottom.
 #
 # Payload — THE manifest: install.sh ships exactly TWO files (the phase-10
 # rm list below must match this block; no entry keeps a list of
@@ -69,7 +70,7 @@
 #   seed-commit   as desmo — self-dispatched by phase 8
 #   bootstrap     as desmo — self-dispatched by phase 9
 
-set -euo pipefail
+set -Eeuo pipefail
 
 appdir="/srv/desmo"
 maindir="$appdir/main"
@@ -95,9 +96,24 @@ _envval() { # <key> <file>
 # second; consecutive banners diff into per-phase durations.
 _banner() { echo "[$(date +%T)] $*"; }
 
+# A failed step must fail the WHOLE provision loudly: set -e aborts, and
+# this trap names the line (-E errtrace: fires inside functions and
+# subshells too). Handled failures — if/||/until conditions, `|| true`
+# contracts — correctly do NOT fire it.
+trap 'st=$?; echo "[$(date +%T)] PROVISION FAILED (line $LINENO, exit $st)" >&2' ERR
+
 provision() {
   # ── Phase 0/11: guards — payload, template values, VM freshness ────────
   _banner "==> [0/11] guards"
+  # Fresh-VM-only, checked by the one thing every prior provision leaves
+  # behind: /srv/desmo itself (phase 1 creates it). Existence — complete
+  # or half-failed — means no in-place retry, no convergent resume; the
+  # only path is a rebuild.
+  if [ -e "$appdir" ]; then
+    echo "REFUSING: $appdir exists — this provisioner is fresh-VM-only." >&2
+    echo "  Rebuild: ./local-vm delete && ./local-vm provision-full" >&2
+    exit 1
+  fi
   if [ ! -f /tmp/desmo-seed.tgz ]; then
     echo "REFUSING: /tmp/desmo-seed.tgz missing (deploy/install.sh builds + ships it — directly or via ./local-vm provision-full)." >&2
     exit 1
@@ -185,23 +201,6 @@ provision() {
     echo "WARNING: PLAYWRIGHT_BROWSERS_PATH unset in the template — browsers land in per-user caches." >&2
   fi
 
-  # Build-only: REFUSE before any mutation if generated secrets are
-  # installed — the seed extract + env install would clobber them. Detection
-  # SOURCES the file in a subshell (the consumers' own semantics): quoted,
-  # unquoted, or indented hand-rotated values all count. All-three-empty = a
-  # half-failed pre-mint run; retrying that is safe — the pre-mint steps are
-  # convergent (phase 1's useradd/swap and phase 5's config appends are
-  # guarded; extracts and renders overwrite in place). A POST-mint failure
-  # leaves secrets installed: this refusal then routes you to
-  # ./local-vm delete && ./local-vm provision-full.
-  if [ -f "$creds_env" ] && (
-    . "$creds_env"
-    [ -n "${SECRET_KEY:-}" ] || [ -n "${DB_PASSWORD:-}" ] || [ -n "${VAPID_PRIVATE_KEY:-}" ]
-  ); then
-    echo "REFUSING: VM already provisioned ($creds_env holds generated secrets)." >&2
-    echo "  In-place re-provision is unsupported" >&2
-    exit 1
-  fi
   # Pin the umask: dirs this body creates (/etc/pgbackrest,
   # /etc/caddy/sites) and every redirect-written config ride 022 — a
   # stricter caller shell would land e.g. /etc/redis 700 (redis can't
@@ -211,8 +210,7 @@ provision() {
   # ── Phase 1/11: machine — users, packages, node, pi, caddy, uv, swap ───
   _banner "==> [1/11] machine (users, apt, node, pi, caddy, uv, swap, redis, ufw)"
   echo "    users: desmo (less powerful) + the default cloud user (powerful)"
-  # Guarded: a pre-mint retry (see phase 0) re-runs phase 1 — useradd would
-  # abort under set -e on the second pass.
+  # Idempotent: useradd dies under set -e if the user already exists.
   id desmo >/dev/null 2>&1 || useradd --create-home --shell /bin/bash desmo
   # THE powerful user: cloud-init grants the default cloud user (ubuntu on
   # multipass, debian on Incus) full passwordless sudo.
@@ -281,15 +279,16 @@ EOF
   apt-get install -y "/tmp/${caddy_deb}"
   rm -f "/tmp/${caddy_deb}"
 
-  # uv SYSTEM-WIDE — on every user's default PATH.
+  # uv SYSTEM-WIDE — on every user's default PATH. pipefail INSIDE the
+  # bash -c (not inherited): a failed curl | sh must not read as success.
   echo "    uv system-wide (/usr/local/bin)"
   UV_INSTALL_DIR=/usr/local/bin \
-    bash -c 'curl -fsSL https://astral.sh/uv/install.sh | sh'
+    bash -c 'set -o pipefail; curl -fsSL https://astral.sh/uv/install.sh | sh'
 
   echo "    2G swapfile + swappiness (2G RAM absorbs build spikes)"
-  # Guarded whole-block: a pre-mint retry hits an active swapfile —
-  # fallocate/mkswap/swapon on it would fail, and a second fstab append
-  # would duplicate the entry. /proc/swaps is the live truth.
+  # Idempotent whole-block (live truth from /proc/swaps): re-entry would
+  # hit an active swapfile — fallocate/mkswap/swapon on it would fail, and
+  # a second fstab append would duplicate the entry.
   if ! grep -q '^/swapfile' /proc/swaps; then
     fallocate -l 2G /swapfile
     chmod 600 /swapfile
@@ -464,10 +463,10 @@ EOF
 
   # ── Phase 5/11: stock configs — mutate the live ones in place ──────────
   _banner "==> [5/11] stock configs (redis maxmemory, caddy sites import)"
-  # Grep-guarded appends (the safe.directory pattern from phase 7): a
-  # pre-mint retry re-runs this phase, and a duplicate import line would
-  # fail `systemctl reload caddy` below. The old fetch-host/append/ship-back
-  # round trip is gone — the files are right here.
+  # Grep-guarded appends (the safe.directory pattern from phase 7) — a
+  # duplicate import line would fail `systemctl reload caddy` below. The
+  # old fetch-host/append/ship-back round trip is gone — the files are
+  # right here.
   grep -q '^# BEGIN desmo-vm' /etc/redis/redis.conf \
     || cat "$seed_deploy/redis-append.conf" >> /etc/redis/redis.conf
   grep -q '^import sites/\*\.caddy' /etc/caddy/Caddyfile \

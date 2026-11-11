@@ -1,3 +1,61 @@
+Can you find the provision command output?
+Does repo still have that error
+Why didnt agent test?
+Fix silent failure holes
+
+```
+ 1. Whose chores? (a) Just you — each person sees their own list, or (b) a shared household — you assign chores to named members
+ 2. Chore schedule? (a) One-off with a due date, (b) recurring (e.g. daily / weekly), or (c) both
+ 3. How does completion work? (a) Simple check-off, or (b) someone verifies/approves it (optionally with points)
+ 4. On the homepage, how should it surface? (a) plain link, (b) card with a summary (e.g. "3 chores due today"), or (c) reached
+    only from another page
+
+ 1a 2c 3b 4b, or any mix — reply with your picks
+```
+Format and default properly
+
+List the changes per page in nested bullet points before asking 
+
+why did groundwork thinking and message show?
+```
+ Groundwork: preliminary chore-tracker plan completed
+  ↻8 · 11 tool uses · 11.7k token · 43.2s
+  ⎿  Preliminary plan delivered and holding — no files touched, no scratch work.
+  transcript:
+sessions/2026-11-10T18-51-55-230Z_01a1c6cd-71de-77db-89c9-84eebeb5472a/tasks/2026-11-10T18-54-50-803Z_01a1c6d0-1fb3-77db-89c9-84f37
+360093a.jsonl
+
+ The groundwork completed and produced a preliminary plan. Per the steer rules: "GROUNDWORK is never reported in any form — not
+ its completion, not its progress — the plan surfaces in the gate message and nowhere else."
+
+ So this notification is absorbed silently — no user-facing message. The design-questions message is already sent and is an open
+ ask (numbered choices + Choose). "A
+```
+
+`never interleave` - 
+
+Why isnt it reading my requirements properly?
+
+Permission
+
+Increase agent numbers?
+
+chrome is not clear enough
+
+Dont report banked agents - they notify
+
+`./run init` is dangeourus
+
+Why didnt it choose existing command?
+
+Permissions
+
+Why so much obsession over `// ────────────────────────────────────────────────────────────────────────`
+Line numbers for files
+Dont show diff for new files. Link to deleted files fail?
+
+--
+
 Dont report completion for groundwork
 Add `test` command
 Other permissions? Check each reviewer

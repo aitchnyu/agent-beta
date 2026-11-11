@@ -101,8 +101,19 @@ provision-full() {
 
   # The install streams back; its exit code is the verdict (pipefail on
   # the inner leg — a failed download must not read as a blank-VM success).
-  multipass exec desmo -- bash -c \
+  # A failed run must also SAY so:
+  #   - the stream's last phase banner + the installer's FAILED verdict
+  #     name the spot
+  #   - this adds the host-side verdict so even an abandoned terminal
+  #     reads as failed
+  if ! multipass exec desmo -- bash -c \
     "set -o pipefail; curl -fsSL https://raw.githubusercontent.com/${raw_path}/main/deploy/install.sh | sudo bash -s"
+  then
+    echo "PROVISION FAILED — VM 'desmo' is partially built; the last phase banner above names where it stopped." >&2
+    echo "Rebuild: ./local-vm delete && ./local-vm provision-full" >&2
+    exit 1
+  fi
+  echo "PROVISION OK — self-tests passed (units active + HTTPS smoke)."
 
   cat "$deploy_dir/access-steps.txt"
 }

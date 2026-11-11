@@ -76,8 +76,8 @@ if [ "$(id -u)" -ne 0 ]; then
   echo "REFUSING: run as root (curl … | sudo bash -s -- …)." >&2
   exit 1
 fi
-# Fresh-VM-only: the provisioner's own phase-0 guard (generated secrets
-# already installed?) refuses a re-provision BEFORE anything mutates —
+# Fresh-VM-only: the provisioner's own phase-0 guard (a /srv/desmo that
+# already exists) refuses a re-provision BEFORE anything mutates —
 # no duplicate check here.
 export DEBIAN_FRONTEND=noninteractive
 deps=()
@@ -118,7 +118,12 @@ _banner "==> seed tarball (tracked files, from the clone)"
 install -m 755 "$clone_dir/deploy/inside-vm.sh" /tmp/inside-vm.sh
 
 # ── provision — the one exec; its exit code is the verdict ──────────────────
-BASE_URL="$base_url" bash /tmp/inside-vm.sh provision
+# `if !` (not a bare call): set -e would abort a bare failure instantly,
+# verdict-less — this prints the FAILED verdict itself.
+if ! BASE_URL="$base_url" bash /tmp/inside-vm.sh provision; then
+  echo "FAILED: provision exited non-zero — the VM is incomplete (the phase named above is where it stopped)." >&2
+  exit 1
+fi
 
 # ── self-tests — the install verdict ────────────────────────────────────────
 _banner "==> self-tests"
