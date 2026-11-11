@@ -310,7 +310,7 @@ Counterexamples (both fixed in steer.md):
   launch timing in one paragraph — each rule now sits on its own point
 
 ## Frontend
-Do not introduce inline css or Vue scoped styles. Feature rules go in `app/styles/app.scss` (below the append marker); framework rules in the system stylesheets.
+Do not introduce inline css or Vue scoped styles. Feature rules go in their own module `app/styles/<feature>.scss`, side-effect imported by that feature's pages; only app-wide rules go in `app/styles/app.scss` (below the append marker). Framework rules in the system stylesheets.
 Do not create `<a href='#'>...` with click handlers till I explicitly ask you.  
 Do not run `npm run build-only` except when I explicitly mention.  
 Use `await` with `try/catch`, not `.then(…).catch(…)` chains.  

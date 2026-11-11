@@ -1,8 +1,29 @@
+Line numbers for files
+Dont show diff for new files. Link to deleted files fail?
+
+--
+
+Permission prompts
+
+19:21:59	cd ../scratch && python3 - <<'EOF' … inline python rewriting ourapp/models/chores.py	raw python3 heredoc
+19:24:47	cd ../scratch && python - <<'EOF' … line-splice script on chores/tests	                raw python heredoc
+19:30:06	cd ../scratch && rg … settings.py; ./run djangomanage shell -c "…"	                    djangomanage shell -c
+19:39:53	cd ../scratch && cat ourapp/docs/home.md | head -3 >/dev/null; python3 -c "print(open(...).count(...))"	python3 -c
+19:42:35	cd ../scratch && python - <<'EOF' … writing ChoresPage.vue/ChorePage.vue	            raw python heredoc
+19:44:32	cd ../scratch && ./run lintfix && ./run test … && ./run frontendbuild	                chain ending in frontendbuild
+19:46:27	./run checkscratch > /tmp/cs.log 2>&1; tail -25 /tmp/cs.log	redirect outside the tree → external_directory
+19:48:55	cd ../scratch && uv run playwright install chromium	uv run (rightly denied — your no-install call)
+19:50:29	ls /srv/desmo/playwright-browsers/	external_directory_read
+
+Query
+
+
 Can you find the provision command output?
 Does repo still have that error
 Why didnt agent test?
 Fix silent failure holes
 
+Agent asked user:
 ```
  1. Whose chores? (a) Just you — each person sees their own list, or (b) a shared household — you assign chores to named members
  2. Chore schedule? (a) One-off with a due date, (b) recurring (e.g. daily / weekly), or (c) both
@@ -12,9 +33,9 @@ Fix silent failure holes
 
  1a 2c 3b 4b, or any mix — reply with your picks
 ```
-Format and default properly
+Propose a formatting with nested points and marking which is default in bold. Want to add in steer.md, as example.
 
-List the changes per page in nested bullet points before asking 
+After getting those inputs, have a list of points of what will be implemented. Split by pages or features. Mention authorization for actions. Want to add in steer.md, as example. Then offer to build mockups+docs, or build app.
 
 why did groundwork thinking and message show?
 ```
@@ -44,15 +65,11 @@ chrome is not clear enough
 
 Dont report banked agents - they notify
 
-`./run init` is dangeourus
-
 Why didnt it choose existing command?
 
 Permissions
 
-Why so much obsession over `// ────────────────────────────────────────────────────────────────────────`
-Line numbers for files
-Dont show diff for new files. Link to deleted files fail?
+Why so much time wasted over `// ────────────────────────────────────────────────────────────────────────` line
 
 --
 
@@ -582,6 +599,8 @@ Can choose multiple machines, no more init and dev in run, slim down pi command
 convert checkframework1 and gate to python script
 provision-full and delete-vm should have a prefix
 vm provsion should print 
+Pi theme should be bolder
+`./run init` is dangeourus
 
 Test dbs get backed up
 Run the uv, npm, playwright installs in parallel?

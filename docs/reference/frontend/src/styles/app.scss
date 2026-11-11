@@ -70,8 +70,9 @@
   }
 }
 
-// ── Feature styles — APPEND BELOW, never interleave ────────────────────
+// ── App-wide additions — APPEND BELOW; feature styles NEVER ─────────────
 // Everything ABOVE this marker is upstream-owned: a framework update may
-// replace it wholesale. Feature styles ride below the marker so upstream
-// diffs stay clean.
-// ────────────────────────────────────────────────────────────────────────
+// replace it wholesale.
+// - feature styles: styles/<feature>.scss, side-effect imported by
+//   that feature's pages — never here
+// - app-wide (cross-feature) rules: append below

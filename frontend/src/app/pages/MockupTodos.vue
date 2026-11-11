@@ -9,9 +9,10 @@
 // as the mockup↔final contrast for the README: ?final=1 drops the crosshatch
 // wrapper so the same markup shows its "graduated" look.
 import PageTitle from "../../system/components/PageTitle.vue"
-// Side-effect import: the .mockup crosshatch + the mirrored todos styles
-// live in styles/app.scss.
+// Side-effect import: the .mockup crosshatch live in styles/app.scss, the
+// todos styles in styles/todos.scss.
 import "../styles/app.scss"
+import "../styles/todos.scss"
 
 const isFinal = new URLSearchParams(window.location.search).has("final")
 </script>

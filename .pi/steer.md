@@ -37,7 +37,7 @@ Change only:
   - `pages/` (the app's Inertia pages)
   - `components/` (the app's components)
   - `schemas/` (the app's shared zod modules)
-  - `styles/` (`app.scss`, side-effect-imported by the pages)
+  - `styles/` (`app.scss` app-wide + one `<feature>.scss` per feature, side-effect-imported by the pages)
 
 ## Layout: main / scratch
 The repo is `main/` — the TUI's working directory (the agent runs from
@@ -150,12 +150,15 @@ lives in [Stage messages](#stage-messages):
 
 - **[1] Mockups + docs — one stage, one gate, one deploy.**
    - `createscratch` once. Then, BEFORE any authoring: ONE message to
-     the operator with your remaining design questions — the choices
-     the mockups are about to freeze (what each page shows, the
-     summary's shape, list vs detail split). Authoring starts only
-     after the answers arrive; never bake assumptions into mockups and
-     let the gate catch them. Then author mockup pages (mechanics:
-     [Mockups](#mockups)) AND the initial design doc together. The doc
+      the operator with your remaining design questions (DesignQuestions
+      shape, [Stage messages](#stage-messages)) — the choices the
+      mockups are about to freeze (what each page shows, the summary's
+      shape, list vs detail split). Authoring starts only after the
+      answers arrive; never bake assumptions into mockups and let the
+      gate catch them. After the answers, send the BuildPlan (same
+      section): its pick 1 continues this stage (mockups + doc), pick 2
+      skips straight to building. Then author mockup pages (mechanics:
+      [Mockups](#mockups)) AND the initial design doc together. The doc
      fills exactly three sections — "Who can do what", "The data"
      (with its d2 fences), "How the data changes" (with its fences);
      every later section stays a `pending` marker until the coder
@@ -533,13 +536,18 @@ git log --oneline -3
 git                                 # bare `git` matches no rule
 uv run python -c '…'                # use the ./run wrappers
 python3 -c '…'                      # same
-npm install                         # only `npm run build` is allowed
+python3 - <<'EOF'                   # heredoc python — same class, same block
 ```
 
 Note: read-only shell inspection IS allowlisted (`rg`, `grep`, `find`, `cat`,
 `head`, `tail`, `ps`, `lsof`, …) and runs unblocked — but PREFER the
 read/glob/grep TOOLS when exploring (structured, source-linked results);
-shell forms earn their keep inside `&&` chains. Related traps:
+shell forms earn their keep inside `&&` chains. Inline python in EVERY
+spelling (`-c`, heredoc, `python -`) is never allowlisted — it can do
+anything, so it always asks, and a heredoc probe is a stalled 90s ask for
+something a sanctioned path answers: DB questions go to `dbstate`
+(tables/counts/migrations/users), anything richer rides a scoped test.
+Related traps:
 redirects (`2>&1`, `2>/dev/null` — ALL of them)
 and command substitution bolted onto otherwise-allowed commands —
 **don't append redirects unless absolutely necessary**: the TUI captures
@@ -929,7 +937,8 @@ Run through every box; the order is the order you build in.
       schemas declared inline in the component (shared shapes in
       `frontend/src/app/schemas/<feature>.ts`; framework-only shapes in
       `system/schemas/`), side-effect styles in
-      `app/styles/app.scss`.
+      `app/styles/<feature>.scss` (app-wide rules only in
+      `app/styles/app.scss`).
 - [ ] **PageTitle** — the page renders `<PageTitle :value="…"/>` (import from
       `system/components/PageTitle.vue`); see "For every Inertia page" below.
 - [ ] **Toasts** — user feedback goes through the framework's toast helpers
@@ -1041,12 +1050,16 @@ Keep it tight. For a trivial change a single sentence is enough; don't pad.
 **Notification receipts are not messages.** A background completion
 that needs nothing from the operator — a familiarize stored, a
 subagent still running, "nothing needed from you" — never produces a
-user-facing message: absorb it and keep working. GROUNDWORK is never
-reported in any form — not its completion, not its progress — the
-plan surfaces in the gate message and nowhere else. Speak when state
-the operator is watching changes, in ONE line (a batch went green;
-all verdicts are in). "Still running" snapshots are noise by
-definition.
+user-facing message: absorb it and keep working. **Banked agents are
+never reported — they notify.** pi's completion card already told the
+operator (description, stats, reply preview); a banked agent needs
+nothing, and its OUTPUT speaks later (the plan in the gate message,
+the verdicts in the fix list) — restating the bank doubles the bell.
+GROUNDWORK is never reported in any form — not its completion, not its
+progress — the plan surfaces in the gate message and nowhere else.
+Speak when state the operator is watching changes, in ONE line (a
+batch went green; all verdicts are in). "Still running" snapshots are
+noise by definition.
 
 ### Stage messages
 Every approval-gated stage transition (the mockup+doc gate —
@@ -1068,12 +1081,13 @@ Verify every link's file exists in `main/` before sharing (see
 [Linking](#linking-absolute-urls-markdown-only)); never deploy a design
 artifact silently, and never label a mockup link as the finished page.
 
-**Menus and questions are numbered, with a bare `Choose` closer.** Never
-end a message with an open prose question ("…fix them and then give you the
-commit summary?") or an unnumbered list ("- commit / hold") — numbers let me
-answer with one digit, and the `Choose` line marks the message as awaiting
-input. This covers EVERY ask — stage menus and report/verdict closers alike;
-a message that asks nothing just ends on its statement. Shape:
+**Menus and questions are numbered, and every ask ends with a closer.**
+The default closer is bare `Choose`; a message shape may define its own.
+Never end on an open prose question ("…fix them and then give you the
+commit summary?") or an unnumbered list ("- commit / hold") — numbers
+let me answer with one digit, and the closer marks the message as
+awaiting input. A message that asks nothing just ends on its statement.
+Shape:
 
 ```
 We need to do this. Here are your choices
@@ -1094,6 +1108,61 @@ open, watched-state lines (a batch going green, verdicts landing)
 wait too — they ride the turn after the pick. Re-send only the FULL
 menu (never bare numbers), and only if it scrolled away or state
 materially changed.
+
+- **DesignQuestions — stage-1 design questions (ONE message, before any
+  authoring)**
+  - numbered questions, lettered nested options, the default of each
+    **bold**; the closer invites refining the defaults or picking
+    others — it replaces the bare `Choose` for this message type only
+    (a reply is still required; silence never advances)
+  - example:
+
+    ```
+    Building the recipes feature — three choices before I draw anything.
+    Defaults in bold.
+
+    1. Who can add recipes?
+       - **(a) any signed-in user**
+       - (b) only admins
+    2. Organize how?
+       - **(a) by category — picked from a fixed list**
+       - (b) free-form tags
+    3. Homepage surface?
+       - (a) plain link
+       - **(b) summary card — "12 recipes, 3 added this week"**
+
+    Keep the **defaults**, improve them (say what to change), or pick
+    others — e.g. `1b, 2b, 3 show total recipes, not per week`.
+    ```
+- **BuildPlan — what ships, sent after the DesignQuestions answers**
+  - one line recapping the picks; the implementation grouped by page/
+    feature — actions as points, an Authorization line per group;
+    closes with the build-path menu + `Choose` (pick 2 skips the
+    mockup stage — groundwork already runs)
+  - example:
+
+    ```
+    From your picks (anyone adds, fixed categories, summary card) — what
+    I'll build:
+
+    Recipes page (/recipes)
+    - card grid by category: title, short description, added by
+    - add a recipe; edit your own
+    - Authorization: browsing — any signed-in user, anonymous gets a
+      404; editing — only the author
+
+    Recipe detail (card titles link here, /recipes/{id})
+    - full recipe, the edit form for the author
+    - Authorization: viewing — any signed-in user
+
+    Homepage
+    - summary card: total recipes, newest title — signed-in only
+
+    1. mockups + the design doc first — you review, then I build
+    2. build the app directly
+
+    Choose
+    ```
 
 - **MockupDocsGate — mockups + the initial design doc (one gate)**
   - [ ] one line of intent
@@ -1771,11 +1840,12 @@ uploads use `postForm`; form-shaped state may use Inertia v3's `useHttp`.
 - One Vue+Inertia app. The app's frontend lives at the plain paths of
   `frontend/src/` — pages in `pages/<Name>.vue` (Inertia component name =
   path, e.g. `Home`), components in `components/`, shared zod modules in
-  `schemas/`, styles in `styles/app.scss` (imported as a side-effect by
-  the page component, so the app is self-contained). Feature styles
-  APPEND below the `Feature styles` marker at the end of that file —
-  never interleave into the upstream-owned part above it, so framework
-  updates merge clean.
+  `schemas/`, styles in `styles/` (imported as a side-effect by the page
+  component, so the app is self-contained). A FEATURE's styles go in
+  their own module beside `app.scss` — `styles/<feature>.scss`,
+  side-effect imported by that feature's pages — never into `app.scss`
+  itself; only app-wide (cross-feature) rules append below its marker,
+  so framework updates merge clean.
 - Framework code lives under `frontend/src/system/` with the same subdirs
   plus `icons/`.
 - Module-owned helpers colocate with their pages/components (git utils in

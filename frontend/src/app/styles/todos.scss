@@ -1,0 +1,32 @@
+// Todos page styles — imported as a side-effect by TodosPage
+// (`import "../styles/todos.scss"`); one scss file per feature keeps each
+// page's styles findable and upstream merges clean.
+
+.ours-todos-page {
+  max-width: 48rem;
+}
+
+.ours-todos-list {
+  list-style: none;
+  padding: 0;
+}
+
+.ours-todo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.ours-todo-completed span {
+  text-decoration: line-through;
+  color: #888;
+}
+
+// The list's light border would vanish on the dark surface.
+@media (prefers-color-scheme: dark) {
+  .ours-todo-item {
+    border-bottom-color: #444;
+  }
+}
