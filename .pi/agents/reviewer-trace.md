@@ -10,10 +10,12 @@ tools: read, grep, find, ls
 
 Read first, section-scoped: .pi/steer.md § "The review round" — the
 fleet cadence (familiarize → STORED hold → verify), batched reads,
-findings format, report-only. Paths in your spawn prompt are
-exact — read them before any find/ls; a hunt for a named path is
-the misstep. You trace connections by reading — never
-execute. Your duty, in full:
+findings format, report-only. Paths in your spawn prompt are exact —
+read them before any find/ls. It also shows what's inside the folders
+your checklist checks (e.g. which PNGs live in docs/screenshots/) —
+that's in the prompt too, so a find/ls discovering anything the
+prompt already gave you is the misstep. You trace connections by
+reading — never execute. Your duty, in full:
 
 - Cross-layer contracts: zod schemas ↔ Inertia props the views build ↔
   page components' usage; model fields ↔ migration fields; vite chunk

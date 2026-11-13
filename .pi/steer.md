@@ -259,8 +259,8 @@ lives in [Stage messages](#stage-messages):
   - [ ] `./run postdeploychecks` — every line PASS (tree clean,
         migrations applied, scratch gone)
   - [ ] single sentence report to user — what shipped, where it lives,
-        that the checklist is green — ending with the three links:
-        feature page, design doc, commit (see the CloseOut shape).
+        that the checklist is green — in the CloseOut shape (links as
+        bullets, conclusion last).
 
 **One turn through [2]→[4].** Code, checkscratch, review, triage/fixes, doc
 updates, and the final deploy run as ONE batch ending at the CommitOffer.
@@ -357,6 +357,13 @@ spawns them when the review runs. How many:
   `reviewer-correctness`, visual/diagram-only→`reviewer-image`.
   (Config/allowlist mirrors are NOT a reviewer's job — they are
   host-side tests; see INSTRUCTIONS.md § Mirrors.)
+
+Every fleet prompt carries what would otherwise need discovery: the
+requirement digest, the delta (changed files, one per line), the
+role's named file list — and the contents of any folder its checklist
+looks at as a whole (e.g. which PNGs live in docs/screenshots/).
+Verify resumes add the fix-diff file list. A reviewer running find/ls
+for anything its prompt already showed is the misstep.
 
 All reviewers report TERSELY and stop at the evidence: a clean
 verdict is ONE line ("no blockers, no majors; verified: <checked
@@ -477,7 +484,7 @@ succeeds** — the actual call runs and returns (the endpoint responds, the
 command exits 0). "The code looks right" is not done; verify by executing it.
 
 **Escalate instead of spinning.** If the **same** error recurs 2–3 times,
-stop and report via [BlockerAsk](#stage-messages) — you're missing something
+stop and report via [BlockerAsk](#blockerask--blocker) — you're missing something
 fundamental (e.g. a `from __future__ import annotations` schema needing
 `model_rebuild()`), and another retry won't fix it. Don't reason in circles
 silently, so I never have to ask "are you stuck". **Infra is mine, not
@@ -1044,9 +1051,9 @@ outside scratch is blocked; the whole tree stays `./run cleanscratch`.
 ## User communication
 
 ### Message structure (the single rule)
-Content first — the plan, the findings, the questions — then the **summary
-and links at the BOTTOM**, and the most important information (the decision
-you need, the verdict, the next step) as the LAST line: what I read last is
+Content first — the plan, the findings, the questions — then the
+summary with its Links checklist, and the single most important line
+(the decision you need, the verdict, the next step) as the LAST line: what I read last is
 what I act on. A last line that ASKS anything takes the numbered-choices +
 `Choose` shape from [Stage messages](#stage-messages) — verdict asks
 included, not just stage menus; a last line that only REPORTS (verdict
@@ -1058,43 +1065,8 @@ unverified URL is worse than no URL: it wastes a round-trip) — for
 mockup links, a green deployscratch already satisfies this: the
 rsync put the file into `main/`; check nothing.
 
-An APPROVAL-asking message bottom-loads exactly this way — details and
-analysis above, then a Conclusion block carrying the links and the key
-facts, then the menu, so the last few lines hold everything needed to
-decide:
-
-```
-<the geeky stuff — analysis, findings, caveats>
-
-# Conclusion
-<link to the mockup>
-<link to the design doc>
-<important info — what approving means, one line each>
-
-1 <option>
-2 <option>
-Choose
-```
-
-When the work is done and the suite is green, close with a short markdown
-summary in exactly this shape — operator-level, no dev detail (endpoints,
-bundles, migrations, file lists live in the design doc, not in the
-message):
-- **Requirement** — one line restating what was asked.
-- **What changed** — the feature(s) and behavior added or fixed, in plain
-  words.
-- **Tests** — confirmation the suite + deploy are green.
-- **Links** — a checklist of absolute URLs (verified against the tree, built
-  from the deployed base URL) to share:
-  - [ ] the design doc — `<base>/files/main/ourapp/docs/<feature>.md`
-  - [ ] the homepage — `<base>/`
-  - [ ] the feature's page(s) — `<base>/<page-url>`
-- **The most important line LAST** — verdict/next step; if it asks for a
-  decision, numbered choices + `Choose`.
-
-Keep it tight. For a trivial change a single sentence is enough; don't pad.
-
-**Notification receipts are not messages.** A background completion
+### Notification receipts are not messages
+A background completion
 that needs nothing from the operator — a familiarize stored, a
 subagent still running, "nothing needed from you" — never produces a
 user-facing message: absorb it and keep working. **Banked agents are
@@ -1105,7 +1077,8 @@ the verdicts in the fix list) — restating the bank doubles the bell.
 GROUNDWORK is never reported in any form — not its completion, not its
 progress — the plan surfaces in the gate message and nowhere else.
 Speak when state the operator is watching changes, in ONE line (a
-batch went green; all verdicts are in). "Still running" snapshots are
+batch went green; all verdicts are in) — never while an ask is open;
+those lines wait for the pick. "Still running" snapshots are
 noise by definition.
 
 ### Stage messages
@@ -1124,9 +1097,8 @@ rules, then shipping the pages"), never internal jargon
 ("`checkmarkdownd2` fence validation with SVG renders" means nothing
 to the operator).
 Acronyms and stage codenames explain themselves or get expanded.
-Verify every link's file exists in `main/` before sharing (see
-[Linking](#linking-absolute-urls-markdown-only)); never deploy a design
-artifact silently, and never label a mockup link as the finished page.
+Never deploy a design artifact silently, and never label a mockup link
+as the finished page.
 
 **Menus and questions are numbered, and every ask ends with a closer.**
 The default closer is bare `Choose`; a message shape may define its own.
@@ -1145,181 +1117,224 @@ We need to do this. Here are your choices
 Choose
 ```
 
-**An ask is terminal.** Once a message closes with numbered choices +
-`Choose` (a gate menu or a BlockerAsk), it is the LAST word until the
-operator picks. Background notifications landing meanwhile — a
-reviewer finishing, a subagent completing — are absorbed silently:
-steer, collect, triage, but never echo them as new messages, and never
-re-ack the open menu ("still waiting on your pick"). While the ask is
-open, watched-state lines (a batch going green, verdicts landing)
-wait too — they ride the turn after the pick. Re-send only the FULL
-menu (never bare numbers), and only if it scrolled away or state
-materially changed.
+**An ask is terminal — and re-presented after any event output.** Once
+a message closes with numbered choices + `Choose` (a gate menu or a
+BlockerAsk), it is the LAST word until the operator picks. Background
+notifications landing meanwhile — a reviewer finishing, a subagent
+completing — are absorbed silently: steer, collect, triage, but never
+echo them as new messages, and never re-ack the open menu ("still
+waiting on your pick"). While the ask is open, watched-state lines (a
+batch going green, verdicts landing) wait too — they ride the turn
+after the pick. But if an event forces VISIBLE output while the ask is
+pending — a blocker surfaced, any
+thinking trace with its conclusion — print the pending message AGAIN,
+in full (never bare numbers), as the new last word: whatever pushed it
+off the bottom of the screen pushed the decision away with it, and the
+open ask is what the operator acts on. Except when the event itself
+ends in an ask (a BlockerAsk of its own): a fresh ask IS the new last
+word — never bury its choices under the re-printed old menu; the
+displaced ask rides the turn after the new one resolves.
 
-- **DesignQuestions — stage-1 design questions (ONE message, before any
-  authoring)**
-  - numbered questions, lettered nested options, the default of each
-    **bold**; the closer invites refining the defaults or picking
-    others — it replaces the bare `Choose` for this message type only
-    (a reply is still required; silence never advances)
-  - example:
+#### DesignQuestions — stage-1 design questions (ONE message, before any authoring)
 
-    ```
-    Building the recipes feature — three choices before I draw anything.
-    Defaults in bold.
+- numbered questions, lettered nested options, the default of each
+  **bold**; the closer invites refining the defaults or picking
+  others — it replaces the bare `Choose` for this message type only
+  (a reply is still required; silence never advances)
+- example:
 
-    1. Who can add recipes?
-       - **(a) any signed-in user**
-       - (b) only admins
-    2. Organize how?
-       - **(a) by category — picked from a fixed list**
-       - (b) free-form tags
-    3. Homepage surface?
-       - (a) plain link
-       - **(b) summary card — "12 recipes, 3 added this week"**
+```
+Building the recipes feature — three choices before I draw anything.
+Defaults in bold.
 
-    Keep the **defaults**, improve them (say what to change), or pick
-    others — e.g. `1b, 2b, 3 show total recipes, not per week`.
-    ```
-- **BuildPlan — what ships, sent after the DesignQuestions answers**
-  - one line recapping the picks; the implementation grouped by page/
-    feature — actions as points, an Authorization line per group;
-    closes with the build-path menu + `Choose` (pick 2 skips the
-    mockup stage — no scratch yet: pick 2 creates it and goes
-    straight to the coder)
-  - example:
+1. Who can add recipes?
+   - **(a) any signed-in user**
+   - (b) only admins
+2. Organize how?
+   - **(a) by category — picked from a fixed list**
+   - (b) free-form tags
+3. Homepage surface?
+   - (a) plain link
+   - **(b) summary card — "12 recipes, 3 added this week"**
 
-    ```
-    From your picks (anyone adds, fixed categories, summary card) — what
-    I'll build:
+Keep the **defaults**, improve them (say what to change), or pick
+others — e.g. `1b, 2b, 3 show total recipes, not per week`.
+```
 
-    Recipes page (/recipes)
-    - card grid by category: title, short description, added by
-    - add a recipe; edit your own
-    - Authorization: browsing — any signed-in user, anonymous gets a
-      404; editing — only the author
+#### BuildPlan — what ships, sent after the DesignQuestions answers
 
-    Recipe detail (card titles link here, /recipes/{id})
-    - full recipe, the edit form for the author
-    - Authorization: viewing — any signed-in user
+- one line recapping the picks; the implementation grouped by page/
+  feature — actions as points, an Authorization line per group;
+  closes with the build-path menu + `Choose` (pick 2 skips the
+  mockup stage — no scratch yet: pick 2 creates it and goes
+  straight to the coder)
+- example:
 
-    Homepage
-    - summary card: total recipes, newest title — signed-in only
+```
+From your picks (anyone adds, fixed categories, summary card) — what
+I'll build:
 
-    1. mockups + the design doc first — you review, then I build
-    2. build the app directly
+Recipes page (/recipes)
+- card grid by category: title, short description, added by
+- add a recipe; edit your own
+- Authorization: browsing — any signed-in user, anonymous gets a
+  404; editing — only the author
 
-    Choose
-    ```
+Recipe detail (card titles link here, /recipes/{id})
+- full recipe, the edit form for the author
+- Authorization: viewing — any signed-in user
 
-- **MockupDocsGate — mockups + the initial design doc (one gate)**
-  - [ ] one line of intent
-  - [ ] mockup links, each labeled `(mockup quality)`
-        (e.g. `[todos (mockup quality)](<base>/mockup/MockupTodos)`)
-  - [ ] what's interactive (state, cross-page links), if any
-  - [ ] the initial design-doc link — 3 filled sections (Who can do
-        what / The data / How the data changes) + the pending markers
-  - [ ] the coder's preliminary plan from groundwork (paste it —
-        the operator reviews the plan WITH the docs)
-  - [ ] menu: 1. revise mockups/docs 2. approve — implement — then
-        `Choose`
-  - [ ] shaped per [Message structure](#message-structure-the-single-rule)
-- **BlockerAsk — blocker**
-  - [ ] what failed
-  - [ ] what you tried
-  - [ ] what you need from me — as numbered choices + `Choose` (it's an ask)
-  - [ ] shaped per [Message structure](#message-structure-the-single-rule)
-- **FinalReport — final summary**
-  - [ ] the Requirement / What changed / Tests / Links checklist
-        in [Message structure](#message-structure-the-single-rule)
-- **CommitOffer — offer to commit**
-  - which feature(s) this adds, in plain words — no dev detail
-    (endpoints, bundles, migrations, file lists belong in the design
-    doc, never in this message)
-  - links: the feature's page(s) + the design doc
-    (`<base>/files/main/ourapp/docs/<feature>.md`)
-  - menu: 1. commit 2. hold — then `Choose` (commits stay the human's
-    call)
-  - a re-attached standing offer repeats the feature line + the links —
-    never bare numbers
-  - shaped per [Message structure](#message-structure-the-single-rule)
-- **CloseOut — post-commit close-out** (stage [5]; no menu — it runs after the
-  commit lands):
-  - the checklist stated as done, one line (clean tree, single feature
-    commit, migrations + production scripts executed, scratch gone);
-  - which feature(s) shipped, in plain words;
-  - the ONE-sentence report;
-  - ENDING with three links, markdown form `[label](<url>)`:
-    the feature page (`<base>/<path>`), the design doc
-    (`<base>/files/main/ourapp/docs/<feature>.md`), the commit
-    (`<base>/git/commits/<sha>`).
+Homepage
+- summary card: total recipes, newest title — signed-in only
 
-### Plan format — data models first
-That order is clearest for
-the user to sanity-check before you start; keep it a tight list, not prose.
-- **Models** — each model with its fields and key relationships (foreign keys,
-  ownership), in the order you'd add them. This is the foundation; getting it
-  right makes the rest obvious.
-- **Features** — the endpoints (django-ninja API: HTTP verb + path) and Inertia
-  pages that build on those models, plus any notable model/manager methods.
+1. mockups + the design doc first — you review, then I build
+2. build the app directly
 
-### Reply format
-Reply in **markdown** — headings, lists, fenced code blocks, `` `inline
-code` ``, tables and links. Diagrams live in the design doc and mockups
-are deployed pages — both shared as absolute links (see
-[Mockups](#mockups)).
+Choose
+```
+
+#### MockupDocsGate — mockups + the initial design doc (one gate)
+
+- one line of intent
+- mockup links, each labeled `(mockup quality)`
+  (e.g. `[/mockup/MockupTodos (mockup quality)](<base>/mockup/MockupTodos)`)
+- what's interactive (state, cross-page links), if any
+- the initial design-doc link — 3 filled sections (Who can do
+  what / The data / How the data changes) + the pending markers
+- the coder's preliminary plan from groundwork (paste it —
+  the operator reviews the plan WITH the docs)
+- menu: 1. revise mockups/docs 2. approve — implement — then
+  `Choose`
+- shaped per [Message structure](#message-structure-the-single-rule)
+
+#### BlockerAsk — blocker
+
+- what failed
+- what you tried
+- what you need from me — as numbered choices + `Choose` (it's an ask)
+- shaped per [Message structure](#message-structure-the-single-rule)
+
+#### FinalReport — final summary
+
+- **Requirement** — one line restating what was asked.
+- **What changed** — the feature(s) and behavior added or fixed, in
+  plain words — no dev detail (endpoints, bundles, migrations, file
+  lists live in the design doc, not in the message).
+- **Tests** — confirmation the suite + deploy are green.
+- **Links** — a checklist of absolute URLs (verified against the tree,
+  built from the deployed base URL), one per bullet, markdown form
+  `[label](<absolute-url>)` with the label carrying the path:
+  - the design doc —
+    `[ourapp/docs/<feature>.md](<base>/files/main/ourapp/docs/<feature>.md)`
+  - the homepage — `[<base>](<base>/)`
+  - the feature's page(s) — `[<page-url>](<base>/<page-url>)`
+- **The most important line LAST** — verdict/next step; if it asks
+  for a decision, numbered choices + `Choose`.
+- keep it tight — a trivial change is one sentence.
+- example:
+
+```
+Requirement — a chore tracker with recurring schedules.
+What changed — due-sorted chore list with overdue in red, per-chore
+completion history, archive, homepage counts. Tests — suite, e2e,
+review round, visual pass: all green.
+
+- the design doc: [ourapp/docs/chores.md](<base>/files/main/ourapp/docs/chores.md)
+- the homepage: [<base>](<base>/)
+- the feature page: [/chores](<base>/chores)
+
+Ready to offer the commit.
+```
+
+#### CommitOffer — offer to commit
+
+- which feature(s) this adds, in plain words — no dev detail
+  (endpoints, bundles, migrations, file lists belong in the design
+  doc, never in this message)
+- links: the feature's page(s) + the design doc, markdown form,
+  one per bullet
+- menu: 1. commit 2. hold — then `Choose` (commits stay the human's
+  call)
+- a re-attached standing offer repeats the feature line + the links —
+  never bare numbers
+- shaped per [Message structure](#message-structure-the-single-rule)
+- example:
+
+```
+The recipes feature is built, green, and deployed — ready to commit.
+
+- the feature page: [/recipes](<base>/recipes)
+- the design doc: [ourapp/docs/recipes.md](<base>/files/main/ourapp/docs/recipes.md)
+
+One commit carries the whole feature; commits stay your call.
+
+1. commit
+2. hold
+
+Choose
+```
+
+#### CloseOut — post-commit close-out
+
+(stage [5]; no menu — it runs after the commit lands)
+
+- the checklist stated as done, one line (clean tree, single feature
+  commit, migrations + production scripts executed, scratch gone);
+- which feature(s) shipped, in plain words;
+- the ONE-sentence report;
+- the Links checklist, one per bullet, markdown form
+  `[label](<url>)`: the feature page (`<base>/<path>`), the design
+  doc (`<base>/files/main/ourapp/docs/<feature>.md`), the commit
+  (`<base>/git/commits/<sha>`);
+- the conclusion as the LAST line — a plain closing statement
+  (nothing is pending after the commit);
+- example:
+
+```
+Checklist green — tree clean, one feature commit, migrations applied,
+scratch gone.
+
+The recipes feature shipped — anyone adds, category browsing, a live
+summary card on the homepage.
+
+Suite, e2e, review round, and visual pass are all green.
+
+- the feature page: [/recipes](<base>/recipes)
+- the design doc: [ourapp/docs/recipes.md](<base>/files/main/ourapp/docs/recipes.md)
+- the commit: [git/commits/57234cd](<base>/git/commits/57234cd)
+
+Nothing is pending — enjoy the recipes.
+```
 
 ### Todos and subagents
-- **Checklist in your messages** — one item per step, marked done (`[x]`)
-  as you complete it, repeated at the top of each stage report.
-- **Agent types** — the package builtins `general-purpose`/`Explore`/`Plan`
-  plus this repo's `.pi/agents/`: `coder`, the rule-focused reviewers
-  (correctness, conventions, trace), and `reviewer-image` (the
-  visual pass over rendered fences — a full fleet member, spawned at
-  the coder's first green batch).
-- **Use subagents for** parallel independent research (parallel mode) and
-  **reviewing your work** — before reporting done, spawn the specialist
-  matching the diff (the small-diff routing) to re-read it against the
-  requirement. Not for a single lookup (do
-  that yourself).
-- **Spend thinking where it pays** — the coder works in many cheap
-  turns; reviewers make one deep judgment:
-  - the coder file already pins `thinking: low` — raise it only for a
-    gnarly batch; leave reviewers at the session's level;
-  - any spawn accepts `thinking` (off | minimal | low | medium | high |
-    xhigh | max) and `model`;
-  - what you pass wins; otherwise the agent file's value applies.
+- **Review your own small diffs** — outside the feature flow, before
+  reporting done on a non-trivial change, spawn the matching reviewer
+  to re-read it against the requirement; not for single lookups.
+- **Spawn options** — any spawn accepts `model` and `thinking`
+  (off|minimal|low|medium|high|xhigh|max); what you pass wins,
+  otherwise the agent file's value applies (the coder pins low —
+  raise only for a gnarly batch).
 - **Permissions** — subagents run under the SAME policy; their `ask`
-  decisions are FORWARDED to the operator's TUI, and in headless runs
-  (no UI anywhere) asks are DENIED — keep subagent tasks allowlist-clean.
+  decisions forward to the operator's TUI, and in headless runs asks
+  are DENIED — keep subagent tasks allowlist-clean.
 
 ### Linking (absolute URLs, markdown only)
-Only absolute URLs are clickable in chat — link as markdown
-`[label](<absolute-url>)`. Base URL: `./run djangomanage baseurls`
-(allowlisted) prints the deployed origins; use the first verbatim —
-never assume one or read the env file. Do not access the site yourself
-(you have no authenticated browser session). Placement:
-[Message structure](#message-structure-the-single-rule).
+Link as markdown `[label](<absolute-url>)`, the label carrying the
+path (`[/recipes]`, `[ourapp/urls.py]`) — stripped copies still
+identify the target. Base URL: `./run djangomanage baseurls`
+(allowlisted) — use the first verbatim; never assume one or read the
+env. Don't browse the site yourself (no authenticated session).
+Placement: [Message structure](#message-structure-the-single-rule).
 
-- **Files** — superuser-only viewer rooted at the parent of `main/`: the URL
-  carries the repo segment — `<base>/files/main/<repo-root-relative path>`
-  (e.g. `[urls.py](<base>/files/main/ourapp/urls.py)`;
-  scratch files: `<base>/files/scratch/<path>`); inline image =
-  `<base>/files/raw/main/<path>`, download = `<base>/files/download/main/<path>`.
-  A path without the `main/` (or `scratch/`) segment 404s.
-- **Git** — superuser-only; link the most specific view to back a claim:
-  - `/git/uncommitted/` — uncommitted files for both worktrees (main, then scratch)
-  - `/git/uncommitted/main/<path>` — a `main` file's uncommitted diff
-  - `/git/uncommitted/scratch/<path>` — a `scratch` file's uncommitted diff
-  - `/git/commits` — commit list, paginated (`?page=N`); `main` only
-  - `/git/commits/<sha>` — a commit's changed files; `main` only
-  - `/git/commits/<sha>/<path>` — a file's diff in a commit; `main` only
-
-`<path>` is repo-relative; `<sha>` is a full or short (≥4 hex) commit id.
-Prefer the most specific link (a diff over the list, a commit link over the
-list). Commits read `main/` only — scratch shares main's history but its
-commits never flow back (`.git` is excluded from deployscratch), so link
-`scratch/` edits via `/git/uncommitted/scratch/<path>`.
+- **Files** — `<base>/files/main/<repo-relative path>` (scratch:
+  `/files/scratch/<path>`); inline image `/files/raw/main/<path>`,
+  download `/files/download/main/<path>` — a path without the `main/`
+  (or `scratch/`) segment 404s.
+- **Git** — back claims with the most specific view: `/git/commits/<sha>`
+  or `/git/commits/<sha>/<path>` (`<sha>` full or ≥4 hex, main only),
+  `/git/uncommitted/[main|scratch]/<path>`, list `/git/commits?page=N`.
+  Commits read `main/` only — scratch's `.git` never flows back, so
+  link scratch edits via `/git/uncommitted/scratch/<path>`.
 
 ## Working on the app
 Read code in this priority order:

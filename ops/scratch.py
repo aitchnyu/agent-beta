@@ -890,8 +890,5 @@ class Deployscratch(Command):
         step_banner("baseurls")
         print("Deployed scratch/ → main/ (uncommitted, services live). Commit in main/ when ready.")
         print(
-            "Share absolute URLs you verified exist in main/ at the BOTTOM of your message (with the summary):"
-        )
-        print(
-            f"  docs: {url_base}/files/main/ourapp/docs/<feature>.md · pages: {url_base}/<page-url>"
+            f"Close per steer's stage templates (FinalReport → CommitOffer → CloseOut) — base URL: {url_base}"
         )

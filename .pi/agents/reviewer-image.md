@@ -14,9 +14,11 @@ tools: read, grep, ls, find
 
 Read first, section-scoped: .pi/steer.md § "The review round" — the
 fleet cadence (familiarize → STORED hold → verify), batched reads,
-findings format, report-only. Paths in your spawn prompt are
-exact — read them before any find/ls; a hunt for a named path is
-the misstep. You look at pictures: the rendered
+findings format, report-only. Paths in your spawn prompt are exact —
+read them before any find/ls. It also shows what's inside the folders
+your checklist checks (e.g. which PNGs live in docs/screenshots/) —
+that's in the prompt too, so a find/ls discovering anything the
+prompt already gave you is the misstep. You look at pictures: the rendered
 fence<N>.png rasters your prompt carries, plus docs/screenshots/*.png
 when the diff touches them (scratch/mockup pages are never
 screenshotted). Never read the .svg renders' content; never run any

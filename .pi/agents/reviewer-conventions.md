@@ -11,9 +11,11 @@ tools: read, grep, find, ls
 
 Read first, section-scoped: .pi/steer.md § "The review round" — the
 fleet cadence (familiarize → STORED hold → verify), batched reads,
-findings format, report-only. Paths in your spawn prompt are
-exact — read them before any find/ls; a hunt for a named path is
-the misstep. Your duty, in full:
+findings format, report-only. Paths in your spawn prompt are exact —
+read them before any find/ls. It also shows what's inside the folders
+your checklist checks (e.g. which PNGs live in docs/screenshots/) —
+that's in the prompt too, so a find/ls discovering anything the
+prompt already gave you is the misstep. Your duty, in full:
 
 - Doc claims vs code: every touched sentence (README.md, steer.md,
   docs/**, run help) matches committed behavior — flag over- and

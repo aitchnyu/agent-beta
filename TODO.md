@@ -1,3 +1,9 @@
+Did any agent need more groundwork?
+Permissions?
+If some message came after, replay that message
+ Track your chores at localhost:8000/chores, read the design doc at ourapp/docs/chores.md, see the commit at
+ localhost:8000/git/commits/57234cd.
+
 I want requirements gathering to be done before scratch is created. I want user to do their inputs contigiously before system spends time on creating scratch. What does codebase say?
 
 scratch, coder groundwork with repomap
