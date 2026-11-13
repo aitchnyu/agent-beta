@@ -1,3 +1,11 @@
+I want requirements gathering to be done before scratch is created. I want user to do their inputs contigiously before system spends time on creating scratch. What does codebase say?
+
+scratch, coder groundwork with repomap
+read srv/desmo permission?
+image reviewer checks source
+pass stuff to coder, make it standby
+Check last commit. why were screenshots regenerated? Why not new ss test files for chores? Why were mock screenshots kept?
+
 gantt
 line numbers for highlight.
 review of our changes, squash

@@ -49,7 +49,8 @@ checklist close.
   "The data" / "How the data changes", fences included) plus
   `pending` markers; the coder fills a marker in the batch that
   implements it.
-- The `coder` spawns as GROUNDWORK at stage-1 start and holds through
+- The `coder` spawns as GROUNDWORK at the BuildPlan pick (parallel
+  to `createscratch`) and holds through
   the gate; the fleet familiarizes at the coder's FIRST green batch
   and verifies at final green; reviewer-image is a full fleet member
   (its visual pass judges fresh final renders).
@@ -156,7 +157,7 @@ Copy from the §9 skeletons first; the §7 reference files back them.
 - Class docstring = one line + one bullet per test, declaration
   order. Run: `./run test <labels…>` / `--full`; e2e:
   `./run playwrighttest <labels…>`; README PNGs:
-  `./run screenshots`.
+  `./run screenshots <TestClass>`.
 
 ## 7. First parallel batch — the copy-me exemplars (ONE batch, no ls/find)
 

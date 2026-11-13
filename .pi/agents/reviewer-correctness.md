@@ -11,7 +11,9 @@ tools: read, grep, find, ls
 Read first, section-scoped: .pi/steer.md § "The review round" — the
 fleet cadence (familiarize at the coder's first green batch → STORED
 hold → verify at final green), batched reads, findings format,
-report-only. Your duty, in full:
+report-only. Paths in your spawn prompt are exact — read them
+before any find/ls; a hunt for a named path is the misstep. Your
+duty, in full:
 
 - The requirement + design doc (ourapp/docs/<feature>.md) are the
   contract: every clause implemented, nothing invented beyond them.

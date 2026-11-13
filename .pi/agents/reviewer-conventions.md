@@ -11,14 +11,17 @@ tools: read, grep, find, ls
 
 Read first, section-scoped: .pi/steer.md § "The review round" — the
 fleet cadence (familiarize → STORED hold → verify), batched reads,
-findings format, report-only. Your duty, in full:
+findings format, report-only. Paths in your spawn prompt are
+exact — read them before any find/ls; a hunt for a named path is
+the misstep. Your duty, in full:
 
 - Doc claims vs code: every touched sentence (README.md, steer.md,
   docs/**, run help) matches committed behavior — flag over- and
   under-promising. Logging claims: docs/logging.md is the source.
 - Stale screenshots: a diff changing a page rendered in
-  docs/screenshots/ without regenerating that PNG (./run screenshots)
-  is a finding.
+  docs/screenshots/ without regenerating that PNG is a finding.
+  Re-captured PNGs of pages the diff did NOT touch are churn — flag
+  them.
 - Style: comments short and pointed, descriptive names, no duplicated
   comment blocks.
 - TODO.md: items this diff implements must not remain open; flag

@@ -118,9 +118,12 @@ yourself.
 request
   |
   v
-[1] MOCKUPS + DOCS      mockup pages + the INITIAL doc (3 sections, rest
-  |   `pending`) authored together; coder GROUNDWORK spawns at stage
-  |   start; ONE deploy — the mockup+doc presentation.
+[1] MOCKUPS + DOCS      design questions → BuildPlan pick FIRST (operator
+  |                      inputs contiguous); then createscratch + coder
+  |                      GROUNDWORK spawn; mockup pages + the INITIAL
+  |                      doc (3 sections, rest `pending`) authored
+  |                      together; ONE deploy — the mockup+doc
+  |                      presentation.
   |   share doc + mockup links (MockupDocsGate) --> user picks:
   |      revise docs/mockups ... back as directed
    |      approve .............. to [2] — the coder implements; the
@@ -149,25 +152,34 @@ Stage rules carry the TECHNICAL constraints only — every message shape
 lives in [Stage messages](#stage-messages):
 
 - **[1] Mockups + docs — one stage, one gate, one deploy.**
-   - `createscratch` once. Then, BEFORE any authoring: ONE message to
-      the operator with your remaining design questions (DesignQuestions
-      shape, [Stage messages](#stage-messages)) — the choices the
-      mockups are about to freeze (what each page shows, the summary's
-      shape, list vs detail split). Authoring starts only after the
-      answers arrive; never bake assumptions into mockups and let the
-      gate catch them. After the answers, send the BuildPlan (same
+   - Requirements gather FIRST, contiguous: orientation reads (repo
+      map + coder contract) then ONE message to the operator with
+      your remaining design questions (DesignQuestions shape,
+      [Stage messages](#stage-messages)) — the choices the mockups
+      are about to freeze (what each page shows, the summary's shape,
+      list vs detail split). Authoring starts only after the answers
+      arrive; never bake assumptions into mockups and let the gate
+      catch them. After the answers, send the BuildPlan (same
       section): its pick 1 continues this stage (mockups + doc), pick 2
-      skips straight to building. Then author mockup pages (mechanics:
+      skips straight to building.
+   - Machine spending starts only at the BuildPlan pick:
+      `createscratch` once, then the coder GROUNDWORK spawn —
+      parallel to each other. No scratch for a requirement that still
+      has open questions; and the groundwork's completion lands while
+      you are mid-turn (creating scratch / authoring), so its
+      notification is consumed silently instead of firing under an
+      open ask. Then author mockup pages (mechanics:
       [Mockups](#mockups)) AND the initial design doc together. The doc
-     fills exactly three sections — "Who can do what", "The data"
-     (with its d2 fences), "How the data changes" (with its fences);
-     every later section stays a `pending` marker until the coder
-     fills it in [2] ([Feature docs](#feature-docs)).
-    - Warm-up spawn at stage start, parallel to authoring: coder
-       GROUNDWORK only (doc-independent reads + preliminary plan, then
-       holds — reading list in `.pi/agents/coder.md`). The reviewer
-       fleet — reviewer-image carrying the visual pass — launches
-       AFTER coding starts (first green batch); see [2].
+      fills exactly three sections — "Who can do what", "The data"
+      (with its d2 fences), "How the data changes" (with its fences);
+      every later section stays a `pending` marker until the coder
+      fills it in [2] ([Feature docs](#feature-docs)).
+     - Groundwork (doc-independent reads + preliminary plan, then
+        holds — reading list in `.pi/agents/coder.md`) spawns at the
+        BuildPlan pick, parallel to scratch creation and authoring.
+        The reviewer
+        fleet — reviewer-image carrying the visual pass — launches
+        AFTER coding starts (first green batch); see [2].
    - Presentation deploy: lintfix → `./run deployscratch` → share doc +
       mockup links; a green deploy IS the verification. The operator's
       eyes on the rendered doc/mockups are the gate's image check.
@@ -740,9 +752,10 @@ Skip a section that doesn't apply; never pad one.
    - the safety rails as bullets (uniqueness, version checks, atomicity,
      clamping)
 5. **What you see.** The UI walkthrough — pages, groups, buttons, feedback.
-   - Embed each screen's generated screenshot (the screenshot suite writes
-     them to `docs/screenshots/`). A diff that changes a page rendered
-     there regenerates that PNG in the same batch.
+    - Embed each screen's generated screenshot (the screenshot suite writes
+      them to `docs/screenshots/`). A diff that changes a page rendered
+      there regenerates that PNG in the same batch — scoped,
+      `./run screenshots <TestClass>`.
 6. **History (optional).** Notable behavior changes over time — a
    capability added or removed, a rule changed. A first release skips this.
 7. **For developers.** Field rules, algorithm internals, the endpoints,
@@ -1172,7 +1185,8 @@ materially changed.
   - one line recapping the picks; the implementation grouped by page/
     feature — actions as points, an Authorization line per group;
     closes with the build-path menu + `Choose` (pick 2 skips the
-    mockup stage — groundwork already runs)
+    mockup stage — no scratch yet: pick 2 creates it and goes
+    straight to the coder)
   - example:
 
     ```
@@ -2180,7 +2194,7 @@ export form for readability:
 ```bash
 # PREFER — export, then the bare command: both chain sections are clean
 export COPYFILE_DISABLE=1 && ./run test accounts
-export GENERATE_SCREENSHOTS=1 && ./run screenshots
+export GENERATE_SCREENSHOTS=1 && ./run screenshots <TestClass>
 ```
 
 The allowlisted commands (defined in the `bash` map of
@@ -2195,6 +2209,7 @@ The allowlisted commands (defined in the `bash` map of
 ./run typecheck                      # …and ./run lintfix
 ./run test …                         # any args
 ./run playwrighttest …
+./run screenshots <TestClass>          # scoped — the bare form is refused
 ./run djangomanage makemigrations …  # … / migrate / findstatic / baseurls
                                       # (findstatic, baseurls are read-only)
 npm run build                        # from frontend/

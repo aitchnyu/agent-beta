@@ -10,7 +10,9 @@ tools: read, grep, find, ls
 
 Read first, section-scoped: .pi/steer.md § "The review round" — the
 fleet cadence (familiarize → STORED hold → verify), batched reads,
-findings format, report-only. You trace connections by reading — never
+findings format, report-only. Paths in your spawn prompt are
+exact — read them before any find/ls; a hunt for a named path is
+the misstep. You trace connections by reading — never
 execute. Your duty, in full:
 
 - Cross-layer contracts: zod schemas ↔ Inertia props the views build ↔

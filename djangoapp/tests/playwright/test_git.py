@@ -198,7 +198,7 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         """The diff shows side-by-side on wide viewports, line-by-line on narrow.
 
         Both formats render up front (one diff2html container each); a CSS
-        media query (768px) picks the visible one — no JS resize handling, so
+        media query (992px) picks the visible one — no JS resize handling, so
         the assert is simply which container shows.
         """
         page = self.page

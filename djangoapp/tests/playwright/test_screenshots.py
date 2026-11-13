@@ -39,7 +39,7 @@ if TYPE_CHECKING:
     from playwright.sync_api import FloatRect, ViewportSize
 
 # The README's screenshot viewport: desktop width (the git diff renders its
-# side-by-side view at ≥768px) with a modest height — cards taller than the
+# side-by-side view at ≥992px) with a modest height — cards taller than the
 # viewport are still captured whole (Playwright element screenshots scroll
 # and stitch).
 _SCREENSHOT_VIEWPORT: ViewportSize = {"width": 1280, "height": 960}

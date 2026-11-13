@@ -308,6 +308,7 @@ playwrighttest() {
 # Regenerates the committed README PNGs in docs/screenshots/ — logic in
 # ops/testsuite.py (overlay recipe: docs/screenshots/README.md).
 screenshots() {
+  [ $# -gt 0 ] || { echo "screenshots needs a scoped test label (./run screenshots <TestClass>) — a bare run re-captures the whole suite and churns every PNG" >&2; return 1; }
   setenv
   _ops_cli screenshots "$@"
 }
