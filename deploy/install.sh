@@ -24,7 +24,7 @@
 #
 # After the provision's phases: basic self-tests (units active + one
 # HTTPS smoke on the site root) + the access steps. The
-# full in-VM battery stays a local-test follow-up (deploy/checkframework2-gate.sh gate —
+# full in-VM battery stays a local-test follow-up (ops.checkframework2 —
 # which itself refuses non-loopback installs: a --base-url VM never runs
 # it).
 #

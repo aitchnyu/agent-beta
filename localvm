@@ -152,16 +152,21 @@ provision-blank() {
   fi
   echo "[$(date +%T)] ==> incus launch $instance (debian $release, incusbr0 NAT, 2G memory cap) — blank"
   incus launch "$image_family/$release" "$instance" --config limits.memory=2GB
-  # Wait for the guest's boot to settle — one check, no polling: an exec
-  # can land BEFORE systemd mounts the /tmp tmpfs, and a file written then
-  # hides under the later mount (the payload race). multi-user.target
-  # active = /tmp mounted; not active yet = a live BLANK instance that a
-  # plain rerun would refuse — delete + rebuild.
-  if ! incus exec "$instance" -- systemctl is-active multi-user.target >/dev/null 2>&1; then
-    echo "FAILED: $instance not settled right after launch (multi-user.target not active)." >&2
-    echo "  Rebuild: ./localvm delete $instance && ./localvm provision-full $instance" >&2
-    exit 1
-  fi
+  # Settle before shipping anything:
+  # - incus launch returns at START, not boot completion
+  # - an exec before the /tmp tmpfs mounts writes files UNDER it (the
+  #   payload race)
+  # - multi-user.target active = /tmp mounted
+  local tries=0
+  until incus exec "$instance" -- systemctl is-active multi-user.target >/dev/null 2>&1; do
+    tries=$((tries + 1))
+    if [ "$tries" -ge 30 ]; then
+      echo "FAILED: $instance not settled after 30s (multi-user.target not active)." >&2
+      echo "  Rebuild: ./localvm delete $instance && ./localvm provision-full $instance" >&2
+      exit 1
+    fi
+    sleep 1
+  done
   [ "$forward" = "yes" ] && portforward "$instance"
 
   local repo_url raw_path

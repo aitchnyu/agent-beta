@@ -344,96 +344,18 @@ _require_scratch_cwd() {
   fi
 }
 
-# The full gate: lint + types in main/, then FOUR test stages — 1-3 under
-# coverage, merged into one report:
-#   1. unit suite (main/; project tests self-skip — no RUN_PROJECT_TESTS)
-#   2. Playwright pass (main/; StaticLiveServerTestCase is an in-process
-#      thread, so plain coverage captures the server code)
-#   3. project tier (scratch + testapp overlay, RUN_PROJECT_TESTS=1) — the
-#      concrete-BaseModel flows: save_plus/update logs/FileField cleanup/manage
-#   4. reference tier (scratch + docs/reference overlay) — the reference
-#      app validated FOR ITS OWN SAKE (its own tests over a built bundle);
-#      NOT under coverage: it must not contribute to the merged report
+# The full gate: logic in ops/checkframework1.py (four test stages, 1-3
+# under coverage, merged into one report) — this shim keeps the bash
+# context: main/'s ./run only (scratch's copy would rm -rf its own
+# tree), never in the VM (the VM has its own gate), and setenv.
 checkframework1() {
-  # main/'s ./run only (scratch's copy would rm -rf its own tree), and never
-  # in the VM — the VM has its own gate (checkframework2-gate.sh).
   _require_main_run checkframework1 || return 1
   if is_running_on_vm; then
     echo "Refusing: checkframework1 is a dev-side gate; the VM runs checkframework2." >&2
     return 1
   fi
   setenv
-  # Reset the fragment staging dir (.coverage-stage/, gitignored) — a
-  # previous gate run that died before combine leaves it behind. Same for
-  # main's own .coverage.* strays: only a successful combine deletes them,
-  # and folding stale ones in would corrupt the merged report.
-  rm -rf "$_TREE_DIR/.coverage-stage"
-  mkdir -p "$_TREE_DIR/.coverage-stage"
-  rm -f "$_TREE_DIR"/.coverage.*
-  echo "Running ruff format --check (formatting drift)"
-  uv run ruff format $_RUFF_COLOR --check
-  echo "Running ruff check (lint)"
-  uv run ruff check $_RUFF_COLOR
-  echo "Running mypy for type checking"
-  uv run mypy $_MYPY_COLOR .
-  echo "Running test under coverage (stage 1/4: unit suite)"
-  _with_test_redis uv run coverage run --parallel-mode --source=djangoapp,ourapp \
-    manage.py test $_DJANGO_NO_COLOR --exclude-tag playwright --noinput
-  cd frontend
-  echo "Running frontend linting"
-  npm run lint
-  echo "Running frontend build (type-check + vite, bundle for the Playwright pass)"
-  npm run build
-  cd ..
-  echo "Running Playwright tests under coverage (stage 2/4)"
-  _with_test_redis uv run coverage run --parallel-mode --source=djangoapp,ourapp \
-    manage.py test $_DJANGO_NO_COLOR --tag playwright --noinput
-
-  echo "=== stage 3/4: project tests over the test app (scratch copy) ==="
-  # The overlay replaces ourapp/ wholesale with fixture code — measure
-  # --source=djangoapp only (never that ourapp/).
-  _ops_cli createscratch
-  overlay_app "$_TREE_DIR/djangoapp/tests/testapp"
-  ( cd "$_SCRATCH_DIR"
-    # typecheck only — lintfix would rewrite files and corrupt the
-    # merged line data (main already ran the ruff gates).
-    ./run typecheck
-    RUN_PROJECT_TESTS=1 _with_test_redis uv run coverage run --parallel-mode --source=djangoapp \
-      manage.py test $_DJANGO_NO_COLOR --exclude-tag playwright --noinput
-  )
-  # Stage the fragments out — the next createscratch wipes scratch.
-  mv "$_SCRATCH_DIR"/.coverage.* "$_TREE_DIR/.coverage-stage/"
-
-  echo "=== stage 4/4: reference app's own tests (scratch copy; not measured) ==="
-  _ops_cli createscratch
-  overlay_app "$_TREE_DIR/docs/reference"
-  # The reference app ships its own app-side frontend (pages, components,
-  # schemas, styles); overlay them INTO the scratch's app/ tree so its
-  # pages are in the built bundle (same as the old checkproject cycle 2).
-  # System files stay the tree's own.
-  for _dir in pages components schemas styles; do
-    rsync -a "$_TREE_DIR/docs/reference/frontend/src/$_dir/" \
-      "$_SCRATCH_DIR/frontend/src/app/$_dir/"
-  done
-  ( cd "$_SCRATCH_DIR"
-    ( cd frontend && npm run build )
-    ./run test --full ourapp
-  )
-  # Green: drop scratch. On failure set -e aborts earlier, leaving it behind
-  # for inspection.
-  rm -rf "$_SCRATCH_DIR"
-
-  echo "Merging coverage from all four stages"
-  # combine folds the testapp scratch's djangoapp/ onto main's via
-  # [tool.coverage.paths] in pyproject.toml.
-  uv run coverage combine . "$_TREE_DIR/.coverage-stage"
-  # The staged fragments are folded into .coverage now — drop the staging dir.
-  rm -rf "$_TREE_DIR/.coverage-stage"
-  # Ratchet: the merged report must hold the measured floor (2026-10-04: 99.78%).
-  # Raise when coverage improves; never lower it to make a regression pass.
-  uv run coverage report -m --fail-under=99.78
-  uv run coverage html
-  echo "Coverage report: htmlcov/index.html"
+  _ops_cli checkframework1
 }
 
 # The deployment gate (destructive — but only to the
@@ -442,9 +364,9 @@ checkframework1() {
 # - rebuild volatile-test-machine from scratch (`./localvm delete
 #   volatile-test-machine` +
 #   `provision-full volatile-test-machine --no-forward` — instance-local, no host forward)
-# - run the in-container gate — deploy/checkframework2-gate.sh's `gate`, dispatched like
-#   every other guest-side helper — over ONE incus exec; its exit code is
-#   the verdict. The gate:
+# - run the in-container gate — ops/checkframework2.py, dispatched over ONE incus
+#   exec (uv run --no-sync inside the container); its exit code is the
+#   verdict. The gate:
 #   - replaces the container's `ourapp/` with the Books test app (djangoapp/tests/testapp)
 #     ourapp/
 #   - refuses non-loopback installs first (BASE_URLS from the container's
@@ -466,7 +388,8 @@ checkframework2() {
   fi
   "$_TREE_DIR/localvm" provision-full volatile-test-machine --no-forward
   echo "=== Run the in-volatile-test-machine gate (testapp overlay + 11 asserts) ==="
-  incus exec volatile-test-machine -- sudo bash /srv/desmo/main/deploy/checkframework2-gate.sh gate
+  incus exec volatile-test-machine -- \
+    sudo bash -c 'cd /srv/desmo/main && uv run --no-sync python -m ops.checkframework2'
 }
 
 lintfix() {

@@ -19,8 +19,8 @@
 # its own):
 #   /tmp/inside-vm.sh    this script
 #   /tmp/desmo-seed.tgz  the tracked working tree → /srv/desmo/main (phase 2);
-#                        its deploy/ carries the static env template, the
-#                        render templates, and the checkframework2-gate.sh testing battery
+#                        its deploy/ carries the static env template and
+#                        the render templates (the gate battery lives in ops/)
 #
 # All config is the TRACKED deploy/template.env — zero operator inputs:
 # - BASE_URL (exported by deploy/install.sh, the curl|bash entry)
@@ -81,7 +81,7 @@ set -Eeuo pipefail
 
 appdir="/srv/desmo"
 maindir="$appdir/main"
-seed_deploy="$maindir/deploy"   # templates + checkframework2-gate.sh ride IN the seed
+seed_deploy="$maindir/deploy"   # templates ride IN the seed (checkframework2.py lives in ops/)
 creds_dir="/etc/credentials/desmo"
 creds_env="$creds_dir/.env.vm"
 # pi CLI version for the npm -g install (lockstep with dev's

@@ -1,3 +1,5 @@
+Are they printing timings and are they consistent with other scripts?
+
 convert checkframework1 and gate to python script
 Move all `local-vm shell desmo`
 
@@ -6,6 +8,16 @@ rename local-vm to localvm?
 is checkframework2 destructive? 
 what all troubles init had to encounter?
 portforward 443 to 8443, only 1 action
+
+try the minimal command. curl-bash the install script. 
+That doc should be up to date.
+Params for Google oauth, glm 5.3 flash, tui library.
+Can choose multiple machines, no more init and dev in run, slim down pi command
+can pi login and shut down?
+/login openai-codex, luna
+pi auth login openai-codex     # OAuth sign-in, then exits
+pi auth check --provider openai-codex   # verify: prints "ready"
+pi auth logout openai-codex    # remove later
 
 Lets make a chore tracker. We should have chores which have a repetition schedule of either days per week or every N days/weeks/months. It shows chores from earliest to latest due date. Any logged in user can create and complete an instance. Chore titles are clickable links that leads to details page where we can see past instances (who and when completed it) and edit. We can archive chores too and view them with a filter.
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
@@ -16,7 +28,6 @@ Systemd service for backup /srv/
 Manually run backup? Add descriptions
 
 Update docs for adding users and login links
-Can choose multiple machines, no more init and dev in run, slim down pi command
  ~~provision-full and delete-vm should have a prefix~~ settled: bare names inside `./local-vm`
 vm provsion should print 
 Pi theme should be bolder

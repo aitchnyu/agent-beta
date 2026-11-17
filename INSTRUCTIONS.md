@@ -63,8 +63,8 @@ function lives depends on its role:
 - `deploy/install.sh` — the production entry: curl|bash'd as root inside a
   fresh VM; builds the payload from a published git ref and execs the
   provisioner. Owns the repo identity (`repo_url`).
-- `deploy/checkframework2-gate.sh` — the testing battery only (checkframework2's
-  in-container gate; dispatched as `… deploy/checkframework2-gate.sh gate`).
+- `ops/checkframework2.py` — the testing battery only (checkframework2's
+  in-container gate; run in-container as `uv run --no-sync python -m ops.checkframework2`).
 - `deploy/inside-vm.sh` and `deploy/install-playwright.sh` — whole-script
   exceptions: inside-vm.sh is the provisioner, exec'd once by whichever
   entry ships its payload (the MAINTAIN-CONSISTENCY vm-payload notes own
@@ -81,7 +81,7 @@ incus exec desmo -- sudo bash -c \
 **Right** — the body lives in the matched guest-side script; call sites are
 one-liners:
 ```bash
-# deploy/checkframework2-gate.sh — a repo edit lands the function there (ordinary shell,
+# deploy/inside-vm.sh — a repo edit lands the function there (ordinary shell,
 # lintable, reusable; fake-smoke-app is illustrative):
 fake-smoke-app() {
   systemctl is-active desmo_granian.service desmo_huey.service
@@ -90,8 +90,11 @@ fake-smoke-app() {
 }
 
 # …and every call site becomes:
-incus exec desmo -- sudo bash /srv/desmo/main/deploy/checkframework2-gate.sh fake-smoke-app
+incus exec desmo -- sudo bash /srv/desmo/main/deploy/inside-vm.sh fake-smoke-app
 ```
+
+(The Python gate modules follow the same shape: step functions in
+`ops/checkframework2.py`, not inline blobs.)
 
 **Wrong** — re-typing the env/cwd/PATH dance for every app command:
 ```bash

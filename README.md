@@ -744,7 +744,7 @@ creates what, when) lives in `deploy/inside-vm.sh`'s header.
 │   │   │   └── src/system/        framework pages/components/schemas/styles/icons/utils
 │   │   ├── .pi/                   pi CLI config: permissions allowlist, extensions,
 │   │   │                          steer.md + repo-map.md, agents
-│   │   ├── deploy/                guest-side scripts (checkframework2-gate.sh, inside-vm.sh, …)
+│   │   ├── deploy/                guest-side scripts (inside-vm.sh, …)
 │   │   └── dbbackups/             pgbackrest repo — plain unencrypted backup sets +
 │   │                              WAL archive (nightly; runtime data, gitignored +
 │   │                              rsync-excluded like media/)
@@ -780,8 +780,8 @@ Three tiers:
   `volatile-test-machine` instance ONLY — every other instance is untouched). The host rebuilds
   `volatile-test-machine` from scratch
   (`./localvm provision-full volatile-test-machine --no-forward` — local tree by default), then runs
-  the in-container gate (`deploy/checkframework2-gate.sh gate`, dispatched like the other
-  guest-side helpers) over one incus exec — the gate's exit code is the verdict. The
+  the in-container gate (`ops/checkframework2.py`, run as
+  `uv run --no-sync python -m ops.checkframework2`) over one incus exec — the gate's exit code is the verdict. The
   gate:
   - refuses any non-loopback install first (the container's installed `BASE_URLS`:
     a public origin means real data — the battery's testapp overlay, smoke

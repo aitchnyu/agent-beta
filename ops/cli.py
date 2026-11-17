@@ -12,7 +12,7 @@ from __future__ import annotations
 import sys
 from typing import TYPE_CHECKING
 
-from ops import postdeploychecks, scratch, testsuite
+from ops import checkframework1, postdeploychecks, scratch, testsuite
 
 if TYPE_CHECKING:
     from ops.command import Command
@@ -28,6 +28,7 @@ COMMANDS: dict[str, Command] = {
         testsuite.Playwrighttest(),
         testsuite.Screenshots(),
         postdeploychecks.Postdeploychecks(),
+        checkframework1.Checkframework1(),
     )
 }
 
