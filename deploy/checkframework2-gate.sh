@@ -1,13 +1,14 @@
 #!/bin/bash
-# gate.sh — the deployment gate: checkframework2's in-VM acceptance battery,
-# wholesale. TESTING ONLY — no operator surface lives here (that's local-vm's
-# runasdesmo; INSTRUCTIONS.md § "In-VM scripts"). Runs INSIDE the VM:
+# checkframework2-gate.sh — the deployment gate: checkframework2's in-container acceptance
+# battery, wholesale. TESTING ONLY — no operator surface lives here (that's
+# localvm's runasdesmo, host-side; INSTRUCTIONS.md § "In-VM scripts"). Runs INSIDE the
+# container:
 #
-#   multipass exec desmo -- sudo bash /srv/desmo/main/deploy/gate.sh gate
+#   incus exec volatile-test-machine -- sudo bash /srv/desmo/main/deploy/checkframework2-gate.sh gate
 #
 # Called by exactly one thing: run's checkframework2 (one exec; the host
 # side checks only gate's exit code, output streams to the operator).
-# Ships with the repo (the seed lands it at /srv/desmo/main/deploy/gate.sh).
+# Ships with the repo (the seed lands it at /srv/desmo/main/deploy/checkframework2-gate.sh).
 #
 # `gate` — one linear body, read top to bottom:
 # - runs as ROOT, after the host (run's checkframework2) provisioned the
@@ -28,7 +29,7 @@ set -euo pipefail
 
 # The gate's internal env shim for its agent-* assert bodies: credentials
 # env exported + repo as cwd. (The OPERATOR's run-as-desmo surface is
-# local-vm's runasdesmo — this file keeps its own plumbing.)
+# localvm's runasdesmo — this file keeps its own plumbing.)
 _vm_env() {
   set -a
   . /etc/credentials/desmo/.env.vm
@@ -37,10 +38,10 @@ _vm_env() {
 }
 
 # ── desmo user ────────────────────────────────────────────────────────────
-# (the operator's run-as-desmo surface is local-vm's runasdesmo; the gate
-# reaches it through the gate-as-desmo-user shim below)
+# (the operator's run-as-desmo surface is localvm's runasdesmo, host-side;
+# the gate reaches the same env/cwd dance through the shim below)
 
-# ── default cloud user (ubuntu/debian — the pi agent's user) ──────────────
+# ── default cloud user (debian — the pi agent's user) ────────────────────
 
 agent-browsers() {
   _vm_env
@@ -137,24 +138,24 @@ agent-scratch-clean() {
 gate_base="https://localhost"
 gate_jar="/tmp/fw-smoke-cookies"   # in-VM cookie jar for the smoke curls
 
-# The default cloud user (ubuntu on multipass, debian on Incus) — first
-# existing wins; provisioning (inside-vm.sh) detects the same way.
+# The default cloud user (debian) — provisioning (inside-vm.sh) names the
+# same user.
 _op_user() {
-  local u
-  for u in ubuntu debian; do
-    id "$u" >/dev/null 2>&1 && { echo "$u"; return 0; }
-  done
-  echo "no default cloud user (ubuntu/debian) found" >&2
+  id debian >/dev/null 2>&1 && { echo debian; return 0; }
+  echo "no default cloud user (debian) found" >&2
   return 1
 }
 
-# Same sudo shims every external caller of this file uses — gate.sh is a
+# Same sudo shims every external caller of this file uses — checkframework2-gate.sh is a
 # dispatcher, not a sourceable library, and the agent-* wrappers assume the
 # target user already. gate-as-default-user forwards exactly one argument:
-# every agent-* wrapper is argless. The desmo shim routes through local-vm's
-# runasdesmo — the ONE sanctioned surface, same as the operator's docs.
-gate-as-desmo-user() { sudo -u desmo -H bash /srv/desmo/main/local-vm runasdesmo "$@"; }
-gate-as-default-user() { sudo -u "$(_op_user)" -H bash /srv/desmo/main/deploy/gate.sh "$1"; }
+# every agent-* wrapper is argless. The desmo shim owns the env/cwd dance
+# (creds sourced, /srv/desmo/main, then exec) — the same encapsulation
+# localvm's runasdesmo has host-side, kept here in one named place.
+gate-as-desmo-user() {
+  sudo -u desmo -H bash -c 'set -a; . /etc/credentials/desmo/.env.vm; set +a; cd /srv/desmo/main || exit 1; exec "$@"' gate "$@"
+}
+gate-as-default-user() { sudo -u "$(_op_user)" -H bash /srv/desmo/main/deploy/checkframework2-gate.sh "$1"; }
 
 # A command that MUST refuse: expect a nonzero exit, quietly. NB: the if
 # (not `cmd && fail`) is load-bearing — a failing `&&` list as the last
@@ -214,7 +215,7 @@ refuse-if-prod() {
 }
 
 # The gate itself — one linear body, read top to bottom. Invoked by run's
-# checkframework2 over ONE multipass exec; its exit code is the verdict.
+# checkframework2 over ONE incus exec; its exit code is the verdict.
 # Local vars needed across steps (the login link, the page bodies).
 # Step 0 is the prod refusal (refuse-if-prod): a non-loopback BASE_URLS
 # aborts the gate before anything mutates.
@@ -266,7 +267,7 @@ gate() {
   # The cookie jar filled by assert 1 carries the session every later
   # authed assert rides on (it survives the deployscratch restart —
   # sessions are DB-backed). The printed link's origin is BASE_URLS[0]
-  # (the tunnel origin) — in-VM asserts want the :443 base, so the grep
+  # (the proxy-device origin) — in-VM asserts want the :443 base, so the grep
   # lifts just the PATH.
   echo; echo "=== Setup 3/3: issue the one-time superuser login link ==="
   login_path="$(gate-as-desmo-user uv run --no-sync python manage.py makeloginlink \
@@ -298,8 +299,9 @@ gate() {
   body=$(curl -k -sS -b "$gate_jar" "$gate_base/")
   grep -q "Framework Smoke" <<<"$body"
 
-  # ── Assert 5: the operator shells in via multipass as the default
-  # cloud user (no sudo -iu hop) and runs `desmo pi`. Preconditions: the
+  # ── Assert 5: the operator shells in (incus exec lands as root; the
+  # default cloud user is the agent's principal, no sudo -iu hop) and
+  # runs `desmo pi`. Preconditions: the
   # desmo wrapper + pi binary on PATH, and the credentials env
   # (SECRET_KEY probes readability) readable via desmo-group membership.
   echo; echo "=== Assert 5: default user can run desmo pi ==="

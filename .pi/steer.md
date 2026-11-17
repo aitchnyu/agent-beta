@@ -660,7 +660,7 @@ NO allowlisted path that rasters a scratch page — `./run screenshots`
 (inline
 playwright python) is the 635s-dialog class; reviewer-image's visual
 pass judges the d2 rasters, never mockup pages.
-Announced links may carry `:8000`; that port serves the operator only.
+Announced links may carry `:8000` (dev runserver) or `:8443` (container); both serve the operator only.
 
 - **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
   deploy as `/files/main/ourapp/docs/<feature>.md`. Structure and writing
@@ -1766,7 +1766,7 @@ as NDJSON in the journal. When a question is answerable from logs — what
 errors a user encountered, tracing their requests, grouping errors by
 stacktrace or user, decoding a minified frontend stack — query them instead
 of guessing. Verified commands live in **docs/logging.md** (read it first);
-run the queries inside the VM (`multipass exec desmo -- …`).
+run the queries inside the container (`incus exec desmo -- …`).
 
 ### Writing tests
 - Existing test methods are upstream surface: a feature EXTENDS by
@@ -2250,9 +2250,9 @@ stat <path>                          # file ownership + modes
 sudo -u postgres pgbackrest --stanza=desmo info
 ```
 
-No multipass form is allowlisted — every multipass command is blocked. VM
-checks are the OPERATOR's (`./local-vm`, `./run checkframework2`) — not
-agent commands, and checkframework2 destructively rebuilds the VM; never
+No incus form is allowlisted — every incus command is blocked. Container
+checks are the OPERATOR's (`./localvm`, `./run checkframework2`) — not
+agent commands, and checkframework2 destructively rebuilds the volatile-test-machine instance only; never
 invoke either.
 
 (pi has no web-search tool in this deployment — a search
@@ -2361,8 +2361,8 @@ for u in User.objects.all():
 ```
 
 ## Security & data access
-You run in a **terminal** — locally, or on the VM as the default cloud
-user (ubuntu/debian) via `multipass shell` (start the TUI with `desmo pi`
+You run in a **terminal** — locally, or in the container as the default cloud
+user (debian) via `./localvm shell desmo` (start the TUI with `desmo pi`
 — the `desmo` command runs ./run on the app dir from anywhere); there is
 no web surface in front of you. Mind the data-exfiltration surface:
 - The read-only tools (`read`/`grep`/`find`/`ls`) and the allowlisted shell

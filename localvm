@@ -1,0 +1,323 @@
+#!/bin/bash
+# localvm — the LOCAL test containers' single HOST-side interface: run
+# from the repo on your machine. (In-container, the desmo hop is
+# `sudo -u desmo -H` with /srv/desmo/main as cwd — `./run` sources the
+# credentials env itself.)
+#
+# Every command names its instance (convention: `volatile-test-machine`
+# is the disposable instance checkframework2 owns — never put state in it;
+# every other name, like `desmo`, persists). Incus names: alphanumerics +
+# hyphens only (no underscores).
+#
+# ── Host: provision ────────────────────────────────────────────────────
+# ./localvm provision-full <inst> [--repo <url>] [--ref <tag|branch>] \
+#     [--release N] [--no-forward]
+#   Default: seed from the LOCAL working tree — the git-tracked files
+#   (git ls-files) tarball + this repo's deploy/inside-vm.sh; uncommitted
+#   edits included.
+#   --repo <url>   install from that published GitHub repo instead
+#                  (deploy/install.sh clones the ref).
+#   --ref <name>   the tag/branch to install (install.sh's latest-tag
+#                  default when omitted; only meaningful with --repo).
+#   --release N    the debian image (default 13).
+#   --no-forward   skip attaching the https proxy device (instance-local
+#                  use only — e.g. the gate's `volatile-test-machine`).
+#   Both paths run the same provisioner — deploy/inside-vm.sh provision,
+#   ONE exec, phase-banner'd; config is the tracked deploy/template.env.
+#   The default forward: host https://localhost:8443 → container :443
+#   (Caddy's loopback origin, internal CA). :8443 leaves host :8000 free
+#   for the dev runserver.
+# ./localvm provision-blank <inst> [--release N] [--no-forward]
+#   Launch the empty container (debian, 2G memory cap); prints the
+#   installer line. Refuses an existing instance.
+# ./localvm delete <inst>
+#   incus delete -f — destructive, no backup: the instance's .git and
+#   database are gone (tar/pg_dump via incus exec first).
+#
+# ── Host: access ───────────────────────────────────────────────────────
+# ./localvm shell <inst>            root shell in the container
+# ./localvm portforward <inst>      point host :8443 at <inst>'s caddy —
+#                                     the only forward, moved off any
+#                                     other instance first
+# ./localvm runasdesmo <inst> <cmd…>  one command as the desmo user
+#
+# ── Host: machine state (snapshots = backups) ──────────────────────────
+# ./localvm backup <inst> <message…>
+#   Snapshot named <inst>-<yyyymmdd>-<HHMMSS>-<message> (spaces → '-').
+# ./localvm rewind <inst> <snapshot-name>
+#   In-place restore (incus snapshot restore).
+#
+# ── The desmo hop ───────────────────────────────────────────────────────
+# ./localvm runasdesmo <inst> <cmd…>
+#   One command as the desmo service user, in <inst>: env sourced, repo
+#   cwd — the admin commands in README § VM (e.g. the one-time login
+#   link: runasdesmo desmo ./run djangomanage makeloginlink <email>).
+
+set -euo pipefail
+
+repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # this checkout (main/)
+deploy_dir="$repo_dir/deploy"
+image_family="images:debian"      # + /$release at launch
+
+usage() {
+  echo "Usage: $0 <command> <instance> [args…]" >&2
+  echo "  provision-full <inst> [--repo <url>] [--ref <ref>] [--release N] [--no-forward]" >&2
+  echo "  provision-blank <inst> [--release N] [--no-forward]" >&2
+  echo "  delete <inst> | shell <inst> | portforward <inst>" >&2
+  echo "  runasdesmo <inst> <command…>" >&2
+  echo "  backup <inst> <message…> | rewind <inst> <snapshot>" >&2
+  [[ -n "${1:-}" ]] && echo "  $1" >&2
+  exit 1
+}
+
+# The exact forward spec — a device that doesn't match it (e.g. one
+# reverted by a rewind to snapshot-time config) is REMOVED, not trusted.
+_forward_listen="tcp:127.0.0.1:8443"
+_forward_connect="tcp:127.0.0.1:443"
+
+# Point host :8443 at one instance's caddy (:443) — the ONLY forward.
+# One listener exists at a time: any other instance's https device comes
+# off first. Idempotent for the target, exact-spec only.
+portforward() { # <instance>
+  local target="${1:-}"
+  [ -n "$target" ] || usage "portforward needs an instance name"
+  local c
+  for c in $(incus list --format csv -c n); do
+    if [ "$c" != "$target" ] && incus config device show "$c" 2>/dev/null | grep -q '^https:'; then
+      incus config device remove "$c" https >/dev/null
+    fi
+  done
+  # Idempotent, exact-spec: `device get` returns the stored value — or
+  # errors when the device is absent (stderr dropped, `|| true` keeps
+  # set -e quiet, so "no device" compares as "").
+  if [ "$(incus config device get "$target" https listen 2>/dev/null || true)" != "$_forward_listen" ] \
+    || [ "$(incus config device get "$target" https connect 2>/dev/null || true)" != "$_forward_connect" ]; then
+    # Mismatch (no device, drift) → replace it.
+    incus config device remove "$target" https >/dev/null 2>&1 || true
+    incus config device add "$target" https proxy \
+      listen="$_forward_listen" connect="$_forward_connect" >/dev/null
+  fi
+  # A matching device was left untouched — either way, the state is exact.
+  echo "https forward: host https://localhost:8443 → $target :443 (proxy device)"
+}
+
+# After a rewind (which reverts device config to snapshot-time state),
+# re-attach the forward on an instance that held one.
+_forward_reconcile() { # <instance>
+  incus config device show "$1" 2>/dev/null | grep -q '^https:' || return 0
+  if [ "$(incus config device get "$1" https listen 2>/dev/null || true)" != "$_forward_listen" ] \
+    || [ "$(incus config device get "$1" https connect 2>/dev/null || true)" != "$_forward_connect" ]; then
+    incus config device remove "$1" https >/dev/null 2>&1 || true
+    incus config device add "$1" https proxy \
+      listen="$_forward_listen" connect="$_forward_connect" >/dev/null
+    echo "    (forward re-attached at the current spec — the snapshot carried an older one)"
+  fi
+}
+
+_access_steps() { # <instance>
+  cat <<EOF
+
+The container '$1' is up — the proxy device is attached. Browse:
+  https://localhost:8443/        (internal CA — accept the warning)
+(:8443 leaves host :8000 free for the dev runserver — both can run.)
+
+Get in / administer:
+  ./localvm shell $1
+  ./localvm runasdesmo $1 ./run djangomanage makeloginlink <email>
+EOF
+}
+
+# install.sh's repo_url — the one place the repo identity lives; no
+# second copy to drift (MAINTAIN-CONSISTENCY vm-payload). Prints the
+# raw.githubusercontent path for $1=<repo url>, empty when unparseable.
+_raw_path() { # <repo url>
+  local p="${1#https://github.com/}"
+  printf '%s' "${p%.git}"
+}
+
+provision-blank() {
+  local instance="" release="13" forward="yes"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --release)    [[ $# -ge 2 ]] || usage "--release needs a value"; release="$2"; shift 2 ;;
+      --no-forward) forward="no"; shift ;;
+      *) if [ -z "$instance" ] && [[ "$1" != -* ]]; then instance="$1"; shift; else usage "unknown arg: $1"; fi ;;
+    esac
+  done
+  [ -n "$instance" ] || usage "provision-blank needs an instance name"
+  if incus info "$instance" >/dev/null 2>&1; then
+    echo "REFUSING: instance '$instance' already exists." >&2
+    echo "  ./localvm delete $instance && ./localvm provision-blank $instance  # to rebuild" >&2
+    exit 1
+  fi
+  echo "[$(date +%T)] ==> incus launch $instance (debian $release, incusbr0 NAT, 2G memory cap) — blank"
+  incus launch "$image_family/$release" "$instance" --config limits.memory=2GB
+  # Wait for the guest's boot to settle — one check, no polling: an exec
+  # can land BEFORE systemd mounts the /tmp tmpfs, and a file written then
+  # hides under the later mount (the payload race). multi-user.target
+  # active = /tmp mounted; not active yet = a live BLANK instance that a
+  # plain rerun would refuse — delete + rebuild.
+  if ! incus exec "$instance" -- systemctl is-active multi-user.target >/dev/null 2>&1; then
+    echo "FAILED: $instance not settled right after launch (multi-user.target not active)." >&2
+    echo "  Rebuild: ./localvm delete $instance && ./localvm provision-full $instance" >&2
+    exit 1
+  fi
+  [ "$forward" = "yes" ] && portforward "$instance"
+
+  local repo_url raw_path
+  repo_url="$(sed -n 's|^repo_url="\([^"]*\)"$|\1|p' "$deploy_dir/install.sh")"
+  [ -n "$repo_url" ] || { echo "REFUSING: repo_url missing from deploy/install.sh" >&2; exit 1; }
+  raw_path="$(_raw_path "$repo_url")"
+
+  cat <<EOF
+Blank container '$instance' is up. Get in and run the installer (provisions from a
+published ref — the container serves loopback only, like provision-full):
+  ./localvm shell $instance
+  curl -fsSL https://raw.githubusercontent.com/${raw_path}/main/deploy/install.sh | bash -s
+EOF
+}
+
+# The local payload manufacturer: the two-file contract install.sh builds
+# from a clone, built here from the WORKING TREE (tracked files + this
+# repo's provisioner — uncommitted edits included). Tar-over-exec: incus
+# file push of a tree is slow.
+_ship_local_payload() { # <instance>
+  echo "[$(date +%T)] ==> payload from the LOCAL working tree (git ls-files + deploy/inside-vm.sh)"
+  # -C: the manifest is repo-relative — read the files from the repo, not
+  # from wherever localvm was invoked (mirrors install.sh's -C "$clone_dir").
+  (cd "$repo_dir" && git ls-files -z) | tar czf - --null -C "$repo_dir" -T - \
+    | incus exec "$1" -- sh -c 'cat > /tmp/desmo-seed.tgz'
+  incus exec "$1" -- sh -c 'cat > /tmp/inside-vm.sh' < "$deploy_dir/inside-vm.sh"
+}
+
+provision-full() {
+  local instance="" repo_url="" ref="" release="13" forward="yes"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --repo)       [[ $# -ge 2 ]] || usage "--repo needs a value"; repo_url="$2"; shift 2 ;;
+      --ref)        [[ $# -ge 2 ]] || usage "--ref needs a value"; ref="$2"; shift 2 ;;
+      --release)    [[ $# -ge 2 ]] || usage "--release needs a value"; release="$2"; shift 2 ;;
+      --no-forward) forward="no"; shift ;;
+      *) if [ -z "$instance" ] && [[ "$1" != -* ]]; then instance="$1"; shift; else usage "unknown arg: $1"; fi ;;
+    esac
+  done
+  [ -n "$instance" ] || usage "provision-full needs an instance name"
+  # --ref picks the published ref — meaningless without --repo (the local
+  # seed ignores it; refusing beats silently installing the working tree).
+  if [ -n "$ref" ] && [ -z "$repo_url" ]; then
+    usage "--ref needs --repo (without it, provision-full seeds the LOCAL working tree)"
+  fi
+  # Launch (guards + refusal live in provision-blank; its printout doubles
+  # as the plan), then provision from the chosen source.
+  local blank_args=(--release "$release")
+  [ "$forward" = "no" ] && blank_args+=(--no-forward)
+  provision-blank "$instance" "${blank_args[@]}"
+
+  if [ -z "$repo_url" ]; then
+    # Local seed. BASE_URL must EXIST in the driver's env (inside-vm.sh
+    # runs set -u): empty = the template's loopback origin.
+    _ship_local_payload "$instance"
+    if ! incus exec "$instance" -- env BASE_URL= bash /tmp/inside-vm.sh provision; then
+      echo "PROVISION FAILED — instance '$instance' is partially built; the last phase banner above names where it stopped." >&2
+      echo "Rebuild: ./localvm delete $instance && ./localvm provision-full $instance" >&2
+      exit 1
+    fi
+  else
+    local raw_path
+    raw_path="$(_raw_path "$repo_url")"
+    # git clone --branch takes tags and branches alike; the ref rides the
+    # exec's ARGV (arg 2 onward), never a string interpolation.
+    local branch_args=()
+    [ -n "$ref" ] && branch_args=(--branch "$ref")
+    # The install streams back; its exit code is the verdict (pipefail on
+    # the inner leg — a failed download must not read as a blank success).
+    if ! incus exec "$instance" -- bash -c \
+      'set -o pipefail; curl -fsSL "$1" | bash -s -- "${@:2}"' _ \
+      "https://raw.githubusercontent.com/${raw_path}/main/deploy/install.sh" "${branch_args[@]}"
+    then
+      echo "PROVISION FAILED — instance '$instance' is partially built; the last phase banner above names where it stopped." >&2
+      echo "Rebuild: ./localvm delete $instance && ./localvm provision-full $instance" >&2
+      exit 1
+    fi
+  fi
+  if [ -n "$repo_url" ]; then
+    echo "PROVISION OK (published)"
+  else
+    echo "PROVISION OK (local)"
+  fi
+  if [ "$forward" = "yes" ]; then
+    _access_steps "$instance"
+  fi
+}
+
+delete() { # <instance>
+  local instance="${1:-}"
+  [ -n "$instance" ] || usage "delete needs an instance name"
+  [ $# -eq 1 ] || usage "delete takes exactly one instance name"
+  incus delete -f "$instance"
+  echo "Deleted container '$instance'. Recreate: ./localvm provision-full $instance (local tree by default)."
+}
+
+shell() { # <instance>
+  local instance="${1:-}"
+  [ -n "$instance" ] || usage "shell needs an instance name"
+  [ $# -eq 1 ] || usage "shell takes exactly one instance name"
+  exec incus exec "$instance" -- bash
+}
+
+# One command as the desmo service user, in the named instance. The
+# env/cwd/PATH dance lives HERE, in one named place (never re-typed at
+# call sites): any command, run from /srv/desmo/main with the credentials
+# env sourced — the admin commands in README § VM (e.g. the one-time
+# login link: runasdesmo desmo ./run djangomanage makeloginlink <email>).
+runasdesmo() { # <instance> <command…>
+  [ -n "${1:-}" ] || usage "runasdesmo needs an instance name"
+  local instance="$1"
+  shift
+  [ $# -gt 0 ] || usage "runasdesmo needs a command"
+  incus exec "$instance" -- sudo -u desmo -H \
+    bash -c 'set -a; . /etc/credentials/desmo/.env.vm; set +a; cd /srv/desmo/main || exit 1; exec "$@"' desmo "$@"
+}
+
+# Snapshot stamps carry seconds — two backups on one instance in the same
+# minute must not collide on the name.
+backup() { # <instance> <message…>
+  local instance="${1:-}"
+  [ -n "$instance" ] || usage "backup needs an instance name"
+  shift
+  [ -n "${1:-}" ] || usage "backup needs a message"
+  local message snapshot
+  message="$(printf '%s' "$*" | tr ' ' '-' | tr -cd 'A-Za-z0-9._-' | sed -e 's/^[.-]*//' -e 's/[.-]*$//')"
+  [ -n "$message" ] || {
+    echo "REFUSING: the message needs at least one letter or digit." >&2
+    exit 1
+  }
+  snapshot="${instance}-$(date +%Y%m%d-%H%M%S)-${message}"
+  incus snapshot create "$instance" "$snapshot"
+  incus snapshot list "$instance"
+}
+
+rewind() { # <instance> <snapshot-name>
+  local instance="${1:-}" snapshot="${2:-}"
+  [ -n "$instance" ] || usage "rewind needs an instance name"
+  [ -n "$snapshot" ] || usage "rewind needs a snapshot name"
+  [ $# -eq 2 ] || usage "rewind takes exactly an instance and a snapshot name"
+  incus snapshot restore "$instance" "$snapshot"
+  _forward_reconcile "$instance"
+  echo "Rewound '$instance' to snapshot '$snapshot'."
+}
+
+# Check if function exists and call it with all arguments except $1
+cmd="${1:-}"
+if [[ -n "$cmd" ]] && declare -F "$cmd" >/dev/null; then
+  shift
+  "$cmd" "$@"
+else
+  usage
+fi
+
+# MAINTAIN-CONSISTENCY vm-payload — the payload contract lives in
+# deploy/inside-vm.sh and has TWO manufacturers: deploy/install.sh (from a
+# published clone) and this file's _ship_local_payload (from the working
+# tree). Both write /tmp/inside-vm.sh + /tmp/desmo-seed.tgz; install.sh's
+# repo_url stays the single source of the repo identity.

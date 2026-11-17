@@ -402,7 +402,7 @@ def issue_login_link(
     """Issue a one-time login link for the target (superuser only).
 
     The URL is built from the request origin, so it is correct behind the
-    VM's tunnel (https://localhost:8000). The raw key exists only in this
+    VM's proxy device (https://localhost:8443). The raw key exists only in this
     response (and the audit history records the event, never the key).
     """
     viewer = superuser_or_404(request)

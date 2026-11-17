@@ -48,7 +48,7 @@ redacted):
 
 ## Example queries
 
-Run inside the VM (`multipass exec desmo -- sudo bash -c '…'`). `--since` and
+Run inside the container (`incus exec desmo -- sudo bash -c '…'`). `--since` and
 `--until` accept absolute local time (`'2026-09-16 17:17:04'`), ISO 8601 with
 timezone (`2026-09-16T17:17:04+05:30`), or relative spans (`-1h`, `-15min`);
 omit `--until` for an open window. Combine units by passing both `-u` flags

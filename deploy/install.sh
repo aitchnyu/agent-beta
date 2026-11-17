@@ -1,13 +1,14 @@
 #!/bin/bash
 # install.sh — the PRODUCTION entry: curl|bash it on a fresh VM you
-# administer — any cloud Ubuntu 24.04/26.04 (or Debian) instance you ssh
-# into as root — and it provisions the whole machine from a published ref
-# of this repo. (The local dress rehearsal: `./local-vm provision-blank` +
-# `multipass shell`.) ZERO provisioning logic lives here — it
-# manufactures the SAME two-file payload the local dev path ships
-# (deploy/inside-vm.sh + the seed tarball of tracked files) and execs the
-# unchanged provisioner; the only operator input it carries is
-# BASE_URL.
+# administer, as root, and it provisions the whole machine from a
+# published ref of this repo.
+# - Supported: cloud Debian 13 (amd64). Other OSes are untested — phase
+#   10's playwright platform table admits debian 13 only.
+# - Local dress rehearsal: `./localvm provision-blank` + `./localvm shell`.
+# - ZERO provisioning logic lives here — it manufactures the SAME
+#   two-file payload the local dev path ships (deploy/inside-vm.sh + the
+#   seed tarball of tracked files) and execs the unchanged provisioner.
+# - The only operator input it carries is BASE_URL.
 #
 #   curl -fsSL https://raw.githubusercontent.com/aitchnyu/agent-beta/main/deploy/install.sh \
 #     | sudo bash -s -- --base-url https://example.com [--release <tag> | --branch <name>]
@@ -16,14 +17,14 @@
 # tracked deploy/template.env):
 #   --base-url  url    the public origin, https://host[:port]; DNS must
 #                      already point at the VM (omitted → loopback-only,
-#                      README § Local VM).
+#                      README § VM (test server)).
 #   --release tag     what to install; default: the latest published
 #                     tag, falling back to main when none exist.
 #   --branch  name    any branch instead (mutually exclusive).
 #
 # After the provision's phases: basic self-tests (units active + one
 # HTTPS smoke on the site root) + the access steps. The
-# full in-VM battery stays a local-test follow-up (deploy/gate.sh gate —
+# full in-VM battery stays a local-test follow-up (deploy/checkframework2-gate.sh gate —
 # which itself refuses non-loopback installs: a --base-url VM never runs
 # it).
 #
@@ -40,7 +41,7 @@ set -euo pipefail
 # consecutive banners diff into per-step durations.
 _banner() { echo "[$(date +%T)] $*"; }
 
-# The repo identity — also what gets cloned below. local-vm's `blank`
+# The repo identity — also what gets cloned below. localvm's `blank`
 # printout derives the curl line from this line
 # (MAINTAIN-CONSISTENCY vm-payload).
 repo_url="https://github.com/aitchnyu/agent-beta.git"
@@ -108,7 +109,7 @@ fi
 _banner "==> installing ref: $ref ($repo_url)"
 
 # ── payload — the SAME two files the local dev path ships ───────────────────
-# umask pinned like local-vm's: the seed tarball carries file/dir modes
+# umask pinned like localvm's: the seed tarball carries file/dir modes
 # through extraction, and the guest's mode pins assume the 022 base.
 umask 022
 rm -rf "$clone_dir"
@@ -131,10 +132,10 @@ for unit in desmo_granian.service desmo_huey.service caddy redis-server postgres
   systemctl is-active --quiet "$unit" || { echo "FAILED: $unit is not active" >&2; exit 1; }
 done
 echo "    units active (granian, huey, caddy, redis, postgres, backup timer)"
-# Smoke the origin's hostname on the VM's :443 (an origin port like the
-# tunnel's :8000 is the operator's forward); -k only for loopback's
+# Smoke the origin's hostname on the VM's :443 (an origin port like :8443
+# is the operator's forward, not this machine's); -k only for loopback's
 # internal CA. No --base-url → the template's loopback origin.
-probe_origin="${base_url:-https://localhost:8000}"
+probe_origin="${base_url:-https://localhost:8443}"
 probe_host="${probe_origin#*://}"       # strip the scheme
 probe_host="${probe_host%%/*}"          # strip any trailing path
 probe_host="${probe_host%%:*}"          # strip the port

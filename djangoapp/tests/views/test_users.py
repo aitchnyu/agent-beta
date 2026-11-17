@@ -640,11 +640,11 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
         self.assertTrue(url.startswith("http://testserver/login-for-test/"))
 
     def test_loginlink_url_is_https_behind_tls_proxy(self) -> None:
-        """VM tunnel reality: caddy's X-Forwarded-Proto flips the scheme.
+        """Proxy-device reality: caddy's X-Forwarded-Proto flips the scheme.
 
         SECURE_PROXY_SSL_HEADER makes Django trust the header granian
         receives from caddy, so the issued URL opens through
-        https://localhost:8000 instead of sending plain HTTP into caddy's
+        https://localhost:8443 instead of sending plain HTTP into caddy's
         TLS listener.
         """
         self.client.force_login(self.superuser)

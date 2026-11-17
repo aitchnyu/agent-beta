@@ -45,24 +45,26 @@ Create the file inside the project dir or my agent will pause and wait for my ap
 Run uv command instead of running python/python3 directly.
 
 Announce any `rm` before running it — deletions are never silent.
-When opening or sharing the app's URL, prefer `https://localhost:8000/` over `http://localhost:8000/` — https is the deployed origin, some features may be https-only.
+When opening or sharing the app's URL, prefer `https://localhost:8443/` over `http://localhost:8443/` — https is the deployed origin (the container's proxy device), some features may be https-only.
 
 ## In-VM scripts
-Any command that runs inside a VM — multipass-exec'd from the host or
+Any command that runs inside the container — incus-exec'd from the host or
 curl|bash'd by the operator — longer than two lines lives as a NAMED
 FUNCTION in a script with a dispatcher at the bottom; call sites stay
 one-liners. The banned forms (inline `bash -c` string blobs, `declare -f`
-embedding — the "Wrong" examples below) were eradicated in the VM
-provisioning refactor; the rule stays as the regression guard. Where a
+embedding — the "Wrong" examples below) stay banned; the rule is the
+regression guard. Where a
 function lives depends on its role:
-- `local-vm` (repo root) — the local test VM's interface: the HOST driver
-  (`./local-vm provision-full|provision-blank|delete`) and the guest-side admin surface
-  (`runasdesmo`; the seed lands the file at `/srv/desmo/main/local-vm`).
+- `localvm` (repo root) — the local test containers' interface: every
+  command names its instance (`volatile-test-machine` = checkframework2's
+  disposable one) —
+  the HOST driver (`./localvm provision-full <inst>|provision-blank|delete|shell|…`)
+  and `runasdesmo <inst> <cmd…>`, the run-as-desmo hop.
 - `deploy/install.sh` — the production entry: curl|bash'd as root inside a
   fresh VM; builds the payload from a published git ref and execs the
   provisioner. Owns the repo identity (`repo_url`).
-- `deploy/gate.sh` — the testing battery only (checkframework2's in-VM
-  gate; dispatched as `… deploy/gate.sh gate`).
+- `deploy/checkframework2-gate.sh` — the testing battery only (checkframework2's
+  in-container gate; dispatched as `… deploy/checkframework2-gate.sh gate`).
 - `deploy/inside-vm.sh` and `deploy/install-playwright.sh` — whole-script
   exceptions: inside-vm.sh is the provisioner, exec'd once by whichever
   entry ships its payload (the MAINTAIN-CONSISTENCY vm-payload notes own
@@ -72,14 +74,14 @@ function lives depends on its role:
 **Wrong** — inline `bash -c` string blob (nested `python -c` grows a `\"`
 per level, no editor support):
 ```bash
-multipass exec desmo -- sudo bash -c \
+incus exec desmo -- sudo bash -c \
   "systemctl is-active desmo_granian.service desmo_huey.service && curl -fsSk -o /dev/null https://localhost/ && journalctl -u desmo_huey.service -n 5"
 ```
 
 **Right** — the body lives in the matched guest-side script; call sites are
 one-liners:
 ```bash
-# deploy/gate.sh — a repo edit lands the function there (ordinary shell,
+# deploy/checkframework2-gate.sh — a repo edit lands the function there (ordinary shell,
 # lintable, reusable; fake-smoke-app is illustrative):
 fake-smoke-app() {
   systemctl is-active desmo_granian.service desmo_huey.service
@@ -88,20 +90,20 @@ fake-smoke-app() {
 }
 
 # …and every call site becomes:
-multipass exec desmo -- sudo bash /srv/desmo/main/deploy/gate.sh fake-smoke-app
+incus exec desmo -- sudo bash /srv/desmo/main/deploy/checkframework2-gate.sh fake-smoke-app
 ```
 
 **Wrong** — re-typing the env/cwd/PATH dance for every app command:
 ```bash
-multipass exec desmo -- sudo -u desmo -H bash -c \
+incus exec desmo -- sudo -u desmo -H bash -c \
   'set -a; . /etc/credentials/desmo/.env.vm; set +a; cd /srv/desmo/main; ./run djangomanage makeloginlink <email>'
 ```
 
-**Right** — one command as the desmo user goes through `local-vm`'s
-`runasdesmo` wrapper (env sourced, repo cwd, uv on PATH):
+**Right** — one command as the desmo user goes through `localvm`'s
+`runasdesmo` wrapper (env sourced, repo cwd — the dance lives in the
+wrapper, not at the call site):
 ```bash
-multipass exec desmo -- sudo -u desmo -H bash /srv/desmo/main/local-vm \
-  runasdesmo ./run djangomanage makeloginlink <email>
+./localvm runasdesmo desmo ./run djangomanage makeloginlink <email>
 ```
 
 **Right** — a whole guest-side job (decisions included) lives in one
@@ -109,7 +111,7 @@ script; the host call site is a one-liner with zero host-side probing:
 ```bash
 # deploy/install-playwright.sh owns the platform table (refuses unknown
 # OSes), the override keys, browsers, system deps, and a launch check:
-multipass exec desmo -- sudo bash /srv/desmo/main/deploy/install-playwright.sh
+incus exec desmo -- sudo bash /srv/desmo/main/deploy/install-playwright.sh
 ```
 
 **Wrong** — unreadable: three operators deep (`-n`, `||`, a grouped
@@ -120,7 +122,7 @@ multipass exec desmo -- sudo bash /srv/desmo/main/deploy/install-playwright.sh
 
 **Right** — the positive multi-line guard reads top-to-bottom: empty →
 refuse → stop. Applies to every hard-fail check in `run`/
-`local-vm`/`deploy/*.sh`:
+`localvm`/`deploy/*.sh`:
 ```bash
 if [ -z "$release_deb" ]; then
   echo "REFUSING: no pg-hardstorage .deb in the latest release" >&2
@@ -131,13 +133,13 @@ fi
 **Wrong** — cramming several params onto a continuation line (which flag
 sits where? diffs and reviews read per line):
 ```bash
-runasdesmo pg_hardstorage init --yes --deployment desmo \
+runasdesmo <inst> pg_hardstorage init --yes --deployment desmo \
   --pg-connection "$dsn" --repo file:///srv/desmo/main/dbbackups
 ```
 
 **Right** — if a command must split, one param per line:
 ```bash
-runasdesmo pg_hardstorage init --yes \
+runasdesmo <inst> pg_hardstorage init --yes \
   --deployment desmo \
   --pg-connection "$dsn" \
   --repo file:///srv/desmo/main/dbbackups
@@ -164,8 +166,8 @@ done
 ```
 
 Two lines or fewer may stay inline at the call site. Functions run under
-`set -euo pipefail` — the function's exit code is the multipass call's
-exit code, which call sites gate on (`if ! multipass exec desmo -- … agent-browsers; then …`).
+`set -euo pipefail` — the function's exit code is the incus call's
+exit code, which call sites gate on (`if ! incus exec desmo -- … agent-browsers; then …`).
 
 ## aihere
 If I mention `aihere`, grep for `aihere` in whole codebase except `.idea`, copy all of them into some todo list. They may not be comments — a marker can sit on any line of any file (code, strings, docs); treat the line it's on (plus its surroundings) as the instruction. The comments are instructions to modify the codebase. If you have lines with aihere in context and I mention aihere again, look at the new instances. Never remove the comments before addressing them. If you are not implementing them, write them down in existing md file.

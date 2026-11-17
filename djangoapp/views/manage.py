@@ -97,11 +97,10 @@ class RowListPagination(PydanticBaseModel):
 
 
 class RowListFilters(PydanticBaseModel):
-    # Fixed page sizes (matches the frontend's PER_PAGE_OPTIONS); any other
-    # value is rejected by Ninja with 422 rather than silently clamped. Declared
-    # as int + an after-validator (not Literal[25,50,100]) because query params
-    # arrive as strings and pydantic will not coerce "25" against an int Literal,
-    # which would 422 every pagination link.
+    # Fixed page sizes (PER_PAGE_OPTIONS); anything else falls back to the
+    # defaults — a page never 422s over filters. int + validator, not
+    # Literal: pydantic won't coerce "25" against an int Literal (that
+    # would 422 every pagination link).
     per_page: int = 25
     page: int = Field(default=1, ge=1)
     # str (not Literal) so an unknown sort falls back to the default instead

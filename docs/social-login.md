@@ -64,9 +64,9 @@ stays routed; the navbar links only the dropdown, never that page.)
   ids in the error.
 - Google's own setup — the worked example — is the
   [Google OAuth section](../README.md#google-oauth-social-login) of the README.
-- On the test VM, the app is served at `https://localhost:8000/` via an ssh
-  port forward — Google's localhost exception applies, so register
-  `https://localhost:8000/accounts/google/login/callback/` there (or use the
+- In the local container, the app is served at `https://localhost:8443/`
+  via the incus proxy device — Google's localhost exception applies, so
+  register `https://localhost:8443/accounts/google/login/callback/` there (or use the
   one-time `makeloginlink` flow; see the README's
   [VM (test server)](../README.md#vm-test-server) section).
 

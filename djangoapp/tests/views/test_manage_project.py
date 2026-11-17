@@ -26,7 +26,7 @@ class ManageProjectTests(BaseInertiaTestCase):
       Book + FileCleanupDoc + Shelf
     - test_book_list, /manage/models/Book/list columns + both FK cell kinds
     - test_book_list_pagination_and_sort, per_page paging + id/last_updated_at sort
-    - test_per_page_invalid_422, a per_page outside {25,50,100} → 422
+    - test_per_page_invalid_falls_back, a per_page outside {25,50,100} → defaults
     - test_book_detail, /manage/models/Book/id/<pid> renders RowDetail
     - test_book_detail_unknown_id_404, an unknown public_id → 404
     - test_non_basemodel_model_detail_404, a plain (non-BaseModel) model has no detail page
@@ -195,10 +195,15 @@ class ManageProjectTests(BaseInertiaTestCase):
         newest_edited = self._rows_props("Book", "sort=-last_updated_at")["rows"][0]
         self.assertEqual(newest_edited["values"]["title"], "Bulk 00")
 
-    def test_per_page_invalid_422(self) -> None:
-        """A per_page outside {25, 50, 100} is rejected by the props validator (422)."""
+    def test_per_page_invalid_falls_back(self) -> None:
+        """A per_page outside {25, 50, 100} falls back to the filters' defaults.
+
+        Pages never 422 over filters (parse_query policy): the validator
+        rejects the value and the whole filter set resets — per_page to 25.
+        """
         response = self.client.get("/manage/models/Book/list?per_page=7")
-        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.feature_props()["filters"]["per_page"], 25)
 
     # --- detail view (Book) ------------------------------------------------
 

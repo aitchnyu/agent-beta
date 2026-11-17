@@ -2,7 +2,7 @@
 # install-playwright.sh — the WHOLE playwright install for the VM: platform
 # decision, override keys, browsers into the shared cache, chromium system
 # deps, and a launch verification. Runs AS ROOT (provisioning's phase 10,
-# or by hand via multipass exec sudo). HARD-FAILS on an OS outside its
+# or by hand via incus exec sudo). HARD-FAILS on an OS outside its
 # platform table: an unhandled OS must abort provision, never silently map
 # onto a fallback build.
 #
@@ -20,25 +20,24 @@ creds_env="/etc/credentials/desmo/.env.vm"
 _banner() { echo "[$(date +%T)] $*"; }
 
 main() {
-  # Detect the OS/arch: os-release is the portable source, dpkg the arch.
+  # Detect the OS: os-release is the portable source.
   . /etc/os-release
-  local arch override=""
-  arch="$(dpkg --print-architecture)"
+  local override=""
 
   # ── the platform table — which OSes we DELIBERATELY support ────────────
   # Extend a row only after verifying the entry end-to-end (browsers
   # download, deps resolve, the launch check passes); that bar is why
   # unknown OSes refuse instead of mapping.
   case "$ID $VERSION_ID" in
-    "ubuntu 24.04")
-      # Native: the pinned playwright knows this platform — no override keys.
-      ;;
-    "ubuntu 26.04")
-      # Unknown to the pinned playwright — the VERIFIED fallback entry.
-      override="ubuntu24.04-$arch"
+    "debian 13")
+      # The only supported OS. Unknown to the pinned playwright — the
+      # VERIFIED fallback entry (ubuntu24.04-x64 builds + deps map).
+      # Other debian versions are NOT supported: each needs its own
+      # end-to-end verified row before it goes in.
+      override="ubuntu24.04-x64"
       ;;
     *)
-      echo "REFUSING: $ID $VERSION_ID ($arch) is not in install-playwright.sh's platform table — extend the table after verifying playwright's fallback for it, then rebuild the VM." >&2
+      echo "REFUSING: $ID $VERSION_ID is not in install-playwright.sh's platform table — extend the table after verifying playwright's fallback for it, then rebuild the VM." >&2
       exit 1
       ;;
   esac

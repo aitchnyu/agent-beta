@@ -1,12 +1,18 @@
 #!/bin/bash
-# inside-vm.sh — the WHOLE provisioner: runs AS ROOT inside a FRESH test VM
-# (instance "desmo"), driven by ONE exec from ONE manufacturer (never by
-# hand): deploy/install.sh, the curl|bash entry that seeds from a
-# published git ref and exports BASE_URL. ./local-vm provision-full runs
-# that same installer for you. Build-only: the driver refuses an existing
-# instance, and phase 0 refuses any VM where /srv/desmo already exists
-# (any prior provision, complete or half-failed, leaves it behind). One
-# linear function, phase-banner'd — read it top to bottom.
+# inside-vm.sh — the WHOLE provisioner: runs AS ROOT inside a FRESH test
+# VM or container (instance "desmo"), driven by ONE exec from ONE of two
+# manufacturers (never by hand):
+# - deploy/install.sh — the curl|bash entry: seeds from a published git
+#   ref and exports BASE_URL.
+# - ./localvm provision-full — default: seeds from the working tree;
+#   --repo <url> runs that same installer for you.
+#
+# Build-only, two refusal guards:
+# - the driver refuses an existing instance;
+# - phase 0 refuses any VM where /srv/desmo already exists (any prior
+#   provision, complete or half-failed, leaves it behind).
+#
+# One linear function, phase-banner'd — read it top to bottom.
 #
 # Payload — THE manifest: install.sh ships exactly TWO files (the phase-10
 # rm list below must match this block; no entry keeps a list of
@@ -14,7 +20,7 @@
 #   /tmp/inside-vm.sh    this script
 #   /tmp/desmo-seed.tgz  the tracked working tree → /srv/desmo/main (phase 2);
 #                        its deploy/ carries the static env template, the
-#                        render templates, and the gate.sh testing battery
+#                        render templates, and the checkframework2-gate.sh testing battery
 #
 # All config is the TRACKED deploy/template.env — zero operator inputs:
 # - BASE_URL (exported by deploy/install.sh, the curl|bash entry)
@@ -27,7 +33,8 @@
 #
 # ── The fs this provision creates/touches (phase in parens) ────────────────
 #   /                             users: desmo + the default cloud user joins
-#   │                             group desmo (1); ufw 22 + 80/443 (1)
+#   │                             group desmo (1); ufw 22 + 80/443 (1,
+#   │                             VMs only — skipped in containers)
 #   ├── etc/
 #   │   ├── credentials/desmo/    750 root:desmo (3)
 #   │   │   └── .env.vm           640 root:desmo — the template + minted
@@ -45,7 +52,7 @@
 #   │   ├── redis/redis.conf      + maxmemory block (5, guarded)
 #   │   └── profile.d/desmo.sh    login-shell notice (1)
 #   ├── usr/local/bin/
-#   │   ├── desmo                 `desmo <cmd>` wrapper (1)
+#   │   ├── desmo                 `desmo <cmd>` wrapper (2)
 #   │   └── fd                    symlink → fdfind (1); uv, pi, node ride
 #   │                             apt/npm/NodeSource repos; caddy rides the
 #   │                             GitHub-release .deb (1)
@@ -74,7 +81,7 @@ set -Eeuo pipefail
 
 appdir="/srv/desmo"
 maindir="$appdir/main"
-seed_deploy="$maindir/deploy"   # templates + gate.sh ride IN the seed
+seed_deploy="$maindir/deploy"   # templates + checkframework2-gate.sh ride IN the seed
 creds_dir="/etc/credentials/desmo"
 creds_env="$creds_dir/.env.vm"
 # pi CLI version for the npm -g install (lockstep with dev's
@@ -111,11 +118,11 @@ provision() {
   # only path is a rebuild.
   if [ -e "$appdir" ]; then
     echo "REFUSING: $appdir exists — this provisioner is fresh-VM-only." >&2
-    echo "  Rebuild: ./local-vm delete && ./local-vm provision-full" >&2
+    echo "  Rebuild: ./localvm delete <inst> && ./localvm provision-full <inst>" >&2
     exit 1
   fi
   if [ ! -f /tmp/desmo-seed.tgz ]; then
-    echo "REFUSING: /tmp/desmo-seed.tgz missing (deploy/install.sh builds + ships it — directly or via ./local-vm provision-full)." >&2
+    echo "REFUSING: /tmp/desmo-seed.tgz missing (deploy/install.sh or ./localvm provision-full builds + ships it)." >&2
     exit 1
   fi
   # Probe the static template straight out of the tarball — no extraction,
@@ -212,12 +219,19 @@ provision() {
   echo "    users: desmo (less powerful) + the default cloud user (powerful)"
   # Idempotent: useradd dies under set -e if the user already exists.
   id desmo >/dev/null 2>&1 || useradd --create-home --shell /bin/bash desmo
-  # THE powerful user: cloud-init grants the default cloud user (ubuntu on
-  # multipass, debian on Incus) full passwordless sudo.
-  local op_user
-  for op_user in ubuntu debian; do
-    id "$op_user" >/dev/null 2>&1 && break
-  done
+  # THE powerful user: the default cloud user (debian), granted full
+  # passwordless sudo below.
+  # - VM images and cloud instances ship it; container images don't —
+  #   the useradd self-skips where it exists.
+  local op_user="debian"
+  id "$op_user" >/dev/null 2>&1 || useradd --create-home --shell /bin/bash "$op_user"
+  # Passwordless sudo for it. Cloud-init grants this on VM images;
+  # containers created the user bare, so grant it here (idempotent —
+  # an existing cloud-init grant is equivalent).
+  if [ ! -f "/etc/sudoers.d/90-desmo-$op_user" ]; then
+    printf '%s ALL=(ALL) NOPASSWD: ALL\n' "$op_user" > "/etc/sudoers.d/90-desmo-$op_user"
+    chmod 440 "/etc/sudoers.d/90-desmo-$op_user"
+  fi
   # group-desmo-writable: desmo runs everything here, the operator edits too.
   install -d -m775 -o desmo -g desmo "$appdir"
   # default user joins the desmo group → reads the creds env (root:desmo 640).
@@ -242,7 +256,7 @@ EOF
   echo "    apt packages"
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
-  apt-get install -y curl rsync git htop ufw ripgrep fd-find miller pgbackrest \
+  apt-get install -y curl rsync git htop ripgrep fd-find miller pgbackrest sudo \
     postgresql postgresql-client redis-server ca-certificates gnupg librsvg2-bin
   # fd-find: pi auto-downloads fd to ~/.pi/agent/bin on first launch
   # otherwise; Debian names the binary fdfind, pi wants fd.
@@ -284,34 +298,51 @@ EOF
   echo "    uv system-wide (/usr/local/bin)"
   UV_INSTALL_DIR=/usr/local/bin \
     bash -c 'set -o pipefail; curl -fsSL https://astral.sh/uv/install.sh | sh'
+  # uv's downloaded interpreters land in this shared dir, not a home dir:
+  # the app units sandbox /home away (ProtectHome) — a .venv python
+  # symlinked into a home is unreadable at unit start. VMs with a system
+  # Python never download anything; containers (no system 3.14) do.
+  install -d -o desmo -g desmo /usr/local/share/uv/python
 
-  echo "    2G swapfile + swappiness (2G RAM absorbs build spikes)"
-  # Idempotent whole-block (live truth from /proc/swaps): re-entry would
-  # hit an active swapfile — fallocate/mkswap/swapon on it would fail, and
-  # a second fstab append would duplicate the entry.
-  if ! grep -q '^/swapfile' /proc/swaps; then
-    fallocate -l 2G /swapfile
-    chmod 600 /swapfile
-    mkswap /swapfile
-    swapon /swapfile
-    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  # Containers (incus) can't swapon or set global vm.* sysctls (not
+  # namespaced) — the HOST kernel owns memory there; VMs and cloud
+  # instances do the swap dance.
+  if ! systemd-detect-virt -q --container; then
+    echo "    2G swapfile + swappiness (2G RAM absorbs build spikes)"
+    # Idempotent whole-block (live truth from /proc/swaps): re-entry would
+    # hit an active swapfile — fallocate/mkswap/swapon on it would fail, and
+    # a second fstab append would duplicate the entry.
+    if ! grep -q '^/swapfile' /proc/swaps; then
+      fallocate -l 2G /swapfile
+      chmod 600 /swapfile
+      mkswap /swapfile
+      swapon /swapfile
+      echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    fi
+    echo 'vm.swappiness=10' > /etc/sysctl.d/99-swap.conf
+    sysctl -w vm.swappiness=10 >/dev/null
   fi
-  echo 'vm.swappiness=10' > /etc/sysctl.d/99-swap.conf
-  sysctl -w vm.swappiness=10 >/dev/null
 
   # redis: config lands in phase 5; start it stock.
   echo "    redis (stock; phase 5 appends the maxmemory block)"
   systemctl enable --now redis-server >/dev/null
 
-  echo "    ufw (ssh + 80/443)"
-  # 22 = multipass's own channel + the tunnel ride (installs no
-  # authorized_keys — README's one-time pubkey step). The web ports open
-  # regardless of loopback vs public — the local VM is reachable on the
-  # LAN at its bridged IP, prod serves the world.
-  ufw allow OpenSSH >/dev/null 2>&1 || ufw allow 22/tcp >/dev/null
-  ufw allow 80/tcp >/dev/null
-  ufw allow 443/tcp >/dev/null
-  ufw --force enable >/dev/null
+  # ufw is a machine concern: containers sit behind the host's firewall
+  # and their (unprivileged) netns can't own netfilter policy; VMs and
+  # cloud instances open 22 + 80/443 as before.
+  if ! systemd-detect-virt -q --container; then
+    echo "    ufw (ssh + 80/443)"
+    # ufw is a VM-only concern — installed here, not in the base apt list
+    # (containers sit behind the host firewall and never use it).
+    apt-get install -y ufw >/dev/null
+    # 22 = operator ssh (provisioning installs no authorized_keys). The
+    # web ports open regardless of loopback vs public — a public VM serves
+    # the world.
+    ufw allow OpenSSH >/dev/null 2>&1 || ufw allow 22/tcp >/dev/null
+    ufw allow 80/tcp >/dev/null
+    ufw allow 443/tcp >/dev/null
+    ufw --force enable >/dev/null
+  fi
 
   # ── Phase 2/11: seed — extract /srv/desmo/main from the tarball ────────
   _banner "==> [2/11] seed /srv/desmo/main (tarball from the tracked working tree)"
@@ -574,7 +605,7 @@ SQL
   systemctl restart caddy
 
   case "$site_hostname" in
-    localhost|127.*|::1) _banner "==> provision done (site: localhost — via the ssh forward)" ;;
+    localhost|127.*|::1) _banner "==> provision done (site: localhost — host https://localhost:8443 via the proxy device)" ;;
     *) _banner "==> provision done (site: $base_url — public, ACME TLS)" ;;
   esac
 }
@@ -605,6 +636,9 @@ bootstrap() {
   set -a; . "$creds_env"; set +a
   cd "$maindir"
   export PATH="/usr/local/bin:$HOME/.local/bin:$PATH"
+  # Keep downloaded interpreters in the shared dir (see phase 1) — the
+  # .venv symlinks must resolve for the sandboxed app units.
+  export UV_PYTHON_INSTALL_DIR=/usr/local/share/uv/python
   uv sync
   (cd frontend && npm install --no-audit --no-fund && npm run build)
   uv run python manage.py migrate --noinput
@@ -623,5 +657,6 @@ esac
 
 # MAINTAIN-CONSISTENCY vm-payload — the payload manifest (header) + the
 # phase-10 rm list must match what ships the payload: deploy/install.sh
-# (published git ref) builds + execs exactly these two files;
-# local-vm's two inline curl-line derivations both read its repo_url.
+# (published git ref) and ./localvm's local mode both build + exec
+# exactly these two files; localvm's --repo curl-line derivation
+# reads install.sh's repo_url.

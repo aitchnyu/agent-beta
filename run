@@ -356,7 +356,7 @@ _require_scratch_cwd() {
 #      NOT under coverage: it must not contribute to the merged report
 checkframework1() {
   # main/'s ./run only (scratch's copy would rm -rf its own tree), and never
-  # in the VM — the VM has its own gate (checkframework2/gate.sh).
+  # in the VM — the VM has its own gate (checkframework2-gate.sh).
   _require_main_run checkframework1 || return 1
   if is_running_on_vm; then
     echo "Refusing: checkframework1 is a dev-side gate; the VM runs checkframework2." >&2
@@ -436,30 +436,37 @@ checkframework1() {
   echo "Coverage report: htmlcov/index.html"
 }
 
-# The deployment gate (destructive — the old VM's git + database are gone):
-# - rebuild the test VM from scratch (`./local-vm delete` + `provision-full`)
-# - run the in-VM gate — deploy/gate.sh's `gate`, dispatched like every other
-#   guest-side helper — over ONE multipass exec; its exit code is the verdict.
-#   The gate:
-#   - replaces the VM's `ourapp/` with the Books test app (djangoapp/tests/testapp)
+# The deployment gate (destructive — but only to the
+# volatile-test-machine instance it owns; every other instance, its git +
+# database included, is untouched):
+# - rebuild volatile-test-machine from scratch (`./localvm delete
+#   volatile-test-machine` +
+#   `provision-full volatile-test-machine --no-forward` — instance-local, no host forward)
+# - run the in-container gate — deploy/checkframework2-gate.sh's `gate`, dispatched like
+#   every other guest-side helper — over ONE incus exec; its exit code is
+#   the verdict. The gate:
+#   - replaces the container's `ourapp/` with the Books test app (djangoapp/tests/testapp)
 #     ourapp/
-#   - refuses non-loopback installs first (BASE_URLS from the VM's
+#   - refuses non-loopback installs first (BASE_URLS from the container's
 #     installed .env.vm — prod origins abort before anything mutates)
 #   - smokes the LIVE stack over HTTPS on loopback (caddy TLS, granian,
 #     postgres, login links)
 #   - runs the agent's full scratch lifecycle
 #   - three setup phases, eleven asserts, first failure aborts
-# - NB: the exec's output streams unfiltered — never pipe an exec into
-#   grep -q (early-exit readers wedge the daemon's next exec on this host)
 checkframework2() {
-  setenv
-  echo "=== Rebuild the VM from scratch (destructive) ==="
-  if multipass info desmo >/dev/null 2>&1; then
-    "$_TREE_DIR/local-vm" delete
+  _require_main_run checkframework2 || return 1
+  if is_running_on_vm; then
+    echo "Refusing: checkframework2 is a dev-side driver; the container's gate arrives via incus exec." >&2
+    return 1
   fi
-  "$_TREE_DIR/local-vm" provision-full
-  echo "=== Run the in-VM gate (testapp overlay + 11 asserts) ==="
-  multipass exec desmo -- sudo bash /srv/desmo/main/deploy/gate.sh gate
+  setenv
+  echo "=== Rebuild the volatile-test-machine container from scratch (destructive to volatile-test-machine only) ==="
+  if incus info volatile-test-machine >/dev/null 2>&1; then
+    "$_TREE_DIR/localvm" delete volatile-test-machine
+  fi
+  "$_TREE_DIR/localvm" provision-full volatile-test-machine --no-forward
+  echo "=== Run the in-volatile-test-machine gate (testapp overlay + 11 asserts) ==="
+  incus exec volatile-test-machine -- sudo bash /srv/desmo/main/deploy/checkframework2-gate.sh gate
 }
 
 lintfix() {
@@ -531,7 +538,7 @@ ${H}Checks${R}
   ${C}checkframework1${R}     the full dev-side gate (main/ only, never the VM):
                         lint + types + 4 test tiers under one merged
                         coverage report (htmlcov/)
-  ${C}checkframework2${R}     rebuild the test VM from scratch + run the in-VM gate
+  ${C}checkframework2${R}     rebuild volatile-test-machine from scratch + run the in-container gate
 
 ${H}Scratch (the agent edit loop)${R}
   ${C}createscratch${R}       copy main/ → scratch/ + tag scratch-baseline

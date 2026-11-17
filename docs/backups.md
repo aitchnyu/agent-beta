@@ -39,12 +39,12 @@ journalctl -u desmo_pgbackrest -o cat
 
 Read the error, fix, then prove it: `./run backupdb` and
 `sudo -u postgres pgbackrest --stanza=desmo check` (the consistency
-check). The in-VM gate also runs a full mark → back up → restore →
-verify round-trip on every fresh VM.
+check). The in-container gate also runs a full mark → back up → restore →
+verify round-trip on every fresh volatile-test-machine build.
 
 ## Details
 
-- [pgbackrest](https://pgbackrest.org/) from Ubuntu's apt. Everything
+- [pgbackrest](https://pgbackrest.org/) from Debian's apt. Everything
   runs as postgres over the local socket.
 - `dbbackups/` in the repo root is self-contained: backup sets +
   WAL together. Copying the folder carries the whole backup — so any

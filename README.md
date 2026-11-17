@@ -8,7 +8,7 @@ DNS for your domain must already point at the VM.
 You must get SSH into the machine.
 
 One curl|bash command turns a fresh VM you administer — any cloud
-Ubuntu 24.04/26.04 (or Debian) instance you can ssh into — into a running
+Debian instance you can ssh into — into a running
 deployment of a published ref of this repo. Ssh in and run:
 
 ```bash
@@ -45,58 +45,63 @@ It ships with no provider configured — the one-time auth + model setup is
 
 ## Local Development
 
-On a local multipass VM (instance `desmo`, bridged, 2G ram / 20G disk) or
-on your machine.
+On a local incus container (instance `desmo`, Debian 13, 2G memory cap,
+no ssh anywhere — a proxy device forwards host `:8443` to the container's
+caddy) or on your machine.
 
-### Install in local vm, everything included
+### Install in local container, everything included
 
 This is the preferred method.
 
-`provision-blank` + the installer, run for you — the VM is built from
-**published `main`** (push first, then gate), loopback like the blank flow:
+`provision-full` builds the container and provisions it from the **local
+working tree** by default (tracked files — uncommitted edits included; no
+push needed). `--repo <url>` installs from a published GitHub repo instead
+(`--ref <tag|branch>` picks the ref — push first, then gate). Either way
+loopback-only:
 
 ```console
-$ ./local-vm provision-full
+$ ./localvm provision-full desmo
 
 ...
 ...
-==> multipass launch desmo (bridged en0, DHCP, 2G ram, 20G disk, 26.04) — blank
-Launched: desmo
-....
+==> incus launch desmo (debian 13, incusbr0 NAT, 2G memory cap) — blank
+    https forward: host https://localhost:8443 → container :443 (proxy device)
+==> payload from the LOCAL working tree (git ls-files + deploy/inside-vm.sh)
+...
+    headless chromium launch OK
+==> [11/11] start services
+PROVISION OK (local)
 
-    HTTPS smoke ok (https://localhost/)
-
-Built the VM.
-…access steps: the one-time pubkey line, the VM's bridged IP, the
-ssh -N -L 8000:localhost:443 forward, browse https://localhost:8000/ …
+The container 'desmo' is up — the proxy device is attached. Browse:
+  https://localhost:8443/        (internal CA — accept the warning)
 ```
 
 The VM ships with the agent unconfigured — before the first `desmo pi`,
 do the one-time provider auth + model setup:
 [Pi setup](#pi-setup-provider-auth--model-one-time).
 
-### Install in blank local vm
+### Install in blank local container
 
 Blank + install from the repo — the dress rehearsal of the
 production path minus the domain (loopback-only):
 
-Create a VM and enter its shell:
+Create the container and enter its shell (as root — no key setup):
 
 ```bash
-./local-vm provision-blank
-multipass shell desmo
+./localvm provision-blank desmo
+./localvm shell desmo
 ```
 
 Install the system:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/aitchnyu/agent-beta/main/deploy/install.sh | sudo bash -s
+curl -fsSL https://raw.githubusercontent.com/aitchnyu/agent-beta/main/deploy/install.sh | bash -s
 ```
 
 The VM ships with the agent unconfigured — before the first `desmo pi`,
 do the one-time provider auth + model setup:
 [Pi setup](#pi-setup-provider-auth--model-one-time).
 
-Everything else — access via the ssh forward, secrets, the scratch edit
+Everything else — access via the proxy device, secrets, the scratch edit
 loop, and the one-time [pi setup](#pi-setup-provider-auth--model-one-time)
 (provider auth + model) — is the
 [VM (test server)](#vm-test-server) section below.
@@ -133,7 +138,7 @@ If you want to look around:
   TUI
   edits a throwaway `scratch/` copy of the repo; you review, then
   `deployscratch` checks + deploys to `main/` (server auto-reloads). Start it with
-  `./run pi` — on the VM via `desmo pi` from a multipass shell (the
+  `./run pi` — in the container via `desmo pi` from `./localvm shell desmo` (the
   `desmo` command = cd to the app dir + `./run`, available to the default
   cloud user). See
   [Edit → test → deploy workflow](#edit--test--deploy-workflow).
@@ -185,14 +190,14 @@ If you want to look around:
 
 ## VM (test server)
 
-The whole loop can run on a Linux VM (multipass) instead of your local
-machine; the workstation becomes just a browser + ssh client. This is the
-LOCAL test VM: built from published `main`, loopback-only, no domain —
-the published-ref + domain path is
+The whole loop can run on a Linux container (incus, instance `desmo`)
+instead of your local machine; the workstation becomes just a browser.
+This is the LOCAL test container: built from the local working tree by
+default (loopback-only, no domain) — the published-ref + domain path is
 [Install on your VM (production)](#install-on-your-vm-production).
 The operator/agent surface is a shell, not the web — `desmo pi` starts
 the agent TUI. There is nothing to configure: all
-VM config is the tracked static template `deploy/template.env` (zero
+container config is the tracked static template `deploy/template.env` (zero
 operator inputs — editing it is a repo edit).
 
 - **Secrets are generated on the VM at provision time**: `SECRET_KEY` +
@@ -206,75 +211,65 @@ operator inputs — editing it is a repo edit).
 - Database names are fixed (`desmo_db`/`desmo_user` from the env values) — one
   app per VM by design.
 
-Then one command builds everything (2G RAM + 2G swap, postgres + redis
+Then one command builds everything (2G memory cap, postgres + redis
 localhost-only, caddy TLS, `/srv/desmo/main` (a `scratch/` sibling appears
 when you run `desmo createscratch` there), systemd units
 `desmo_granian` + `desmo_huey` under the **less powerful `desmo` user** — huey
 always enabled, `HUEY_WORKERS` ≥ 1 enforced at provisioning). The
-multipass instance is named `desmo`; the operator + agent user is the
-image's default cloud user (`ubuntu`, `debian` on Debian), which already
-has passwordless sudo and gets the `desmo` command on its PATH:
+incus instance is named `desmo`; the operator + agent user is the
+image's default cloud user (`debian`; created + granted passwordless sudo
+on container images, cloud-init's grant on VMs) and gets the `desmo`
+command on its PATH:
 
 ```bash
-./local-vm provision-full   # builds and prints access + login steps
+./localvm provision-full desmo   # builds and prints access + login steps
 ```
 
-One hostname, one port, reached through an ssh forward — the tunnel is the
-only entry (the VM announces and serves no LAN name). The internal-CA cert
-means a click-through warning (the supported mode):
+One hostname, one port — an incus proxy device attached by provision
+forwards host `:8443` to the container's caddy (`:443`); no ssh anywhere.
+The internal-CA cert means a click-through warning (the supported mode):
 
-- **`https://localhost:8000/`** — the app, once the tunnel is up:
+- **`https://localhost:8443/`** — the app, no forward to run:
 
-  ```bash
-  # one-time: let your host key in (provisioning installs no authorized_keys)
-  multipass exec desmo -- bash -c \
-    'mkdir -p -m 700 ~ubuntu/.ssh && cat >> ~ubuntu/.ssh/authorized_keys && chmod 600 ~ubuntu/.ssh/authorized_keys' \
-    < ~/.ssh/id_ed25519.pub
-  multipass info desmo | grep IPv4      # the VM's bridged IP
-
-  # each session: forward host :8000 → the VM's caddy (:443); leave running
-  ssh -N -L 8000:localhost:443 ubuntu@<vm-ip>
-  ```
-
-  (On a Debian image the ssh user is `debian` — `~debian` / `debian@<vm-ip>`.)
-  Host port 8000 collides with the dev runserver — never both at once.
+  Host port 8443 leaves :8000 free for the dev runserver — both can run.
   Login is Google OAuth (localhost is Google's dev redirect exception):
-  register `https://localhost:8000/accounts/google/login/callback/` in the
-  Google console, then store the credentials on the VM —
+  register `https://localhost:8443/accounts/google/login/callback/` in the
+  Google console, then store the credentials on the container —
 
   ```bash
-  multipass exec desmo -- desmo djangomanage addoauth google <client_id> <secret>
+  ./localvm shell desmo   # then, inside:
+  desmo djangomanage addoauth google <client_id> <secret>
   ```
 
   — or issue a one-time link for an existing user (single use, 15-min
   expiry), then `promotetosuperuser <email>` to unlock admin pages:
 
   ```bash
-  multipass exec desmo -- desmo djangomanage makeloginlink <email>
+  ./localvm runasdesmo desmo ./run djangomanage makeloginlink <email>
   ```
 
-**Everything else happens on the VM**: `desmo createscratch` → `desmo pi`
-(from a multipass shell, as the default cloud user) edits `scratch/` →
+**Everything else happens in the container**: `desmo createscratch` → `desmo pi`
+(from `./localvm shell desmo`, as the default cloud user) edits `scratch/` →
 `desmo deployscratch` (checks + deploy; migrate + service restarts when
 backend changed, collectstatic when the bundle changed — frontend/docs-only
 diffs take a lint/build + d2-check fast path). Before the first
 `desmo pi`, do the one-time provider auth + model setup —
 [Pi setup](#pi-setup-provider-auth--model-one-time). The env on the
-VM is a single file all services share
+container is a single file all services share
 (`/etc/credentials/desmo/.env.vm`, staged from the tracked
 `deploy/template.env` + the minted machine secrets).
 
-Provisioning is **build-or-destroy**: it refuses when the VM exists — to
-apply changes, delete and rebuild.
+Provisioning is **build-or-destroy**: it refuses when the container exists —
+to apply changes, delete and rebuild (`./localvm backup desmo <message>` first if you
+want a rewind point; `./localvm rewind desmo <name>` restores the whole machine).
 
 ```bash
-./local-vm delete      # multipass delete+purge — destructive, no backup step
+./localvm delete desmo      # incus delete -f — destructive, no backup step
 ```
 
-The VM's `.git` is its own history — copy anything you need off it
-(tar via `multipass transfer`, `pg_dump` via `multipass exec`) before
-deleting. Plan + full manifest of
-everything provisioning touches: `prompts/20260818-vm-provisioning-multipass.md`.
+The container's `.git` is its own history — copy anything you need off it
+(tar/pg_dump via `incus exec`) before deleting. Plan + as-built:
+`prompts/20261116-incus-migration.md`.
 
 ## Pi setup: provider auth + model (one-time)
 
@@ -299,7 +294,7 @@ One-time setup:
    ![pi /login zai — provider filtered, API key saved](docs/screenshots/pi/pi-login.png)
 
    pi confirms: Saved API key for Z.AI. `Credentials saved to
-   /home/ubuntu/.pi/agent/auth.json` (per user; never in the repo or
+   /home/debian/.pi/agent/auth.json` (per user; never in the repo or
    the env).
 
 3. **Select Model**: type `/model` and type to filter — `fla` finds
@@ -597,13 +592,16 @@ User/management commands (via the passthrough):
 `makeloginlink <email>` (one-time login URL),
 `promotetosuperuser <email>`, `addoauth <provider> <client_id> <secret>`.
 
-Test-VM lifecycle via `local-vm` (root):
-`./local-vm provision-blank [--release …]` (launch-only, for the curl|bash install),
-`./local-vm provision-full [--release …]` (runs the curl|bash for you — published `main`),
-`./local-vm delete`; the seeded copy
-also carries the guest-side admin surface (`runasdesmo` — the sanctioned
-hop for commands that must run as the desmo user, e.g. file-writing
-`pg_hardstorage`).
+Test-VM lifecycle via `localvm` (root; every command names its instance —
+`volatile-test-machine` is checkframework2's disposable one, `desmo` the persistent local one):
+`./localvm provision-blank <inst> [--release …]` (launch-only, for the curl|bash install),
+`./localvm provision-full <inst> [--repo <url>] [--ref <tag|branch>]` (default:
+the local working tree; `--repo` runs the curl|bash for you — published),
+`./localvm delete <inst>`, `./localvm shell <inst>`,
+`./localvm backup <inst> <message…>` / `rewind <inst> <snap>`,
+`./localvm portforward <inst>`,
+`./localvm runasdesmo <inst> <cmd…>` (the sanctioned hop for commands
+that must run as the desmo user, e.g. file-writing `pg_hardstorage`).
 
 
 ## Logging
@@ -746,7 +744,7 @@ creates what, when) lives in `deploy/inside-vm.sh`'s header.
 │   │   │   └── src/system/        framework pages/components/schemas/styles/icons/utils
 │   │   ├── .pi/                   pi CLI config: permissions allowlist, extensions,
 │   │   │                          steer.md + repo-map.md, agents
-│   │   ├── deploy/                guest-side scripts (gate.sh, inside-vm.sh, …)
+│   │   ├── deploy/                guest-side scripts (checkframework2-gate.sh, inside-vm.sh, …)
 │   │   └── dbbackups/             pgbackrest repo — plain unencrypted backup sets +
 │   │                              WAL archive (nightly; runtime data, gitignored +
 │   │                              rsync-excluded like media/)
@@ -756,7 +754,7 @@ creates what, when) lives in `deploy/inside-vm.sh`'s header.
 │                                  databases provisioning creates from the env values
 ├── home/desmo                     the less-powerful service user's home (runs the units)
 └── also on PATH: node 24 LTS (NodeSource apt) + the pi CLI (npm -g) — the operator is
-   the default cloud user (ubuntu; debian on Debian), member of group desmo, full sudo
+   the default cloud user (debian), member of group desmo, full sudo
 ```
 
 ## Testing
@@ -778,13 +776,14 @@ Three tiers:
   `report -m` + `htmlcov/` — the testapp scratch's `djangoapp/` folds onto main's via
   `[tool.coverage.paths]`; the overlay `ourapp/` is exercised but never measured.
   The merged total is ratcheted with --fail-under, fails the gate on any regression — raise it when coverage improves, never lower it.
-- **`checkframework2`** — the deployment gate (destructive: the previous VM is
-  deleted). The host rebuilds the test VM from scratch
-  (`./local-vm provision-full`), then runs
-  the in-VM gate (`deploy/gate.sh gate`, dispatched like the other guest-side
-  helpers) over one multipass exec — the gate's exit code is the verdict. The
+- **`checkframework2`** — the deployment gate (destructive to its own
+  `volatile-test-machine` instance ONLY — every other instance is untouched). The host rebuilds
+  `volatile-test-machine` from scratch
+  (`./localvm provision-full volatile-test-machine --no-forward` — local tree by default), then runs
+  the in-container gate (`deploy/checkframework2-gate.sh gate`, dispatched like the other
+  guest-side helpers) over one incus exec — the gate's exit code is the verdict. The
   gate:
-  - refuses any non-loopback install first (the VM's installed `BASE_URLS`:
+  - refuses any non-loopback install first (the container's installed `BASE_URLS`:
     a public origin means real data — the battery's testapp overlay, smoke
     superuser, and live-DB restore never touch such a VM)
   - replaces the VM's `ourapp/` with the Books test app
