@@ -34,8 +34,18 @@ const isAuthenticated = computed(() => shared.value.user !== null)
       />
     </template>
     <template v-else>
-      <div class="home-status home-status-signed-out">
-        <p>You are not logged in.</p>
+      <div class="home-status-signed-out alert alert-warning d-flex flex-column gap-2">
+        <p class="mb-0">
+          You are not logged in — mockups, design docs, and the admin
+          surfaces are visible to superusers only.
+        </p>
+        <p class="mb-0">
+          Ask your agent to set one up:
+          <code class="d-block"
+            >create a new superuser John Smith with john.smith@example.com and
+            send a login link</code
+          >
+        </p>
       </div>
       <p class="home-placeholder-note text-muted">
         What prompting looks like — the first message carries the admin setup

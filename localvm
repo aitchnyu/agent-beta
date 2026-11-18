@@ -35,7 +35,7 @@
 #   database are gone (tar/pg_dump via incus exec first).
 #
 # ── Host: access ───────────────────────────────────────────────────────
-# ./localvm shell <inst>            root shell in the container
+# ./localvm shell <inst>            shell in the container as debian
 # ./localvm portforward <inst>      point host :8443 at <inst>'s caddy —
 #                                     the only forward, moved off any
 #                                     other instance first
@@ -150,8 +150,13 @@ provision-blank() {
     echo "  ./localvm delete $instance && ./localvm provision-blank $instance  # to rebuild" >&2
     exit 1
   fi
-  echo "[$(date +%T)] ==> incus launch $instance (debian $release, incusbr0 NAT, 2G memory cap) — blank"
-  incus launch "$image_family/$release" "$instance" --config limits.memory=2GB
+  echo "[$(date +%T)] ==> launch $instance — blank"
+  # limits.memory.swap=true is a no-op on this incus (the cgroup stays 0):
+  # raw.lxc writes memory.swap.max directly — 2G of host zram, OOM past it.
+  incus launch "$image_family/$release" "$instance" \
+    --config limits.cpu=2 \
+    --config limits.memory=2GB \
+    --config raw.lxc='lxc.cgroup2.memory.swap.max=2147483648'
   # Settle before shipping anything:
   # - incus launch returns at START, not boot completion
   # - an exec before the /tmp tmpfs mounts writes files UNDER it (the
@@ -267,6 +272,12 @@ shell() { # <instance>
   local instance="${1:-}"
   [ -n "$instance" ] || usage "shell needs an instance name"
   [ $# -eq 1 ] || usage "shell takes exactly one instance name"
+  # Lands as the operator principal once the provisioner created it; a
+  # blank container has no debian yet — root there (the install step's
+  # context; root is one `sudo -i` away after install).
+  if incus exec "$instance" -- id debian >/dev/null 2>&1; then
+    exec incus exec "$instance" -- su -l debian
+  fi
   exec incus exec "$instance" -- bash
 }
 

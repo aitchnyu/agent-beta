@@ -45,26 +45,57 @@ It ships with no provider configured — the one-time auth + model setup is
 
 ## Local Development
 
-On a local incus container (instance `desmo`, Debian 13, 2G memory cap,
-no ssh anywhere — a proxy device forwards host `:8443` to the container's
-caddy) or on your machine.
+On a local incus container (instance `desmo`, Debian 13, 2 CPUs / 2G memory
++ 2G swap cap, no ssh anywhere — a proxy device forwards host `:8443` to
+the container's caddy) or on your machine.
+
+### Install in blank local container
+
+This is the preferred method — the dress rehearsal of the production
+path minus the domain (loopback-only), and the same install a real VM
+gets.
+
+Create the container and enter its shell (root on a blank container —
+the `debian` operator exists after install; no key setup either way):
+
+```bash
+./localvm provision-blank desmo
+./localvm shell desmo
+curl -fsSL https://raw.githubusercontent.com/aitchnyu/agent-beta/main/deploy/install.sh | bash -s
+```
+
+The install streams its phases and ends logged in as the operator:
+
+```console
+[07:41:10] ==> self-tests
+    units active (granian, huey, caddy, redis, postgres, backup timer)
+    HTTPS smoke ok (https://localhost/)
+==> Desmo is provisioned on desmo          (green, bold)
+
+The desmo command is available on this machine:
+   (e.g. 'desmo pi'; commands: 'desmo help').
+
+debian@desmo:~$
+```
+
+The container ships with the agent unconfigured — before the first
+`desmo pi`, do the one-time provider auth + model setup:
+[Pi setup](#pi-setup-provider-auth--model-one-time).
 
 ### Install in local container, everything included
 
-This is the preferred method.
-
-`provision-full` builds the container and provisions it from the **local
-working tree** by default (tracked files — uncommitted edits included; no
-push needed). `--repo <url>` installs from a published GitHub repo instead
-(`--ref <tag|branch>` picks the ref — push first, then gate). Either way
-loopback-only:
+The one-command convenience: `provision-full` builds the container and
+provisions it from the **local working tree** by default (tracked files —
+uncommitted edits included; no push needed). `--repo <url>` installs from
+a published GitHub repo instead (`--ref <tag|branch>` picks the ref —
+push first, then gate). Either way loopback-only:
 
 ```console
 $ ./localvm provision-full desmo
 
 ...
 ...
-==> incus launch desmo (debian 13, incusbr0 NAT, 2G memory cap) — blank
+==> incus launch desmo (debian 13, incusbr0 NAT, 2 CPUs / 2G memory + 2G swap cap) — blank
     https forward: host https://localhost:8443 → container :443 (proxy device)
 ==> payload from the LOCAL working tree (git ls-files + deploy/inside-vm.sh)
 ...
@@ -76,26 +107,9 @@ The container 'desmo' is up — the proxy device is attached. Browse:
   https://localhost:8443/        (internal CA — accept the warning)
 ```
 
-The VM ships with the agent unconfigured — before the first `desmo pi`,
-do the one-time provider auth + model setup:
+The container ships with the agent unconfigured — before the first
+`desmo pi`, do the one-time provider auth + model setup:
 [Pi setup](#pi-setup-provider-auth--model-one-time).
-
-### Install in blank local container
-
-Blank + install from the repo — the dress rehearsal of the
-production path minus the domain (loopback-only):
-
-Create the container and enter its shell (as root — no key setup):
-
-```bash
-./localvm provision-blank desmo
-./localvm shell desmo
-```
-
-Install the system:
-```bash
-curl -fsSL https://raw.githubusercontent.com/aitchnyu/agent-beta/main/deploy/install.sh | bash -s
-```
 
 The VM ships with the agent unconfigured — before the first `desmo pi`,
 do the one-time provider auth + model setup:

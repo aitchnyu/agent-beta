@@ -1927,6 +1927,12 @@ uploads use `postForm`; form-shaped state may use Inertia v3's `useHttp`.
   side-effect imported by that feature's pages — never into `app.scss`
   itself; only app-wide (cross-feature) rules append below its marker,
   so framework updates merge clean.
+- REUSE bootstrap before writing scss: the full component set
+  (alert, toast, badge, card, btn, table, list-group, …) plus the
+  utilities (spacing, flex, text, borders) are already imported in
+  `frontend/src/system/styles/_bootstrap.scss` — compose existing
+  classes first; hand-rolled rules only for what bootstrap cannot
+  express. Smaller scss files, consistent look, dark-mode for free.
 - Framework code lives under `frontend/src/system/` with the same subdirs
   plus `icons/`.
 - Module-owned helpers colocate with their pages/components (git utils in

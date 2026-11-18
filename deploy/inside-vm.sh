@@ -288,7 +288,8 @@ EOF
   local caddy_arch caddy_deb
   caddy_arch="$(dpkg --print-architecture)"
   caddy_deb="caddy_${_CADDY_VERSION}_linux_${caddy_arch}.deb"
-  curl -fsSL -o "/tmp/${caddy_deb}" \
+  # stalls on some networks — a bounded wait beats a frozen provision.
+  curl -fsSL --retry 2 --retry-delay 5 --max-time 180 -o "/tmp/${caddy_deb}" \
     "https://github.com/caddyserver/caddy/releases/download/v${_CADDY_VERSION}/${caddy_deb}"
   apt-get install -y "/tmp/${caddy_deb}"
   rm -f "/tmp/${caddy_deb}"

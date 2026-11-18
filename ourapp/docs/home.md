@@ -12,10 +12,12 @@ The landing page — plus the generic mockup route every mockup page serves from
 ## Behaviour
 
 - Anonymous visitor: the shared `user` prop is null and the page renders a
-  login-helper block — "You are not logged in. You may ask your agent:"
-  with two example prompts (create a superuser + send a login link; send a
-  login link for an existing user). No auth chrome lives on the page —
-  sign-in dropdown and user menu (with logout) are the framework navbar's.
+  login-helper block — "You are not logged in — mockups, design docs, and
+  the admin surfaces are visible to superusers only." plus the copyable
+  agent prompt (`create a new superuser John Smith with
+  john.smith@example.com and send a login link`). No auth chrome lives on
+  the page — sign-in dropdown and user menu (with logout) are the
+  framework navbar's.
 - Authenticated viewer: the shared `user` prop carries their display name and
   `public_id` (never the integer `pk`); the page shows the placeholder's
   feature pointers as explained

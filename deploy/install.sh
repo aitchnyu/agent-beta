@@ -141,9 +141,10 @@ probe_host="${probe_host%%/*}"          # strip any trailing path
 probe_host="${probe_host%%:*}"          # strip the port
 url="https://$probe_host/"
 case "$probe_host" in
-  # -m 2: a hung connect must not blow the 1s×10 retry budget.
-  localhost|127.*|::1) probe() { curl -m 2 -fsSk -o /dev/null "$url"; } ;;   # -k: the internal-CA cert
-  *)                   probe() { curl -m 2 -fsS -o /dev/null "$url"; } ;;
+  # -m 2: a hung connect must not blow the 1s×10 retry budget. -s: the
+  # restart race's transient 502s stay off the operator's screen.
+  localhost|127.*|::1) probe() { curl -m 2 -fsSk -s -o /dev/null "$url"; } ;;   # -k: the internal-CA cert
+  *)                   probe() { curl -m 2 -fsS -s -o /dev/null "$url"; } ;;
 esac
 
 # Retry liveness check every 1s up to 10s
@@ -167,4 +168,18 @@ done
 echo "    HTTPS smoke ok ($url)"
 
 rm -rf "$clone_dir"
+
+# The finish line — green + bold when the terminal supports it (a piped
+# log just gets the plain text).
+if [ -t 1 ]; then
+  printf '\033[1;32m==> Desmo is provisioned on %s\033[0m\n' "$(hostname)"
+else
+  echo "==> Desmo is provisioned on $(hostname)"
+fi
+
+# Interactive installs end as debian; driven ones exit as before.
+# </dev/tty: bash -s's stdin is the curl pipe — instant EOF for su's shell.
+if [ -t 1 ]; then
+  exec su -l debian </dev/tty
+fi
 }
