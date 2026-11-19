@@ -17,5 +17,5 @@ urlpatterns = [
     path("", client_errors_api.urls),  # Frontend error capture sink
     path("", users_api.urls),
     path("", notifications_api.urls),
-    path("login-for-test/<str:key>/", redeem_login_key, name="login-for-test"),
+    path("login-with-secret/<str:key>/", redeem_login_key, name="login-with-secret"),
 ]

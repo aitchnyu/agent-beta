@@ -34,7 +34,7 @@ Created user 'you' (you@example.com) + superuser/staff. login link: ./run django
 
 $ desmo djangomanage makeloginlink you@example.com
 One-time login for 'you' (valid 60 min, single use):
-https://your.domain/login-for-test/<key>/
+https://your.domain/login-with-secret/<key>/
 ```
 
 Open the printed link in a browser — it signs you in once, then expires.
@@ -78,9 +78,39 @@ The desmo command is available on this machine:
 debian@desmo:~$
 ```
 
-The container ships with the agent unconfigured — before the first
-`desmo pi`, do the one-time provider auth + model setup:
-[Pi setup](#pi-setup-provider-auth--model-one-time).
+The container ships with the agent unconfigured. The guided first run is
+one command (as the operator, from any directory):
+
+```bash
+desmo firstsetup
+```
+
+The guided menu does three things, each also doable by hand:
+
+1. **First superuser** — enter first name, last name, email; the menu
+   creates the superuser and shows its one-time login link (24h).
+   By hand:
+
+   ```bash
+   desmo djangomanage createuser Jane Doe jane@example.com --superuser --if-absent
+   desmo djangomanage makeloginlink jane@example.com --minutes 1440
+   ```
+
+2. **Google OAuth** — paste the client id + secret from the Google
+   console; the menu stores them. By hand:
+
+   ```bash
+   desmo djangomanage addoauth google <client_id> <client_secret>
+   ```
+
+3. **AI provider** — pick one of the 43 providers pi supports from the
+   dropdown (the full list and per-provider options — environment
+   variables, regional endpoints, extra config — are in pi's
+   [Providers documentation](https://docs.pi.dev/latest/providers)). 
+
+Done rows turn green and lock (the Superuser row reopens its login link).
+For the full provider table, model selection, and account sign-in
+details, read [Pi setup: provider auth + model (one-time)](#pi-setup-provider-auth--model-one-time).
 
 ### Install in local container, everything included
 
@@ -107,9 +137,10 @@ The container 'desmo' is up — the proxy device is attached. Browse:
   https://localhost:8443/        (internal CA — accept the warning)
 ```
 
-The container ships with the agent unconfigured — before the first
-`desmo pi`, do the one-time provider auth + model setup:
-[Pi setup](#pi-setup-provider-auth--model-one-time).
+The container ships with the agent unconfigured. The guided first run is
+`desmo firstsetup` (as the operator): first superuser + login link,
+Google OAuth credentials, and any pi AI provider — verified and locked
+once done. By hand: [Pi setup](#pi-setup-provider-auth--model-one-time).
 
 The VM ships with the agent unconfigured — before the first `desmo pi`,
 do the one-time provider auth + model setup:
@@ -370,7 +401,7 @@ issuing a one-time link for an existing user (e.g. one created with
 ./run python manage.py makeloginlink alice@example.com
 ```
 
-Open the printed `/login-for-test/<key>/` URL once — single use,
+Open the printed `/login-with-secret/<key>/` URL once — single use,
 60-minute expiry (`--minutes N` to extend, 60 minimum), and only the SHA-256
 of the key is stored. Superusers can also issue the same link from a user's
 details page (`/users/id/<public_id>` → "Login link"), with 1 h / 8 h / 24 h
@@ -594,7 +625,8 @@ fan-out as its own task — push-service HTTP never runs inline in a request.
 ## Commands
 
 App/dev via the `run` script: `init`, `runserver`, `dev`,
-`pi`, `test`,
+`pi`, `firstsetup` (guided first-run TUI: superuser + login link,
+google oauth, ai providers), `test`,
 `typecheck`, `lintfix`, `playwrighttest`, `screenshots`, `checkframework1`,
 `checkframework2`, `checkmarkdownd2`, `createscratch`,
 `deployscratch`, `cleanscratch`,

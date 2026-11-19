@@ -317,7 +317,7 @@ def _step_login_link() -> str:
     link_output = _capture_desmo(
         "uv", "run", "--no-sync", "python", "manage.py", "makeloginlink", "framework@example.com"
     )
-    match = re.search(r"/login-for-test/[^ ]+/", link_output)
+    match = re.search(r"/login-with-secret/[^ ]+/", link_output)
     if not match:
         die("no login link in makeloginlink output")
     return match.group(0)

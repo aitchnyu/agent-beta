@@ -4,6 +4,7 @@ from typing import Any
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError, CommandParser
+from django.urls import reverse
 
 from djangoapp.models import LOGIN_LINK_MIN_MINUTES, LoginKey, User
 
@@ -13,7 +14,7 @@ class Command(BaseCommand):
 
     The test VM cannot complete Google OAuth (its ``.local`` hostname isn't
     registrable), so this is how the operator signs in there: it issues a
-    ``/login-for-test/<key>/`` URL that logs the user in exactly once
+    ``/login-with-secret/<key>/`` URL that logs the user in exactly once
     before it expires. Only the SHA-256 of the key is stored server-side, so
     the printed line is the only place the raw key exists.
     """
@@ -53,9 +54,8 @@ class Command(BaseCommand):
             raise CommandError(msg)
         user = matches.get()
         key, _expires_at = LoginKey.issue(user, minutes=minutes)
-        # The FIRST configured origin (settings.BASE_URLS) is the base —
-        # never an assumed scheme/host/port.
-        url = f"{settings.BASE_URLS[0]}/login-for-test/{key}/"
+        path = reverse("login-with-secret", kwargs={"key": key})
+        url = f"{settings.BASE_URLS[0]}{path}"
         self.stdout.write(
             self.style.SUCCESS(
                 f"One-time login for '{user.username}' (valid {minutes} min, single use):\n{url}"

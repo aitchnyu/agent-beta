@@ -637,7 +637,7 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
     def test_loginlink_url_is_http_without_proxy_header(self) -> None:
         """Dev runserver reality: no X-Forwarded-Proto → the URL is http."""
         url = self._issue()["url"]
-        self.assertTrue(url.startswith("http://testserver/login-for-test/"))
+        self.assertTrue(url.startswith("http://testserver/login-with-secret/"))
 
     def test_loginlink_url_is_https_behind_tls_proxy(self) -> None:
         """Proxy-device reality: caddy's X-Forwarded-Proto flips the scheme.
@@ -658,13 +658,13 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
         # ":80" may trail testserver — a test-client artifact of the changed
         # scheme; real hosts carry their own port in the Host header.
         self.assertTrue(url.startswith("https://testserver"))
-        self.assertIn("/login-for-test/", url)
+        self.assertIn("/login-with-secret/", url)
 
     def test_loginlink_issues_redeemable_url(self) -> None:
         """Superuser POST returns a URL that redeems once (302 then 404)."""
         self.allow_more_queries(13)  # redemption round trip + the single-use re-GET
         data = self._issue()
-        self.assertTrue(data["url"].startswith("http://testserver/login-for-test/"))
+        self.assertTrue(data["url"].startswith("http://testserver/login-with-secret/"))
         self.assertTrue(data["expires_at"])
         # Redeem from an ANONYMOUS client — self.client is the signed-in
         # superuser, which the refusal branch rejects (previous test).

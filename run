@@ -271,8 +271,22 @@ pi() {
   export PI_REPO_ROOT="$repo_root"
   export PI_SKIP_VERSION_CHECK=1
 
-  # All checks passed — hand the terminal over to the TUI.
+  # Subcommands must be argv[1]: pi only dispatches them there (a leading
+  # --approve turns "auth" into prompt text). Trust matters for the TUI
+  # only, so subcommands run bare and exit.
+  if [[ "${1:-}" == auth || "${1:-}" == mcp || "${1:-}" == serve ]]; then
+    command pi "$@"
+    return $?
+  fi
   command pi --approve "$@"
+}
+
+# First-run setup TUI (ops/firstsetup/): the user/google forms dispatch
+# their djangomanage verbs directly; each ai provider screen stores its
+# credential and verifies it with one real model call.
+firstsetup() {
+  setenv
+  _ops_cli firstsetup
 }
 
 # Test runs point redis at an isolated DB (not the live DB 0) so tests can
@@ -457,6 +471,7 @@ ${H}Checks${R}
   ${C}playwrighttest${R} …    Playwright e2e suite (auto keepdb on unchanged migrations, like test);
                         --pdbrc <file> feeds pdb from an rc file (HOME for the child)
                         — Playwright's driver owns stdin, see docs/debugging-tests.md
+  ${C}firstsetup${R}          first-run setup TUI (user + google oauth + ai providers)
   ${C}screenshots${R}         regenerate docs/screenshots via Playwright
   ${C}checkframework1${R}     the full dev-side gate (main/ only, never the VM):
                         lint + types + 4 test tiers under one merged

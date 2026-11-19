@@ -416,7 +416,7 @@ def issue_login_link(
         ttl_minutes=payload.ttl_minutes,
     )
     return LoginLinkResponse(
-        url=request.build_absolute_uri(f"/login-for-test/{key}/"),
+        url=request.build_absolute_uri(f"/login-with-secret/{key}/"),
         # The row's own deadline, straight from LoginKey.issue.
         expires_at=expires_at.isoformat(),
     )
