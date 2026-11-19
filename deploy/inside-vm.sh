@@ -86,7 +86,7 @@ creds_dir="/etc/credentials/desmo"
 creds_env="$creds_dir/.env.vm"
 # pi CLI version for the npm -g install (lockstep with dev's
 # npm install -g @earendil-works/pi-coding-agent).
-_PI_NPM_VERSION="1.4.0"
+_PI_NPM_VERSION="1.5.2"
 # Caddy version for the GitHub-release .deb (2026-10-09: the Cloudsmith
 # apt repo upstream documents began answering 402 "repository restricted";
 # the SAME official .deb rides caddyserver/caddy GitHub releases).

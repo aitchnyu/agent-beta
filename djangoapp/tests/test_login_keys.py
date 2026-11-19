@@ -12,7 +12,7 @@ from django.utils import timezone
 from djangoapp.models import LoginKey, User
 from djangoapp.tests._base import BaseTestCase
 
-_KEY_URL_RE = re.compile(r"(/login-for-test/[A-Za-z0-9_\-]+/)")
+_KEY_URL_RE = re.compile(r"(/login-with-secret/[A-Za-z0-9_\-]+/)")
 
 
 class LoginKeyTests(BaseTestCase):
@@ -122,7 +122,7 @@ class MakeLoginLinkCommandTests(BaseTestCase):
         out = StringIO()
         with override_settings(BASE_URLS=["https://vm.example", "https://other.example"]):
             call_command("makeloginlink", self.user.email, stdout=out)
-        self.assertIn("https://vm.example/login-for-test/", out.getvalue())
+        self.assertIn("https://vm.example/login-with-secret/", out.getvalue())
 
     def test_redeem_rotates_session_key(self) -> None:
         """login() cycles the session key (fixation-safe)."""
@@ -149,7 +149,7 @@ class MakeLoginLinkCommandTests(BaseTestCase):
         """The email lookup is case-insensitive."""
         out = StringIO()
         call_command("makeloginlink", "CMD@example.com", stdout=out)
-        self.assertIn("/login-for-test/", out.getvalue())
+        self.assertIn("/login-with-secret/", out.getvalue())
 
     def test_minutes_must_be_at_least_an_hour(self) -> None:
         """Sub-hour --minutes issues a link that dies before a human uses it — refuse."""
