@@ -67,7 +67,7 @@ class AuthStore:
         )
         _out, _err = await proc.communicate(json.dumps(store).encode())
         if proc.returncode != 0:
-            message = f"credential store write failed (rc={proc.returncode})"
+            message = f"credential store write failed (exit code {proc.returncode})"
             raise RuntimeError(message)
 
     async def set_credential(self, provider_id: str, credential: dict[str, object]) -> None:

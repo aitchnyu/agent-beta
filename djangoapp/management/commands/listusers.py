@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 from typing import Any
 
@@ -9,7 +10,11 @@ from djangoapp.models import User
 
 
 class Command(BaseCommand):
-    """List users — first, last, email, staff, superuser — paginated."""
+    """List users — first, last, email, staff, superuser — paginated.
+
+    Stdout is a single JSON line: a human-readable ``message`` plus
+    ``page``/``pages``/``total``/``users`` rows for scripts.
+    """
 
     help = (
         "List users (first, last, email, staff, superuser); --page N; "
@@ -43,25 +48,23 @@ class Command(BaseCommand):
                 (page - 1) * page_size : page * page_size
             ]
         )
-
-        display = [
-            {
-                "first": row["first_name"],
-                "last": row["last_name"],
-                "email": row["email"],
-                "staff": "yes" if row["is_staff"] else "-",
-                "super": "yes" if row["is_superuser"] else "-",
-            }
-            for row in rows
-        ]
-        columns = ("first", "last", "email", "staff", "super")
-        widths = {
-            key: max(len(key), *(len(str(row[key])) for row in display)) if display else len(key)
-            for key in columns
-        }
-        header = "  ".join(f"{key:<{widths[key]}}" for key in columns).rstrip()
-        self.stdout.write(header)
-        self.stdout.write("-" * len(header))
-        for row in display:
-            self.stdout.write("  ".join(f"{row[key]:<{widths[key]}}" for key in columns).rstrip())
-        self.stdout.write(self.style.SUCCESS(f"page {page}/{pages} · {total} users"))
+        self.stdout.write(
+            json.dumps(
+                {
+                    "message": f"page {page}/{pages} · {total} users",
+                    "page": page,
+                    "pages": pages,
+                    "total": total,
+                    "users": [
+                        {
+                            "first": row["first_name"],
+                            "last": row["last_name"],
+                            "email": row["email"],
+                            "staff": "yes" if row["is_staff"] else "-",
+                            "super": "yes" if row["is_superuser"] else "-",
+                        }
+                        for row in rows
+                    ],
+                }
+            )
+        )

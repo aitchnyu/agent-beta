@@ -84,7 +84,7 @@ async def query_auth_kinds() -> dict[str, str]:
     )
     out, _err = await proc.communicate()
     if proc.returncode != 0:
-        message = f"auth-kind registry failed (rc={proc.returncode})"
+        message = f"auth-kind registry failed (exit code {proc.returncode})"
         raise RuntimeError(message)
     text = out.decode(errors="replace").strip()
     if not text:

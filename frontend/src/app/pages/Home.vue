@@ -34,10 +34,12 @@ const isAuthenticated = computed(() => shared.value.user !== null)
       />
     </template>
     <template v-else>
-      <div class="home-status-signed-out alert alert-warning d-flex flex-column gap-2">
+      <div
+        class="home-status-signed-out alert alert-warning d-flex flex-column gap-2"
+      >
         <p class="mb-0">
-          You are not logged in — mockups, design docs, and the admin
-          surfaces are visible to superusers only.
+          You are not logged in — mockups, design docs, and the admin surfaces
+          are visible to superusers only.
         </p>
         <p class="mb-0">
           Ask your agent to set one up:

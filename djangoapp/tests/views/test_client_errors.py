@@ -134,7 +134,7 @@ class ClientErrorViewTests(FreshRedisBuckets, BaseTestCase):
         alice and bob each get their own bucket (bob is NOT 429'd by alice's
         spend); anonymous reporters all draw from one shared bucket, so a
         second anon client finds it already spent. The process already
-        points at the test redis (run's export); this test just resets the
+        points at the test redis (test_redis_env's export); this test just resets the
         buckets and tightens the cap.
         """
         clear_redis()

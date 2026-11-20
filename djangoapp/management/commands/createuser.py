@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from django.core.management.base import BaseCommand, CommandError, CommandParser
@@ -12,6 +13,8 @@ class Command(BaseCommand):
 
     Every creation is audited as a ``UserHistory`` "created" entry; with
     ``--superuser`` the entry carries the staff + superuser flags.
+    Stdout is a single JSON line with a human-readable ``message`` (and
+    ``created``/``email``/``username`` for scripts).
     """
 
     help = "Create a user: createuser <first> <last> <email> [--superuser]."
@@ -35,7 +38,17 @@ class Command(BaseCommand):
         superuser: bool = options["superuser"]
         email: str = options["email"]
         if options["if_absent"] and User.objects.filter(email__iexact=email).exists():
-            self.stdout.write(f"{email} already exists — skipped")
+            user = User.objects.get(email__iexact=email)
+            self.stdout.write(
+                json.dumps(
+                    {
+                        "message": f"{email} already exists — skipped",
+                        "created": False,
+                        "email": user.email,
+                        "username": user.username,
+                    }
+                )
+            )
             return
         try:
             user = User.create_by_email(
@@ -49,8 +62,15 @@ class Command(BaseCommand):
             raise CommandError(str(exc)) from exc
         flags = " + superuser/staff" if superuser else ""
         self.stdout.write(
-            self.style.SUCCESS(
-                f"Created user '{user.username}' ({user.email}){flags}. "
-                f"login link: ./run djangomanage makeloginlink {user.email}"
+            json.dumps(
+                {
+                    "message": (
+                        f"Created user '{user.username}' ({user.email}){flags}. "
+                        f"login link: ./run djangomanage makeloginlink {user.email}"
+                    ),
+                    "created": True,
+                    "email": user.email,
+                    "username": user.username,
+                }
             )
         )

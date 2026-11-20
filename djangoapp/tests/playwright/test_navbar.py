@@ -158,7 +158,7 @@ class NavbarE2e(BasePlaywrightTestCase):
             page.locator(".layout-signin summary").click()
             page.locator(".layout-signin-menu").wait_for(state="visible")
             # Home's signed-out notice sits well clear of the navbar dropdown.
-            page.get_by_text("You are not logged in.").click()
+            page.locator(".home-status-signed-out").click()
             page.locator(".layout-signin-menu").wait_for(state="hidden")
             # Escape folds it too.
             page.locator(".layout-signin summary").click()

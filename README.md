@@ -30,14 +30,15 @@ the machine's prompt. The site is **https://your.domain/**. First login
 
 ```console
 $ desmo djangomanage createuser You Name you@example.com --superuser
-Created user 'you' (you@example.com) + superuser/staff. login link: ./run djangomanage makeloginlink you@example.com
+{"message": "Created user 'you' (you@example.com) + superuser/staff. login link: ./run djangomanage makeloginlink you@example.com", "created": true, "email": "you@example.com", "username": "you"}
 
 $ desmo djangomanage makeloginlink you@example.com
-One-time login for 'you' (valid 60 min, single use):
-https://your.domain/login-with-secret/<key>/
+{"message": "One-time login for 'you' (valid 60 min, single use):\nhttps://your.domain/login-with-secret/<key>/", "login_url": "https://your.domain/login-with-secret/<key>/"}
 ```
 
-Open the printed link in a browser — it signs you in once, then expires.
+Each command prints one JSON line — `message` is human-readable, the
+other fields are for scripts. Open `login_url` in a browser — it signs
+you in once, then expires.
 
 The agent surface is the `desmo pi` TUI (run as the user you ssh in as).
 It ships with no provider configured — the one-time auth + model setup is

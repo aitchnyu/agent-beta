@@ -277,6 +277,30 @@ class RowUpdateValueSerializerTests(TestCase):
 
 In the bullet list, if two adjacent lines seem similar, in one line, mention whats different than previous line.
 
+Method docstrings follow the same shape — a one-line summary, then one
+bullet per asserted outcome, stating briefly and broadly what is
+asserted. No single-line docstrings, no prose paragraphs:
+
+```python
+def test_expired_token_refuses(self) -> None:
+    """An expired token is rejected instead of renewed.
+
+    - the token row still exists, now past expires_at
+    - redeeming returns None and marks nothing used
+    - the refusal is the expiry guard's own, matched by its message
+    """
+```
+
+Error assertions match the error's content, not just its class:
+`assertRaisesRegex`, never a bare `assertRaises`. A class-only assert
+passes for any stray error of that class; the regex pins the raise to
+the code under test:
+
+```python
+with self.assertRaisesRegex(ValueError, r"^close_session refused: no active session"):
+    close_session(request, None)
+```
+
 When adding/editing tests, keep method and class docstrings up to date.
 
 ## Comments and markdown

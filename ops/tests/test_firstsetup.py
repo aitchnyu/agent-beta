@@ -1,14 +1,23 @@
-"""Tests for ops/firstsetup — the first-run setup menu.
+"""Tests for ops/firstsetup — the setup menu's underlying system.
+
+No Textual pilots here (operator decision 2026-11-20): anything that
+needs a running app or a widget tree is untested shell. The engine
+lives in flow.py and has its own test module
+(test_firstsetup_flow.py); this file covers the screen validators, the
+provider catalog parsing, the auth store, and the app's state surface.
 
 Class inventory:
 
 - ProviderCatalogTests: parsing pi's CLI output for the provider list
   (the unknown-provider error's "Providers:" line; the --list-models
-  fallback table), and the loud failure when both sources are dead
-- CredentialVerificationTests: the only real credential test — a
-  one-turn pi --print, including pi's habit of exiting 0 on 4xx bodies
+  fallback table)
+- ListProvidersFlowTests: the loader's two-source flow — the Providers
+  line short-circuits, the fallback engages only without it
+- QueryAuthKindsTests: the node registry probe — parse, rc failure,
+  empty output
 - GoogleFormValidationTests: the google form's client-id/secret shape
-  rules; the both-empty skip
+  rules; the empty pair refuses (argv and outcome live in flow.py's
+  verbs — test_firstsetup_flow.py)
 - UserFormValidationTests: the first-user form's all-three-required
   rule, email RFC limits, and name charset
 - FailureDescriptionTests: describe_failure turns any failed command
@@ -19,11 +28,9 @@ Class inventory:
 - SetupAppStateTests: SetupApp's reactive state + setters/readers (first
   user, verified providers, provider catalog) — the only menu-state
   mutation surface
+- SetupCommandTests: the ops.cli verb boots the app
 - AuthStoreRoundTripTests: pi's auth.json read/merge/write as debian —
   merge-preserving writes, loud failures, empty only when truly fresh
-- SetupMenuPilotTests: headless textual pilots at 80x24 — navigation,
-  two-state rows (which follow the app's reactives on their own), the
-  Superuser row opening the login link
 
 No real pi/node/sudo: subprocess seams are faked or patched.
 """
@@ -36,19 +43,11 @@ import unittest
 from typing import ClassVar
 from unittest import mock
 
-from textual.widgets import Button, Select, Static
-from textual.widgets import Input as TextInput
-
-from ops.firstsetup import Menu, SetupApp, providers
+from ops.firstsetup import SetupApp, providers
+from ops.firstsetup.app import SetupCommand
 from ops.firstsetup.authstore import AuthStore
-from ops.firstsetup.forms import USER, _google_validate, _user_validate
-from ops.firstsetup.screens import (
-    ApiKeyScreen,
-    FormScreen,
-    LoginLinkScreen,
-    OAuthScreen,
-    describe_failure,
-)
+from ops.firstsetup.flow import _describe_failure
+from ops.firstsetup.screens import validate_google_values, validate_user_values
 
 FAKE_PROVIDERS: list[dict[str, object]] = [
     {"id": "openai-codex", "name": "OpenAI Codex", "authKind": "oauth"},
@@ -56,19 +55,21 @@ FAKE_PROVIDERS: list[dict[str, object]] = [
 ]
 
 
-class FakeProc:
-    """Stands in for a captured subprocess (communicate-shaped)."""
-
-    def __init__(self, out: bytes = b"", returncode: int = 0) -> None:
-        self._out = out
-        self.returncode = returncode
-
-    async def communicate(self, _data: bytes = b"") -> tuple[bytes, bytes]:
-        return self._out, b""
+def completed(
+    exit_code: int = 0, stdout_bytes: bytes = b"", stderr_bytes: bytes = b""
+) -> mock.AsyncMock:
+    """Return a finished subprocess: communicate() → (out, err), rc set."""
+    proc = mock.AsyncMock()
+    proc.communicate.return_value = (stdout_bytes, stderr_bytes)
+    proc.returncode = exit_code
+    return proc
 
 
 class ProviderCatalogTests(unittest.TestCase):
     """The provider catalog: pi CLI output parsing + load failure.
+
+    The menu's dropdown is only as good as pi's own error text —
+    these parsers are what turn that text into rows.
 
     - test_providers_line_parses: the unknown-provider error's
       'Providers: a, b, c' line parses
@@ -79,7 +80,10 @@ class ProviderCatalogTests(unittest.TestCase):
     """
 
     def test_providers_line_parses(self) -> None:
-        """The unknown-provider error's 'Providers: a, b, c' line parses."""
+        """The unknown-provider error's 'Providers: a, b, c' line parses.
+
+        - the rows carry id and name for each listed provider
+        """
         text = 'Unknown provider "bogus".\nProviders: zai, openai-codex, google\n'
         self.assertEqual(
             providers.parse_providers_line(text),
@@ -91,11 +95,18 @@ class ProviderCatalogTests(unittest.TestCase):
         )
 
     def test_missing_line_returns_empty(self) -> None:
-        """An absent Providers line yields [] — the fallback path's cue."""
+        """An absent Providers line yields [] — the fallback path's cue.
+
+        - an unparseable probe reads as empty, engaging the table fallback
+        """
         self.assertEqual(providers.parse_providers_line("something else"), [])
 
     def test_table_parses_unique_providers(self) -> None:
-        """--list-models rows collapse to unique providers, header dropped."""
+        """--list-models rows collapse to unique providers, header dropped.
+
+        - one row per provider id, first-seen order
+        - the header row never becomes a provider
+        """
         table = (
             "provider       model              context\n"
             "zai            glm-5.3            1M\n"
@@ -111,153 +122,202 @@ class ProviderCatalogTests(unittest.TestCase):
         )
 
     def test_list_providers_raises_when_empty(self) -> None:
-        """Both dead provider sources raise — an empty dropdown is never ok."""
+        """Both dead provider sources raise — an empty dropdown is never ok.
+
+        - the error names the provider list as unavailable
+        - the message is pinned, not just the exception class
+        """
         with (
             mock.patch(
                 "ops.firstsetup.providers.asyncio.create_subprocess_exec",
                 new_callable=mock.AsyncMock,
-                return_value=FakeProc(out=b""),
+                return_value=completed(),
             ),
-            self.assertRaises(RuntimeError),
+            self.assertRaisesRegex(RuntimeError, r"^provider list unavailable"),
         ):
             asyncio.run(providers.list_providers())
 
 
-class CredentialVerificationTests(unittest.TestCase):
-    """verify_credential: the only real credential test.
+class ListProvidersFlowTests(unittest.TestCase):
+    """The loader's two-source flow.
 
-    A stored key proves nothing (pi auth check reports "ready" for a
-    fake one), so the screen runs one cheap model call. Real behavior
-    (probed in the VM with a real zai key):
-    - real key: rc=0, output "ok" → (True, "ok")
-    - fake key: rc=1, output '401: {"code":"401",...}' → (False, error)
-    - pi exits 0 even on provider errors (an unknown model returns a
-      400 body) — the body shape must fail the verify too.
+    Two probes because pi hides the provider list inside a login
+    error, with the model table as the fallback.
 
-    - test_real_key_succeeds: working credential → verified
-    - test_fake_key_captures_provider_error: rc=1 → error surfaced
-    - test_error_body_fails_even_with_rc0: '400: {...}' with rc=0 →
-      NOT verified (the wrong-model trap)
-    - test_picks_model_for_its_own_provider: the first row for THIS
-      provider, not the first row of the whole table
-    - test_no_models_returns_error: a provider absent from the table
+    - test_providers_line_short_circuits: a Providers line in the login
+      error returns without ever running --list-models
+    - test_table_fallback_engages: a dead Providers line falls through
+      to the --list-models table
     """
 
-    def _make_screen(self) -> ApiKeyScreen:
-        return ApiKeyScreen({"id": "zai", "name": "Z.AI"})
+    def test_providers_line_short_circuits(self) -> None:
+        """The Providers line wins; --list-models never runs.
 
-    def test_real_key_succeeds(self) -> None:
-        """A working credential returns (True, model output)."""
-
-        async def fake_run_command(*argv: str, **_kwargs: object) -> tuple[int, str]:
-            if "--list-models" in argv:
-                return 0, "provider  model\nzai  glm-5.3-flash\n"
-            return 0, "ok"
-
-        screen = self._make_screen()
-        with mock.patch("ops.firstsetup.screens.run_command", side_effect=fake_run_command):
-            verified, detail = asyncio.run(screen.verify_credential())
-        self.assertTrue(verified)
-        self.assertEqual(detail, "ok")
-
-    def test_fake_key_captures_provider_error(self) -> None:
-        """A bad credential returns (False, the provider's own error line)."""
-        error_line = '401: {"code":"401","message":"token expired or incorrect"}'
-
-        async def fake_run_command(*argv: str, **_kwargs: object) -> tuple[int, str]:
-            if "--list-models" in argv:
-                return 0, "provider  model\nzai  glm-5.3-flash\n"
-            return 1, error_line
-
-        screen = self._make_screen()
-        with mock.patch("ops.firstsetup.screens.run_command", side_effect=fake_run_command):
-            verified, detail = asyncio.run(screen.verify_credential())
-        self.assertFalse(verified)
-        self.assertIn("401", detail)
-        self.assertIn("token expired or incorrect", detail)
-
-    def test_error_body_fails_even_with_rc0(self) -> None:
-        """A 4xx body fails the verify even when pi exits 0."""
-
-        async def fake_run_command(*argv: str, **_kwargs: object) -> tuple[int, str]:
-            if "--list-models" in argv:
-                return 0, "provider  model\nzai  glm-5.3-flash\n"
-            return 0, '400: {"code":"1211","message":"Unknown Model"}'
-
-        screen = self._make_screen()
-        with mock.patch("ops.firstsetup.screens.run_command", side_effect=fake_run_command):
-            verified, detail = asyncio.run(screen.verify_credential())
-        self.assertFalse(verified)
-        self.assertIn("400", detail)
-
-    def test_picks_model_for_its_own_provider(self) -> None:
-        """The model comes from THIS provider's row, not the table's first."""
-        screen = self._make_screen()
-        table = (
-            "provider  model                         context\n"
-            "together  deepseek-ai/DeepSeek-V4-Pro   1.0M\n"
-            "zai       glm-5.3-flash                 1M\n"
+        - create_subprocess_exec is called exactly once (the login probe)
+        - the returned rows come from the Providers line
+        """
+        exec_mock = mock.AsyncMock(
+            side_effect=[completed(stdout_bytes=b"Providers: zai, openai-codex\n")]
         )
-        self.assertEqual(screen._first_model_id(table), "glm-5.3-flash")
+        with mock.patch("ops.firstsetup.providers.asyncio.create_subprocess_exec", exec_mock):
+            rows = asyncio.run(providers.list_providers())
+        self.assertEqual([row["id"] for row in rows], ["zai", "openai-codex"])
+        self.assertEqual(exec_mock.await_count, 1)
 
-    def test_no_models_returns_error(self) -> None:
-        """A provider absent from the table returns an explicit error."""
+    def test_table_fallback_engages(self) -> None:
+        """No Providers line means the --list-models table decides.
 
-        async def fake_run_command(*argv: str, **_kwargs: object) -> tuple[int, str]:
-            if "--list-models" in argv:
-                return 0, "provider  model\ntogether  deepseek-ai/x\n"
-            return 0, ""
+        - the login probe runs first and yields nothing parseable
+        - the table call runs second and its rows are the answer
+        """
+        exec_mock = mock.AsyncMock(
+            side_effect=[
+                completed(stdout_bytes=b"nothing useful"),
+                completed(stdout_bytes=b"provider  model\nzai  glm-5.3\n"),
+            ]
+        )
+        with mock.patch("ops.firstsetup.providers.asyncio.create_subprocess_exec", exec_mock):
+            rows = asyncio.run(providers.list_providers())
+        self.assertEqual([row["id"] for row in rows], ["zai"])
+        self.assertEqual(exec_mock.await_count, 2)
 
-        screen = self._make_screen()
-        with mock.patch("ops.firstsetup.screens.run_command", side_effect=fake_run_command):
-            verified, detail = asyncio.run(screen.verify_credential())
-        self.assertFalse(verified)
-        self.assertIn("no models", detail)
+
+class QueryAuthKindsTests(unittest.TestCase):
+    """The node registry probe behind the OAuth/API-key dispatch.
+
+    A broken probe must fail loudly — defaulting every provider to
+    api_key would send OAuth users into a dead-end screen.
+
+    - test_parses_registry: the JSON line becomes the kinds dict
+    - test_probe_failure_raises: a nonzero rc raises naming the rc
+    - test_empty_output_raises: no output is a broken registry, not {}
+    """
+
+    def test_parses_registry(self) -> None:
+        """The last JSON line parses into {id: kind}.
+
+        - noise lines before the JSON are skipped
+        - kinds map provider id to api_key/oauth verbatim
+        """
+        with mock.patch(
+            "ops.firstsetup.providers.asyncio.create_subprocess_exec",
+            new_callable=mock.AsyncMock,
+            return_value=completed(
+                stdout_bytes=b'noise\n{"zai": "api_key", "openai-codex": "oauth"}'
+            ),
+        ):
+            kinds = asyncio.run(providers.query_auth_kinds())
+        self.assertEqual(kinds, {"zai": "api_key", "openai-codex": "oauth"})
+
+    def test_probe_failure_raises(self) -> None:
+        """A nonzero exit code raises with the code in the message.
+
+        - the refusal names the registry and the exit code
+        """
+        with (
+            mock.patch(
+                "ops.firstsetup.providers.asyncio.create_subprocess_exec",
+                new_callable=mock.AsyncMock,
+                return_value=completed(exit_code=3),
+            ),
+            self.assertRaisesRegex(RuntimeError, r"auth-kind registry failed \(exit code 3\)"),
+        ):
+            asyncio.run(providers.query_auth_kinds())
+
+    def test_empty_output_raises(self) -> None:
+        """Empty output raises rather than reading as an empty registry.
+
+        - silence is a broken registry, never a default-to-api_key verdict
+        """
+        with (
+            mock.patch(
+                "ops.firstsetup.providers.asyncio.create_subprocess_exec",
+                new_callable=mock.AsyncMock,
+                return_value=completed(),
+            ),
+            self.assertRaisesRegex(RuntimeError, r"auth-kind registry returned no output"),
+        ):
+            asyncio.run(providers.query_auth_kinds())
 
 
 class GoogleFormValidationTests(unittest.TestCase):
     """The google form's client-id/secret shape rules.
 
     A malformed pair must never reach addoauth (the operator would get
-    an opaque Django OAuth failure instead of a field message).
-    Both-empty is the deliberate skip (Back is the other).
+    an opaque Django OAuth failure instead of a field message). Empty
+    refuses like malformed — Back is the only skip.
 
+    - test_rejects_empty_pair: both fields blank is a fill refusal
     - test_rejects_malformed_client_id: must look like
       1234567890-abc123.apps.googleusercontent.com
     - test_rejects_short_secret: Google secrets are ~35 chars, no spaces
-    - test_accepts_well_formed_pair: the real shape passes; empty = skip
+    - test_accepts_well_formed_pair: the real shape passes
     """
 
+    def test_rejects_empty_pair(self) -> None:
+        """Both fields blank refuses with the fill message.
+
+        - the message tells the operator to fill both fields
+        """
+        error = validate_google_values({"client_id": "", "client_secret": ""})
+        assert error is not None
+        self.assertIn("fill both client key and secret", error)
+
     def test_rejects_malformed_client_id(self) -> None:
-        """A client key that isn't the apps.googleusercontent.com shape refuses."""
-        error = _google_validate({"client_id": "not-a-key", "client_secret": "GOCSPX-" + "x" * 28})
+        """A client key that isn't the apps.googleusercontent.com shape refuses.
+
+        - the message shows the expected client-key shape
+        """
+        error = validate_google_values(
+            {"client_id": "not-a-key", "client_secret": "GOCSPX-" + "x" * 28}
+        )
         assert error is not None
         self.assertIn("apps.googleusercontent.com", error)
 
     def test_rejects_short_secret(self) -> None:
-        """A too-short secret refuses (Google secrets are ~35 chars)."""
-        error = _google_validate(
+        """A too-short secret refuses (Google secrets are ~35 chars).
+
+        - the message names the secret as the problem
+        """
+        error = validate_google_values(
             {"client_id": "1234567890-abc123.apps.googleusercontent.com", "client_secret": "short"}
         )
         assert error is not None
         self.assertIn("secret", error)
 
+    def test_rejects_partial_fill(self) -> None:
+        """Exactly one filled field of the pair refuses.
+
+        - secret alone → the BOTH message
+        - client key alone → the BOTH message
+        """
+        for values in (
+            {"client_id": "", "client_secret": "GOCSPX-" + "x" * 28},
+            {"client_id": "1234567890-abc123.apps.googleusercontent.com", "client_secret": ""},
+        ):
+            with self.subTest(values=values):
+                error = validate_google_values(values)
+                assert error is not None
+                self.assertIn("BOTH", error)
+
     def test_accepts_well_formed_pair(self) -> None:
-        """A well-formed pair passes; both-empty passes (skip)."""
+        """A well-formed pair passes.
+
+        - the real Google shapes validate to None
+        """
         ok = {
             "client_id": "1234567890-abc123.apps.googleusercontent.com",
             "client_secret": "GOCSPX-" + "x" * 28,
         }
-        self.assertIsNone(_google_validate(ok))
-        self.assertIsNone(_google_validate({"client_id": "", "client_secret": ""}))
+        self.assertIsNone(validate_google_values(ok))
 
 
 class UserFormValidationTests(unittest.TestCase):
-    """The first-user form: all three fields, or none.
+    """The first-user form's validator: all three fields, or none.
 
     The user is created via createuser --superuser, so a bad shape
     would surface as a Django error; validation catches it first. A
-    completely blank form refuses (unlike google) — Back is the skip.
+    completely blank form refuses — Back is the skip.
 
     - test_accepts_well_formed_user: the happy path; blank refuses
     - test_rejects_bad_email: unparseable or over the 254-char limit
@@ -272,42 +332,58 @@ class UserFormValidationTests(unittest.TestCase):
     }
 
     def test_accepts_well_formed_user(self) -> None:
-        """A well-formed user passes; all-BLANK refuses (not a skip)."""
-        self.assertIsNone(_user_validate(self.VALID))
-        blank_error = _user_validate({"first_name": "", "last_name": "", "email": ""})
+        """A well-formed user passes; all-BLANK refuses (not a skip).
+
+        - the three valid fields validate to None
+        - the all-blank form refuses with the fill message
+        """
+        self.assertIsNone(validate_user_values(self.VALID))
+        blank_error = validate_user_values({"first_name": "", "last_name": "", "email": ""})
         assert blank_error is not None
         self.assertIn("fill", blank_error)
 
     def test_rejects_bad_email(self) -> None:
-        """An unparseable or over-long email refuses."""
+        """An unparseable or over-long email refuses.
+
+        - a missing @ or TLD refuses
+        - the RFC forward-path limit (254) refuses
+        """
         bad = dict(self.VALID, email="not-an-email")
-        assert _user_validate(bad) is not None
+        assert validate_user_values(bad) is not None
         long_email = "a" * 250 + "@x.io"
-        assert _user_validate(dict(self.VALID, email=long_email)) is not None
+        assert validate_user_values(dict(self.VALID, email=long_email)) is not None
 
     def test_rejects_partial_fills(self) -> None:
-        """Email without names refuses; names without email also refuses."""
+        """Email without names refuses; names without email also refuses.
+
+        - names missing → the message names the names
+        - email missing → the message names the email
+        """
         no_names = {"first_name": "", "last_name": "", "email": "jane@example.com"}
-        error = _user_validate(no_names)
+        error = validate_user_values(no_names)
         assert error is not None
         self.assertIn("name", error)
         no_email = {"first_name": "Jane", "last_name": "Doe", "email": ""}
-        error = _user_validate(no_email)
-        assert error is not None  # partial fills refuse — Back is the skip
+        error = validate_user_values(no_email)
+        assert error is not None  # partial fills refuse
         self.assertIn("email", error)
 
     def test_rejects_bad_name_shape(self) -> None:
-        """Names must be letters (hyphen/apostrophe ok), starting with one."""
-        error = _user_validate(dict(self.VALID, first_name="123"))
+        """Names must be letters (hyphen/apostrophe ok), starting with one.
+
+        - digits refuse with the field named
+        - an apostrophe survives (O'Brien)
+        """
+        error = validate_user_values(dict(self.VALID, first_name="123"))
         assert error is not None
         self.assertIn("first name", error)
-        self.assertIsNone(_user_validate(dict(self.VALID, last_name="O'Brien")))
+        self.assertIsNone(validate_user_values(dict(self.VALID, last_name="O'Brien")))
 
 
 class FailureDescriptionTests(unittest.TestCase):
     """describe_failure: one clear line for any failed command.
 
-    A toast saying only "failed (rc=3)" hides the cause; the helper
+    A toast saying only "failed (exit code 3)" hides the cause; the helper
     carries the command's own last error line (a traceback, a psql
     error, a missing binary).
 
@@ -315,15 +391,33 @@ class FailureDescriptionTests(unittest.TestCase):
       exit code, and the final non-empty output line
     """
 
+    def test_rejects_bad_last_name_shape(self) -> None:
+        """A malformed last name refuses naming the last name.
+
+        - the message names the last-name field, not the first
+        """
+        error = validate_user_values(
+            {
+                "first_name": "Jane",
+                "last_name": "123",
+                "email": "jane@example.com",
+            }
+        )
+        assert error is not None
+        self.assertIn("last name", error)
+
     def test_describe_failure_includes_command_output(self) -> None:
-        """The toast carries the command's own last error line."""
-        message = describe_failure(
-            ("./run", "djangomanage", "createuser"),
+        """The toast carries the command's own last error line.
+
+        - the command name, the exit code, and the last output line all ride the message
+        """
+        message = _describe_failure(
+            "createuser",
             1,
             "Traceback (most recent call last):\nValueError: bad email",
         )
         self.assertIn("createuser", message)
-        self.assertIn("rc=1", message)
+        self.assertIn("exit code 1", message)
         self.assertIn("ValueError: bad email", message)
 
 
@@ -343,13 +437,21 @@ class AuthKindDispatchTests(unittest.TestCase):
     """
 
     def test_oauth_providers_dispatch_oauth(self) -> None:
-        """Providers in the live registry's oauth set dispatch OAuthScreen."""
+        """Providers in the live registry's oauth set dispatch OAuthScreen.
+
+        - registry oauth → oauth
+        - registry api_key → api_key
+        """
         auth_kinds = {"anthropic": "oauth", "zai": "api_key"}
         self.assertEqual(providers.auth_kind_of("anthropic", auth_kinds), "oauth")
         self.assertEqual(providers.auth_kind_of("zai", auth_kinds), "api_key")
 
     def test_unknown_kind_defaults_to_api_key(self) -> None:
-        """A missing kinds registry or unknown id defaults to api_key."""
+        """A missing kinds registry or unknown id defaults to api_key.
+
+        - no registry → api_key
+        - empty registry → api_key
+        """
         self.assertEqual(providers.auth_kind_of("anything"), "api_key")
         self.assertEqual(providers.auth_kind_of("anything", {}), "api_key")
 
@@ -367,7 +469,11 @@ class SetupAppStateTests(unittest.TestCase):
     """
 
     def test_first_user_roundtrip(self) -> None:
-        """Recording a user makes it configured with its display name."""
+        """Recording a user makes it configured with its display name.
+
+        - is_configured flips and full_name renders
+        - the login link round-trips
+        """
         app = SetupApp()
         self.assertFalse(app.first_user.is_configured)
         app.record_first_user(
@@ -378,7 +484,11 @@ class SetupAppStateTests(unittest.TestCase):
         self.assertEqual(app.first_user.login_link, "https://x/")
 
     def test_provider_verified_roundtrip(self) -> None:
-        """Marking a provider verified exposes it (sorted)."""
+        """Marking a provider verified exposes it (sorted).
+
+        - unmarked reads False, marked reads True
+        - verified_provider_ids lists the marked ids
+        """
         app = SetupApp()
         self.assertFalse(app.is_provider_verified("zai"))
         app.mark_provider_verified("zai")
@@ -386,13 +496,36 @@ class SetupAppStateTests(unittest.TestCase):
         self.assertEqual(app.verified_provider_ids(), ["zai"])
 
     def test_catalog_lookup(self) -> None:
-        """provider_by_id finds rows; auth kind defaults to api_key."""
+        """provider_by_id finds rows; auth kind defaults to api_key.
+
+        - a known id returns its row
+        - an unknown id returns None
+        - auth kind prefers the registry, defaulting to api_key
+        """
         app = SetupApp()
         app.load_provider_catalog(FAKE_PROVIDERS, {"openai-codex": "oauth"})
         self.assertEqual(app.provider_by_id("zai")["name"], "Z.AI")  # type: ignore[index]
         self.assertIsNone(app.provider_by_id("nope"))
         self.assertEqual(app.provider_auth_kind("openai-codex"), "oauth")
         self.assertEqual(app.provider_auth_kind("zai"), "api_key")
+
+
+class SetupCommandTests(unittest.TestCase):
+    """The ops.cli verb.
+
+    The only seam between the CLI dispatch and the TUI app.
+
+    - test_run_boots_the_app: SetupCommand.run runs SetupApp
+    """
+
+    def test_run_boots_the_app(self) -> None:
+        """The verb boots SetupApp.run.
+
+        - exactly one App.run call
+        """
+        with mock.patch("ops.firstsetup.app.SetupApp.run") as run:
+            SetupCommand.run({}, [])
+        run.assert_called_once()
 
 
 class AuthStoreRoundTripTests(unittest.TestCase):
@@ -409,26 +542,21 @@ class AuthStoreRoundTripTests(unittest.TestCase):
     """
 
     def test_set_credential_keeps_other_providers(self) -> None:
-        """A new credential merges into the store; others survive."""
+        """A new credential merges into the store; others survive.
+
+        - the read returns the existing store (cat)
+        - the write receives the merged store as compact JSON
+        - the other provider's credential is intact in what was written
+        """
         existing = {"openai-codex": {"type": "oauth", "access": "keep-me"}}
-        written: list[bytes] = []
-
-        class CapturingProc(FakeProc):
-            async def communicate(self, data: bytes = b"") -> tuple[bytes, bytes]:
-                written.append(data)
-                return b"", b""
-
-        async def fake_exec(*argv: str, **_kwargs: object) -> FakeProc:
-            if "cat" in argv:
-                return FakeProc(out=json.dumps(existing).encode())
-            return CapturingProc()
-
+        read_proc = completed(stdout_bytes=json.dumps(existing).encode())
+        write_proc = completed()
+        exec_mock = mock.AsyncMock(side_effect=[read_proc, write_proc])
         store = AuthStore("/home/debian/.pi/agent/auth.json")
-        with mock.patch(
-            "ops.firstsetup.authstore.asyncio.create_subprocess_exec", side_effect=fake_exec
-        ):
+        with mock.patch("ops.firstsetup.authstore.asyncio.create_subprocess_exec", exec_mock):
             asyncio.run(store.set_credential("zai", {"type": "api_key", "key": "sk-new"}))
-        result = json.loads(written[0].decode())
+        written = write_proc.communicate.await_args.args[0]
+        result = json.loads(written.decode())
         self.assertEqual(result["openai-codex"]["access"], "keep-me")
         self.assertEqual(result["zai"]["key"], "sk-new")
 
@@ -439,24 +567,28 @@ class AuthStoreRoundTripTests(unittest.TestCase):
             mock.patch(
                 "ops.firstsetup.authstore.asyncio.create_subprocess_exec",
                 new_callable=mock.AsyncMock,
-                return_value=FakeProc(returncode=1),
+                return_value=completed(exit_code=1),
             ),
-            self.assertRaises(RuntimeError),
+            self.assertRaisesRegex(
+                RuntimeError, r"^credential store write failed \(exit code 1\)$"
+            ),
         ):
             asyncio.run(store.write({}))
 
     def test_read_missing_store_is_empty(self) -> None:
-        """A fresh machine (cat: No such file) reads as {} — not an error."""
+        """A fresh machine (cat: No such file) reads as {} — not an error.
 
-        class MissingStoreProc(FakeProc):
-            async def communicate(self, _data: bytes = b"") -> tuple[bytes, bytes]:
-                return b"", b"cat: /home/debian/.pi/agent/auth.json: No such file or directory"
-
+        - only the expected fresh-state stderr reads as empty
+        """
+        missing = completed(
+            exit_code=1,
+            stderr_bytes=b"cat: /home/debian/.pi/agent/auth.json: No such file or directory",
+        )
         store = AuthStore("/home/debian/.pi/agent/auth.json")
         with mock.patch(
             "ops.firstsetup.authstore.asyncio.create_subprocess_exec",
             new_callable=mock.AsyncMock,
-            return_value=MissingStoreProc(returncode=1),
+            return_value=missing,
         ):
             self.assertEqual(asyncio.run(store.read()), {})
 
@@ -466,189 +598,16 @@ class AuthStoreRoundTripTests(unittest.TestCase):
         A silent empty store would let the next write clobber every
         credential that could not be read.
         """
-
-        class DeniedProc(FakeProc):
-            async def communicate(self, _data: bytes = b"") -> tuple[bytes, bytes]:
-                return b"", b"sudo: a password is required"
-
+        denied = completed(exit_code=1, stderr_bytes=b"sudo: a password is required")
         store = AuthStore("/home/debian/.pi/agent/auth.json")
         with (
             mock.patch(
                 "ops.firstsetup.authstore.asyncio.create_subprocess_exec",
                 new_callable=mock.AsyncMock,
-                return_value=DeniedProc(returncode=1),
+                return_value=denied,
             ),
-            self.assertRaises(RuntimeError),
+            self.assertRaisesRegex(
+                RuntimeError, r"^credential store read failed: sudo: a password is required$"
+            ),
         ):
             asyncio.run(store.read())
-
-
-class SetupMenuPilotTests(unittest.IsolatedAsyncioTestCase):
-    """Headless textual pilots of the menu at a cramped 80x24.
-
-    These drive the real widget tree (clicks, key presses) without a
-    terminal — the regression guard for layout and focus behavior.
-
-    - test_menu_renders_and_navigates: dropdown rows from the catalog,
-      arrow focus, delve/back, whitespace-stripping inputs
-    - test_initial_paint_of_rows: rows paint their unconfigured state
-      at mount — no statuses() sweep exists to fall back on
-    - test_google_row_locks: the configured google row is green,
-      disabled, and its click delves nowhere
-    - test_select_dispatch_and_repick: dropdown picks dispatch to the
-      right auth screen, and the resume clear enables a re-pick
-    - test_rows_follow_app_state: assignments on the app re-render the
-      rows by themselves — the verified-provider summary and login link
-    - test_superuser_click_opens_login_link: the completed Superuser
-      row stays clickable and opens the copyable link
-    """
-
-    async def test_menu_renders_and_navigates(self) -> None:
-        """Headless pilot at cramped 80x24.
-
-        The provider dropdown carries the catalog, arrow focus moves
-        within the visible controls, delve/back navigates, and inputs
-        strip whitespace.
-        """
-        app = SetupApp()
-        async with app.run_test(size=(80, 24)) as pilot:
-            await pilot.pause()  # warm-up: mounts before the first tick drop
-            menu = app.screen
-            assert isinstance(menu, Menu)
-            app.load_provider_catalog(FAKE_PROVIDERS, {})
-            await pilot.pause()  # the dropdown follows the catalog reactive
-            select = menu.query_one("#provider-select", Select)
-            # blank sentinel + the two catalog providers
-            self.assertEqual(len(select._options), 3)
-            # focus stays on the visible controls
-            await pilot.press("down")
-            self.assertIs(app.focused, menu.query_one("#google"))
-            # provider delve via the menu's handler, back returns to the menu
-            menu.open_provider("zai")
-            await pilot.pause()
-            self.assertIsInstance(app.screen, ApiKeyScreen)
-            await pilot.click("#back")
-            assert isinstance(app.screen, Menu)
-            # form delve: fields strip whitespace, back returns
-            await pilot.click("#user")
-            screen = app.screen
-            assert isinstance(screen, FormScreen)
-            self.assertIs(screen.spec, USER)
-            await pilot.click("#first_name")
-            await pilot.press(*"  Jane  ")
-            self.assertEqual(screen.query_one("#first_name", TextInput).value, "Jane")
-            await pilot.click("#back")
-            assert isinstance(app.screen, Menu)
-
-    async def test_initial_paint_of_rows(self) -> None:
-        """Rows paint their unconfigured state at mount, unprompted.
-
-        The init=True reactives plus follow_app_reactive's mount-time sync are
-        the whole show — there is no statuses() sweep to fall back on,
-        so a blank row here means the reactive wiring broke.
-        """
-        app = SetupApp()
-        async with app.run_test(size=(80, 24)) as pilot:
-            await pilot.pause()
-            menu = app.screen
-            assert isinstance(menu, Menu)
-            self.assertIn("unconfigured", str(menu.query_one("#user", Button).label))
-            self.assertIn("unconfigured", str(menu.query_one("#google", Button).label))
-            self.assertEqual(str(menu.query_one("#ai-done", Static).content), "")
-            self.assertEqual(str(menu.query_one("#link", Static).content), "")
-
-    async def test_google_row_locks(self) -> None:
-        """The google row locks once configured — green, disabled, no delve."""
-        app = SetupApp()
-        async with app.run_test(size=(80, 24)) as pilot:
-            await pilot.pause()
-            menu = app.screen
-            assert isinstance(menu, Menu)
-            google_button = menu.query_one("#google", Button)
-            self.assertFalse(google_button.disabled)
-            app.record_google_configured()
-            await pilot.pause()
-            self.assertIn("Google OAuth: configured", str(google_button.label))
-            self.assertTrue(google_button.disabled)
-            self.assertTrue(google_button.has_class("done"))
-            await pilot.click("#google")
-            await pilot.pause()
-            self.assertIs(app.screen, menu)  # locked — the click delves nowhere
-
-    async def test_select_dispatch_and_repick(self) -> None:
-        """Dropdown picks dispatch to the right auth screen; re-pick works.
-
-        Resume clears the selection (Select.NULL) precisely so picking
-        the SAME provider again fires Changed and re-opens its screen.
-        """
-        app = SetupApp()
-        async with app.run_test(size=(80, 24)) as pilot:
-            await pilot.pause()
-            menu = app.screen
-            assert isinstance(menu, Menu)
-            app.load_provider_catalog(FAKE_PROVIDERS, {"openai-codex": "oauth"})
-            await pilot.pause()
-            select = menu.query_one("#provider-select", Select)
-            select.value = "openai-codex"  # a real pick posts Changed → dispatch
-            await pilot.pause()
-            self.assertIsInstance(app.screen, OAuthScreen)
-            await pilot.click("#back")
-            await pilot.pause()
-            self.assertIs(select.value, Select.NULL)  # cleared for the re-pick
-            select.value = "zai"
-            await pilot.pause()
-            self.assertIsInstance(app.screen, ApiKeyScreen)
-            await pilot.click("#back")
-            await pilot.pause()
-            select.value = "zai"  # the SAME provider again — must delve again
-            await pilot.pause()
-            self.assertIsInstance(app.screen, ApiKeyScreen)
-
-    async def test_rows_follow_app_state(self) -> None:
-        """Assignments on the app re-render the summary and link rows."""
-        app = SetupApp()
-        async with app.run_test(size=(80, 24)) as pilot:
-            await pilot.pause()
-            menu = app.screen
-            assert isinstance(menu, Menu)
-            app.mark_provider_verified("zai")
-            app.record_first_user(
-                first_name="Jane",
-                last_name="Doe",
-                email="jane@example.com",
-                login_link="https://localhost:8443/login-with-secret/abc/",
-            )
-            await pilot.pause()
-            self.assertIn("zai", str(menu.query_one("#ai-done", Static).content))
-            self.assertIn("login-with-secret/abc", str(menu.query_one("#link", Static).content))
-
-    async def test_superuser_click_opens_login_link(self) -> None:
-        """Clicking the completed Superuser row opens the login-link screen."""
-        app = SetupApp()
-        async with app.run_test(size=(80, 24)) as pilot:
-            await pilot.pause()
-            menu = app.screen
-            assert isinstance(menu, Menu)
-            app.record_first_user(
-                first_name="Jane",
-                last_name="Doe",
-                email="jane@example.com",
-                login_link="https://localhost:8443/login-with-secret/xyz/",
-            )
-            await pilot.pause()
-            user_button = menu.query_one("#user", Button)
-            self.assertIn("Superuser: Jane Doe", str(user_button.label))
-            self.assertFalse(user_button.disabled)  # clickable, not locked
-            await pilot.click("#user")
-            await pilot.pause()
-            self.assertIsInstance(app.screen, LoginLinkScreen)
-            self.assertIn(
-                "login-with-secret/xyz",
-                str(app.screen.query_one("#link-line", Static).content),
-            )
-            await pilot.click("#back")
-            assert isinstance(app.screen, Menu)
-
-
-if __name__ == "__main__":
-    unittest.main()

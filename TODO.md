@@ -1,9 +1,7 @@
-Select.BLANK
-Better coverage and more checkframework2 tests
+open question
+get_by_text and inefficient patterns
 
-check all the textual code. Find wrong and outdated shit like .BLANK. Any way to architect it to be more declarative than selecting each element and changing its state? Dont write code till I allow.
-
-Which places have poor test coverage? Check recent commits. What needs to be included in checkframework2?
+self.assertRaises
 
 Launch the setup after running the provisioning script
 No more desmo command for debian user. Mention in the command prompt, just type pi
@@ -46,6 +44,8 @@ Bootstrap 6, with dialog element
 Vue vapor
 Substitute Eslint for Oxlint, Nov 2026
 ty instead of mypy
+Zig based prettier
+lazy imports for python 3.15
 
 ## Future
 Have a sequence generator for tables
@@ -59,5 +59,5 @@ Readonly mode for app?
 Mutation tests?
 Install playwright on first run?
 Plantuml
-uv and pnpm for cached builds across folders
+uv and pnpm for cached builds across folders. Dont transfer artifacts from scratch to main.
 Telemetry on install

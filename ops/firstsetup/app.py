@@ -29,12 +29,13 @@ from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Select, Static
 
 from ops.command import Command
-from ops.firstsetup import forms, providers
+from ops.firstsetup import providers
 from ops.firstsetup.screens import (
     ApiKeyScreen,
-    FormScreen,
+    GoogleScreen,
     LoginLinkScreen,
     OAuthScreen,
+    UserScreen,
     _setup_app,
 )
 
@@ -249,13 +250,13 @@ class Menu(Screen[None]):
             # login-link screen (the link is copyable there).
             app.push_screen(LoginLinkScreen())
             return
-        app.push_screen(FormScreen(forms.USER))
+        app.push_screen(UserScreen())
 
     @on(Button.Pressed, "#google")
     def _open_google_form(self) -> None:
         if _setup_app(self).google_configured:
             return  # locked
-        _setup_app(self).push_screen(FormScreen(forms.GOOGLE))
+        _setup_app(self).push_screen(GoogleScreen())
 
 
 class SetupApp(App[None]):

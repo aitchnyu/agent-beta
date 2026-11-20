@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-import re
+import json
 from datetime import timedelta
 from io import StringIO
+from urllib.parse import urlparse
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
@@ -11,8 +12,6 @@ from django.utils import timezone
 
 from djangoapp.models import LoginKey, User
 from djangoapp.tests._base import BaseTestCase
-
-_KEY_URL_RE = re.compile(r"(/login-with-secret/[A-Za-z0-9_\-]+/)")
 
 
 class LoginKeyTests(BaseTestCase):
@@ -105,9 +104,8 @@ class MakeLoginLinkCommandTests(BaseTestCase):
         """The URL in stdout authenticates the session once, then 404s."""
         out = StringIO()
         call_command("makeloginlink", self.user.email, stdout=out)
-        match = _KEY_URL_RE.search(out.getvalue())
-        assert match is not None  # test-side invariant: the command always prints the URL
-        path = match.group(1)
+        payload = json.loads(out.getvalue())
+        path = urlparse(payload["login_url"]).path
         response = self.client.get(path)
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response["Location"], "/")
@@ -122,16 +120,17 @@ class MakeLoginLinkCommandTests(BaseTestCase):
         out = StringIO()
         with override_settings(BASE_URLS=["https://vm.example", "https://other.example"]):
             call_command("makeloginlink", self.user.email, stdout=out)
-        self.assertIn("https://vm.example/login-with-secret/", out.getvalue())
+        payload = json.loads(out.getvalue())
+        self.assertIn("https://vm.example/login-with-secret/", payload["login_url"])
+        self.assertIn("One-time login", payload["message"])
 
     def test_redeem_rotates_session_key(self) -> None:
         """login() cycles the session key (fixation-safe)."""
         pre_key = self.client.session.session_key
         out = StringIO()
         call_command("makeloginlink", self.user.email, stdout=out)
-        match = _KEY_URL_RE.search(out.getvalue())
-        assert match is not None
-        self.client.get(match.group(1))
+        path = urlparse(json.loads(out.getvalue())["login_url"]).path
+        self.client.get(path)
         self.assertNotEqual(self.client.session.session_key, pre_key)
 
     def test_missing_email_errors(self) -> None:
@@ -142,17 +141,20 @@ class MakeLoginLinkCommandTests(BaseTestCase):
     def test_duplicate_email_errors(self) -> None:
         """Two users sharing an email is ambiguous — refuse rather than guess."""
         User.objects.create_user(username="cmduser2", email="cmd@example.com")
-        with self.assertRaises(CommandError):
+        with self.assertRaisesRegex(CommandError, r"^Multiple users share email"):
             call_command("makeloginlink", self.user.email, stdout=StringIO())
 
     def test_case_variant_email_matches(self) -> None:
         """The email lookup is case-insensitive."""
         out = StringIO()
         call_command("makeloginlink", "CMD@example.com", stdout=out)
-        self.assertIn("/login-with-secret/", out.getvalue())
+        self.assertIn("/login-with-secret/", json.loads(out.getvalue())["login_url"])
 
     def test_minutes_must_be_at_least_an_hour(self) -> None:
         """Sub-hour --minutes issues a link that dies before a human uses it — refuse."""
         for bad in (0, -5, 30, 59):
-            with self.assertRaises(CommandError):
+            with (
+                self.subTest(minutes=bad),
+                self.assertRaisesRegex(CommandError, r"^--minutes must be >= 60"),
+            ):
                 call_command("makeloginlink", self.user.email, minutes=bad, stdout=StringIO())

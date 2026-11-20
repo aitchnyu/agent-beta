@@ -11,7 +11,8 @@ Called by exactly one thing; the host checks only the exit code, output
 streams to the operator. One linear body, read top to bottom: refuse
 prod first, overlay the Books test app, smoke the LIVE stack over HTTPS
 on loopback (caddy TLS, granian, postgres, login links), three setup
-phases then eleven asserts — first failure aborts with ``FAILED:``.
+phases then eleven asserts — the first failed assert aborts with
+``FAILED:``; an unexpected error tracebacks (nonzero either way).
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ import subprocess
 import time
 from pathlib import Path
 from typing import NoReturn
+from urllib.parse import urlparse
 
 from ops import shell
 from ops.scratch import step_banner
@@ -317,10 +319,8 @@ def _step_login_link() -> str:
     link_output = _capture_desmo(
         "uv", "run", "--no-sync", "python", "manage.py", "makeloginlink", "framework@example.com"
     )
-    match = re.search(r"/login-with-secret/[^ ]+/", link_output)
-    if not match:
-        die("no login link in makeloginlink output")
-    return match.group(0)
+    login_url: str = json.loads(link_output)["login_url"]
+    return urlparse(login_url).path
 
 
 def _asserts_session(login_path: str) -> None:

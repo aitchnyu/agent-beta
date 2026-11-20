@@ -289,16 +289,8 @@ firstsetup() {
   _ops_cli firstsetup
 }
 
-# Test runs point redis at an isolated DB (not the live DB 0) so tests can
-# flush it freely; exported AFTER setenv, which re-sources the live value.
-_TEST_REDIS_URL="redis://127.0.0.1:6379/2"
-
-# The test-process redis environment, applied as one word: the isolated
-# URL plus the marker clear_redis requires before flushing (so a bare
-# manage.py test, which sees the live DB 0, refuses loudly instead).
-_with_test_redis() {
-  REDIS_URL="$_TEST_REDIS_URL" DESMO_TEST_REDIS=1 "$@"
-}
+# Test redis: any nonzero DB is a test DB (clear_redis refuses DB 0).
+# The test processes' REDIS_URL is set by ops/scratch.py's test_redis_env.
 
 # Django test suite — logic in ops/testsuite.py: quiet logs, failfast,
 # keepdb while migrations are unchanged; --full = full run (the gates).

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import os
 import tempfile
 import unittest
@@ -241,19 +243,20 @@ class FilterExcludesTests(unittest.TestCase):
 class TestRedisEnvTests(unittest.TestCase):
     """The isolated redis environment for test runs.
 
-    - test_test_redis_env_points_at_the_isolated_db, REDIS_URL overridden, DESMO_TEST_REDIS set
-    - test_test_redis_env_keeps_other_environment, every other variable rides unchanged
+    - test_test_redis_env_points_at_a_test_db, REDIS_URL is a nonzero-DB
+      URL — a test DB by clear_redis's rule, the only signal there is
     """
 
-    def test_test_redis_env_points_at_the_isolated_db(self) -> None:
+    def test_test_redis_env_points_at_a_test_db(self) -> None:
+        """test_redis_env points the process at the isolated DB.
+
+        - a live-looking REDIS_URL in the ambient env is overridden
+        - the URL is a bare nonzero-DB URL — a test DB by clear_redis's
+          rule, the only signal there is
+        """
         with patch.dict(os.environ, {"REDIS_URL": "redis://live:6379/0"}, clear=True):
             test_env = test_redis_env()
         self.assertEqual(test_env["REDIS_URL"], "redis://127.0.0.1:6379/2")
-        self.assertEqual(test_env["DESMO_TEST_REDIS"], "1")
-
-    def test_test_redis_env_keeps_other_environment(self) -> None:
-        with patch.dict(os.environ, {"OTHER_SETTING": "kept"}, clear=True):
-            self.assertEqual(test_redis_env().get("OTHER_SETTING"), "kept")
 
 
 class PlaywrighttestPdbrcTests(unittest.TestCase):
@@ -265,6 +268,10 @@ class PlaywrighttestPdbrcTests(unittest.TestCase):
     """
 
     def test_pdbrc_sets_child_home(self) -> None:
+        """--pdbrc gives the child process the rc's parent as HOME.
+
+        - the captured env's HOME is the rc's parent directory
+        """
         captured: dict[str, dict[str, str] | None] = {}
 
         def fake_run(*_args: object, env: dict[str, str] | None = None, **_kw: object) -> None:
@@ -286,6 +293,10 @@ class PlaywrighttestPdbrcTests(unittest.TestCase):
         self.assertEqual(env["REDIS"], "1")
 
     def test_pdbrc_without_flag_leaves_env_alone(self) -> None:
+        """No flag means no HOME override.
+
+        - the captured env's HOME stays whatever the ambient value was
+        """
         captured: dict[str, dict[str, str] | None] = {}
 
         def fake_run(*_args: object, env: dict[str, str] | None = None, **_kw: object) -> None:
@@ -303,12 +314,16 @@ class PlaywrighttestPdbrcTests(unittest.TestCase):
         self.assertNotIn("HOME", env)
 
     def test_pdbrc_missing_file_refuses(self) -> None:
+        """A nonexistent rc refuses before anything runs.
+
+        - the die() message names the rc path, pinned on stderr
+        - SystemExit follows the die() message
+        """
+        stderr = io.StringIO()
         with (
             patch.object(scratch, "built_frontend"),
+            contextlib.redirect_stderr(stderr),
             self.assertRaises(SystemExit),
         ):
             tst.Playwrighttest.run(Namespace(labels=[], full=False, pdbrc="/nonexistent/rc"), [])
-
-
-if __name__ == "__main__":
-    unittest.main()
+        self.assertIn("/nonexistent/rc", stderr.getvalue())

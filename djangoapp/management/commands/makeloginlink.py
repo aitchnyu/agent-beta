@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from django.conf import settings
@@ -16,7 +17,9 @@ class Command(BaseCommand):
     registrable), so this is how the operator signs in there: it issues a
     ``/login-with-secret/<key>/`` URL that logs the user in exactly once
     before it expires. Only the SHA-256 of the key is stored server-side, so
-    the printed line is the only place the raw key exists.
+    the printed line is the only place the raw key exists. Stdout is a
+    single JSON line: a human-readable ``message`` plus ``login_url`` for
+    scripts.
     """
 
     help = "Print a one-time login URL for an existing user (looked up by email)."
@@ -57,7 +60,13 @@ class Command(BaseCommand):
         path = reverse("login-with-secret", kwargs={"key": key})
         url = f"{settings.BASE_URLS[0]}{path}"
         self.stdout.write(
-            self.style.SUCCESS(
-                f"One-time login for '{user.username}' (valid {minutes} min, single use):\n{url}"
+            json.dumps(
+                {
+                    "message": (
+                        f"One-time login for '{user.username}' "
+                        f"(valid {minutes} min, single use):\n{url}"
+                    ),
+                    "login_url": url,
+                }
             )
         )

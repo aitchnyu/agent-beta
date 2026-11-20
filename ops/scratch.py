@@ -116,7 +116,6 @@ def built_frontend(frontend: Path) -> None:
 AGENT_TMP_DIR = Path("/tmp/desmo")  # noqa: S108 — the fixed path IS the contract (permission-allowlisted, lifecycle-wiped)
 
 VM_ENV_FILE = Path("/etc/credentials/desmo/.env.vm")
-TEST_REDIS_URL = "redis://127.0.0.1:6379/2"
 
 # The app surface is every path a feature edit may touch (`ourapp/` plus
 # `frontend/src/app/`); everything else is framework files.
@@ -192,12 +191,11 @@ def is_running_on_vm() -> bool:
 def test_redis_env() -> dict[str, str]:
     """Build the test-process redis environment.
 
-    The isolated DB (not the live DB 0) plus the marker clear_redis
-    requires before flushing.
+    REDIS_URL points at an isolated nonzero DB — any nonzero DB is a
+    test DB, which is exactly what clear_redis checks before flushing.
     """
     env = dict(os.environ)
-    env["REDIS_URL"] = TEST_REDIS_URL
-    env["DESMO_TEST_REDIS"] = "1"
+    env["REDIS_URL"] = "redis://127.0.0.1:6379/2"
     return env
 
 

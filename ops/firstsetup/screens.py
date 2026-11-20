@@ -1,15 +1,16 @@
-"""screens — the setup app's screens.
+"""screens — the setup app's screens: thin shells over flow.py's verbs.
 
-ONE generic FormScreen driven by a FormSpec (forms.py), two provider
-auth screens — ApiKeyScreen (password field → store → real model call
-to verify) and OAuthScreen (pi's own device-code login fullscreen, then
-the same verification) — and LoginLinkScreen (the copyable one-time
-login link). Panel holds the shared compact chrome for all of them.
+Two self-contained form screens (UserScreen, GoogleScreen — each owns
+its fields, validation, and its flow verb), two provider auth screens
+(ApiKeyScreen: password field → store → verify; OAuthScreen: pi's own
+device-code login, then the same verification), and LoginLinkScreen
+(the copyable one-time login link). Panel holds the shared compact
+chrome. Every command, rc nuance, and capture lives in flow.py; these
+classes only map results to pop/flash/status.
 """
 
 from __future__ import annotations
 
-import asyncio
 import re
 from typing import TYPE_CHECKING
 
@@ -18,7 +19,14 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Button, Footer, Header, Input, Label, RichLog, Static
 
-from ops.firstsetup import authstore, forms
+from ops.firstsetup import authstore
+from ops.firstsetup.flow import (
+    Outcome,
+    create_superuser_with_link,
+    run_pi_oauth_login,
+    store_google_oauth,
+    verify_provider,
+)
 
 if TYPE_CHECKING:
     from textual.app import ComposeResult
@@ -28,12 +36,44 @@ if TYPE_CHECKING:
 # The pi credential store (debian's) — the ApiKeyScreen writes here.
 CREDENTIAL_STORE = authstore.AuthStore("/home/debian/.pi/agent/auth.json")
 
-VERIFY_PROMPT = "Reply with just: ok"
-MAX_ERROR_CHARS = 120
-MIN_TABLE_COLUMNS = 2  # provider + model
-# pi's provider-side error bodies look like: 401: {"code":"401", ...}
-# (and exit 0) — the body shape must fail the verify even on rc=0.
-ERROR_REPLY_RE = re.compile(r"^\d{3}:\s*\{")
+EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL_MAX = 254  # the RFC 5321 forward-path limit
+NAME_RE = re.compile(r"^[A-Za-z][A-Za-z'-]{0,49}$")
+CLIENT_ID_RE = re.compile(r"^\d+-[A-Za-z0-9]+\.apps\.googleusercontent\.com$")
+MIN_SECRET_LEN = 20
+
+
+def validate_user_values(values: dict[str, str]) -> str | None:
+    """Return the first-user form's refusal, or None when well-formed."""
+    email = values.get("email", "")
+    first = values.get("first_name", "")
+    last = values.get("last_name", "")
+    if not email and not first and not last:
+        return "fill all three fields (or press Back to skip)"
+    if not EMAIL_RE.match(email) or len(email) > EMAIL_MAX:
+        return "that email doesn't parse"
+    if not (first and last):
+        return "first + last name needed with an email"
+    if not NAME_RE.match(first):
+        return "first name: letters only (hyphen/apostrophe ok), starting with one"
+    if not NAME_RE.match(last):
+        return "last name: letters only (hyphen/apostrophe ok), starting with one"
+    return None
+
+
+def validate_google_values(values: dict[str, str]) -> str | None:
+    """Return the google form's refusal, or None when well-formed."""
+    client_id = values.get("client_id", "")
+    secret = values.get("client_secret", "")
+    if not client_id and not secret:
+        return "fill both client key and secret (or press Back to skip)"
+    if bool(client_id) != bool(secret):
+        return "fill BOTH client key and secret"
+    if not CLIENT_ID_RE.match(client_id):
+        return "client key should look like 1234567890-abc123.apps.googleusercontent.com"
+    if len(secret) < MIN_SECRET_LEN or " " in secret:
+        return "client secret looks wrong (Google secrets are ~35 chars, no spaces)"
+    return None
 
 
 def _setup_app(screen: Screen[None]) -> SetupApp:
@@ -43,33 +83,6 @@ def _setup_app(screen: Screen[None]) -> SetupApp:
     import time; the object is always a SetupApp.
     """
     return screen.app  # type: ignore[return-value]
-
-
-def describe_failure(argv: tuple[str, ...], exit_code: int, output: str) -> str:
-    """One clear line for a failed command — its own last error line.
-
-    Never just "failed": the operator needs the command's own message
-    (a traceback, a psql error, a missing binary).
-    """
-    lines = [line.strip() for line in output.splitlines() if line.strip()]
-    detail = lines[-1][:MAX_ERROR_CHARS] if lines else "no output"
-    return f"{argv[2]} failed (rc={exit_code}): {detail}"
-
-
-async def run_command(*argv: str, stdin: bytes | None = None) -> tuple[int, str]:
-    """Run argv and capture stdout+stderr merged: (returncode, text).
-
-    Streams are merged because some pi messages (the provider list in
-    the unknown-provider error) arrive on stderr.
-    """
-    proc = await asyncio.create_subprocess_exec(
-        *argv,
-        stdin=asyncio.subprocess.PIPE if stdin is not None else asyncio.subprocess.DEVNULL,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.STDOUT,
-    )
-    out, _err = await proc.communicate(stdin if stdin is not None else b"")
-    return proc.returncode or 0, out.decode(errors="replace")
 
 
 class StrippedInput(Input):
@@ -126,65 +139,85 @@ class Panel(Screen[None]):
     def _back(self) -> None:
         _setup_app(self).pop_screen()
 
+    def _values(self, *input_ids: str) -> dict[str, str]:
+        """Return the named inputs' values, whitespace-stripped."""
+        return {
+            input_id: self.query_one(f"#{input_id}", Input).value.strip() for input_id in input_ids
+        }
 
-class FormScreen(Panel):
-    """THE form engine: renders any FormSpec, validates it, dispatches."""
 
-    def __init__(self, spec: forms.FormSpec) -> None:
-        super().__init__()
-        self.spec = spec
-        self.title = spec.title
+class UserScreen(Panel):
+    """The first-user form: create the superuser, mint the login link."""
+
+    title = "first user"
 
     def body(self) -> ComposeResult:
-        for spec_field in self.spec.fields:
-            yield field_row(
-                spec_field.label,
-                spec_field.id,
-                password=spec_field.password,
-                placeholder=spec_field.placeholder,
-            )
+        yield field_row("first name", "first_name")
+        yield field_row("last name", "last_name")
+        yield field_row("email", "email", placeholder="you@example.com")
         with Horizontal(id="actions"):
-            yield Button(self.spec.apply_label, id="apply", compact=True)
+            yield Button("Apply", id="apply", compact=True)
             yield Button("Back", id="back", compact=True)
 
     @on(Button.Pressed, "#apply")
     def _apply(self) -> None:
         app = _setup_app(self)
-        values = {
-            field.id: self.query_one(f"#{field.id}", Input).value.strip()
-            for field in self.spec.fields
-        }
-        if self.spec.optional and not any(values.values()):
-            app.pop_screen()  # skip: nothing filled
+        values = self._values("first_name", "last_name", "email")
+        error = validate_user_values(values)
+        if error:
+            app.flash(error)
             return
-        if self.spec.validate is not None:
-            error = self.spec.validate(values)
-            if error:
-                app.flash(error)
-                return
-        self.run_worker(self._dispatch_actions(values), exclusive=True)
+        self.run_worker(self._create(values), exclusive=True)
 
-    async def _dispatch_actions(self, values: forms.Values) -> None:
-        """Run the spec's actions in order; any failure toasts and stops."""
+    async def _create(self, values: dict[str, str]) -> None:
         app = _setup_app(self)
-        captured = ""
         try:
-            for action in self.spec.actions:
-                argv = action.argv(values)
-                exit_code, output = await run_command(
-                    *argv,
-                )
-                if exit_code != 0:
-                    app.flash(describe_failure(argv, exit_code, output))
-                    return
-                if action.capture:
-                    lines = [ln for ln in output.splitlines() if action.capture in ln]
-                    if lines:
-                        captured = lines[-1]
-            self.spec.success(app, values, captured)
+            result = await create_superuser_with_link(
+                values["first_name"], values["last_name"], values["email"]
+            )
+            app.record_first_user(
+                first_name=values["first_name"],
+                last_name=values["last_name"],
+                email=values["email"],
+                login_link=result.login_link,
+            )
+            app.flash("user created — the login link is on the menu")
             app.pop_screen()
         except Exception as error:  # noqa: BLE001 — a worker failure must not crash the app
-            app.flash(f"{self.spec.id} failed: {error}"[:80])
+            app.flash(f"user failed: {error}"[:80])
+
+
+class GoogleScreen(Panel):
+    """The google oauth form: store the client key and secret."""
+
+    title = "google oauth"
+
+    def body(self) -> ComposeResult:
+        yield field_row("client key", "client_id", placeholder="xxxx.apps.googleusercontent.com")
+        yield field_row("secret", "client_secret", password=True)
+        with Horizontal(id="actions"):
+            yield Button("Apply", id="apply", compact=True)
+            yield Button("Back", id="back", compact=True)
+
+    @on(Button.Pressed, "#apply")
+    def _apply(self) -> None:
+        app = _setup_app(self)
+        values = self._values("client_id", "client_secret")
+        error = validate_google_values(values)
+        if error:
+            app.flash(error)
+            return
+        self.run_worker(self._store(values), exclusive=True)
+
+    async def _store(self, values: dict[str, str]) -> None:
+        app = _setup_app(self)
+        try:
+            await store_google_oauth(values["client_id"], values["client_secret"])
+            app.record_google_configured()
+            app.flash("google oauth stored")
+            app.pop_screen()
+        except Exception as error:  # noqa: BLE001 — a worker failure must not crash the app
+            app.flash(f"google failed: {error}"[:80])
 
 
 class _ProviderAuthScreen(Panel):
@@ -211,61 +244,16 @@ class _ProviderAuthScreen(Panel):
             status.set_classes(state)
         self.query_one("#log", RichLog).write(text)
 
-    async def verify_credential(self) -> tuple[bool, str]:
-        """Run a cheap model call — the only real credential test.
-
-        ``pi auth check`` reports storage, not validity (a fake API key
-        is "ready"); a one-turn ``--print`` exercises the credential.
-        """
-        _exit_code, models_table = await run_command(
-            "sudo",
-            "-u",
-            "debian",
-            "-H",
-            "pi",
-            "--list-models",
-        )
-        model_id = self._first_model_id(models_table)
-        if not model_id:
-            return False, f"no models listed for provider {self.provider_id}"
-        exit_code, output = await run_command(
-            "sudo",
-            "-u",
-            "debian",
-            "-H",
-            "pi",
-            "--print",
-            VERIFY_PROMPT,
-            "--provider",
-            self.provider_id,
-            "--model",
-            model_id,
-        )
-        reply = output.strip()
-        # pi exits 0 even for provider-side errors (e.g. an unknown model
-        # or a 401 body), so the body shape is the verdict too.
-        if exit_code == 0 and reply and not ERROR_REPLY_RE.match(reply):
-            return True, reply
-        return False, reply[:MAX_ERROR_CHARS] or f"pi exited rc={exit_code}"
-
-    def _first_model_id(self, models_table: str) -> str:
-        """Extract THIS provider's first model from the list-models table."""
-        for line in models_table.splitlines():
-            columns = line.split()
-            if len(columns) >= MIN_TABLE_COLUMNS and columns[0] == self.provider_id:
-                return columns[1]
-        return ""
-
-    def _report_result(self, *, verified: bool, detail: str) -> None:
+    def _report_result(self, outcome: Outcome) -> None:
         """Report the shared success/error path both screens end with."""
         app = _setup_app(self)
-        if verified:
+        if outcome.is_ok:
             app.mark_provider_verified(self.provider_id)
             self._set_status(f"Provider successful: {self.title}", state="ok")
             app.flash(f"Provider successful: {self.title}")
         else:
-            self._set_status(f"verification failed — {detail}", state="err")
-            app.flash(f"verification failed: {detail[:60]}")
+            self._set_status(f"verification failed — {outcome.error}", state="err")
+            app.flash(f"verification failed: {outcome.error[:60]}")
         # No menu refresh here: the menu's rows follow the app's
         # reactives, so mark_provider_verified re-renders them.
 
@@ -297,12 +285,10 @@ class ApiKeyScreen(_ProviderAuthScreen):
         app = _setup_app(self)
         try:
             self._set_status("saving…")
-            await CREDENTIAL_STORE.set_credential(
-                self.provider_id, {"type": "api_key", "key": api_key}
-            )
+            credential: dict[str, object] = {"type": "api_key", "key": api_key}
+            await CREDENTIAL_STORE.set_credential(self.provider_id, credential)
             self._set_status("saved — verifying with a model call…")
-            verified, detail = await self.verify_credential()
-            self._report_result(verified=verified, detail=detail)
+            self._report_result(await verify_provider(self.provider_id))
         except Exception as error:  # noqa: BLE001
             self._set_status(f"error: {error}", state="err")
             app.flash(f"error: {error}"[:80])
@@ -311,10 +297,10 @@ class ApiKeyScreen(_ProviderAuthScreen):
 class OAuthScreen(_ProviderAuthScreen):
     """OAuth provider auth: pi's own login dance, then verify with a prompt.
 
-    ``pi auth login <provider> --no-browser`` runs pi's device-code
-    flow fullscreen (suspend) — the operator opens the URL on their
-    laptop, enters the code, and pi stores the credential. On return,
-    a one-turn ``pi --print`` verifies the credential actually works.
+    ``pi auth login <provider> --no-browser`` runs pi's device-code flow
+    fullscreen (suspend) — the operator opens the URL on their laptop,
+    enters the code, and pi stores the credential. On return, a
+    one-turn ``pi --print`` verifies the credential actually works.
     """
 
     def body(self) -> ComposeResult:
@@ -333,33 +319,14 @@ class OAuthScreen(_ProviderAuthScreen):
             self._set_status("opening pi login…")
             with self.app.suspend():
                 # stdout/stdin stay on the terminal: pi's device-code UI
-                # owns the screen while suspended. stderr is captured so
-                # a failure surfaces pi's own message, not just an rc.
-                proc = await asyncio.create_subprocess_exec(
-                    "sudo",
-                    "-u",
-                    "debian",
-                    "-H",
-                    "pi",
-                    "auth",
-                    "login",
-                    self.provider_id,
-                    "--no-browser",
-                    stderr=asyncio.subprocess.PIPE,
-                )
-                _out, err = await proc.communicate()
-            if proc.returncode != 0:
-                detail = describe_failure(
-                    ("pi", "auth", "login"),
-                    proc.returncode or 0,
-                    (err or b"").decode(errors="replace"),
-                )
-                self._set_status(f"{detail} — retry or Back", state="err")
+                # owns the screen while suspended.
+                result: Outcome = await run_pi_oauth_login(self.provider_id)
+            if not result.is_ok:
+                self._set_status(f"{result.error} — retry or Back", state="err")
                 app.flash("login cancelled or failed")
                 return
             self._set_status("login done — verifying with a model call…")
-            verified, detail = await self.verify_credential()
-            self._report_result(verified=verified, detail=detail)
+            self._report_result(await verify_provider(self.provider_id))
         except Exception as error:  # noqa: BLE001
             self._set_status(f"error: {error}", state="err")
             app.flash(f"error: {error}"[:80])
