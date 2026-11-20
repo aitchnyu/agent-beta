@@ -16,12 +16,14 @@ Class inventory:
 - AuthKindDispatchTests: auth_kind_of decides API-key vs OAuth screen —
   only an explicit "oauth" from the live registry beats the api_key
   default
-- SetupAppStateTests: SetupApp's setters/readers (first user, verified
-  providers, provider catalog) — the only menu-state mutation surface
+- SetupAppStateTests: SetupApp's reactive state + setters/readers (first
+  user, verified providers, provider catalog) — the only menu-state
+  mutation surface
 - AuthStoreRoundTripTests: pi's auth.json read/merge/write as debian —
   merge-preserving writes, loud failures, empty only when truly fresh
 - SetupMenuPilotTests: headless textual pilots at 80x24 — navigation,
-  two-state rows, the Superuser row opening the login link
+  two-state rows (which follow the app's reactives on their own), the
+  Superuser row opening the login link
 
 No real pi/node/sudo: subprocess seams are faked or patched.
 """
@@ -44,6 +46,7 @@ from ops.firstsetup.screens import (
     ApiKeyScreen,
     FormScreen,
     LoginLinkScreen,
+    OAuthScreen,
     describe_failure,
 )
 
@@ -375,7 +378,7 @@ class SetupAppStateTests(unittest.TestCase):
         self.assertEqual(app.first_user.login_link, "https://x/")
 
     def test_provider_verified_roundtrip(self) -> None:
-        """Marking a provider verified exposes it (sorted) until reset."""
+        """Marking a provider verified exposes it (sorted)."""
         app = SetupApp()
         self.assertFalse(app.is_provider_verified("zai"))
         app.mark_provider_verified("zai")
@@ -488,8 +491,14 @@ class SetupMenuPilotTests(unittest.IsolatedAsyncioTestCase):
 
     - test_menu_renders_and_navigates: dropdown rows from the catalog,
       arrow focus, delve/back, whitespace-stripping inputs
-    - test_statuses_refresh_summary_and_link: the two-state rows show
-      the verified-provider summary and the login link
+    - test_initial_paint_of_rows: rows paint their unconfigured state
+      at mount — no statuses() sweep exists to fall back on
+    - test_google_row_locks: the configured google row is green,
+      disabled, and its click delves nowhere
+    - test_select_dispatch_and_repick: dropdown picks dispatch to the
+      right auth screen, and the resume clear enables a re-pick
+    - test_rows_follow_app_state: assignments on the app re-render the
+      rows by themselves — the verified-provider summary and login link
     - test_superuser_click_opens_login_link: the completed Superuser
       row stays clickable and opens the copyable link
     """
@@ -507,8 +516,7 @@ class SetupMenuPilotTests(unittest.IsolatedAsyncioTestCase):
             menu = app.screen
             assert isinstance(menu, Menu)
             app.load_provider_catalog(FAKE_PROVIDERS, {})
-            menu._populate_select_options()
-            await pilot.pause()
+            await pilot.pause()  # the dropdown follows the catalog reactive
             select = menu.query_one("#provider-select", Select)
             # blank sentinel + the two catalog providers
             self.assertEqual(len(select._options), 3)
@@ -532,8 +540,72 @@ class SetupMenuPilotTests(unittest.IsolatedAsyncioTestCase):
             await pilot.click("#back")
             assert isinstance(app.screen, Menu)
 
-    async def test_statuses_refresh_summary_and_link(self) -> None:
-        """Statuses refresh the ready-provider summary and the login link."""
+    async def test_initial_paint_of_rows(self) -> None:
+        """Rows paint their unconfigured state at mount, unprompted.
+
+        The init=True reactives plus follow_app_reactive's mount-time sync are
+        the whole show — there is no statuses() sweep to fall back on,
+        so a blank row here means the reactive wiring broke.
+        """
+        app = SetupApp()
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            menu = app.screen
+            assert isinstance(menu, Menu)
+            self.assertIn("unconfigured", str(menu.query_one("#user", Button).label))
+            self.assertIn("unconfigured", str(menu.query_one("#google", Button).label))
+            self.assertEqual(str(menu.query_one("#ai-done", Static).content), "")
+            self.assertEqual(str(menu.query_one("#link", Static).content), "")
+
+    async def test_google_row_locks(self) -> None:
+        """The google row locks once configured — green, disabled, no delve."""
+        app = SetupApp()
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            menu = app.screen
+            assert isinstance(menu, Menu)
+            google_button = menu.query_one("#google", Button)
+            self.assertFalse(google_button.disabled)
+            app.record_google_configured()
+            await pilot.pause()
+            self.assertIn("Google OAuth: configured", str(google_button.label))
+            self.assertTrue(google_button.disabled)
+            self.assertTrue(google_button.has_class("done"))
+            await pilot.click("#google")
+            await pilot.pause()
+            self.assertIs(app.screen, menu)  # locked — the click delves nowhere
+
+    async def test_select_dispatch_and_repick(self) -> None:
+        """Dropdown picks dispatch to the right auth screen; re-pick works.
+
+        Resume clears the selection (Select.NULL) precisely so picking
+        the SAME provider again fires Changed and re-opens its screen.
+        """
+        app = SetupApp()
+        async with app.run_test(size=(80, 24)) as pilot:
+            await pilot.pause()
+            menu = app.screen
+            assert isinstance(menu, Menu)
+            app.load_provider_catalog(FAKE_PROVIDERS, {"openai-codex": "oauth"})
+            await pilot.pause()
+            select = menu.query_one("#provider-select", Select)
+            select.value = "openai-codex"  # a real pick posts Changed → dispatch
+            await pilot.pause()
+            self.assertIsInstance(app.screen, OAuthScreen)
+            await pilot.click("#back")
+            await pilot.pause()
+            self.assertIs(select.value, Select.NULL)  # cleared for the re-pick
+            select.value = "zai"
+            await pilot.pause()
+            self.assertIsInstance(app.screen, ApiKeyScreen)
+            await pilot.click("#back")
+            await pilot.pause()
+            select.value = "zai"  # the SAME provider again — must delve again
+            await pilot.pause()
+            self.assertIsInstance(app.screen, ApiKeyScreen)
+
+    async def test_rows_follow_app_state(self) -> None:
+        """Assignments on the app re-render the summary and link rows."""
         app = SetupApp()
         async with app.run_test(size=(80, 24)) as pilot:
             await pilot.pause()
@@ -546,7 +618,6 @@ class SetupMenuPilotTests(unittest.IsolatedAsyncioTestCase):
                 email="jane@example.com",
                 login_link="https://localhost:8443/login-with-secret/abc/",
             )
-            menu.statuses()
             await pilot.pause()
             self.assertIn("zai", str(menu.query_one("#ai-done", Static).content))
             self.assertIn("login-with-secret/abc", str(menu.query_one("#link", Static).content))
@@ -564,7 +635,6 @@ class SetupMenuPilotTests(unittest.IsolatedAsyncioTestCase):
                 email="jane@example.com",
                 login_link="https://localhost:8443/login-with-secret/xyz/",
             )
-            menu.statuses()
             await pilot.pause()
             user_button = menu.query_one("#user", Button)
             self.assertIn("Superuser: Jane Doe", str(user_button.label))

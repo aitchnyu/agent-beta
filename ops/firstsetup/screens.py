@@ -4,7 +4,7 @@ ONE generic FormScreen driven by a FormSpec (forms.py), two provider
 auth screens — ApiKeyScreen (password field → store → real model call
 to verify) and OAuthScreen (pi's own device-code login fullscreen, then
 the same verification) — and LoginLinkScreen (the copyable one-time
-login link). Panel holds the shared compact chrome.
+login link). Panel holds the shared compact chrome for all of them.
 """
 
 from __future__ import annotations
@@ -266,14 +266,8 @@ class _ProviderAuthScreen(Panel):
         else:
             self._set_status(f"verification failed — {detail}", state="err")
             app.flash(f"verification failed: {detail[:60]}")
-        self._refresh_menu()
-
-    def _refresh_menu(self) -> None:
-        from ops.firstsetup.app import Menu  # noqa: PLC0415 — breaks the app↔screens cycle
-
-        screen = self.app.screen
-        if isinstance(screen, Menu):
-            screen.statuses()
+        # No menu refresh here: the menu's rows follow the app's
+        # reactives, so mark_provider_verified re-renders them.
 
 
 class ApiKeyScreen(_ProviderAuthScreen):
@@ -312,7 +306,6 @@ class ApiKeyScreen(_ProviderAuthScreen):
         except Exception as error:  # noqa: BLE001
             self._set_status(f"error: {error}", state="err")
             app.flash(f"error: {error}"[:80])
-            self._refresh_menu()
 
 
 class OAuthScreen(_ProviderAuthScreen):
@@ -370,7 +363,6 @@ class OAuthScreen(_ProviderAuthScreen):
         except Exception as error:  # noqa: BLE001
             self._set_status(f"error: {error}", state="err")
             app.flash(f"error: {error}"[:80])
-            self._refresh_menu()
 
 
 class LoginLinkScreen(Panel):
