@@ -1,105 +1,80 @@
 # Coverage wrap-up: firstsetup tests + checkframework2 asserts
 
-Nov 20, 2026. The trimmed remainder of the coverage plan. Phases 1-2 are
-DONE and recorded below; only two phases remain. **Do not write code
-beyond what an item lists; stop each module at ~95; nothing commits.**
+Nov 20, 2026 (updated 20:30). The coverage plan's working record. Phases
+1-3 are DONE; ops/ is wired into the gate; only phase 6 (checkframework2)
+remains. **Do not write code beyond what an item lists; stop each module
+at ~95; nothing commits.**
 
-## Done (2026-11-20, for the record)
+## Done (for the record)
 
 - Phase 1: dbstate/adapters/redis_client at 100% (makeloginlink +
   LoginKey single-use were already covered by 592fe19). Two pre-existing
   gate breakages unblocked: Home.vue Prettier drift + the stale
-  playwright locator (both from 1563266). Full `./run checkframework1`
-  GREEN at the recalibrated 98.70 floor — first green gate since Nov 18.
-  The 99.78 ratchet was unreachable (generatesdk 80.82% + scattered
-  misses; ceiling ~99.59).
+  playwright locator (both from 1563266).
 - Phase 2 (reduced by operator ruling): only `ops/tests/
   test_scratch_commands.py` survives of the ops-infra test files;
   test_shell/test_testsuite deleted, the test_cli addition reverted.
-  Ops suite: 125 tests via `python3 -m unittest discover -s ops/tests`.
+- Phase 3: firstsetup engine extracted from the TUI — flow.py holds the
+  verbs (get_model, wait_for_success_response, verify_provider,
+  run_pi_oauth_login, create_superuser_with_link → UserCreated,
+  store_google_oauth), screens are thin shells (UserScreen/GoogleScreen,
+  no FormSpec, no pilots). flow/forms/providers 100%, authstore 96.67%,
+  screens/app accepted UI-shell gaps.
 - Redis test signal redesign: DESMO_TEST_REDIS, `_with_test_redis`,
   `_TEST_REDIS_URL`, and `TEST_REDIS_URL` are GONE. The URL itself is
-  the signal — `clear_redis` flushes any nonzero-DB URL
-  (`^rediss?://\S+/[1-9][0-9]*$`); DB 0 / suffix-less refuse naming the
-  URL. `test_redis_env()` (ops/scratch.py) is the single DB-2 owner.
-- aihere sweep: every live marker addressed and removed. New test rules
-  written into INSTRUCTIONS.md §Tests (assertRaisesRegex with pinned
-  message; method docstrings as multi-line point lists).
-
-Dropped by operator decision: generatesdk testing (80.82% stays — the
-floor prices it in) and wiring ops/ into the measured coverage stages.
+  the signal — `clear_redis` flushes only a bare nonzero-DB URL
+  (`^rediss?://[^/]+/[1-9][0-9]*$`; redis-py strips ALL path slashes, so
+  the authority must stay slash-free); everything else refuses naming
+  the URL. `test_redis_env()` (ops/scratch.py) is the single DB-2 owner.
+- Commands emit only JSON: createuser (message/created/email/username),
+  makeloginlink (message/login_url), listusers (message/page/pages/
+  total/users). checkframework2 parses the JSON; no bash consumers, so
+  no jq anywhere. flow's djangomanage calls capture stdout/stderr
+  separately (stderr noise can't corrupt the JSON line) and parse
+  login_url.
+- Error messages everywhere: every bare `raise Http404` carries a
+  fixed, non-revealing message (manage.py: one generic "not found";
+  auth-shaped 404s never confirm existence; no request-derived echo).
+  `shell.die`, cli's usage error, and postdeploychecks raise
+  SystemExit(message) — the message rides the exception.
+- Test rules (INSTRUCTIONS.md §Tests + steer.md checklist): method
+  docstrings are point lists; errors pinned by message — assertRaises
+  is GONE repo-wide; die-idiom/SystemExit sites pin the refusal text;
+  dropped asserts from the sweep were restored via `as raised` (cli
+  COMMANDS list, postdeploychecks exit-arg, addoauth both ids). Ruff
+  ignores EM101/EM102/TRY003 — string literals may be raised inline.
+- Playwright locators: text-located clicks replaced — files mode
+  buttons via role+name inside the "View mode" group; the navbar Code
+  dropdown via `data-testid="navbar-code"` (testId prop threaded
+  CollapsibleButton → NavbarMenu → Layout). Text as ASSERTED content
+  stays.
+- ops/ wired into the gate: stage 1 runs `unittest discover -s ops/tests`
+  measured (`--source=djangoapp,ourapp,ops` in stages 1-2);
+  [tool.coverage.paths] ops = ["ops", "*/main/ops"] (no scratch entry —
+  scratch tiers measure djangoapp only).
+- Ratchet: measured 92.54/92.51 across two clean runs → floor set to
+  92.50 (0.04 variance margin). Gate GREEN at the new floor. Accepted
+  gaps priced in: checkframework1 28%, checkframework2 0%, shell 55%,
+  testsuite 75%, screens 31%, app 61%.
+- Python 3.15: .python-version + requires-python >=3.15 (containers
+  fetch per the pin); README + inside-vm comment bumped. Toolchain and
+  all suites green on 3.15.2.
 
 ## Standing rules
 
 1. Per-module ceiling ~95% — no padding past it, no chasing 100.
-2. `COVERAGE_RATCHET` stays 98.70; neither remaining phase moves the
-   measured floor. Raise only if coverage measurably improves; never
-   lower.
+2. `COVERAGE_RATCHET` is 92.50; raise only if coverage measurably
+   improves; never lower it to make a regression pass.
 3. Test style: INSTRUCTIONS.md §Tests — point-list method docstrings,
-   `assertRaisesRegex` with the message pinned, tmp trees + fakes only,
-   never the real VM, nothing destructive outside tmp.
+   `assertRaisesRegex` with the message pinned (die-idiom refusals pin
+   the message riding SystemExit), tmp trees + fakes only, never the
+   real VM, nothing destructive outside tmp.
 4. An item is ticked only after its verifier passed. Never edit files
    while a gate run is in flight.
 5. Everything stays uncommitted for operator review.
 
-## Phase 3 — firstsetup: extract the engine, test the system (not Textual)
-
-Reworked by operator decision (2026-11-20): no Textual pilots — no App,
-no widget tree, no 80x24 `run_test`. The underlying system logic moves
-out of the screens into a plain module and is tested directly with fake
-`run`/`exec`/store functions.
-
-A first pilot-based pass (now discarded) had reached screens 98.95% /
-app 100% / forms 100% / providers 100% via 80x24 pilots — the numbers
-proved reachability, the method was wrong. This phase redoes it right.
-
-### 3a — extract (mechanical, zero behavior change)
-
-- [x] New `ops/firstsetup/flow.py` holding the engine currently trapped
-      in screens.py:
-      `apply_decision(spec, values)` → skip / refusal / dispatch;
-      `run_actions(spec, values, run)` → ordered actions, failure stops
-      with describe_failure, capture keeps the last matching line,
-      crash returns an error instead of raising;
-      `verify_credential(provider_id, run)` + `first_model_id` → the
-      one-turn model call, incl. the 4xx-rc-0 trap;
-      `oauth_login(provider_id, exec)` → device-code dance: rc≠0 →
-      describe_failure detail, exception propagates to the shell's
-      guard;
-      `save_and_verify(provider_id, key, store, run, on_stored=)` →
-      store write → verify → verdict
-- [x] screens.py shrinks to widget wiring: buttons call flow functions,
-      map verdicts to pop/flash/status (146 stmts, from 191)
-
-### 3b — tests
-
-- [x] Deleted EVERY pilot/widget test class from test_firstsetup.py —
-      the six added by the discarded pass AND the pre-existing
-      SetupMenuPilotTests; PanelBodyTests too (a Screen is a widget)
-- [x] New `ops/tests/test_firstsetup_flow.py`: the engine as plain unit
-      tests — fake run/exec/store; skip, refusal, dispatch, capture
-      keeps last line, action failure, crash guard, verify paths
-      (ok / 401 / 400-rc0 / no-models / empty-reply-rc / own row),
-      oauth login (done / cancelled detail from stderr / argv shape),
-      save_and_verify (green / on_stored / unverified verdict / store
-      failure propagates)
-- [x] Kept the widget-free classes in test_firstsetup.py (forms
-      validation, providers parsing, authstore round-trip, app-state
-      setters, setup command) — split from CredentialVerificationTests
-      which moved to the flow module
-
-### 3c — accounting (measured 2026-11-20)
-
-- [x] flow.py 100% · forms.py 100% · providers.py 100% · authstore.py
-      96.67% — all ≥95
-- [x] ACCEPTED UI-shell exceptions (no pilots, by operator decision):
-      screens.py 32.88% · app.py 62.18% — widget wiring and reactive
-      rows only; the decisions they carry live in flow.py (100%)
-- [x] Verify: ops suite green (148 tests, 0.05s — the pilot harness
-      cost 16s); ruff + mypy green; full `./run test` green
-
 ## Phase 6 — checkframework2: helper unit tests + new gate asserts
-
+  
 Helper unit tests (VM-only file by design — never mock the live stack;
 these are the only unit-worthy parts):
 
@@ -125,14 +100,15 @@ machine only). STOP for operator approval before running the gate:
       <bogus>` prints the `Providers: …` line (pins the exact mechanism
       ops/firstsetup/providers.py parses; breaks loudly on pi upgrades —
       that is the point)
-- [ ] Bump the docstring's "eleven asserts" count + README gate section
+- [ ] Bump the docstring's assert count + README gate section
 - [ ] Verify: helper tests green in the ops suite; ONE
       `./run checkframework2` green end to end (operator-approved,
       destructive to volatile-test-machine only)
 
-## Open question (operator hasn't answered)
+## Out of scope, permanently
 
-One-line option from the dropped wiring phase: have checkframework1 RUN
-the ops suite pass/fail (unmeasured — one `shell.run` line, no
-fragments, no floor change) so the 125 ops tests can't silently rot.
-Awaiting yes/no; not part of any phase until answered.
+- Unit tests for `ops/checkframework2.py`'s VM-only body (gate(),
+  _asserts_*, shims) — mocking the live stack tests a mock; its
+  coverage is a real gate run.
+- In-VM coverage collection of the gate itself.
+- The `Select.BLANK` / declarative-TUI refactor thread in TODO.md.

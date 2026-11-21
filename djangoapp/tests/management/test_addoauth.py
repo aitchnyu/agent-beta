@@ -56,12 +56,16 @@ class AddOAuthCommandTests(BaseTestCase):
 
     def test_unknown_provider_rejected(self) -> None:
         """A provider not enabled in INSTALLED_APPS raises, naming the enabled ids."""
-        with self.assertRaises(CommandError) as ctx:
+        # The error names the bogus id AND the enabled ids, so typos and
+        # missing INSTALLED_APPS entries are distinguishable at a glance.
+        with (
+            self.assertRaisesRegex(
+                CommandError, r"^Unknown or not-enabled provider 'github'"
+            ) as raised,
+        ):
             call_command("addoauth", "github", "c", "s", stdout=StringIO())
-        self.assertIn("github", str(ctx.exception))
-        # The error names the enabled ids so typos and missing INSTALLED_APPS
-        # entries are distinguishable at a glance.
-        self.assertIn("google", str(ctx.exception))
+        self.assertIn("github", str(raised.exception))
+        self.assertIn("google", str(raised.exception))
         self.assertFalse(SocialApp.objects.filter(provider="github").exists())
 
     def test_creates_site_if_missing(self) -> None:

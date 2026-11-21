@@ -35,8 +35,11 @@ class DeliverPushTaskTests(BaseTestCase):
         self.assertEqual(payload_arg, {"kind": "k", "body": "b"})
 
     def test_missing_user_raises(self) -> None:
-        """A pk whose user is gone raises — their subscriptions CASCADE-died anyway."""
+        """A pk whose user is gone raises — their subscriptions CASCADE-died anyway.
+
+        - Django's own DoesNotExist message is the pinned refusal
+        """
         pk = self.user.pk
         self.user.delete()
-        with self.assertRaises(User.DoesNotExist):
+        with self.assertRaisesRegex(User.DoesNotExist, r"^User matching query does not exist\.$"):
             deliver_push.call_local(pk, {"kind": "k", "body": "b"})

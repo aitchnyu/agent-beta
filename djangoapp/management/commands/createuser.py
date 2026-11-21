@@ -37,8 +37,9 @@ class Command(BaseCommand):
     def handle(self, **options: Any) -> None:  # noqa: ANN401 # Django passes **options as untyped command flags
         superuser: bool = options["superuser"]
         email: str = options["email"]
-        if options["if_absent"] and User.objects.filter(email__iexact=email).exists():
-            user = User.objects.get(email__iexact=email)
+        existing = User.objects.filter(email__iexact=email).first()
+        if options["if_absent"] and existing is not None:
+            user = existing
             self.stdout.write(
                 json.dumps(
                     {

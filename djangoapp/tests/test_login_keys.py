@@ -42,8 +42,14 @@ class LoginKeyTests(BaseTestCase):
         self.assertGreater(row.expires_at, timezone.now())
 
     def test_issue_refuses_sub_hour(self) -> None:
-        """issue() itself refuses sub-hour lifetimes — the API path has no CLI guard."""
-        with self.assertRaises(ValueError):
+        """issue() itself refuses sub-hour lifetimes — the API path has no CLI guard.
+
+        - the refusal names the floor (60) and the offending value (59)
+        - no LoginKey row survives the refusal
+        """
+        with self.assertRaisesRegex(
+            ValueError, r"^Login links live at least 60 minutes \(got 59\)\.$"
+        ):
             LoginKey.issue(self.user, minutes=59)
         self.assertEqual(LoginKey.objects.count(), 0)
 
@@ -134,14 +140,21 @@ class MakeLoginLinkCommandTests(BaseTestCase):
         self.assertNotEqual(self.client.session.session_key, pre_key)
 
     def test_missing_email_errors(self) -> None:
-        """No user row means no link — the command refuses."""
-        with self.assertRaises(CommandError):
+        """No user row means no link — the command refuses.
+
+        - the refusal names the exact missing email
+        """
+        with self.assertRaisesRegex(
+            CommandError, r"^No user found with email 'nobody@example.com'\.$"
+        ):
             call_command("makeloginlink", "nobody@example.com", stdout=StringIO())
 
     def test_duplicate_email_errors(self) -> None:
         """Two users sharing an email is ambiguous — refuse rather than guess."""
         User.objects.create_user(username="cmduser2", email="cmd@example.com")
-        with self.assertRaisesRegex(CommandError, r"^Multiple users share email"):
+        with self.assertRaisesRegex(
+            CommandError, r"^Multiple users share email 'cmd@example.com'; dedupe accounts first\.$"
+        ):
             call_command("makeloginlink", self.user.email, stdout=StringIO())
 
     def test_case_variant_email_matches(self) -> None:

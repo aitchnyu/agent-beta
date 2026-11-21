@@ -288,13 +288,18 @@ class PathWrapperTests(SimpleTestCase):
     """
 
     def test_confines_traversal(self) -> None:
-        """PathWrapper raises Http404 for escaping/missing rel; valid ones resolve under root."""
+        """PathWrapper raises Http404 for escaping/missing rel; valid ones resolve under root.
+
+        - every escape and missing shape refuses per subTest, uniform
+          "path not found"
+        - a valid rel resolves to a path under the patched root
+        """
         with (
             tempfile.TemporaryDirectory() as d,
             patch.object(files_view, "_REPO_ROOT", Path(d).resolve()),
         ):
             for escaping in ("../etc", "/etc/passwd", "../..", "nope/missing"):
-                with self.assertRaises(Http404):
+                with self.assertRaisesRegex(Http404, r"^path not found$"):
                     PathWrapper(escaping)
             (Path(d) / "apps").mkdir()
             t = PathWrapper("apps")

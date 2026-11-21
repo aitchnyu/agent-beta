@@ -1,7 +1,9 @@
-open question
-get_by_text and inefficient patterns
+python 3.15
 
-self.assertRaises
+checkframework2
+
+run all test suite stages in scratch only?
+Vapid script could be in Python
 
 Launch the setup after running the provisioning script
 No more desmo command for debian user. Mention in the command prompt, just type pi
@@ -37,15 +39,12 @@ UserHistory.record_created(user, user, user.snapshot()) is a mess
 Markdown parsing and stuff should return data structures, not just process strings like `assignHeadingIds` in the chain
 copy paste detector in main and sub repos
 
-Vapid script could be in Python
-
 ## Upgrades
 Bootstrap 6, with dialog element
 Vue vapor
 Substitute Eslint for Oxlint, Nov 2026
 ty instead of mypy
 Zig based prettier
-lazy imports for python 3.15
 
 ## Future
 Have a sequence generator for tables

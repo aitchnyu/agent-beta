@@ -192,14 +192,11 @@ class GuardTests(_TmpTrees):
         - the refusal names the command and points at main/'s ./run
         - SystemExit follows the die() message
         """
-        stderr = io.StringIO()
         with (
             patch.object(scratch, "SCRATCH_DIR", self.main),
-            contextlib.redirect_stderr(stderr),
-            self.assertRaises(SystemExit),
+            self.assertRaisesRegex(SystemExit, "run 'createscratch' from main/'s ./run instead"),
         ):
             scratch._require_main_run("createscratch")
-        self.assertIn("run 'createscratch' from main/'s ./run instead", stderr.getvalue())
 
     def test_require_main_run_passes_in_main(self) -> None:
         """The guard passes when MAIN and SCRATCH are distinct.
@@ -214,14 +211,11 @@ class GuardTests(_TmpTrees):
         - the refusal names the friendly command and names ../scratch
         - SystemExit follows the die() message
         """
-        stderr = io.StringIO()
         with (
             patch.object(scratch, "SCRATCH_DIR", Path("/nonexistent-scratch")),
-            contextlib.redirect_stderr(stderr),
-            self.assertRaises(SystemExit),
+            self.assertRaisesRegex(SystemExit, "'screenshots' writes tracked files"),
         ):
             scratch.require_scratch_run(friendly_name="screenshots")
-        self.assertIn("'screenshots' writes tracked files", stderr.getvalue())
 
     def test_require_scratch_run_passes_in_scratch(self) -> None:
         """The guard passes with cwd == SCRATCH_DIR.
@@ -268,14 +262,11 @@ class RsyncExcludesFileTests(unittest.TestCase):
         - a non-repo dir makes git ls-files fail
         - SystemExit follows, no exclude file is written
         """
-        stderr = io.StringIO()
         with (
             tempfile.TemporaryDirectory() as tmp,
-            contextlib.redirect_stderr(stderr),
-            self.assertRaises(SystemExit),
+            self.assertRaisesRegex(SystemExit, "git ls-files failed"),
         ):
             scratch.rsync_excludes_file(r"^never$", Path(tmp))
-        self.assertIn("git ls-files failed", stderr.getvalue())
 
 
 class LinkOrCopyTreeTests(unittest.TestCase):
@@ -363,14 +354,11 @@ class CreatescratchTests(_TmpTrees):
         - rmtree failing lands the REFUSING message
         - SystemExit follows the die() message
         """
-        stderr = io.StringIO()
         with (
             patch("shutil.rmtree", side_effect=OSError("busy")),
-            contextlib.redirect_stderr(stderr),
-            self.assertRaises(SystemExit),
+            self.assertRaisesRegex(SystemExit, "failed to wipe"),
         ):
             scratch.Createscratch.run(Namespace(), [])
-        self.assertIn("failed to wipe", stderr.getvalue())
 
 
 class CleanscratchTests(_TmpTrees):
@@ -512,14 +500,11 @@ class ChangedSetTests(_TmpTrees):
         - rev-parse failing lands the no-scratch-baseline message
         - SystemExit follows the die() message
         """
-        stderr = io.StringIO()
         with (
             patch.object(shell, "capture", return_value=(1, "")),
-            contextlib.redirect_stderr(stderr),
-            self.assertRaises(SystemExit),
+            self.assertRaisesRegex(SystemExit, "no scratch-baseline ref"),
         ):
             _changed_set()
-        self.assertIn("no scratch-baseline ref", stderr.getvalue())
 
     def test_failed_diff_refuses(self) -> None:
         """A failed baseline diff refuses.
@@ -535,14 +520,11 @@ class ChangedSetTests(_TmpTrees):
                 return 128, ""
             return 0, ""
 
-        stderr = io.StringIO()
         with (
             patch.object(shell, "capture", side_effect=fake_capture),
-            contextlib.redirect_stderr(stderr),
-            self.assertRaises(SystemExit),
+            self.assertRaisesRegex(SystemExit, "git diff failed"),
         ):
             _changed_set()
-        self.assertIn("git diff failed", stderr.getvalue())
 
     def test_failed_ls_files_refuses(self) -> None:
         """A failed untracked listing refuses.
@@ -556,14 +538,11 @@ class ChangedSetTests(_TmpTrees):
                 return 128, ""
             return 0, "sha" if "rev-parse" in cmd else ""
 
-        stderr = io.StringIO()
         with (
             patch.object(shell, "capture", side_effect=fake_capture),
-            contextlib.redirect_stderr(stderr),
-            self.assertRaises(SystemExit),
+            self.assertRaisesRegex(SystemExit, "git ls-files failed"),
         ):
             _changed_set()
-        self.assertIn("git ls-files failed", stderr.getvalue())
 
 
 class CheckBatteryTests(_TmpTrees):
@@ -765,15 +744,12 @@ class CheckscratchTests(_TmpTrees):
         - SystemExit follows the die() message
         """
         self.scratch_tree.rmdir()
-        stderr = io.StringIO()
         with (
             patch.object(scratch, "_load_env"),
-            contextlib.redirect_stderr(stderr),
-            self.assertRaises(SystemExit),
+            self.assertRaisesRegex(SystemExit, "Run createscratch first"),
             contextlib.redirect_stdout(io.StringIO()),
         ):
             scratch.Checkscratch.run(Namespace(), [])
-        self.assertIn("Run createscratch first", stderr.getvalue())
 
 
 class DeployscratchTests(_TmpTrees):
@@ -819,15 +795,12 @@ class DeployscratchTests(_TmpTrees):
         - the deploys the VM's main message lands
         - SystemExit follows the die() message
         """
-        stderr = io.StringIO()
         with (
             patch.object(scratch, "_load_env"),
             patch.object(scratch, "is_running_on_vm", return_value=False),
-            contextlib.redirect_stderr(stderr),
-            self.assertRaises(SystemExit),
+            self.assertRaisesRegex(SystemExit, "deployscratch deploys the VM's main"),
         ):
             scratch.Deployscratch.run(Namespace(), [])
-        self.assertIn("deployscratch deploys the VM's main", stderr.getvalue())
 
     def test_refuses_missing_scratch(self) -> None:
         """Deploy refuses without a scratch tree.
@@ -836,15 +809,12 @@ class DeployscratchTests(_TmpTrees):
         - SystemExit follows the die() message
         """
         self.scratch_tree.rmdir()
-        stderr = io.StringIO()
         with (
             patch.object(scratch, "_load_env"),
             patch.object(scratch, "is_running_on_vm", return_value=True),
-            contextlib.redirect_stderr(stderr),
-            self.assertRaises(SystemExit),
+            self.assertRaisesRegex(SystemExit, "Run createscratch first"),
         ):
             scratch.Deployscratch.run(Namespace(), [])
-        self.assertIn("Run createscratch first", stderr.getvalue())
 
     def test_refuses_backup_in_flight(self) -> None:
         """Deploy refuses while a backup runs.
@@ -852,16 +822,13 @@ class DeployscratchTests(_TmpTrees):
         - the a-backup-is-running message lands
         - SystemExit follows the die() message
         """
-        stderr = io.StringIO()
         with (
             patch.object(scratch, "_load_env"),
             patch.object(scratch, "is_running_on_vm", return_value=True),
             patch.object(scratch, "is_backup_in_flight", return_value=True),
-            contextlib.redirect_stderr(stderr),
-            self.assertRaises(SystemExit),
+            self.assertRaisesRegex(SystemExit, "a backup is running"),
         ):
             scratch.Deployscratch.run(Namespace(), [])
-        self.assertIn("a backup is running", stderr.getvalue())
 
     def test_refuses_uncovered_main_dirty_edits(self) -> None:
         """Main/-dirty edits scratch carries unchanged refuse to deploy.
@@ -874,18 +841,15 @@ class DeployscratchTests(_TmpTrees):
         def fake_capture(*cmd: str, **_kw: object) -> tuple[int, str]:
             return (0, status) if "status" in cmd else (0, "ourapp/views/x.py\0")
 
-        stderr = io.StringIO()
         with (
             patch.object(scratch, "_load_env"),
             patch.object(scratch, "is_running_on_vm", return_value=True),
             patch.object(scratch, "is_backup_in_flight", return_value=False),
             patch.object(scratch, "_changed_set", return_value=(["ourapp/other.py"], NOT_FAST)),
             patch.object(shell, "capture", side_effect=fake_capture),
-            contextlib.redirect_stderr(stderr),
-            self.assertRaises(SystemExit),
+            self.assertRaisesRegex(SystemExit, "silently overwrite"),
         ):
             scratch.Deployscratch.run(Namespace(), [])
-        self.assertIn("silently overwrite", stderr.getvalue())
 
     def test_full_deploy_tail(self) -> None:
         """A full deploy runs the whole tail.

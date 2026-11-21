@@ -2,7 +2,7 @@
 name = "desmo"
 version = "0.1.0"
 description = "A Django single-app template with an agent-driven edit/deploy loop"
-requires-python = ">=3.14"
+requires-python = ">=3.15"
 dependencies = [
     "django>=6.1,<6.2",
     "django-allauth[socialaccount]>=65.11.2", # OAuth and social login
@@ -62,6 +62,9 @@ line-length = 100
 select = ["ALL"]
 ignore = [
     "COM812",  # Trailing comma missing (conflicts with formatter)
+    "EM101",  # raw string in exception (inline literals are this repo's raise style)
+    "EM102",  # raw f-string in exception (same)
+    "TRY003",  # long messages outside exception class (same)
     "CPY001",  # missing-copyright-notice (ruff 0.16 rule; no copyright headers in this repo)
     "D100",  # undocumented-public-module
     "D101",  # undocumented-public-class
@@ -226,3 +229,4 @@ precision = 2
 [tool.coverage.paths]
 djangoapp = ["djangoapp", "*/main/djangoapp", "*/scratch/djangoapp"]
 ourapp = ["ourapp", "*/main/ourapp"]
+ops = ["ops", "*/main/ops"]

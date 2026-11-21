@@ -12,4 +12,4 @@ def require_superuser(request: HttpRequest) -> None:
     """
     viewer = request.user
     if not (viewer.is_authenticated and viewer.is_superuser):
-        raise Http404
+        raise Http404("not found")

@@ -159,7 +159,7 @@ This is for running the local test suite without provisioning a machine.
 Steps to get the test suite working on your machine:
 
 1. Prerequisites:
-   - Python 3.14+ with [`uv`](https://docs.astral.sh/uv/)
+   - Python 3.15+ with [`uv`](https://docs.astral.sh/uv/)
    - Node.js + npm
    - PostgreSQL
    - Redis

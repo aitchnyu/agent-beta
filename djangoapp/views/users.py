@@ -190,8 +190,7 @@ def superuser_or_404(request: HttpRequest) -> User:
     """Return the requesting superuser, else raise 404."""
     viewer = request.user
     if not (viewer.is_authenticated and viewer.is_superuser):
-        msg = "superuser_required"
-        raise NotFound(msg, "Superuser access required")
+        raise NotFound("superuser_required", "not found")
     return viewer
 
 
@@ -225,7 +224,7 @@ def redeem_login_key(request: HttpRequest, key: str) -> HttpResponse:
         return render(request, "login_link_refused.html", status=409)
     user = LoginKey.redeem(key)
     if user is None:
-        raise Http404
+        raise Http404("login link unknown, expired, or already used")
     # No authenticate() happened, so the backend must be explicit; the
     # user_logged_in receiver records the login, and the session is indexed
     # by SessionIdleTouchMiddleware on its next authenticated request.

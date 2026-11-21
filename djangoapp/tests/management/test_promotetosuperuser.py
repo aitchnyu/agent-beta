@@ -50,15 +50,26 @@ class PromoteToSuperuserCommandTests(BaseTestCase):
         self.assertTrue(user.is_superuser)
 
     def test_unknown_email_raises(self) -> None:
-        """No match -> CommandError."""
-        with self.assertRaises(CommandError):
+        """No match means CommandError.
+
+        - the refusal names the exact missing email
+        """
+        with self.assertRaisesRegex(
+            CommandError, r"^No user found with email 'nobody@example.com'\.$"
+        ):
             call_command("promotetosuperuser", "nobody@example.com", stdout=StringIO())
 
     def test_duplicate_email_raises(self) -> None:
-        """Two users sharing the email -> CommandError (refuse rather than guess)."""
+        """Two users sharing the email means CommandError (refuse rather than guess).
+
+        - the pin carries the full message through "dedupe accounts"
+        """
         User.objects.create_user(username="alice", password="x", email="shared@example.com")
         User.objects.create_user(username="bob", password="x", email="shared@example.com")
-        with self.assertRaises(CommandError):
+        with self.assertRaisesRegex(
+            CommandError,
+            r"^Multiple users share email 'shared@example\.com'; dedupe accounts before promoting\.$",
+        ):
             call_command("promotetosuperuser", "shared@example.com", stdout=StringIO())
 
     def test_already_superuser_is_noop(self) -> None:

@@ -20,9 +20,12 @@ if TYPE_CHECKING:
 
 
 def die(msg: str) -> NoReturn:
-    """Print msg to stderr and exit 1 — the ``Refusing:`` guard idiom."""
-    print(msg, file=sys.stderr)
-    raise SystemExit(1)
+    """Exit 1 with msg on stderr — the ``Refusing:`` guard idiom.
+
+    SystemExit's string argument is printed by the interpreter on exit,
+    and rides the exception so callers (and tests) can pin it.
+    """
+    raise SystemExit(msg)
 
 
 def run(

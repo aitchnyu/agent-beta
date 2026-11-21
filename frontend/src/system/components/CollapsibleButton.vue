@@ -9,6 +9,7 @@ const props = defineProps<{
   label?: string
   summaryClass?: string
   panelClass?: string
+  testId?: string
 }>()
 const emit = defineEmits<{ linkclick: [] }>()
 
@@ -43,7 +44,7 @@ onBeforeUnmount(() => {
 
 <template>
   <details ref="root" class="collapsible-button">
-    <summary :class="props.summaryClass">
+    <summary :class="props.summaryClass" :data-testid="props.testId">
       <slot name="summary">{{ props.label }}</slot>
     </summary>
     <div

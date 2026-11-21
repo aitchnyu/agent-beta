@@ -87,11 +87,11 @@ def _parse_expiry(raw: str | None) -> datetime:
     try:
         parsed = datetime.fromisoformat(raw)
     except ValueError as exc:
-        raise Http404 from exc
+        raise Http404("not found")
     if parsed.tzinfo is None:
         parsed = timezone.make_aware(parsed)
     if parsed <= timezone.now():
-        raise Http404
+        raise Http404("not found")
     return parsed
 
 
@@ -148,7 +148,7 @@ def replace_download(
     require_superuser(request)
     download = Download.objects.filter(public_id=public_id).first()
     if download is None:
-        raise Http404
+        raise Http404("not found")
     download.file = file
     download.save_plus(
         actor=maybe_user(request),
@@ -171,7 +171,7 @@ def delete_download(
     require_superuser(request)
     download = Download.objects.filter(public_id=public_id).first()
     if download is None:
-        raise Http404
+        raise Http404("not found")
     download.delete_plus(actor=maybe_user(request))
     return DownloadDeletedSchema(deleted=download.public_id)
 
@@ -186,5 +186,5 @@ def serve_download(request: HttpRequest, storage_name: str):
     """
     download = Download.objects.filter(file=storage_name).first()
     if download is None or download.is_expired:
-        raise Http404
+        raise Http404("not found")
     return serve_file(request, download.file.name, download_name=download.basename)

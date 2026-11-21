@@ -20,7 +20,7 @@ const shared = useSharedProps()
     <Navbar>
       <template v-if="shared.viewer_is_superuser">
         <NavbarItem href="/manage/models">Models</NavbarItem>
-        <NavbarMenu label="Code">
+        <NavbarMenu label="Code" test-id="navbar-code">
           <NavbarMenuItem href="/git/uncommitted/">Uncommitted</NavbarMenuItem>
           <NavbarMenuItem href="/git/commits">Commits</NavbarMenuItem>
           <NavbarMenuItem :href="fileUrl('main/ourapp')">Files</NavbarMenuItem>

@@ -95,4 +95,4 @@ class Postdeploychecks(Command):
         failures = sum(1 for ok, _ in results if not ok)
         print(f"postdeploychecks: {len(results) - failures}/{len(results)} green")
         if failures:
-            raise SystemExit(1)
+            raise SystemExit(f"postdeploychecks: {failures} check(s) failed")

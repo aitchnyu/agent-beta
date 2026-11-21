@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
-import io
 import os
 import tempfile
 import unittest
@@ -319,11 +317,8 @@ class PlaywrighttestPdbrcTests(unittest.TestCase):
         - the die() message names the rc path, pinned on stderr
         - SystemExit follows the die() message
         """
-        stderr = io.StringIO()
         with (
             patch.object(scratch, "built_frontend"),
-            contextlib.redirect_stderr(stderr),
-            self.assertRaises(SystemExit),
+            self.assertRaisesRegex(SystemExit, r"/nonexistent/rc"),
         ):
             tst.Playwrighttest.run(Namespace(labels=[], full=False, pdbrc="/nonexistent/rc"), [])
-        self.assertIn("/nonexistent/rc", stderr.getvalue())

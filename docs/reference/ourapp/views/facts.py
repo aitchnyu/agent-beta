@@ -62,7 +62,7 @@ def _topic_or_404(slug: str) -> Topic:
     try:
         return Topic.objects.get(slug=slug)
     except Topic.DoesNotExist as exc:
-        raise Http404 from exc
+        raise Http404("not found")
 
 
 def _fact_or_404(public_id: str) -> Fact:
@@ -70,7 +70,7 @@ def _fact_or_404(public_id: str) -> Fact:
     try:
         return Fact.objects.get(public_id=public_id)
     except Fact.DoesNotExist as exc:
-        raise Http404 from exc
+        raise Http404("not found")
 
 
 

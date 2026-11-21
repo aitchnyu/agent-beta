@@ -144,30 +144,38 @@ class GeneratesdkTests(BaseTestCase):
         self.assertEqual(_join("/fixture", "/nested"), "/fixture/nested")
 
     def test_symbol_must_be_dotted(self) -> None:
-        """A bare symbol name errors with the dotted-shape hint."""
-        with self.assertRaises(CommandError) as ctx:
+        """A bare symbol name errors with the dotted-shape hint.
+
+        - the refusal mentions the dotted path requirement
+        """
+        with self.assertRaisesRegex(CommandError, r"dotted path"):
             render_sdk("notdotted")
-        self.assertIn("dotted path", str(ctx.exception))
 
     def test_symbol_must_resolve(self) -> None:
-        """An unknown attribute errors naming the module."""
-        with self.assertRaises(CommandError) as ctx:
+        """An unknown attribute errors naming the module.
+
+        - the refusal quotes the missing attribute name
+        """
+        with self.assertRaisesRegex(CommandError, r"has no attribute 'no_api'"):
             render_sdk("djangoapp.tests.sdk_fixture.no_api")
-        self.assertIn("has no attribute 'no_api'", str(ctx.exception))
 
     def test_symbol_must_be_an_api(self) -> None:
-        """A non-NinjaAPI attribute errors naming its actual type."""
-        with self.assertRaises(CommandError) as ctx:
+        """A non-NinjaAPI attribute errors naming its actual type.
+
+        - the refusal names the real type (Router) vs the expected one
+        """
+        with self.assertRaisesRegex(CommandError, r"is a Router, not a NinjaAPI"):
             render_sdk("djangoapp.tests.sdk_fixture.router")
-        self.assertIn("is a Router, not a NinjaAPI", str(ctx.exception))
 
     def test_out_must_resolve_inside_scratch(self) -> None:
-        """An out path escaping ../scratch refuses before any write."""
+        """An out path escaping ../scratch refuses before any write.
+
+        - the pin carries "must resolve inside ../scratch"
+        """
         with (
             patch.object(generatesdk, "require_scratch_run"),
-            self.assertRaises(CommandError) as ctx,
+            self.assertRaisesRegex(CommandError, r"must resolve inside \.\./scratch"),
         ):
             generatesdk.Command().handle(
                 api="djangoapp.tests.sdk_fixture.fixture_api", out="../main/x.ts"
             )
-        self.assertIn("must resolve inside ../scratch", str(ctx.exception))

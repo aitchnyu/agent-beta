@@ -18,7 +18,8 @@ class PostdeploychecksTests(unittest.TestCase):
 
     - test_all_green, clean tree + migrations + no scratch → all PASS
     - test_everything_red, dirty tree + pending migrations + scratch → all FAIL
-    - test_run_exits_nonzero_on_failure, SystemExit(1) when a check fails
+    - test_run_exits_nonzero_on_failure, exit status 1 when a check
+      fails (SystemExit carrying the failure message)
     """
 
     GREEN: ClassVar[list[tuple[int, str]]] = [
@@ -73,7 +74,9 @@ class PostdeploychecksTests(unittest.TestCase):
             ),
             patch.object(postdeploychecks, "SCRATCH_DIR", sentinel),
             contextlib.redirect_stdout(io.StringIO()),
-            self.assertRaises(SystemExit) as ctx,
+            self.assertRaisesRegex(
+                SystemExit, r"^postdeploychecks: \d+ check\(s\) failed$"
+            ) as raised,
         ):
             postdeploychecks.Postdeploychecks.run(Namespace(), [])
-        self.assertEqual(ctx.exception.code, 1)
+        self.assertIsInstance(raised.exception.code, str)  # non-int exit arg ⇒ exit status 1

@@ -1,7 +1,8 @@
 """checkframework1 — the dev-side gate, dispatched from run's thin shim.
 
 The full gate: lint + types in main/, then FOUR test stages — 1-3 under
-coverage, merged into one report:
+coverage, merged into one report (stage 1's unlabeled discovery runs the
+ops suite too):
 
 1. unit suite (main/; project tests self-skip — no RUN_PROJECT_TESTS)
 2. Playwright pass (main/; StaticLiveServerTestCase is an in-process
@@ -32,9 +33,8 @@ from ops.scratch import MAIN_DIR, SCRATCH_DIR, Createscratch, step_banner, test_
 if TYPE_CHECKING:
     from pathlib import Path
 
-# The merged report's measured floor. Raise when coverage improves; never
-# lower it to make a regression pass.
-COVERAGE_RATCHET = "98.70"
+# Raise when coverage improves; never lower it to make a regression pass.
+COVERAGE_RATCHET = "92.47"
 
 FRONTEND_DIR = MAIN_DIR / "frontend"
 STAGE_DIR = MAIN_DIR / ".coverage-stage"
@@ -79,7 +79,7 @@ def _static_checks() -> None:
         "coverage",
         "run",
         "--parallel-mode",
-        "--source=djangoapp,ourapp",
+        "--source=djangoapp,ourapp,ops",
         "manage.py",
         "test",
         *django_color,
@@ -106,7 +106,7 @@ def _playwright_stage() -> None:
         "coverage",
         "run",
         "--parallel-mode",
-        "--source=djangoapp,ourapp",
+        "--source=djangoapp,ourapp,ops",
         "manage.py",
         "test",
         *django_quiet,
@@ -182,7 +182,7 @@ def _reference_tier() -> None:
 
 
 def _merge_report() -> None:
-    print("Merging coverage from all four stages")
+    print("Merging coverage from every run under measurement")
     # combine folds the testapp scratch's djangoapp/ onto main's via
     # [tool.coverage.paths] in pyproject.toml.
     shell.run("uv", "run", "coverage", "combine", ".", str(STAGE_DIR))

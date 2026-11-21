@@ -162,7 +162,7 @@ def _model_or_404(model_name: str) -> type[models.Model]:
     for model_cls in _ourapp_models():
         if model_cls.__name__ == model_name:
             return model_cls
-    raise Http404
+    raise Http404("not found")
 
 
 def _columns(model_cls: type[models.Model]) -> list[models.Field[Any, Any]]:
@@ -380,15 +380,15 @@ def row_detail_page(
     model_cls = _model_or_404(model_name)
     if not issubclass(model_cls, BaseModel):
         # Non-BaseModel rows have no public_id, so no detail page.
-        raise Http404
+        raise Http404("not found")
     fields_with_kind = _fields_with_kind(model_cls)
     model = cast("Any", model_cls)
     try:
         instance = model.objects.select_related(*_select_related_fields(fields_with_kind)).get(
             public_id=public_id
         )
-    except model.DoesNotExist as exc:
-        raise Http404 from exc
+    except model.DoesNotExist:
+        raise Http404("not found")  # noqa: B904 — 404s carry no chain
 
     column_defs = [_column_def(f) for f, _ in fields_with_kind]
     row = _row_item(fields_with_kind, instance)

@@ -302,7 +302,7 @@ EOF
   # uv's downloaded interpreters land in this shared dir, not a home dir:
   # the app units sandbox /home away (ProtectHome) — a .venv python
   # symlinked into a home is unreadable at unit start. VMs with a system
-  # Python never download anything; containers (no system 3.14) do.
+  # Python never download anything; containers (no system 3.15) do.
   install -d -o desmo -g desmo /usr/local/share/uv/python
 
   # Containers (incus) can't swapon or set global vm.* sysctls (not

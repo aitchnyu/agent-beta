@@ -178,8 +178,7 @@ async def create_superuser_with_link(first_name: str, last_name: str, email: str
     try:
         login_url = json.loads(stdout_text)["login_url"]
     except (json.JSONDecodeError, KeyError, TypeError) as error:
-        message = f"makeloginlink printed no login link ({error})"
-        raise AssertionError(message) from error
+        raise AssertionError(f"makeloginlink printed no login link ({error})") from error
     return UserCreated(login_link=login_url)
 
 

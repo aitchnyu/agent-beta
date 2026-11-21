@@ -108,7 +108,10 @@ class BaseModelFileCleanupTests(BaseTestCase):
         row = self.row
         old_name = row.document.name
         row.document = SimpleUploadedFile("v2.txt", b"v2-bytes")
-        with self.assertRaises(Http404), self.captureOnCommitCallbacks(execute=True):
+        with (
+            self.assertRaisesRegex(Http404, r"is at row_version"),
+            self.captureOnCommitCallbacks(execute=True),
+        ):
             row.save_plus(actor=self.actor, expected_row_version=row.row_version + 5)
         self.assertTrue(default_storage.exists(old_name))
         self.assertEqual(self.FileCleanupDoc.objects.get(pk=row.pk).document.name, old_name)

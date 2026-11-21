@@ -94,7 +94,7 @@ def _todo_or_404(public_id: str, owner: User) -> Todo:
     try:
         return Todo.objects.get(public_id=public_id, owner=owner)
     except Todo.DoesNotExist as exc:
-        raise Http404 from exc
+        raise Http404("not found")
 
 
 

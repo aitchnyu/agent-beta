@@ -82,7 +82,7 @@ class NavbarE2e(BasePlaywrightTestCase):
         page.wait_for_selector(".layout-navbar")
         expect(page.get_by_role("link", name="Models", exact=True)).to_be_visible()
         expect(page.get_by_role("link", name="Users", exact=True)).to_be_visible()
-        code = page.locator(".layout-navbar summary", has_text="Code")
+        code = page.get_by_test_id("navbar-code")
         expect(code).to_be_visible()
         code.click()
         expect(page.get_by_role("link", name="Uncommitted", exact=True)).to_be_visible()
@@ -102,7 +102,7 @@ class NavbarE2e(BasePlaywrightTestCase):
         # A Code link inside the Menu collapses BOTH dropdowns on navigate.
         page.go_back()
         page.click(".layout-navmenu summary")
-        page.locator("summary", has_text="Code").click()
+        page.get_by_test_id("navbar-code").click()
         page.get_by_role("link", name="Uncommitted", exact=True).click()
         page.wait_for_url("**/git/uncommitted/")
         expect(page.get_by_role("link", name="Models", exact=True)).to_be_hidden()
@@ -133,7 +133,7 @@ class NavbarE2e(BasePlaywrightTestCase):
         self._set_viewport(375)
         page.goto(f"{self.live_server_url}/")
         page.click(".layout-navmenu summary")
-        page.locator("summary", has_text="Code").click()
+        page.get_by_test_id("navbar-code").click()
         expect(page.get_by_role("link", name="Uncommitted", exact=True)).to_be_visible()
         # Hit 1: the inner Code dropdown folds; the Menu stays open.
         page.keyboard.press("Escape")

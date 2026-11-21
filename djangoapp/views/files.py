@@ -102,11 +102,11 @@ class PathWrapper:
             # pathlib raises on paths the OS can't express — e.g. an embedded
             # NUL from a percent-decoded %00. Any client-generated URL shape
             # must land in 404, never a 500.
-            raise Http404 from None
+            raise Http404("path not expressible on this OS")  # noqa: B904 — 404s carry no chain
         if path != _REPO_ROOT and not path.is_relative_to(_REPO_ROOT):
-            raise Http404
+            raise Http404("path not found")
         if not exists:
-            raise Http404
+            raise Http404("path not found")
         self.rel = normalized
         self.path = path
 
@@ -191,7 +191,7 @@ class PathWrapper:
 def _serve(target: PathWrapper, *, attachment: bool, content_type: str) -> FileResponse:
     """Stream a file's bytes — as a download (attachment) or inline (raw)."""
     if not target.is_file:
-        raise Http404
+        raise Http404("path not found")
     return FileResponse(
         target.open_bytes(),
         as_attachment=attachment,
@@ -222,7 +222,7 @@ def file_raw(request: HttpRequest, rel: str) -> FileResponse:
     require_superuser(request)
     target = PathWrapper(rel)
     if not target.is_image():
-        raise Http404
+        raise Http404("path not found")
     response = _serve(target, attachment=False, content_type=target.mime())
     response.headers["Content-Security-Policy"] = "sandbox"
     return response

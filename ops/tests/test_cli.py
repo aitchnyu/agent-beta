@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import contextlib
-import io
 import unittest
 from unittest.mock import patch
 
@@ -69,15 +67,11 @@ class DispatchTests(unittest.TestCase):
             self.assertEqual(extra, [])
 
     def test_unknown_command_exits_with_usage(self) -> None:
-        stderr = io.StringIO()
-        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+        with self.assertRaisesRegex(SystemExit, r"^usage: python -m ops\.cli <") as raised:
             cli.main(["nope"])
-        self.assertEqual(raised.exception.code, 1)
-        self.assertIn("|".join(cli.COMMANDS), stderr.getvalue())
+        self.assertIn("|".join(cli.COMMANDS), str(raised.exception))
 
     def test_no_command_exits_with_usage(self) -> None:
-        stderr = io.StringIO()
-        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+        with self.assertRaisesRegex(SystemExit, r"^usage: python -m ops\.cli <") as raised:
             cli.main([])
-        self.assertEqual(raised.exception.code, 1)
-        self.assertIn("usage:", stderr.getvalue())
+        self.assertIn("|".join(cli.COMMANDS), str(raised.exception))

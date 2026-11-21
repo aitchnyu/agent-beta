@@ -62,14 +62,14 @@ def _media_file(filename: str) -> tuple[Path, Path]:
         # pathlib raises on paths the OS can't express — an embedded NUL
         # (ValueError) or an over-long/looping path (OSError). Still just
         # a 404.
-        raise Http404 from None
+        raise Http404("path not expressible on this OS")  # noqa: B904 — 404s carry no chain
     # resolve() follows symlinks and collapses ``..`` — if the result left
     # the root, the name was an escape attempt (never serve it).
     if not candidate.is_relative_to(root):
-        raise Http404
+        raise Http404("path not found")
     # Only files serve — a directory name (or MEDIA_ROOT itself) must 404.
     if not candidate.is_file():
-        raise Http404
+        raise Http404("path not found")
     return root, candidate
 
 

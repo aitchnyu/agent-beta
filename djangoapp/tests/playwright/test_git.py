@@ -291,9 +291,13 @@ class GitViewerE2e(GitRepoMixin, BasePlaywrightTestCase):
         )
 
     def test_navbar_code_menu(self) -> None:
-        """The navbar Code dropdown holds the three section links."""
+        """The navbar Code dropdown holds the three section links.
+
+        - the dropdown opens by its test id
+        - all three links are visible and navigate to their sections
+        """
         page = self.page
-        summary = page.locator(".layout-navbar summary", has_text="Code")
+        summary = page.get_by_test_id("navbar-code")
         page.goto(f"{self.live_server_url}/git/uncommitted/")
         page.get_by_role("link", name="app.py").wait_for(state="visible")
         summary.click()

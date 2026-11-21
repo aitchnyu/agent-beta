@@ -43,8 +43,7 @@ def main(argv: list[str]) -> None:
     scratch.configure_output()
     if len(argv) < 1 or argv[0] not in COMMANDS:
         names = "|".join(COMMANDS)
-        print(f"usage: python -m ops.cli <{names}> (run delegates automatically)", file=sys.stderr)
-        raise SystemExit(1)
+        raise SystemExit(f"usage: python -m ops.cli <{names}> (run delegates automatically)")
     command = COMMANDS[argv[0]]
     args, extra = command.build_parser().parse_known_args(argv[1:])
     command.run(args, extra)

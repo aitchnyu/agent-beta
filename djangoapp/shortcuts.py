@@ -34,5 +34,5 @@ def user_or_404(request: HttpRequest) -> User:
     """
     user = maybe_user(request)
     if user is None:
-        raise Http404
+        raise Http404("not found")
     return user

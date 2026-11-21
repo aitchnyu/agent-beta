@@ -7,7 +7,7 @@ import { navbarCloseMenuKey, navbarCompactKey } from "./navbar"
 // A top-level dropdown: CollapsibleButton with the navbar's placement
 // classes; the slot holds NavbarMenuItem entries. Defaults to the wide
 // shape when rendered outside a Navbar.
-defineProps<{ label: string }>()
+defineProps<{ label: string; testId?: string }>()
 const compact = inject<Ref<boolean>>(navbarCompactKey, ref(false))
 const closeMenu = inject<() => void>(navbarCloseMenuKey, () => {})
 </script>
@@ -16,6 +16,7 @@ const closeMenu = inject<() => void>(navbarCloseMenuKey, () => {})
   <CollapsibleButton
     class="layout-navmenu"
     :label="label"
+    :test-id="testId"
     :summary-class="
       compact
         ? 'layout-menu-link layout-navmenu-link'

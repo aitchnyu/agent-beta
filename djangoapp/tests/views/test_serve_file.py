@@ -99,40 +99,59 @@ class ServeFileTests(BaseTestCase):
         self.assertNotIn("deadbeef", response.headers["Content-Disposition"])
 
     def test_missing_file_404(self) -> None:
-        """An unknown name is 404."""
-        with self.assertRaises(Http404):
+        """An unknown name is 404.
+
+        - the refusal is the uniform "path not found"
+        """
+        with self.assertRaisesRegex(Http404, r"^path not found$"):
             serve_file(self.request, "nope.txt")
 
     def test_traversal_404(self) -> None:
-        """``..`` escapes are 404 — never bytes from outside MEDIA_ROOT."""
+        """``..`` escapes are 404 — never bytes from outside MEDIA_ROOT.
+
+        - each escape shape (plain, double, resurface) refuses per subTest
+        - all funnel to the uniform "path not found"
+        """
         self._write("inner.txt", b"inner")
         for name in ("../inner.txt", "../../etc/passwd", "sub/../../inner.txt"):
-            with self.subTest(name=name), self.assertRaises(Http404):
+            with self.subTest(name=name), self.assertRaisesRegex(Http404, r"^path not found$"):
                 serve_file(self.request, name)
 
     def test_absolute_path_404(self) -> None:
-        """An absolute path is 404 (Path join replaces; the guard still holds)."""
-        with self.assertRaises(Http404):
+        """An absolute path is 404 (Path join replaces; the guard still holds).
+
+        - /etc/passwd lands under the root and then fails the file check
+        """
+        with self.assertRaisesRegex(Http404, r"^path not found$"):
             serve_file(self.request, "/etc/passwd")
 
     def test_embedded_nul_404(self) -> None:
-        """An embedded NUL (OS-inexpressible) is 404, not a ValueError 500."""
-        with self.assertRaises(Http404):
+        """An embedded NUL (OS-inexpressible) is 404, not a ValueError 500.
+
+        - the NUL name funnels to the OS-expressibility refusal
+        """
+        with self.assertRaisesRegex(Http404, r"^path not expressible on this OS$"):
             serve_file(self.request, "a\x00b.txt")
 
     def test_directory_404(self) -> None:
-        """A directory name is 404 — only files serve."""
+        """A directory name is 404 — only files serve.
+
+        - the refusal is the uniform "path not found"
+        """
         (self.media / "adir").mkdir()
-        with self.assertRaises(Http404):
+        with self.assertRaisesRegex(Http404, r"^path not found$"):
             serve_file(self.request, "adir")
 
     def test_symlink_escape_404(self) -> None:
-        """A symlink inside MEDIA_ROOT pointing outside it is 404."""
+        """A symlink inside MEDIA_ROOT pointing outside it is 404.
+
+        - resolve() follows the link, so the escape refuses as not found
+        """
         outside = Path(self._tmp.name).parent / "serve-file-outside-secret.txt"
         outside.write_bytes(b"outside bytes")
         self.addCleanup(outside.unlink)
         (self.media / "escape.txt").symlink_to(outside)
-        with self.assertRaises(Http404):
+        with self.assertRaisesRegex(Http404, r"^path not found$"):
             serve_file(self.request, "escape.txt")
 
     def test_proxied_request_emits_x_accel_redirect(self) -> None:
@@ -150,9 +169,9 @@ class ServeFileTests(BaseTestCase):
         self.assertEqual(response.headers["X-Accel-Redirect"], "/a.txt")
         self.assertIn("renamed.pdf", response.headers["Content-Disposition"])
         self.assertEqual(response.headers["Content-Type"], "text/plain")
-        with self.assertRaises(Http404):
+        with self.assertRaisesRegex(Http404, r"^path not found$"):
             serve_file(self._proxied(), "nope.txt")
-        with self.assertRaises(Http404):
+        with self.assertRaisesRegex(Http404, r"^path not found$"):
             serve_file(self._proxied(), "../a.txt")
 
     def test_head_requests_both_branches(self) -> None:

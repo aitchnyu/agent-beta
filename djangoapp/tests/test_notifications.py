@@ -96,10 +96,13 @@ class VapidPublicKeyTests(BaseTestCase):
             )
 
     def test_malformed_private_raises(self) -> None:
-        """A malformed (hand-edited) key raises — no silent degradation."""
+        """A malformed (hand-edited) key raises — no silent degradation.
+
+        - the underlying base64 error surfaces, pinned by its message
+        """
         with (
             override_settings(VAPID_PRIVATE_KEY="not-a-real-scalar!!"),
-            self.assertRaises(ValueError),
+            self.assertRaisesRegex(ValueError, r"Invalid base64-encoded string"),
         ):
             vapid_public_key()
 

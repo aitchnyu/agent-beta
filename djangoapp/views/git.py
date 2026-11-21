@@ -39,9 +39,8 @@ WORKTREES = ("main", "scratch")
 def _worktree_or_404(worktree: str) -> str:
     """Return ``worktree`` if it's one the viewer knows, else raise NotFound."""
     if worktree not in WORKTREES:
-        msg = f"Unknown worktree: {worktree}"
         msg_0 = "worktree_unknown"
-        raise NotFound(msg_0, msg)
+        raise NotFound(msg_0, "not found")
     return worktree
 
 
@@ -55,7 +54,7 @@ def _confined_to_repo(rel: str, root: Path) -> str:
     normalized = (rel or "").strip().lstrip("/")  # git paths are posix, repo-relative
     resolved = (root / normalized).resolve()
     if resolved != root and not resolved.is_relative_to(root):
-        raise Http404
+        raise Http404("path not found")
     return normalized
 
 
@@ -128,11 +127,11 @@ def git_uncommitted_diff(request: HttpRequest, worktree: str, rel: str) -> HttpR
     worktree = _worktree_or_404(worktree)
     root = git_data.worktree_root(worktree)
     if not root.is_dir():
-        raise Http404  # worktree repo missing (e.g. no scratch/ yet)
+        raise Http404("worktree repository missing")
     path = _confined_to_repo(rel, root)
     diff = git_data.diff_uncommitted(path, worktree)
     if diff is None:
-        raise Http404
+        raise Http404("no uncommitted diff")
     props = GitDiffProps(
         title=f"Uncommitted ({worktree}): {path}",
         diff=diff,
@@ -179,7 +178,7 @@ def git_commit_file_diff(request: HttpRequest, commit_id: str, rel: str) -> Http
     path = _confined_to_repo(rel, git_data.worktree_root("main"))
     diff = git_data.diff_commit(commit_id, path)
     if diff is None:
-        raise Http404
+        raise Http404("no diff in commit")
     props = GitDiffProps(
         title=f"{commit_id}: {path}",
         diff=diff,
@@ -201,9 +200,8 @@ def _commit_or_404(commit_id: str) -> tuple[git_data.CommitSummary, list[git_dat
     """Resolve a commit id, 404 on a bad/unknown id (hex validated in git_data)."""
     found = git_data.commit(commit_id)
     if found is None:
-        msg = f"Unknown commit: {commit_id}"
         msg_0 = "commit_unknown"
-        raise NotFound(msg_0, msg)
+        raise NotFound(msg_0, "not found")
     return found
 
 
