@@ -1,15 +1,10 @@
-python 3.15
-
-checkframework2
-
-run all test suite stages in scratch only?
-Vapid script could be in Python
-
 Launch the setup after running the provisioning script
-No more desmo command for debian user. Mention in the command prompt, just type pi
-in run, pi command should be slimmed down, assume its setup correctly.
+No more desmo command.
+We will have pi command for debian user, which runs our wrapper.
+Mention in the command prompt, type `pi`
+in run, pi command should be slimmed down, assume its setup correctly and remove those extra checks.
 
-We will no longer support running the web app and huey worker in local, no dev in ./run. What should we remove from codebase. We will just support test suites. 
+We will no longer support running the web app and huey worker in local, no dev in ./run. What should we remove from codebase. We will just support test suites from local. 
 Are we ensuring ./run init will be run only in dev's machine?
 
 /login openai-codex, luna, test with real and fake

@@ -248,7 +248,7 @@ operator inputs — editing it is a repo edit).
 
 - **Secrets are generated on the VM at provision time**: `SECRET_KEY` +
   `DB_PASSWORD` (openssl) and `VAPID_PRIVATE_KEY` (web push — the P-256
-  scalar minted by `gen-vapid-b64`, no Python) all inside
+  scalar minted by `deploy/gen-vapid.py`) all inside
   `inside-vm.sh provision`, which REFUSES if generated secrets are
   already installed — provisioning is build-only; re-provisioning a kept
   VM is unsupported (delete to rebuild). Provider auth + the agent's

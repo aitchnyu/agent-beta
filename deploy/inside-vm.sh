@@ -257,11 +257,14 @@ EOF
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
   apt-get install -y curl rsync git htop ripgrep fd-find miller pgbackrest sudo \
-    postgresql postgresql-client redis-server ca-certificates gnupg librsvg2-bin
+    postgresql postgresql-client redis-server ca-certificates gnupg librsvg2-bin \
+    python3-cryptography
   # fd-find: pi auto-downloads fd to ~/.pi/agent/bin on first launch
   # otherwise; Debian names the binary fdfind, pi wants fd.
   ln -sf /usr/bin/fdfind /usr/local/bin/fd
   # miller (mlr): journal error-log queries per docs/logging.md.
+  # python3-cryptography: deploy/gen-vapid.py mints the VAPID key via the
+  # system python3 — the secrets phase runs before phase 9's venv exists.
 
   echo "    node 24 LTS (NodeSource; apt's node is too old for vite/rolldown — the frontend build needs it)"
   curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
@@ -402,7 +405,8 @@ EOF
   new_dbpass="$(openssl rand -hex 32)"
   echo "    VAPID_PRIVATE_KEY generated"
   # The seeded repo's mint — same recipe as run init's deploy/ copy.
-  new_vapid="$(bash "$seed_deploy/gen-vapid-b64.sh")"
+  # System python3 (no venv until phase 9) + apt's python3-cryptography.
+  new_vapid="$(python3 "$seed_deploy/gen-vapid.py")"
 
   # Fill the @NAME@ tokens in place — the .new file is born root:desmo 640
   # (install), awk fills it, and mv swaps it onto the final name carrying

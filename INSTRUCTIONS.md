@@ -17,13 +17,12 @@ The test VM has NO operator env file: its whole config is the tracked static
 to `/etc/credentials/desmo/.env.vm`, and extends with the three minted
 machine secrets. The machine secrets are never hand-filled: on the VM,
 `SECRET_KEY` / `DB_PASSWORD` / `VAPID_PRIVATE_KEY` are all generated at
-provision time (openssl-only — deploy/gen-vapid-b64.sh, run by
-inside-vm.sh provision, which refuses if generated secrets are already
-installed — build-only); in dev, `./run init` generates `SECRET_KEY` and
-`VAPID_PRIVATE_KEY`, and `DB_PASSWORD` is the local postgres password. The
-agent's
-provider auth + startup model live in pi's own stores (`/login`, `/model +
-Ctrl+S`), not the env files.
+provision time (`SECRET_KEY`/`DB_PASSWORD` via openssl; `VAPID_PRIVATE_KEY`
+via deploy/gen-vapid.py — run by inside-vm.sh provision, which refuses if
+generated secrets are already installed — build-only); in dev, `./run init`
+generates `SECRET_KEY` and `VAPID_PRIVATE_KEY`, and `DB_PASSWORD` is the
+local postgres password. The agent's provider auth + startup model live in
+pi's own stores (`/login`, `/model` + Ctrl+S), not the env files.
 
 ## MAINTAIN-CONSISTENCY markers
 

@@ -64,15 +64,16 @@ init() {
       cp .env.example .env
       # Generate a real SECRET_KEY (sessions/password-reset need one) and
       # the VAPID Web Push key — the canonical mint the VM's provision uses
-      # too (deploy/gen-vapid-b64.sh, executed). Both are REQUIRED; DB_PASSWORD
+      # too (deploy/gen-vapid.py, executed). Both are REQUIRED; DB_PASSWORD
       # stays empty for the operator (it must match their local postgres).
       command -v openssl >/dev/null 2>&1 || {
-        echo "REFUSING: openssl not found — required to mint SECRET_KEY + VAPID_PRIVATE_KEY." >&2
+        echo "REFUSING: openssl not found — required to mint SECRET_KEY." >&2
         rm -f .env
         exit 1
       }
       sed -i.bak "s#^SECRET_KEY=.*#SECRET_KEY=\"$(openssl rand -hex 32)\"#" .env && rm -f .env.bak
-      _vapid="$(./deploy/gen-vapid-b64.sh)" || {
+      # --no-project --with cryptography: no venv exists yet
+      _vapid="$(uv run --no-project --with cryptography python ./deploy/gen-vapid.py)" || {
         echo "REFUSING: VAPID key mint failed — not leaving .env half-configured." >&2
         rm -f .env
         exit 1
