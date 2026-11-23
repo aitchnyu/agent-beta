@@ -272,8 +272,16 @@ From your seat:
    batch, verified at
    the coder's final green);
 3. triage findings — the coder fixes code, you fix docs;
-4. verify the coder-filled doc sections against the code;
-5. the final deploy, then make the CommitOffer.
+4. BANK before verify: every edit of yours (doc fixes, fresh renders)
+   lands BEFORE any verify seat spawns — build each verify prompt's
+   delta at spawn time, after landing, and edit nothing while verify
+   seats read. (The 2026-11-22 run's round-2 spent findings on docs
+   already fixed in parallel — parallel fixing is fine, stale reads
+   are not.);
+5. verify the coder-filled doc sections against the code;
+6. the final deploy — its report LEADS with the manifest (pages,
+   endpoints, models, docs riding the deploy), one line — then make
+   the CommitOffer.
 
 You never compact this session — the mechanical churn lives in coder
 subagents, so your context grows at planner pace. If a session truly
@@ -318,7 +326,11 @@ gap — spend them on decisions, not on serialization:
   gather read-only evidence (response bodies, DB row, page state —
   docs/debugging-tests.md) BEFORE the next edit, one bug at a time.
   A transient that never replays is a harness flake: rerun once and
-  move on.
+  move on. A TEST-side change that makes a failure pass is a shim,
+  not a fix — date/time/timezone alignment above all: the failing
+  test is the requirement speaking; root-cause the app side (a
+  2026-11-22 run shimmed a playwright date to UTC, masked a real
+  client-UTC bug, and re-paid the chase in the fix cycle).
 
 ### The review round (stage 3)
 
@@ -347,7 +359,12 @@ spawns them when the review runs. How many:
   - `reviewer-image` — the visual pass over rendered fences BY EYE
     (familiarize notes the initial renders; verify judges fresh final
     renders — one pass, never re-run after the fix cycle unless diagram
-    semantics changed)
+    semantics changed). If the seat cannot see the images (payloads
+    stripped, renders unreadable), the pass is VOID, not blocked:
+    assume the renders are fine, say so in the verdict, and move on.
+    NEVER re-spawn onto a "vision-capable" model (the stripping is
+    pipeline-side — a different model sees nothing more) and NEVER
+    route the pass to the operator.
 - The batch-1 familiarize judged the requirement + the early diff; at
   verify, re-check
   against the final diff — if it outgrew the call, add a fresh reviewer.
@@ -393,6 +410,10 @@ Spawn + feeding mechanics:
   quick fixture probes — and paste those. Mockup pages are never
   screenshotted (the Mockups section's no-python rule).
   Reviewers read results; they never execute.
+- Findings cite the live tree, never memory: every reported issue
+  anchors to file + line + a snippet quoted from THIS pass's read;
+  anything that no longer matches the current file is drift — dropped,
+  not reported (a stale-copy finding wastes triage AND a verify round).
 - Ground truth is not up for review: the framework, `.venv` libraries,
   and the reference exemplars are ASSUMED CORRECT — verify the feature's
   use of them, never re-derive library internals from site-packages
@@ -403,7 +424,8 @@ Spawn + feeding mechanics:
   renders of the final doc (you re-run `./run checkmarkdownd2` then
   and paste the render paths into its verify prompt) — every fence of
   every changed doc in ONE pass. NEVER one pass per fence or per doc —
-  N passes pay N cold starts for the same verdicts.
+  N passes pay N cold starts for the same verdicts. (Images never
+  arriving in the seat's context: the void rule under reviewer-image.)
 - Spot-check resumes are TIGHTLY SCOPED — one named confirmation
   ("confirm the wrapped labels fit"), not an open-ended re-review:
   a tightly-scoped round answers in under a minute; an open-ended
@@ -1054,11 +1076,14 @@ outside scratch is blocked; the whole tree stays `./run cleanscratch`.
 Content first — the plan, the findings, the questions — then the
 summary with its Links checklist, and the single most important line
 (the decision you need, the verdict, the next step) as the LAST line: what I read last is
-what I act on. A last line that ASKS anything takes the numbered-choices +
+what I act on. The Links checklist sits at the BOTTOM — never
+mid-message with sections dumped after it. A
+last line that ASKS anything takes the numbered-choices +
 `Choose` shape from [Stage messages](#stage-messages) — verdict asks
 included, not just stage menus; a last line that only REPORTS (verdict
-delivered, nothing pending) is a plain statement. Everything about message
-shape lives in this section — the
+delivered, nothing pending) is a plain statement under a `## Conclusion`
+heading — the heading is the final content block, and only a pick menu
+may follow it. Everything about message shape lives in this section — the
 workflow stages and [Stage messages](#stage-messages) reference it, nothing
 restates it. Verify each link's file exists before sharing it (an
 unverified URL is worse than no URL: it wastes a round-trip) — for
@@ -1128,7 +1153,11 @@ batch going green, verdicts landing) wait too — they ride the turn
 after the pick. But if an event forces VISIBLE output while the ask is
 pending — a blocker surfaced, any
 thinking trace with its conclusion — print the pending message AGAIN,
-in full (never bare numbers), as the new last word: whatever pushed it
+VERBATIM: the whole body — prose, links, numbered choices, `Choose` —
+unchanged, as the new last word (never a summary line, never a
+parenthetical "(1. … / 2. …)" pointing at the scrolled-away original
+— the 2026-11-22 coder-release notification ended with exactly that
+half-menu): whatever pushed it
 off the bottom of the screen pushed the decision away with it, and the
 open ask is what the operator acts on. Except when the event itself
 ends in an ask (a BlockerAsk of its own): a fresh ask IS the new last
@@ -1286,8 +1315,8 @@ Choose
   `[label](<url>)`: the feature page (`<base>/<path>`), the design
   doc (`<base>/files/main/ourapp/docs/<feature>.md`), the commit
   (`<base>/git/commits/<sha>`);
-- the conclusion as the LAST line — a plain closing statement
-  (nothing is pending after the commit);
+- the `## Conclusion` heading as the last block — a plain closing
+  statement under it (nothing is pending after the commit);
 - example:
 
 ```
@@ -1302,6 +1331,8 @@ Suite, e2e, review round, and visual pass are all green.
 - the feature page: [/recipes](<base>/recipes)
 - the design doc: [ourapp/docs/recipes.md](<base>/files/main/ourapp/docs/recipes.md)
 - the commit: [git/commits/57234cd](<base>/git/commits/57234cd)
+
+## Conclusion
 
 Nothing is pending — enjoy the recipes.
 ```

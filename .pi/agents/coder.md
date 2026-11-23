@@ -63,7 +63,9 @@ plan and the reference pointers. You never decide scope.
   evidence BEFORE the next edit (docs/debugging-tests.md: response
   bodies and the DB row at the `--pdb` prompt, page state). A
   transient that never replays is a harness flake — rerun
-  once and move on. ALWAYS relative paths (`../scratch/...`) —
+  once and move on. A test-side change that makes a failure pass —
+  date/time alignment above all — is a shim, not a fix: the failing
+  test is the requirement speaking; root-cause the app side. ALWAYS relative paths (`../scratch/...`) —
   absolute `/srv/...` paths sit outside the working tree and every
   one becomes a permission ask.
 - Each bash call starts a FRESH shell in the session cwd (main/) —
