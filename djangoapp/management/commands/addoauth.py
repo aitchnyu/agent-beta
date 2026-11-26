@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from allauth.socialaccount.models import SocialApp
@@ -8,6 +9,7 @@ from django.conf import settings
 from django.contrib.sites.models import Site
 from django.core.management.base import BaseCommand, CommandError, CommandParser
 from django.db import transaction
+from django.urls import reverse
 
 # Fixed per-provider settings stored on the SocialApp row, overriding the
 # provider class defaults. Keys are lowercase because allauth's OAuth2Provider
@@ -31,6 +33,9 @@ class Command(BaseCommand):
     ``PROVIDER_DEFAULTS`` has an entry) linked to the current Site. The
     provider must be enabled in ``INSTALLED_APPS``. Idempotent: re-running
     updates the existing row instead of creating a duplicate.
+
+    Prints one JSON line: ``message``, ``provider``, ``client_id``,
+    ``redirect_uri`` (the callback to register) and ``created``.
     """
 
     help = "Create or update a social provider's SocialApp (client_id/secret in the DB)."
@@ -102,10 +107,21 @@ class Command(BaseCommand):
 
         action = "Created" if created else "Updated"
         settings_desc = ", ".join(f"{k}={v}" for k, v in app_settings.items())
+        # One JSON line, like every djangomanage verb: ``message`` is for
+        # the operator, the rest for scripts. The secret is never printed.
+        redirect_uri = f"{settings.BASE_URLS[0]}{reverse(f'{provider}_callback')}"
         self.stdout.write(
-            self.style.SUCCESS(
-                f"{action} {name} SocialApp (provider={app.provider}) "
-                f"linked to site {site.id} ({site.domain}). "
-                f"{settings_desc or 'provider-default settings'}."
+            json.dumps(
+                {
+                    "message": (
+                        f"{action} {name} SocialApp (provider={app.provider}) "
+                        f"linked to site {site.id} ({site.domain}). "
+                        f"{settings_desc or 'provider-default settings'}."
+                    ),
+                    "provider": app.provider,
+                    "client_id": app.client_id,
+                    "redirect_uri": redirect_uri,
+                    "created": created,
+                }
             )
         )

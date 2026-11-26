@@ -18,6 +18,10 @@ class ListUsersCommandTests(BaseTestCase):
       the last refuses
     - test_exclude_omits_matching_emails, --exclude drops matching
       users from the rows and the total
+    - test_superusers_flag_lists_superusers_only, --superusers keeps
+      superusers only, oldest first, in the same row shape
+    - test_rows_come_in_creation_order, rows are ordered by pk, so the
+      first-created user comes first
     - test_page_past_last_refuses, a page beyond the last is a CommandError
     - test_page_zero_refuses, --page is 1-based
     - test_empty_table_still_reports, zero users → empty rows, page 1/1
@@ -77,6 +81,36 @@ class ListUsersCommandTests(BaseTestCase):
         self.assertEqual([row["email"] for row in payload["users"]], ["plain@example.com"])
         self.assertEqual(payload["total"], 1)
         self.assertEqual(payload["message"], "page 1/1 · 1 users")
+
+    def test_superusers_flag_lists_superusers_only(self) -> None:
+        """--superusers keeps superusers only, oldest first.
+
+        - the plain user is gone from the rows and the total
+        - a superuser created later comes after root, though its email sorts first
+        - the row shape is unchanged
+        """
+        User.objects.create_user(
+            username="ada", password="x", email="ada@example.com", is_superuser=True
+        )
+        out = StringIO()
+        call_command("listusers", "--superusers", stdout=out)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(
+            [row["email"] for row in payload["users"]], ["root@example.com", "ada@example.com"]
+        )
+        self.assertEqual(payload["total"], 2)
+        self.assertEqual(set(payload["users"][0]), {"first", "last", "email", "staff", "super"})
+
+    def test_rows_come_in_creation_order(self) -> None:
+        """Rows come in creation order, oldest first.
+
+        - root comes before plain, although "plain" sorts first as text
+        - the plain listing keeps every user
+        """
+        out = StringIO()
+        call_command("listusers", stdout=out)
+        rows = json.loads(out.getvalue())["users"]
+        self.assertEqual([row["email"] for row in rows], ["root@example.com", "plain@example.com"])
 
     def test_page_past_last_refuses(self) -> None:
         with self.assertRaisesRegex(CommandError, r"^page 3 is past the last page"):

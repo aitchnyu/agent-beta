@@ -13,18 +13,25 @@ class Command(BaseCommand):
     """List users — first, last, email, staff, superuser — paginated.
 
     Stdout is a single JSON line: a human-readable ``message`` plus
-    ``page``/``pages``/``total``/``users`` rows for scripts.
+    ``page``/``pages``/``total``/``users`` rows for scripts. Rows come
+    in creation order, oldest first.
     """
 
     help = (
-        "List users (first, last, email, staff, superuser); --page N; "
-        "--exclude <regex> omits users whose email matches."
+        "List users (first, last, email, staff, superuser), oldest first; --page N; "
+        "--exclude <regex> omits users whose email matches; "
+        "--superusers lists superusers only."
     )
 
     def add_arguments(self, parser: CommandParser) -> None:
         parser.add_argument("--page", type=int, default=1, help="1-based page number.")
         parser.add_argument(
             "--exclude", default="", help="Omit users whose email matches this regex."
+        )
+        parser.add_argument(
+            "--superusers",
+            action="store_true",
+            help="List only superusers (desmosuperuserloginlink reads the first row).",
         )
 
     def handle(self, **options: Any) -> None:  # noqa: ANN401 # Django passes **options as untyped command flags
@@ -34,7 +41,9 @@ class Command(BaseCommand):
             msg = "--page is 1-based"
             raise CommandError(msg)
 
-        users = User.objects.order_by("email")
+        users = User.objects.order_by("pk")
+        if options["superusers"]:
+            users = users.filter(is_superuser=True)
         if options["exclude"]:
             users = users.exclude(email__regex=options["exclude"])
         total = users.count()

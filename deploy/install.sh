@@ -23,10 +23,11 @@
 #   --branch  name    any branch instead (mutually exclusive).
 #
 # After the provision's phases: basic self-tests (units active + one
-# HTTPS smoke on the site root) + the access steps. The
-# full in-VM battery stays a local-test follow-up (ops.checkframework2 —
-# which itself refuses non-loopback installs: a --base-url VM never runs
-# it).
+# HTTPS smoke on the site root), then — interactive terminals only —
+# the first-run setup (desmosetup: domain, first superuser, Google
+# sign-in, pi's provider) and a login as debian. The full in-VM
+# battery stays a local-test follow-up (ops.checkframework2 — which
+# itself refuses non-loopback installs: a --base-url VM never runs it).
 #
 # PIPE-SAFETY: the entire body below is ONE { … } compound command.
 # `bash -s` fed from a pipe reads the script LAZILY — any child that
@@ -180,6 +181,10 @@ fi
 # Interactive installs end as debian; driven ones exit as before.
 # </dev/tty: bash -s's stdin is the curl pipe — instant EOF for su's shell.
 if [ -t 1 ]; then
+  # The first run, once. sudo, not su: su kills the session on ctrl+c.
+  _banner "==> first-run setup"
+  sudo -n -u debian -i desmosetup </dev/tty \
+    || _banner "==> first-run setup did not finish — the traceback above says where"
   exec su -l debian </dev/tty
 fi
 }

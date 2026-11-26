@@ -12,7 +12,14 @@ from __future__ import annotations
 import sys
 from typing import TYPE_CHECKING
 
-from ops import checkframework1, firstsetup, postdeploychecks, scratch, testsuite
+from ops import (
+    checkframework1,
+    postdeploychecks,
+    scratch,
+    setup,
+    superuserloginlink,
+    testsuite,
+)
 
 if TYPE_CHECKING:
     from ops.command import Command
@@ -29,7 +36,8 @@ COMMANDS: dict[str, Command] = {
         testsuite.Screenshots(),
         postdeploychecks.Postdeploychecks(),
         checkframework1.Checkframework1(),
-        firstsetup.SetupCommand(),
+        superuserloginlink.SuperuserloginlinkCommand(),
+        setup.SetupCommand(),
     )
 }
 

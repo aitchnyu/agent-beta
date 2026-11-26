@@ -25,8 +25,7 @@
 #   Both paths run the same provisioner — deploy/inside-vm.sh provision,
 #   ONE exec, phase-banner'd; config is the tracked deploy/template.env.
 #   The default forward: host https://localhost:8443 → container :443
-#   (Caddy's loopback origin, internal CA). :8443 leaves host :8000 free
-#   for the dev runserver.
+#   (Caddy's loopback origin, internal CA).
 # ./localvm provision-blank <inst> [--release N] [--no-forward]
 #   Launch the empty container (debian, 2G memory cap); prints the
 #   installer line. Refuses an existing instance.
@@ -119,10 +118,13 @@ _access_steps() { # <instance>
 
 The container '$1' is up — the proxy device is attached. Browse:
   https://localhost:8443/        (internal CA — accept the warning)
-(:8443 leaves host :8000 free for the dev runserver — both can run.)
 
 Get in / administer:
   ./localvm shell $1
+provision-full runs unattended and skips the first-run setup. In that
+shell, run this once, as debian:
+  desmosetup                domain, first superuser, Google login, pi provider
+A one-time link for an existing user:
   ./localvm runasdesmo $1 ./run djangomanage makeloginlink <email>
 EOF
 }

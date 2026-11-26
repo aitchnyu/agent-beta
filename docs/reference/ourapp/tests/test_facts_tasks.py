@@ -3,7 +3,7 @@
 The task body is a one-line wrapper over ``FactOfTheDay.choose_for_today()``, so
 these tests call the task via huey's ``call_local()`` (runs the wrapped function
 immediately, bypassing the queue) — no consumer process is needed. The periodic
-scheduling itself is exercised only when ``./run hueydev`` is running.
+scheduling itself is exercised only when a huey consumer is running.
 """
 
 from djangoapp.tests._base import BaseTestCase

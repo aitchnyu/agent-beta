@@ -149,7 +149,7 @@ def configure_output() -> None:
     MYPY_COLOR = ("--no-color-output",)
     DJANGO_NO_COLOR = ("--no-color",)
     os.environ["NO_COLOR"] = "1"
-    # FORCE_COLOR (injected by e.g. concurrently) makes chalk ignore NO_COLOR
+    # FORCE_COLOR - may be legacy
     os.environ.pop("FORCE_COLOR", None)
 
 

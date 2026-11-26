@@ -103,7 +103,8 @@ and ask the operator).
 
 You build features through five stages; every stage transition is my explicit
 choice (never advance on "ok"/"sure"/silence — end the stage with the
-choice menu below and WAIT for my explicit pick). I run the TUI session, Django, and the dev server myself — you
+choice menu below and WAIT for my explicit pick). I run the TUI session
+and the deployed stack myself — you
 edit `scratch/` and deploy via `deployscratch`, only once I've said to
 start. Within a stage keep going; stop only at a real decision or the
 stage's choice menu. Any stage can send the work back — follow the arrow.
@@ -624,9 +625,10 @@ keeps this list in sync with the commands dir; never let it drift):
   make a user (first user must be a superuser); prints the
   makeloginlink hint; `--if-absent` skips silently when the email
   exists (gate reruns).
-- `listusers [--page N] [--exclude <regex>]` — the user table (first,
-  last, email, staff, superuser), 100 rows/page; `--exclude` omits
-  users whose email matches the regex.
+- `listusers [--page N] [--exclude <regex>] [--superusers]` — the user
+  table (first, last, email, staff, superuser), oldest first,
+  100 rows/page; `--exclude` omits users whose email matches the regex;
+  `--superusers` lists superusers only.
 - `dbstate` — read-only DB snapshot: every table with approximate row
   counts, applied migrations (ourapp/djangoapp/auth/contenttypes),
   user totals. The replacement for hand-rolled python introspection.
@@ -639,7 +641,8 @@ keeps this list in sync with the commands dir; never let it drift):
 - `backupmarker <set|…>` — the backup-marker sentinel (NOT allowlisted —
   it writes; the checkframework2 gate drives its backup round-trip).
 - `addoauth <provider> <client_id> <secret>` — register an OAuth login
-  (asks: the secret rides the command line).
+  (asks: the secret rides the command line). One JSON line: `message`,
+  the client id, the redirect URI to register, and `created`.
 - `makemigrations` / `migrate` — schema changes (via djangomanage).
 - `findstatic <name>` — which on-disk file a static URL resolves to.
 - `baseurls` — the app's base URLs (for absolute links).
@@ -682,7 +685,7 @@ NO allowlisted path that rasters a scratch page — `./run screenshots`
 (inline
 playwright python) is the 635s-dialog class; reviewer-image's visual
 pass judges the d2 rasters, never mockup pages.
-Announced links may carry `:8000` (dev runserver) or `:8443` (container); both serve the operator only.
+Announced links may carry `:8443` (the container's https port); they serve the operator only.
 
 - **Design doc — `ourapp/docs/<feature>.md` in scratch**. Link it after
   deploy as `/files/main/ourapp/docs/<feature>.md`. Structure and writing
@@ -2149,17 +2152,17 @@ auto-discovers each installed app's `tasks` module. Redis is a **hard dependency
     ```
 - **Fat task, thin wrapper**: put the real logic on the model (a classmethod) and
   make the task a one-line call, so it's testable without a consumer.
-- **Run the consumer** with `./run hueydev`, or `./run dev` (which starts it alongside
-  runserver/vite). Without a running consumer, enqueued tasks queue up and
-  periodic tasks don't fire — so make user-facing paths degrade gracefully (e.g.
-  `FactOfTheDay.current()` reads the last cron pick without writing, so a dead
-  consumer shows a stale-but-present fact or an empty state; a `GET` never creates
-  rows).
+- **The consumer is the VM's `desmo_huey.service`** — `deployscratch` restarts it on
+  backend deploys; you never run it by hand (local dev runs no stack — only the test
+  suites). Without a running consumer, enqueued tasks queue up and periodic tasks
+  don't fire — so make user-facing paths degrade
+  gracefully (e.g. `FactOfTheDay.current()` reads the last cron pick without
+  writing, so a dead consumer shows a stale-but-present fact or an empty state; a
+  `GET` never creates rows).
 - **Tests** call the model classmethod directly, or the task via
   `task.call_local()` (runs the wrapped fn immediately, bypassing the queue) — no
-  consumer, no Redis needed. (`HUEY["immediate"]` is deliberately `False` so the
-  consumer can run in dev; don't tie it to `DEBUG`, or `./run hueydev` refuses to
-  start.)
+  consumer, no Redis needed. (`HUEY["immediate"]` is deliberately `False` so
+  production paths always enqueue; don't tie it to `DEBUG`.)
 
 ## Database backups (pgbackrest)
 Backups run themselves (nightly timer + a pre-migration snapshot on
@@ -2311,7 +2314,7 @@ stays `./run deployscratch` from `main/`.
 
 ### Debugging build / serve issues
 When a page 404s client-side ("Inertia page not found: … — rebuild the
-frontend") or the dev server seems to serve a stale bundle, **act, don't
+frontend") or the served bundle seems stale, **act, don't
 theorize**: run `npm run build` and have the user hard-refresh **before**
 speculating about static-file serving, caching, or shadow paths — the error
 message names the fix. To confirm which file a static URL actually resolves to,
@@ -2398,9 +2401,9 @@ for u in User.objects.all():
 ```
 
 ## Security & data access
-You run in a **terminal** — locally, or in the container as the default cloud
-user (debian) via `./localvm shell desmo` (start the TUI with `desmo pi`
-— the `desmo` command runs ./run on the app dir from anywhere); there is
+You run in a **terminal** — locally, or in the container as the debian
+user via `./localvm shell desmo` (which lands there directly — start the
+TUI with `pi`, the launcher that delegates to `./run pi`); there is
 no web surface in front of you. Mind the data-exfiltration surface:
 - The read-only tools (`read`/`grep`/`find`/`ls`) and the allowlisted shell
   inspection commands (`cat`/`grep`/`find`/`ls`…) let you read any file reachable

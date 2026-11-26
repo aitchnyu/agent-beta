@@ -635,7 +635,7 @@ class UserAdminActionsApiTests(QueryBudgetTestCase):
         return issued
 
     def test_loginlink_url_is_http_without_proxy_header(self) -> None:
-        """Dev runserver reality: no X-Forwarded-Proto → the URL is http."""
+        """No X-Forwarded-Proto → the URL is http (the plain-client reality)."""
         url = self._issue()["url"]
         self.assertTrue(url.startswith("http://testserver/login-with-secret/"))
 

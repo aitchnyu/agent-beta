@@ -30,6 +30,9 @@
 # - Phase 0 validates the template straight out of the tarball (before
 #   any mutation); phase 3 installs it as the credentials env and mints
 #   the three machine secrets into it.
+# - `set-domain` (after provisioning, from desmosetup) is the one later
+#   operator input: it rewrites BASE_URLS in the installed env, renders
+#   the caddy site again, and restarts the services that read them.
 #
 # ── The fs this provision creates/touches (phase in parens) ────────────────
 #   /                             users: desmo + the default cloud user joins
@@ -50,10 +53,12 @@
 #   │   │   ├── Caddyfile         + "import sites/*.caddy" (5, guarded)
 #   │   │   └── sites/desmo.caddy the app site, 644 (4)
 #   │   ├── redis/redis.conf      + maxmemory block (5, guarded)
-#   │   └── profile.d/desmo.sh    login-shell notice (1)
+#   │   └── profile.d/pi.sh      login-shell notice: type pi (2)
 #   ├── usr/local/bin/
-#   │   ├── desmo                 `desmo <cmd>` wrapper (2)
-#   │   └── fd                    symlink → fdfind (1); uv, pi, node ride
+#   │   ├── pi                     agent launcher (2)
+#   │   ├── desmosetup             post-provision setup: domain, superuser, Google, pi (2)
+#   │   ├── desmosuperuserloginlink  the first superuser's login link (2)
+#   │   └── fd                    symlink → fdfind (1); uv, node ride
 #   │                             apt/npm/NodeSource repos; caddy rides the
 #   │                             GitHub-release .deb (1)
 #   ├── srv/desmo/                775 desmo:desmo (1)
@@ -72,10 +77,11 @@
 #   desmo_db_test + WAL archiving via ALTER SYSTEM (6); git --system
 #   safe.directory main + scratch (7); DB migrations (9).
 #
-# Usage: inside-vm.sh {provision|seed-commit|bootstrap}
+# Usage: inside-vm.sh {provision|seed-commit|bootstrap|set-domain <https origin>}
 #   provision     as ROOT — the one the driver execs (all phases)
 #   seed-commit   as desmo — self-dispatched by phase 8
 #   bootstrap     as desmo — self-dispatched by phase 9
+#   set-domain    as ROOT — after provisioning, from desmosetup
 
 set -Eeuo pipefail
 
@@ -86,7 +92,7 @@ creds_dir="/etc/credentials/desmo"
 creds_env="$creds_dir/.env.vm"
 # pi CLI version for the npm -g install (lockstep with dev's
 # npm install -g @earendil-works/pi-coding-agent).
-_PI_NPM_VERSION="1.5.2"
+_PI_NPM_VERSION="1.6.1"
 # Caddy version for the GitHub-release .deb (2026-10-09: the Cloudsmith
 # apt repo upstream documents began answering 402 "repository restricted";
 # the SAME official .deb rides caddyserver/caddy GitHub releases).
@@ -241,36 +247,32 @@ provision() {
   # commit marker = GIT_COMMITTER_NAME env (creds file); a global git
   # identity would OVERRIDE env vars — so none is ever set here.
 
-  # `desmo <cmd…>` == cd /srv/desmo/main && ./run <cmd…>; the wrapper
-  # ships as deploy/desmo.sh — phase 2 installs it on PATH.
-
-  # Login-shell notice (every user); /etc/profile.d runs for every login shell.
-  cat > /etc/profile.d/desmo.sh <<'EOF'
-# desmo notice — login shells (bold yellow)
-printf '\n\033[1;33m%s\033[0m\n\033[1;33m%s\033[0m\n\n' \
-  "The desmo command is available on this machine: 
-   (e.g. 'desmo pi'; commands: 'desmo help')."
-EOF
-  chmod 644 /etc/profile.d/desmo.sh
+  # The agent launcher: `pi` == cd /srv/desmo/main + launch env + the
+  # real TUI binary; deploy/pi.sh is the source — phase 2 bakes + installs
+  # it on PATH. (No general ./run wrapper anymore: the operator shells
+  # into the tree; the agent TUI is the sanctioned entry.)
 
   echo "    apt packages"
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -y
   apt-get install -y curl rsync git htop ripgrep fd-find miller pgbackrest sudo \
     postgresql postgresql-client redis-server ca-certificates gnupg librsvg2-bin \
-    python3-cryptography
+    python3-cryptography gcc
   # fd-find: pi auto-downloads fd to ~/.pi/agent/bin on first launch
   # otherwise; Debian names the binary fdfind, pi wants fd.
   ln -sf /usr/bin/fdfind /usr/local/bin/fd
   # miller (mlr): journal error-log queries per docs/logging.md.
   # python3-cryptography: deploy/gen-vapid.py mints the VAPID key via the
   # system python3 — the secrets phase runs before phase 9's venv exists.
+  # TODO remove gcc?
+  # gcc: aiohttp (pywebpush's) ships no cp315 wheel — uv builds its sdist
+  # in phase 9.
 
   echo "    node 24 LTS (NodeSource; apt's node is too old for vite/rolldown — the frontend build needs it)"
   curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
   apt-get install -y nodejs
 
-  # the operator's agent, run via `desmo pi`; npm global (arch-agnostic).
+  # the operator's agent, started via the `pi` launcher; npm global (arch-agnostic).
   # --ignore-scripts: pi needs no install scripts — none should run as root.
   echo "    pi CLI (npm -g, version-pinned)"
   npm install -g --ignore-scripts "@earendil-works/pi-coding-agent@$_PI_NPM_VERSION"
@@ -373,9 +375,24 @@ EOF
   # the conf and archive_command are phase 4/6's.
   install -d -o postgres -g postgres -m 700 "$maindir/dbbackups"
 
-  # The wrapper: deploy/desmo.sh — PATH install after the seed exists.
-  install -o root -g root -m 755 \
-    "$maindir/deploy/desmo.sh" /usr/local/bin/desmo
+  # The agent launcher: deploy/pi.sh — PATH install after the seed exists.
+  # @PI_BIN@ is baked to npm's global binary: /usr/local/bin/pi SHADOWS it,
+  # so the wrapper exports it as PI_REAL_BIN and delegates to ./run pi
+  # (the one copy of the launch env — see the wrapper's header).
+  pi_bin="$(npm prefix -g)/bin/pi"
+  [ -x "$pi_bin" ] || {
+    echo "REFUSING: npm's global pi binary not found at $pi_bin — phase 1's npm install failed?" >&2
+    exit 1
+  }
+  sed "s|@PI_BIN@|$pi_bin|" "$maindir/deploy/pi.sh" > /usr/local/bin/pi
+  chmod 755 /usr/local/bin/pi
+  # The operator's first-run commands: the same delegation as pi, with no
+  # placeholder to bake (deploy/install.sh runs desmosetup once, as debian).
+  install -m 755 "$maindir/deploy/desmosetup.sh" /usr/local/bin/desmosetup
+  install -m 755 "$maindir/deploy/desmosuperuserloginlink.sh" /usr/local/bin/desmosuperuserloginlink
+
+  # The login-shell notice: deploy/pi-notice.sh, copied as is.
+  install -m 644 "$maindir/deploy/pi-notice.sh" /etc/profile.d/pi.sh
 
   # ── Phase 3/11: credentials env — install + mint the machine secrets ───
   _banner "==> [3/11] credentials env + machine secrets"
@@ -623,7 +640,7 @@ seed_commit() {
   set -a; . "$creds_env"; set +a
   cd "$maindir"
   git init -q
-  # Group-shared: the default cloud user (desmo pi) commits here too —
+  # Group-shared: the default cloud user (the pi TUI) commits here too —
   # sharedRepository + the chmod fix what init made under the umask.
   git config core.sharedRepository group
   chmod -R g+w .git
@@ -650,12 +667,64 @@ bootstrap() {
   uv run python manage.py collectstatic --noinput --clear
 }
 
+# Change the site's origin after provisioning (root): the env file, the
+# caddy site and the services that read them — the writes phases 3, 4 and
+# 11 do, for one new origin. `desmosetup` calls it through sudo.
+set_domain() { # <https origin>
+  local url="${1:-}" hostname tls new_env
+  if [ "$(id -u)" != 0 ]; then
+    echo "REFUSING: set-domain runs as root (use sudo)." >&2
+    exit 1
+  fi
+  if [[ ! "$url" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?/?$ ]]; then
+    echo "REFUSING: one https origin, https://host[:port] (got: '$url')." >&2
+    exit 1
+  fi
+  url="${url%/}"                # one spelling of one origin: no trailing slash
+  if [ ! -f "$creds_env" ]; then
+    echo "REFUSING: $creds_env is missing — this machine is not provisioned." >&2
+    exit 1
+  fi
+  hostname="${url#*://}"       # strip the scheme
+  hostname="${hostname%%/*}"   # strip any trailing path
+  hostname="${hostname%%:*}"   # strip the port
+  case "$hostname" in
+    localhost|127.*|::1) tls="tls internal" ;;
+    *)                   tls="" ;;
+  esac
+  # Through the inode, never sed -i (it swaps the inode and drops the
+  # file's owner and mode), and never a temp file: the env holds secrets.
+  new_env="$(sed "s|^BASE_URLS=.*|BASE_URLS=\"$url\"|" "$creds_env")"
+  printf '%s\n' "$new_env" > "$creds_env"
+  sed -e "s/@SITE_HOSTNAMES@/$hostname/g" \
+      -e "s/@TLS_DIRECTIVE@/$tls/g" \
+      "$seed_deploy/Caddyfile.site.in" \
+      > /etc/caddy/sites/desmo.caddy
+  chmod 644 /etc/caddy/sites/desmo.caddy
+  systemctl restart desmo_granian.service desmo_huey.service
+  systemctl restart caddy
+  # The app takes a moment to bind its port again. Wait for it, bounded,
+  # so "domain set" means the site is back — on the port caddy proxies
+  # to, which needs no certificate (ACME can be in flight for hours).
+  local tries=0
+  until curl -m 2 -s -o /dev/null http://127.0.0.1:8000/; do
+    tries=$((tries + 1))
+    if [ "$tries" -ge 30 ]; then
+      echo "FAILED: the app did not answer on 127.0.0.1:8000 after 30s (journalctl -u desmo_granian.service)." >&2
+      exit 1
+    fi
+    sleep 1
+  done
+  echo "domain set: $url"
+}
+
 case "${1:-}" in
   provision) provision ;;        # root — the one the driver execs
   seed-commit) seed_commit ;;    # desmo — phase 8
   bootstrap) bootstrap ;;        # desmo — phase 9
+  set-domain) set_domain "${2:-}" ;;  # root — after provisioning, from desmosetup
   *)
-    echo "usage: inside-vm.sh {provision|seed-commit|bootstrap}" >&2
+    echo "usage: inside-vm.sh {provision|seed-commit|bootstrap|set-domain <https origin>}" >&2
     exit 1
     ;;
 esac

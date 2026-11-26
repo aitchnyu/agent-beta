@@ -365,10 +365,15 @@ def gate() -> None:
 
 
 def _asserts_agent() -> None:
-    """Assert desmo pi preconditions + the playwright probe (asserts 5-6)."""
-    print("\n=== Assert 5: default user can run desmo pi ===")
+    """Assert pi-launcher preconditions + the playwright probe (asserts 5-6)."""
+    print("\n=== Assert 5: default user can run pi ===")
+    # The launcher must be OUR wrapper, not npm's own binary (same name,
+    # earlier on PATH only because /usr/local/bin precedes /usr/bin); and
+    # the two first-run commands ride beside it.
     _capture_default(
-        "command -v desmo >/dev/null && command -v pi >/dev/null && "
+        'test "$(command -v pi)" = /usr/local/bin/pi && '
+        "test -x /usr/local/bin/desmosetup && "
+        "test -x /usr/local/bin/desmosuperuserloginlink && "
         '. /etc/credentials/desmo/.env.vm 2>/dev/null && test -n "${SECRET_KEY:-}"'
     )
 

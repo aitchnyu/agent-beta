@@ -38,26 +38,14 @@ const isAuthenticated = computed(() => shared.value.user !== null)
         class="home-status-signed-out alert alert-warning d-flex flex-column gap-2"
       >
         <p class="mb-0">
-          You are not logged in — mockups, design docs, and the admin surfaces
-          are visible to superusers only.
+          You are not logged in — mockups, design docs, and the superuser
+          surfaces are visible to superusers only.
         </p>
         <p class="mb-0">
-          Ask your agent to set one up:
-          <code class="d-block"
-            >create a new superuser John Smith with john.smith@example.com and
-            send a login link</code
-          >
+          On the machine, run <code>desmosuperuserloginlink</code> — it prints
+          the first superuser's login link.
         </p>
       </div>
-      <p class="home-placeholder-note text-muted">
-        What prompting looks like — the first message carries the admin setup
-        and the feature together:
-      </p>
-      <img
-        class="home-shot"
-        :src="'/static/pi/prompt-superuser-tracker.png'"
-        alt="prompting pi: create a new superuser John Smith with john@example.com, send a login link, and request a plant-watering tracker in one message"
-      />
     </template>
   </div>
 </template>

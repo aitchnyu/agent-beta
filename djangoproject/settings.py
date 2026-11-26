@@ -173,8 +173,7 @@ STATIC_URL = "static/"
 
 # Where `collectstatic` gathers files for the serving layer (caddy serves
 # /static/* from it on the test VM — Django serves nothing under /static
-# when DEBUG=False). Unused in dev (runserver serves app static dirs
-# directly).
+# when DEBUG=False; local dev runs no server, only the test suites).
 STATIC_ROOT = Path(os.environ["STATIC_ROOT"])
 
 # Uploaded user files (FileField storage) — runtime data, never source
@@ -182,12 +181,15 @@ STATIC_ROOT = Path(os.environ["STATIC_ROOT"])
 # djangoapp.media.serve_file, never a global /media/ route.
 MEDIA_ROOT = BASE_DIR / "media"
 
-# Two layers make Django see https behind caddy: djangoproject/asgi.py wraps
-# the app with granian's proxy-header handler (peer-checked, the primary
-# mechanism on the VM), and this setting makes Django itself trust
-# X-Forwarded-Proto (META-style key) — covering WSGI/test contexts and any
-# non-granian deployment. Safe ONLY because granian binds 127.0.0.1
-# (deploy/granian.service.in) and dev runserver never sends the header.
+# Django sees https behind caddy through two layers:
+# - djangoproject/asgi.py wraps the app with granian's proxy-header
+#   handler (peer-checked, the primary mechanism on the VM)
+# - this setting makes Django itself trust X-Forwarded-Proto
+#   (META-style key) — covering WSGI/test contexts and any non-granian
+#   deployment
+# Safe ONLY because granian binds 127.0.0.1
+# (deploy/granian.service.in) and nothing else ever fronts the app (local
+# dev runs no server).
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # Default primary key field type
@@ -336,7 +338,7 @@ VAPID_PRIVATE_KEY = os.environ["VAPID_PRIVATE_KEY"]
 
 # Huey — Redis-backed background tasks + cron. Reuses REDIS_URL (shared with the
 # client-error rate limiter, djangoapp/views/client_errors.py). `immediate` is
-# False: enqueued tasks run via the consumer (`./run hueydev` / `./run dev`), and
+# False: enqueued tasks run via the consumer (the VM's desmo_huey.service), and
 # tests call the model classmethod or `task.call_local()` directly (no consumer).
 # `utc: False` so crontab times are local TIME_ZONE.
 HUEY = {

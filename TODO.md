@@ -1,17 +1,33 @@
-Launch the setup after running the provisioning script
-No more desmo command.
-We will have pi command for debian user, which runs our wrapper.
-Mention in the command prompt, type `pi`
-in run, pi command should be slimmed down, assume its setup correctly and remove those extra checks.
+does it print model?
+where it need to handle pi's json?
+Previous commands checked stuff, like google present, superuser present
+Quitting will allow you to do it again, no we dont endorse this
 
-We will no longer support running the web app and huey worker in local, no dev in ./run. What should we remove from codebase. We will just support test suites from local. 
-Are we ensuring ./run init will be run only in dev's machine?
+```
+debian@desmo:~$ pi auth login openai-codex --no-browser
+Select OpenAI Codex login method: Device code login (headless)
+Open https://auth.openai.com/codex/device and enter code: 3VXM-4GW0M
+Waiting for authentication...
+^CLogin cancelled.
+```
+Lets communicate with pi login bidirectionally
+can we bind ctrl+v to paste,
+
+https:localhost:8443 for test
+Set button should be test
+Save - "setup Pi"
+
+Dont show this
+     Authorized redirect URI for the Google Cloud console:
+     https://localhost:8443/accounts/google/login/callback/
+
+Whats all the timeout stuff? Reimplement it?
+Use model fetch as working test?
 
 /login openai-codex, luna, test with real and fake
-Providers with recommended models - Openrouter
+Update docs with new screens, for adding users and login links. New instruction for prod. Render the tui in plaintext.
 
-Update docs for adding users and login links
-Pi theme should be bolder. Same for textual.
+Pi theme should have more contrast. Lets have our theme for pi and tui?
 
 Lets make a chore tracker. We should have chores which have a repetition schedule of either days per week or every N days/weeks/months. It shows chores from earliest to latest due date. Any logged in user can create and complete an instance. Chore titles are clickable links that leads to details page where we can see past instances (who and when completed it) and edit. We can archive chores too and view them with a filter.
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.
@@ -22,12 +38,13 @@ Systemd service for backup /srv/
 Manually run backup? Add descriptions
 
 Test dbs get backed up
-threeflet
+Ribbeans branding
 Desec dns docs
 org/reponame with main thing, landing page
 Features - file section with git etc. Readme is crap. Gantt of scout, main work and reviewer prewarm and reviewer action, rework
 File shows which commits it was part of and if its part of uncommitted changes
 Highlight readme in any dir
+Domain name in interactive script
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 UserHistory.record_created(user, user, user.snapshot()) is a mess

@@ -14,5 +14,5 @@ application = get_asgi_application()
 # URL-building (absolute redirects, makeloginlink printouts) depends on it.
 # The proxy is caddy on 127.0.0.1 (trusted_hosts); without the wrap Django
 # sees plain http and generates http://… URLs behind the https site. No-op
-# semantics in dev (runserver uses WSGI and never imports this wrapper).
+# semantics under a WSGI dev server (never imports this wrapper).
 application = wrap_asgi_with_proxy_headers(application, trusted_hosts="127.0.0.1")

@@ -15,7 +15,7 @@ else
   _MYPY_COLOR=--no-color-output
   _DJANGO_NO_COLOR=--no-color
   export NO_COLOR=1
-  # FORCE_COLOR (injected by e.g. concurrently) makes chalk ignore NO_COLOR
+  # FORCE_COLOR (injected by npm-spawned tooling) makes chalk ignore NO_COLOR
   unset FORCE_COLOR
 fi
 
@@ -57,6 +57,14 @@ djangomanage() {
 }
 
 init() {
+  # Dev-machine-only bootstrap; scratch's copy resolves both dirs to
+  # scratch (a parallel .env/DB bootstrap there is pure waste), and the
+  # VM provisions itself (deploy/inside-vm.sh).
+  _require_main_run init || return 1
+  if is_running_on_vm; then
+    echo "Refusing: init is dev-only — the VM provisions itself (deploy/inside-vm.sh)." >&2
+    return 1
+  fi
   if [ ! -f .env ]; then
     echo ".env file not found. Copy from .env.example? (y/N)"
     read -r response
@@ -95,17 +103,46 @@ init() {
   cd frontend && npm install && npm run build && cd ..
 }
 
-runserver() {
-  setenv
-  djangomanage runserver
-}
+pi() {
+    # The agent TUI, .env env exported — the ONE launcher. On the VM the
+    # PATH entry /usr/local/bin/pi (deploy/pi.sh) purely delegates here
+    # (it shadows npm's pi and exports PI_REAL_BIN); setup is assumed
+    # (provisioning/repo guarantee binary + .pi/ policy); provider auth +
+    # model live in pi's own stores (desmosetup writes them; by hand
+    # /login, /model — README § Pi setup).
+  # The VM's sanctioned entry is the debian user; dev runs as its own user.
+  if is_running_on_vm && [ "$(id -un)" != "debian" ]; then
+    echo "Refusing: on the VM, pi runs as the debian user only — log in as debian." >&2
+    return 1
+  fi
+  local repo_root
+  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-hueydev() {
-  # Huey consumer for dev run in the foreground. Auto-discovers each installed app's
-  # tasks.py (ourapp.tasks) and runs periodic + enqueued tasks. Redis must be
-  # running (REDIS_URL). For prod, its run with systemd.
+  # The TUI's cwd must be the repo root: extension + agent discovery are
+  # cwd-relative (scratch/ is a sibling, reached via sanctioned paths).
+  # setenv comes after the cd on purpose: it reads .env from the cwd, and
+  # the PATH launcher is typed from any directory (the home one).
+  cd "$repo_root"
   setenv
-  djangomanage run_huey "$@"
+
+  # --approve grants project trust deterministically; PI_REPO_ROOT
+  # anchors steer.md injection; no startup version ping; sessions land
+  # in /sessions (gitignored).
+  export PI_REPO_ROOT="$repo_root"
+  export PI_SKIP_VERSION_CHECK=1
+
+  # Subcommands must be argv[1] (a leading --approve turns "auth" into
+  # prompt text); trust matters for the TUI only. A direct `./run pi
+  # --approve …` on the VM re-enters via the wrapper — don't duplicate
+  # the flag.
+  local args=("$@")
+  if [[ "${1:-}" != auth && "${1:-}" != mcp && "${1:-}" != serve && "${1:-}" != --approve ]]; then
+    args=(--approve "$@")
+  fi
+  if [ -n "${PI_REAL_BIN:-}" ]; then
+    exec "$PI_REAL_BIN" "${args[@]}"
+  fi
+  command pi "${args[@]}"
 }
 
 backupdb() {
@@ -198,96 +235,19 @@ restoredb() {
   done
 }
 
-dev() {
-  # The whole dev stack in one terminal via `concurrently`: runserver + vite
-  # watch + huey (Ctrl-C stops all). The agent runs in its own terminal via
-  # `./run pi` — no browser console anymore.
-  setenv
-  frontend/node_modules/.bin/concurrently -n runserver,vite,huey -c blue,green,cyan \
-    "./run runserver" \
-    "cd frontend && npm run dev" \
-    "./run hueydev"
+# First-run setup — two commands, each with its logic beside it:
+#   ops/setup.py + ops/setup_app.py, ops/superuserloginlink.py
+# No setenv here: each shells out to `./run djangomanage` or pi.
+# Each runs from any cwd: the PATH wrappers in /usr/local/bin call it
+# from the home directory.
+desmosetup() {
+  cd "$_TREE_DIR"
+  _ops_cli desmosetup "$@"
 }
 
-pi() {
-  # The agent: exec the pi TUI with the .env environment (app env + git
-  # identity) exported by setenv — dev and VM alike; the startup model and
-  # provider auth live in pi's own stores (/model Ctrl+S, /login — see
-  # deploy/access-steps.txt). Config is project-local and versioned:
-  # .pi/settings.json (pinned packages), .pi/extensions/pi-permission-system/config.json
-  # (the whole bash/edit/path policy — allow/ask/deny with operator
-  # prompts), .pi/extensions/context/ (steer.md injection), and
-  # .pi/extensions/notify/ (double BEL — immediate, then 300ms — on
-  # turn end and on blocking questions; rings the operator's local
-  # terminal over SSH). Subagents
-  # and their permission forwarding come from @gotgenes/pi-subagents.
-  setenv
-  local repo_root
-  repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-  # Run from the REPO ROOT (main/): the TUI's pwd is the actual repo, and
-  # project-extension discovery + agent discovery are working-dir-relative.
-  # No parent-cd, no parent git-init — main/ is its own repo everywhere;
-  # scratch/ is a SIBLING, reachable via the sanctioned compounds and
-  # scratch paths the guards allow.
-  cd "$repo_root"
-
-  # (1) Binary on PATH.
-  command -v pi >/dev/null 2>&1 || {
-    echo "pi binary not found on PATH — install it first" \
-      "(npm install -g --ignore-scripts @earendil-works/pi-coding-agent; see deploy/inside-vm.sh)" >&2
-    return 1
-  }
-
-  # (2) The permission policy IS the launcher's config check — refuse to
-  #     start without every piece: the pinned packages (declared in
-  #     .pi/settings.json; auto-installed into .pi/npm on project trust),
-  #     the project permission policy, and the steer.md injection
-  #     extension. Without the permission system the session would run
-  #     unguarded (pi has NO built-in permission model).
-  local policy
-  for policy in \
-    .pi/settings.json \
-    .pi/extensions/pi-permission-system/config.json \
-    .pi/extensions/context/index.ts
-  do
-    [[ -f "$policy" ]] || {
-      echo "Refusing to start: $policy not found — without it the agent has no permission policy." >&2
-      return 1
-    }
-  done
-
-  # (3) Session behavior:
-  #     - --approve grants project trust DETERMINISTICALLY: without it a
-  #       headless/default run silently skips .pi extensions AND packages
-  #       (the permission system included) — probed. The launcher owns
-  #       this decision; trust also auto-installs the pinned packages
-  #       into .pi/npm/ on first run.
-  #     - PI_REPO_ROOT anchors the context extension (steer.md path)
-  #       against any cwd drift.
-  #     - PI_SKIP_VERSION_CHECK=1: no startup update ping (telemetry is
-  #       off via .pi/settings.json).
-  #     - Sessions land in /sessions (sessionDir in project settings)
-  #       — in-repo and gitignored; ~/.pi/agent/ only keeps trust.json.
-  export PI_REPO_ROOT="$repo_root"
-  export PI_SKIP_VERSION_CHECK=1
-
-  # Subcommands must be argv[1]: pi only dispatches them there (a leading
-  # --approve turns "auth" into prompt text). Trust matters for the TUI
-  # only, so subcommands run bare and exit.
-  if [[ "${1:-}" == auth || "${1:-}" == mcp || "${1:-}" == serve ]]; then
-    command pi "$@"
-    return $?
-  fi
-  command pi --approve "$@"
-}
-
-# First-run setup TUI (ops/firstsetup/): the user/google forms dispatch
-# their djangomanage verbs directly; each ai provider screen stores its
-# credential and verifies it with one real model call.
-firstsetup() {
-  setenv
-  _ops_cli firstsetup
+desmosuperuserloginlink() {
+  cd "$_TREE_DIR"
+  _ops_cli desmosuperuserloginlink "$@"
 }
 
 # Test redis: any nonzero DB is a test DB (clear_redis refuses DB 0).
@@ -440,14 +400,15 @@ help() {
   H=$'\033[1;36m' C=$'\033[1;32m' R=$'\033[0m'
   [ -t 1 ] || { H=''; C=''; R=''; }
   cat <<EOF
-${H}Usage:${R} run <command> [args…]        (on the VM: ${C}desmo${R} <command> — same thing)
+${H}Usage:${R} run <command> [args…]        (works on dev and the VM; the VM's ${C}pi${R} launcher starts the agent)
 
-${H}Development${R}
-  ${C}init${R}                first-time setup: .env, uv sync, playwright, DB + migrate
-  ${C}dev${R}                 runserver + vite + huey in one terminal (Ctrl-C stops all)
-  ${C}runserver${R}           Django dev server only
-  ${C}hueydev${R}             huey consumer only (dev)
+ ${H}Setup + agent${R}
+  ${C}init${R}                first-time setup: .env, uv sync, playwright, DB + migrate (dev only)
   ${C}pi${R}                  the pi coding-agent TUI (scratch-driven edit → deploy loop)
+  ${C}desmosetup${R}         the post-provision setup, one Textual screen: domain, first superuser,
+                          Google login, pi provider — then the terminal steps and a report
+  ${C}desmosuperuserloginlink${R}
+                          print the first superuser's one-time login link; creates nothing
 
 ${H}Checks${R}
   ${C}lintfix${R}             ruff format + ruff check, oxlint + prettier + eslint templates (writes)
@@ -463,8 +424,7 @@ ${H}Checks${R}
                         no args on a TTY → scan the default docs
   ${C}playwrighttest${R} …    Playwright e2e suite (auto keepdb on unchanged migrations, like test);
                         --pdbrc <file> feeds pdb from an rc file (HOME for the child)
-                        — Playwright's driver owns stdin, see docs/debugging-tests.md
-  ${C}firstsetup${R}          first-run setup TUI (user + google oauth + ai providers)
+                         — Playwright's driver owns stdin, see docs/debugging-tests.md
   ${C}screenshots${R}         regenerate docs/screenshots via Playwright
   ${C}checkframework1${R}     the full dev-side gate (main/ only, never the VM):
                         lint + types + 4 test tiers under one merged
@@ -498,7 +458,7 @@ ${H}Passthrough${R}
 EOF
 }
 
-# No arguments → default to help (`desmo` with no args lands here).
+# No arguments → default to help.
 if [ $# -eq 0 ]; then
   help
   exit 0
