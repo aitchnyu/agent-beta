@@ -68,7 +68,8 @@
 #   │   │   ├── .git              first commit = provisioned baseline (8)
 #   │   │   ├── .venv, frontend/  uv sync + npm build (9)
 #   │   │   └── staticfiles/      collectstatic (9)
-#   │   └── playwright-browsers/  shared cache + chromium deps (10)
+#   │   └── scratch/                throwaway agent edit copy
+#   ├── usr/local/share/playwright-browsers/  shared cache + chromium deps (10)
 #   ├── swapfile                  2G (1, guarded) + /etc/fstab line +
 #   │                             /etc/sysctl.d/99-swap.conf (1)
 #   └── tmp/                      payload + template probe rm'd (10)
@@ -112,7 +113,8 @@ _banner() { echo "[$(date +%T)] $*"; }
 # A failed step must fail the WHOLE provision loudly: set -e aborts, and
 # this trap names the line (-E errtrace: fires inside functions and
 # subshells too). Handled failures — if/||/until conditions, `|| true`
-# contracts — correctly do NOT fire it.
+# contracts — correctly do NOT fire it. set-domain drops it (below): it
+# is no provision, and desmosetup shows its last line as the cause.
 trap 'st=$?; echo "[$(date +%T)] PROVISION FAILED (line $LINENO, exit $st)" >&2' ERR
 
 provision() {
@@ -611,6 +613,10 @@ SQL
   # One script owns it all: the platform table (refuses unknown OSes HARD),
   # override keys, browsers into the shared cache, chromium system deps,
   # and a launch verification — a missing lib fails provision right here.
+  # The browsers land in a shared directory outside /srv/desmo (root's
+  # tree), and playwright only mkdirs it as desmo: create it here, as root.
+  local browsers="$(_envval PLAYWRIGHT_BROWSERS_PATH "$creds_env")"
+  [ -z "$browsers" ] || install -d -o desmo -g desmo -m 775 "$browsers"
   bash "$seed_deploy/install-playwright.sh"
 
   # /tmp leftovers — the payload + the phase-0 probe:
@@ -672,6 +678,15 @@ bootstrap() {
 # 11 do, for one new origin. `desmosetup` calls it through sudo.
 set_domain() { # <https origin>
   local url="${1:-}" hostname tls new_env
+  # Checks first — each refuses before anything is written:
+  # - root: the env and the site are root's to write.
+  # - the origin: https, then a host of letters, digits, dots and
+  #   hyphens, an optional port, an optional trailing slash (dropped
+  #   below). Nothing else reaches sed or the site template.
+  # - the env exists: an unprovisioned machine has nothing to change.
+  # - a BASE_URLS line in it: without one sed changes nothing, yet
+  #   "domain set" would still print.
+  # - the site template: without it the site cannot be rendered.
   if [ "$(id -u)" != 0 ]; then
     echo "REFUSING: set-domain runs as root (use sudo)." >&2
     exit 1
@@ -685,6 +700,15 @@ set_domain() { # <https origin>
     echo "REFUSING: $creds_env is missing — this machine is not provisioned." >&2
     exit 1
   fi
+  if ! grep -q '^BASE_URLS=' "$creds_env"; then
+    echo "REFUSING: no BASE_URLS line in $creds_env — fix the env by hand." >&2
+    exit 1
+  fi
+  if [ ! -f "$seed_deploy/Caddyfile.site.in" ]; then
+    echo "REFUSING: $seed_deploy/Caddyfile.site.in is missing — provision again." >&2
+    exit 1
+  fi
+
   hostname="${url#*://}"       # strip the scheme
   hostname="${hostname%%/*}"   # strip any trailing path
   hostname="${hostname%%:*}"   # strip the port
@@ -696,13 +720,16 @@ set_domain() { # <https origin>
   # file's owner and mode), and never a temp file: the env holds secrets.
   new_env="$(sed "s|^BASE_URLS=.*|BASE_URLS=\"$url\"|" "$creds_env")"
   printf '%s\n' "$new_env" > "$creds_env"
+  # The site goes in place too, as phase 4 writes it; its template was
+  # checked above.
   sed -e "s/@SITE_HOSTNAMES@/$hostname/g" \
       -e "s/@TLS_DIRECTIVE@/$tls/g" \
       "$seed_deploy/Caddyfile.site.in" \
       > /etc/caddy/sites/desmo.caddy
   chmod 644 /etc/caddy/sites/desmo.caddy
   systemctl restart desmo_granian.service desmo_huey.service
-  systemctl restart caddy
+  # Reload keeps the serving process
+  systemctl reload-or-restart caddy
   # The app takes a moment to bind its port again. Wait for it, bounded,
   # so "domain set" means the site is back — on the port caddy proxies
   # to, which needs no certificate (ACME can be in flight for hours).
@@ -722,7 +749,12 @@ case "${1:-}" in
   provision) provision ;;        # root — the one the driver execs
   seed-commit) seed_commit ;;    # desmo — phase 8
   bootstrap) bootstrap ;;        # desmo — phase 9
-  set-domain) set_domain "${2:-}" ;;  # root — after provisioning, from desmosetup
+  set-domain)
+    # No PROVISION FAILED banner: the failing command's own last line is
+    # what desmosetup shows (ops/setup_app.py apply_domain).
+    trap - ERR
+    set_domain "${2:-}"
+    ;;  # root — after provisioning, from desmosetup
   *)
     echo "usage: inside-vm.sh {provision|seed-commit|bootstrap|set-domain <https origin>}" >&2
     exit 1

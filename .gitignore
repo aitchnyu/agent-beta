@@ -67,3 +67,7 @@ frontend/.eslintcache
 # bundle lives in djangoapp/static/djangoapp). Ignored, yet still carried
 # by the deploy's direction filter — see deployscratch in ops/scratch.py.
 frontend/dist/
+
+# localvm mounts this shared package cache (apt, uv, npm, playwright)
+# into every test machine; ~1.4G of downloads, never a source.
+.vmcache/

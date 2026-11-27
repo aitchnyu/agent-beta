@@ -278,9 +278,9 @@ provision is the site's origin: `desmosetup`'s Domain box rewrites
   scalar minted by `deploy/gen-vapid.py`) all inside
   `inside-vm.sh provision`, which REFUSES if generated secrets are
   already installed — provisioning is build-only; re-provisioning a kept
-  VM is unsupported (delete to rebuild). Provider auth + the agent's
-  startup model live in pi's own stores, written by `desmosetup` (by
-  hand: `/login`, `/model` + Ctrl+S — see
+  VM is unsupported (delete to rebuild). Provider auth lives in pi's own
+  stores, written by `desmosetup`; the startup model is pi's own pick
+  (by hand: `/login`, `/model` + Ctrl+S — see
   [Pi setup](#pi-setup-provider-auth--model-one-time)).
 - Database names are fixed (`desmo_db`/`desmo_user` from the env values) — one
   app per VM by design.
@@ -359,7 +359,7 @@ terminal: they sit at the top, and the screen scrolls. Filled in, before
  ⭘                                desmosetup
 ╭─ Domain ─────────────────────────────────────────────────────────────────────╮
 │ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  https://your.domain                                                     ▎ │
+│ ▊  your.domain                                                             ▎ │
 │ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 
@@ -439,7 +439,7 @@ terminal: they sit at the top, and the screen scrolls. Filled in, before
 
 1. **Domain** — set when it differs from the one in effect: the
    provisioner's `set-domain` step rewrites the origin, renders the caddy
-   site again and restarts granian, huey and caddy.
+   site again, restarts granian and huey, and reloads caddy.
 2. **Superuser** — created from the typed details, then its 24-hour link
    is minted.
 3. **Google** — the key and secret are stored when both were given.
@@ -1052,8 +1052,10 @@ creates what, when) lives in `deploy/inside-vm.sh`'s header.
 │   │   └── dbbackups/             pgbackrest repo — plain unencrypted backup sets +
 │   │                              WAL archive (nightly; runtime data, gitignored +
 │   │                              rsync-excluded like media/)
-│   ├── scratch/                   throwaway agent edit copy (createscratch/deployscratch)
-│   └── playwright-browsers/       one shared browser cache for all users
+│   └── scratch/                   throwaway agent edit copy (createscratch/deployscratch)
+├── usr/local/share/playwright-browsers/
+│                                  one shared browser cache for all users (outside
+│                                  /srv/desmo: localvm copies .vmcache/ in)
 ├── var/lib/postgresql/            desmo_db + desmo_db_test (role desmo_user) — the
 │                                  databases provisioning creates from the env values
 ├── home/desmo                     the less-powerful service user's home (runs the units)

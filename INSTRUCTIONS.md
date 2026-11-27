@@ -21,9 +21,9 @@ provision time (`SECRET_KEY`/`DB_PASSWORD` via openssl; `VAPID_PRIVATE_KEY`
 via deploy/gen-vapid.py — run by inside-vm.sh provision, which refuses if
 generated secrets are already installed — build-only); in dev, `./run init`
 generates `SECRET_KEY` and `VAPID_PRIVATE_KEY`, and `DB_PASSWORD` is the
-local postgres password. The agent's provider auth + startup model live in
-pi's own stores — written by `desmosetup`, or by hand
-(`/login`, `/model` + Ctrl+S) — not the env files.
+local postgres password. The agent's provider auth lives in pi's own
+stores — written by `desmosetup`, or by hand (`/login`) — and the startup
+model is pi's own pick (`/model` + Ctrl+S); neither is in the env files.
 
 ## MAINTAIN-CONSISTENCY markers
 

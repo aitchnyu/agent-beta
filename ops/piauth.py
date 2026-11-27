@@ -265,9 +265,9 @@ async def list_models(provider_id: str) -> list[str]:
     pi lists a provider's rows only once it holds a credential (probed on
     1.5.2 and 1.6.1: a machine with one zai key lists zai alone). So this verb runs
     AFTER authentication. Any failure raises PiError carrying the
-    command's own error line.
+    command's own error line. Only stdout is the table: stderr is noise.
     """
     return_code, stdout_text, stderr_text = await _run(PI, "--list-models")
     if return_code != 0:
         raise PiError(_describe_failure("pi --list-models", return_code, stdout_text + stderr_text))
-    return parse_model_table(stdout_text + stderr_text).get(provider_id, [])
+    return parse_model_table(stdout_text).get(provider_id, [])

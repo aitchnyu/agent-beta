@@ -28,7 +28,14 @@
 #   (Caddy's loopback origin, internal CA).
 # ./localvm provision-blank <inst> [--release N] [--no-forward]
 #   Launch the empty container (debian, 2G memory cap); prints the
-#   installer line. Refuses an existing instance.
+#   installer line. Refuses an existing instance. The repo's .vmcache/
+#   is copied in first (see Caches), under a desmo user created for it.
+# ── Host: caches ──────────────────────────────────────────────────────
+# .vmcache/ in the repo (git-ignored, ~1.2G when warm) holds what every
+# provision would otherwise download: apt's archives, uv's and npm's
+# caches, the Playwright browsers. provision-blank copies each into the
+# new machine at the path its tool already uses; provision-full fills
+# .vmcache/ back from the machine it just provisioned, so it keeps up.
 # ./localvm delete <inst>
 #   incus delete -f — destructive, no backup: the instance's .git and
 #   database are gone (tar/pg_dump via incus exec first).
@@ -57,6 +64,17 @@ set -euo pipefail
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # this checkout (main/)
 deploy_dir="$repo_dir/deploy"
 image_family="images:debian"      # + /$release at launch
+cache_dir="$repo_dir/.vmcache"    # the shared caches (git-ignored)
+# name:container path[:owner] — each copies $cache_dir/<name> in. An
+# owner takes the tree; the rest lands as root's. desmo's and root's npm
+# caches stay apart: what desmo writes must never be read by root.
+_cache_copies=(
+  "apt:/var/cache/apt/archives"
+  "uv:/home/desmo/.cache/uv:desmo"
+  "npm:/home/desmo/.npm:desmo"
+  "npm-root:/root/.npm"
+  "playwright:/usr/local/share/playwright-browsers:desmo"
+)
 
 usage() {
   echo "Usage: $0 <command> <instance> [args…]" >&2
@@ -137,6 +155,86 @@ _raw_path() { # <repo url>
   printf '%s' "${p%.git}"
 }
 
+# Copy the shared caches into a new machine, before the installer runs.
+# The host owns .vmcache/, so a tree lands as root's (--no-same-owner);
+# an owner in the table takes it back.
+_copy_caches() { # <instance>
+  local entry name path owner
+  for entry in "${_cache_copies[@]}"; do
+    IFS=: read -r name path owner <<< "$entry"
+    [ -d "$cache_dir/$name" ] || continue
+    echo "[$(date +%T)] ==> copy .vmcache/$name → $path"
+    # --exclude=./partial: a machine keeps its own (apt's _apt owns it).
+    tar cf - --anchored --exclude=./partial -C "$cache_dir/$name" . \
+      | incus exec "$1" -- sh -c "mkdir -p '$path' && tar xf - -C '$path' --no-same-owner"
+    if [ -n "$owner" ]; then
+      # mkdir -p may have made new parents under the owner's home (uv's
+      # ~/.cache); a fresh home is all the owner's, so it is chowned whole.
+      case "$path" in /home/"$owner"/*) path="/home/$owner" ;; esac
+      incus exec "$1" -- chown -R "$owner:$owner" "$path"
+    fi
+  done
+}
+
+# Entries a cache holds in <instance>, partial/ left out as the copy does.
+_entries_in() { # <instance> <path>
+  incus exec "$1" -- sh -c "find '$2' -path '$2/partial' -prune -o -print | wc -l"
+}
+
+# Replace .vmcache/<name> with the machine's <path>, or print why not.
+# The copy lands in a staging directory and replaces the live one whole,
+# so a cut copy never leaves a half-written cache behind. Tar ends a cut
+# stream cleanly between two files, so every entry must have arrived.
+_refresh_cache() { # <instance> <name> <path>
+  local instance="$1" name="$2" machine_dir="$3"
+  local live="$cache_dir/$name" staging="$cache_dir/.$name.staging"
+  local retired="$cache_dir/.$name.retired.$$" log="$cache_dir/.$name.log"
+  local expected copied problem
+  rm -rf "$staging" "$retired" 2>/dev/null || true
+  # --exclude=./partial: apt's half-finished downloads are not a cache.
+  { mkdir -p "$staging" \
+    && incus exec "$instance" -- tar cf - --anchored --exclude=./partial -C "$machine_dir" . \
+      | tar xf - -C "$staging" --no-same-owner; } 2>"$log" || true
+  expected="$(_entries_in "$instance" "$machine_dir")" || expected=""
+  copied="$(find "$staging" 2>/dev/null | wc -l)"
+  problem="$(head -n 1 "$log" 2>/dev/null)"
+  if [ -z "$problem" ]; then
+    if [ -z "$expected" ]; then
+      problem="cannot count the entries in $machine_dir"
+    elif [ "$copied" != "$expected" ]; then
+      problem="only $copied of $expected entries arrived"
+    fi
+  fi
+  rm -f "$log" 2>/dev/null || true
+  if [ -n "$problem" ]; then
+    rm -rf "$staging"
+    echo "$problem"
+    return 1
+  fi
+  if [ -e "$live" ]; then
+    mv "$live" "$retired" || { echo "cannot move $live aside"; return 1; }
+  fi
+  mv "$staging" "$live" || {
+    mv "$retired" "$live" 2>/dev/null
+    echo "cannot move $staging into place"
+    return 1
+  }
+  rm -rf "$retired" 2>/dev/null || true
+}
+
+# Fill .vmcache/ from the machine just provisioned, so the next provision
+# downloads less. Best effort: a cache that stays behind only costs time.
+_pull_caches() { # <instance>
+  local entry name path problem
+  for entry in "${_cache_copies[@]}"; do
+    IFS=: read -r name path _ <<< "$entry"
+    incus exec "$1" -- test -d "$path" || continue
+    echo "[$(date +%T)] ==> refresh .vmcache/$name from $path"
+    problem="$(_refresh_cache "$1" "$name" "$path")" \
+      || echo "  not refreshed: .vmcache/$name — $problem" >&2
+  done
+}
+
 provision-blank() {
   local instance="" release="13" forward="yes"
   while [[ $# -gt 0 ]]; do
@@ -174,6 +272,10 @@ provision-blank() {
     fi
     sleep 1
   done
+  # Two caches land under /home/desmo, so the user comes first: the
+  # installer's phase 1 then skips useradd (id desmo succeeds).
+  incus exec "$instance" -- sh -c 'id desmo >/dev/null 2>&1 || useradd --create-home --shell /bin/bash desmo'
+  _copy_caches "$instance"
   [ "$forward" = "yes" ] && portforward "$instance"
 
   local repo_url raw_path
@@ -257,6 +359,7 @@ provision-full() {
   else
     echo "PROVISION OK (local)"
   fi
+  _pull_caches "$instance"
   if [ "$forward" = "yes" ]; then
     _access_steps "$instance"
   fi

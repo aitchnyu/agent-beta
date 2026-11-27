@@ -1,3 +1,5 @@
+rename deploy/template.env to template.env.txt
+
 does it print model?
 where it need to handle pi's json?
 Previous commands checked stuff, like google present, superuser present
@@ -17,7 +19,6 @@ https:localhost:8443 for test
 Set button should be test
 Save - "setup Pi"
 
-Dont show this
      Authorized redirect URI for the Google Cloud console:
      https://localhost:8443/accounts/google/login/callback/
 
@@ -36,15 +37,16 @@ List backups and time travel
 Can agent merge from upstream, minding branch and tags?
 Systemd service for backup /srv/
 Manually run backup? Add descriptions
+Report disk space and system health
 
 Test dbs get backed up
 Ribbeans branding
 Desec dns docs
 org/reponame with main thing, landing page
+Curl bash link from ribbeans.com?
 Features - file section with git etc. Readme is crap. Gantt of scout, main work and reviewer prewarm and reviewer action, rework
 File shows which commits it was part of and if its part of uncommitted changes
 Highlight readme in any dir
-Domain name in interactive script
 
 Admin file uploads - admin can download, both agent and admin can pass files back and forth
 UserHistory.record_created(user, user, user.snapshot()) is a mess
@@ -72,3 +74,4 @@ Install playwright on first run?
 Plantuml
 uv and pnpm for cached builds across folders. Dont transfer artifacts from scratch to main.
 Telemetry on install
+Optimize images for download size

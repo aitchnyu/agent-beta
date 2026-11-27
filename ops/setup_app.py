@@ -348,6 +348,9 @@ class SetupScreen(Screen[None]):
         """Show the key field for a key provider; start pi's sign-in at once for a sign-in-only one."""
         provider = self._chosen()
         self.query_one("#api_key-row", Vertical).display = provider is not None and provider.api_key
+        # A key typed for the previous provider must not be saved under
+        # this one: the field starts empty on every change.
+        self.query_one("#api_key", Input).value = ""
         self._set_message("provider", "")
         self._set_message("api_key", "")
         if provider is not None and not provider.api_key:
