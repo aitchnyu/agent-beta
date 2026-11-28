@@ -54,6 +54,166 @@ The agent surface is the `pi` TUI (run as the user you ssh in as).
 Providers and models change inside pi later (`/login`, `/model`); Google
 by hand — see [Google OAuth (social login)](#google-oauth-social-login).
 
+### First-run setup (`desmosetup`)
+
+`desmosetup` runs once, at the end of the interactive install. It is the
+only run: nothing in it asks what the machine already holds, and no
+message names the command again. It is one screen; the terminal steps
+follow once the screen is gone, then the report prints.
+
+Four titled boxes tell the sections apart. They are taller than a small
+terminal: they sit at the top, and the screen scrolls. Filled in, before
+**Next** (80 columns, example values):
+
+```text
+ ⭘                                desmosetup
+╭─ Domain ─────────────────────────────────────────────────────────────────────╮
+│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
+│ ▊  your.domain                                                             ▎ │
+│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭─ First superuser details ────────────────────────────────────────────────────╮
+│ Super user first name:                                                       │
+│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
+│ ▊  Jane                                                                    ▎ │
+│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
+│                                                                              │
+│ Super user last name:                                                        │
+│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
+│ ▊  Doe                                                                     ▎ │
+│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
+│                                                                              │
+│ Super user email:                                                            │
+│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
+│ ▊  jane@example.com                                                        ▎ │
+│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭─ Google login (can skip) ────────────────────────────────────────────────────╮
+│ Google key:                                                                  │
+│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
+│ ▊  1234567890-abc123.apps.googleusercontent.com                            ▎ │
+│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
+│                                                                              │
+│ Google secret:                                                               │
+│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
+│ ▊  •••••••••••••••••••••••••••••••••••••                                   ▎ │
+│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+╭─ Pi provider ────────────────────────────────────────────────────────────────╮
+│ Pi provider:                                                                 │
+│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
+│ ▊  zai                                                                  ▼  ▎ │
+│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
+│                                                                              │
+│ API key:                                                                     │
+│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
+│ ▊  •••••••••••••••••••                                                     ▎ │
+│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
+╰──────────────────────────────────────────────────────────────────────────────╯
+
+ ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+       Next
+ ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
+
+ Fill the fields, then press Next
+```
+
+- **Domain** — required, with no suggestion: type a domain, a subdomain,
+  or `https://localhost:8443` literally for a local install.
+- **First superuser details** — the three fields are required.
+  - The account they name is created; nothing is looked up first.
+- **Google login (can skip)**
+  - Both fields empty means Google login is not set.
+  - Both given stores them — see
+    [Google OAuth (social login)](#google-oauth-social-login).
+- **Pi provider** — the dropdown pi's registry fills.
+  - A provider that takes a key shows the **API key** field, masked.
+  - A provider that only signs in starts nothing yet: its sign-in runs
+    on the terminal after Next.
+- **Next** is refused while
+  - the domain is empty, or is neither a domain, a subdomain, nor
+    `https://localhost:8443`;
+  - a name, the email or the provider is missing;
+  - Google has only one of its two fields;
+  - the provider takes a key and the key is empty.
+- A refused field gets its message under the input, and a toast at the
+  bottom lists every refused field with its message; the view goes to the
+  first one. The status line names them too.
+- No key leaves the screen: ctrl+q and ctrl+c do nothing. **Next** is the
+  only way on.
+
+#### On the terminal, after the screen
+
+1. **Domain** — set when it differs from the one in effect: the
+   provisioner's `set-domain` step rewrites the origin, renders the caddy
+   site again, restarts granian and huey, and reloads caddy.
+2. **Superuser** — created from the typed details, then its 24-hour link
+   is minted.
+3. **Google** — the key and secret are stored when both were given.
+4. **Pi** — the key typed on the screen is saved in pi's own credential
+   file. A provider that only signs in signs in here: pi's own login
+   takes the terminal and prints a link for a browser.
+5. **Model** — pi's model list is the whole test: `pi --list-models`
+   lists a provider's rows only when its credential is usable.
+   - pi picks its own model; the setup saves nothing about models.
+   - For Z.AI that is `glm-5.3` at `high` today: pi's own default, which
+     lags its catalog. Its footer shows the model.
+   - The same step records the analytics opt-out, so pi's first run
+     never asks about it.
+
+Ctrl+C cancels pi's prompt alone while its link or code is asked for:
+pi's other calls run off the terminal. The installer starts the command
+through sudo for that reason: su kills the whole session on ctrl+c, sudo
+leaves the command standing.
+
+#### The report
+
+Everything set (in a real terminal, the headings are bold and the login
+link and the redirect URL are coloured):
+
+```text
+Login stuff
+  Login link for Jane Doe: https://your.domain/login-with-secret/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_/
+  Homepage link: https://your.domain
+
+Google stuff
+  Google login is set
+    Authorized redirect URL: https://your.domain/accounts/google/login/callback/
+
+Pi
+  Pi is enabled with zai. Just run `pi`
+```
+
+Google left empty and pi's model list empty — each is a report part,
+never a crash (the two by-hand lines are coloured):
+
+```text
+Login stuff
+  Login link for Jane Doe: https://your.domain/login-with-secret/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_/
+  Homepage link: https://your.domain
+
+Google stuff
+  Google login not set. You may run `cd /srv/desmo/main && ./run djangomanage addoauth google <client_id> <secret>`
+
+Pi
+  Pi configuration failed. You should run `pi auth login openai-codex --no-browser`. Then run `pi`
+    pi lists no model for openai-codex — the credential may be missing or wrong
+```
+
+- The exit code is 0 whenever the report printed.
+  - A Google login left empty or a failed pi login is reported, not
+    raised.
+- A crash in this repo's own code is a bug.
+  - Textual or Python prints the traceback, and the exit code is 1.
+  - The installer then shows one banner, naming no command:
+
+```text
+==> first-run setup did not finish — the traceback above says where
+```
+
 ## Local Development
 
 On a local incus container (instance `desmo`, Debian 13, 2 CPUs / 2G memory
@@ -343,165 +503,6 @@ want a rewind point; `./localvm rewind desmo <name>` restores the whole machine)
 The container's `.git` is its own history — copy anything you need off it
 (tar/pg_dump via `incus exec`) before deleting. Plan + as-built:
 `prompts/20261116-incus-migration.md`.
-
-## First-run setup (`desmosetup`)
-
-`desmosetup` runs once, at the end of the interactive install. It is the
-only run: nothing in it asks what the machine already holds, and no
-message names the command again. It is one screen; the terminal steps
-follow once the screen is gone, then the report prints.
-
-Four titled boxes tell the sections apart. They are taller than a small
-terminal: they sit at the top, and the screen scrolls. Filled in, before
-**Next** (80 columns, example values):
-
-```text
- ⭘                                desmosetup
-╭─ Domain ─────────────────────────────────────────────────────────────────────╮
-│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  your.domain                                                             ▎ │
-│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
-╰──────────────────────────────────────────────────────────────────────────────╯
-
-╭─ First superuser details ────────────────────────────────────────────────────╮
-│ Super user first name:                                                       │
-│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  Jane                                                                    ▎ │
-│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
-│                                                                              │
-│ Super user last name:                                                        │
-│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  Doe                                                                     ▎ │
-│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
-│                                                                              │
-│ Super user email:                                                            │
-│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  jane@example.com                                                        ▎ │
-│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
-╰──────────────────────────────────────────────────────────────────────────────╯
-
-╭─ Google login (can skip) ────────────────────────────────────────────────────╮
-│ Google key:                                                                  │
-│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  1234567890-abc123.apps.googleusercontent.com                            ▎ │
-│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
-│                                                                              │
-│ Google secret:                                                               │
-│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  •••••••••••••••••••••••••••••••••••••                                   ▎ │
-│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
-╰──────────────────────────────────────────────────────────────────────────────╯
-
-╭─ Pi provider ────────────────────────────────────────────────────────────────╮
-│ Pi provider:                                                                 │
-│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  zai                                                                  ▼  ▎ │
-│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
-│                                                                              │
-│ API key:                                                                     │
-│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  •••••••••••••••••••                                                     ▎ │
-│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
-╰──────────────────────────────────────────────────────────────────────────────╯
-
- ▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
-       Next
- ▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁
-
- Fill the fields, then press Next
-```
-
-- **Domain** — required, with no suggestion: type a domain, a subdomain,
-  or `https://localhost:8443` literally for a local install.
-- **First superuser details** — the three fields are required.
-  - The account they name is created; nothing is looked up first.
-- **Google login (can skip)**
-  - Both fields empty means Google login is not set.
-  - Both given stores them — see
-    [Google OAuth (social login)](#google-oauth-social-login).
-- **Pi provider** — the dropdown pi's registry fills.
-  - A provider that takes a key shows the **API key** field, masked.
-  - A provider that only signs in hands the terminal to pi's own
-    sign-in at once; the screen comes back when pi is done.
-- **Next** is refused while
-  - the domain is empty, or is neither a domain, a subdomain, nor
-    `https://localhost:8443`;
-  - a name, the email or the provider is missing;
-  - Google has only one of its two fields;
-  - the provider takes a key and the key is empty.
-- A refused field gets its message under the input, and a toast at the
-  bottom lists every refused field with its message; the view goes to the
-  first one. The status line names them too.
-- No key leaves the screen: ctrl+q and ctrl+c do nothing. **Next** is the
-  only way on.
-
-### On the terminal, after the screen
-
-1. **Domain** — set when it differs from the one in effect: the
-   provisioner's `set-domain` step rewrites the origin, renders the caddy
-   site again, restarts granian and huey, and reloads caddy.
-2. **Superuser** — created from the typed details, then its 24-hour link
-   is minted.
-3. **Google** — the key and secret are stored when both were given.
-4. **Pi** — the key typed on the screen is saved in pi's own credential
-   file. A provider that only signs in signed in on the screen already.
-5. **Model** — pi's model list is the whole test: `pi --list-models`
-   lists a provider's rows only when its credential is usable.
-   - pi picks its own model; the setup saves nothing about models.
-   - For Z.AI that is `glm-5.3` at `high` today: pi's own default, which
-     lags its catalog. Its footer shows the model.
-   - The same step records the analytics opt-out, so pi's first run
-     never asks about it.
-
-Ctrl+C cancels pi's prompt alone while its link or code is asked for:
-pi's other calls run off the terminal. The installer starts the command
-through sudo for that reason: su kills the whole session on ctrl+c, sudo
-leaves the command standing.
-
-### The report
-
-Everything set (in a real terminal, the headings are bold and the login
-link and the redirect URL are coloured):
-
-```text
-Login stuff
-  Login link for Jane Doe: https://your.domain/login-with-secret/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_/
-  Homepage link: https://your.domain
-
-Google stuff
-  Google login is set
-    Authorized redirect URL: https://your.domain/accounts/google/login/callback/
-
-Pi
-  Pi is enabled with zai. Just run `pi`
-```
-
-Google left empty and pi's model list empty — each is a report part,
-never a crash (the two by-hand lines are coloured):
-
-```text
-Login stuff
-  Login link for Jane Doe: https://your.domain/login-with-secret/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_/
-  Homepage link: https://your.domain
-
-Google stuff
-  Google login not set. You may run `cd /srv/desmo/main && ./run djangomanage addoauth google <client_id> <secret>`
-
-Pi
-  Pi configuration failed. You should run `pi auth login openai-codex --no-browser`. Then run `pi`
-    pi lists no model for openai-codex — the credential may be missing or wrong
-```
-
-- The exit code is 0 whenever the report printed.
-  - A Google login left empty or a failed pi login is reported, not
-    raised.
-- A crash in this repo's own code is a bug.
-  - Textual or Python prints the traceback, and the exit code is 1.
-  - The installer then shows one banner, naming no command:
-
-```text
-==> first-run setup did not finish — the traceback above says where
-```
 
 ## Pi setup: provider auth + model (one-time)
 

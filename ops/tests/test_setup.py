@@ -124,10 +124,10 @@ class PiStepTests(unittest.TestCase):
 
     - test_key_provider_saves_the_key_then_the_opt_out, the typed key goes
       to pi's file; the model list is fetched, then the opt-out is written
-    - test_sign_in_provider_saves_no_key, a sign-in-only provider has no
-      key to save
-    - test_no_model_listed_is_a_failed_outcome, an empty list is the
-      report part: the credential is missing or wrong
+    - test_sign_in_provider_signs_in_on_the_terminal_first, pi's own login
+      is announced and runs before the model list; no key is saved
+    - test_abandoned_login_is_a_failed_outcome, a sign-in that ended with
+      no credential is the report part
     - test_unexpected_error_propagates, only pi's refusals are report parts
     """
 
@@ -135,6 +135,7 @@ class PiStepTests(unittest.TestCase):
         """The typed key goes to pi's file; the model list is fetched, then the opt-out.
 
         - a non-empty list is the whole test; no model is chosen or saved
+        - pi's login never runs for a key provider
         """
         with (
             mock.patch.object(piauth, "store_key") as store,
@@ -142,28 +143,46 @@ class PiStepTests(unittest.TestCase):
                 piauth, "list_models", mock.AsyncMock(return_value=["glm-4.7", "glm-5.4"])
             ) as models,
             mock.patch.object(piauth, "opt_out_of_analytics") as opt_out,
+            mock.patch.object(piauth, "login_on_terminal") as login,
         ):
             found = setup.pi_step(ZAI, API_KEY)
         store.assert_called_once_with("zai", API_KEY)
         models.assert_awaited_once_with("zai")
         opt_out.assert_called_once_with()
+        login.assert_not_called()
         self.assertEqual(found, ENABLED)
 
-    def test_sign_in_provider_saves_no_key(self) -> None:
-        """A sign-in-only provider has no key to save; the list and the opt-out follow.
+    def test_sign_in_provider_signs_in_on_the_terminal_first(self) -> None:
+        """A sign-in-only provider signs in on the terminal; the list and the opt-out follow.
 
-        - its sign-in ran on the screen
+        - the sign-in is announced and runs before the model list; no key is saved
         """
+        calls: list[str] = []
+
+        def listed(_provider_id: str) -> list[str]:
+            """Record the model list's place in the order."""
+            calls.append("list")
+            return ["gpt-5-codex", "gpt-5"]
+
+        def signed_in(_provider: piauth.Provider) -> None:
+            """Record the sign-in's place in the order."""
+            calls.append("login")
+
+        out = io.StringIO()
         with (
             mock.patch.object(piauth, "store_key") as store,
-            mock.patch.object(
-                piauth, "list_models", mock.AsyncMock(return_value=["gpt-5-codex", "gpt-5"])
-            ),
+            mock.patch.object(piauth, "list_models", mock.AsyncMock(side_effect=listed)) as models,
             mock.patch.object(piauth, "opt_out_of_analytics") as opt_out,
+            mock.patch.object(piauth, "login_on_terminal", side_effect=signed_in) as login,
+            contextlib.redirect_stdout(out),
         ):
             found = setup.pi_step(CODEX, "")
+        self.assertEqual(calls, ["login", "list"])
+        login.assert_called_once_with(CODEX)
+        models.assert_awaited_once_with("openai-codex")
         store.assert_not_called()
         opt_out.assert_called_once_with()
+        self.assertIn("pi signs in with openai-codex", out.getvalue())
         self.assertEqual(
             found,
             setup.PiOutcome(
@@ -171,17 +190,24 @@ class PiStepTests(unittest.TestCase):
             ),
         )
 
-    def test_no_model_listed_is_a_failed_outcome(self) -> None:
-        """An empty model list is the report part: the credential is missing or wrong.
+    def test_abandoned_login_is_a_failed_outcome(self) -> None:
+        """A sign-in that ended with no credential is the report part.
 
+        - pi exits 0 even when abandoned, so the empty model list says it
         - nothing is written
         """
+        out = io.StringIO()
         with (
-            mock.patch.object(piauth, "store_key"),
+            mock.patch.object(piauth, "store_key") as store,
             mock.patch.object(piauth, "list_models", mock.AsyncMock(return_value=[])),
             mock.patch.object(piauth, "opt_out_of_analytics") as opt_out,
+            mock.patch.object(piauth, "login_on_terminal") as login,
+            contextlib.redirect_stdout(out),
         ):
             found = setup.pi_step(CODEX, "")
+        login.assert_called_once_with(CODEX)
+        store.assert_not_called()
+        opt_out.assert_not_called()
         self.assertEqual(
             found,
             setup.PiOutcome(
@@ -190,7 +216,6 @@ class PiStepTests(unittest.TestCase):
                 error="pi lists no model for openai-codex — the credential may be missing or wrong",
             ),
         )
-        opt_out.assert_not_called()
 
     def test_unexpected_error_propagates(self) -> None:
         """Only pi's refusals are report parts.
@@ -438,19 +463,26 @@ class MainTests(unittest.TestCase):
       Next is a crash or a closed terminal
     - test_signals_through_the_steps, ctrl+c cannot end the run, and
       Textual's stop/continue handlers are gone
+    - test_stale_input_drops_before_the_screen_and_before_the_steps, the
+      second flush comes after the screen and before the steps
     - test_crash_propagates, a failing step is Python's own traceback
     """
 
     class FakeApp:
         """The app as main() sees it: run(), then values."""
 
-        def __init__(self, values: setup_app.Values | None) -> None:
+        def __init__(
+            self, values: setup_app.Values | None, after_run: Callable[[], None] | None = None
+        ) -> None:
             self.values = values
             self.ran = False
+            self.after_run = after_run
 
         def run(self) -> None:
-            """Record that the screen ran."""
+            """Record that the screen ran, then tell after_run."""
             self.ran = True
+            if self.after_run is not None:
+                self.after_run()
 
     def run_main(
         self,
@@ -522,6 +554,32 @@ class MainTests(unittest.TestCase):
         code, _out, _err = self.run_main(self.FakeApp(VALUES), steps=steps)
         self.assertEqual(seen, [signal.SIG_IGN, signal.SIG_DFL, signal.SIG_DFL])
         self.assertEqual(code, 0)
+
+    def test_stale_input_drops_before_the_screen_and_before_the_steps(self) -> None:
+        """Stale input is flushed before the screen and again before the steps.
+
+        - the second flush comes after the screen and before run_steps,
+          so nothing typed as the screen ended reaches pi's login
+        """
+        for number in (signal.SIGINT, signal.SIGTSTP, signal.SIGCONT):  # main() leaves these set
+            self.addCleanup(signal.signal, number, signal.getsignal(number))
+        events: list[str] = []
+        app = self.FakeApp(VALUES, after_run=lambda: events.append("screen"))
+
+        def steps(_values: setup_app.Values) -> setup.Outcome:
+            """Record the steps' place in the order."""
+            events.append("steps")
+            return outcome(googleoauth.GoogleStatus(configured=False), ENABLED)
+
+        with (
+            mock.patch("ops.setup_app.SetupApp", return_value=app),
+            mock.patch("ops.setup.drop_stale_input", side_effect=lambda: events.append("flush")),
+            mock.patch("ops.setup.run_steps", side_effect=steps),
+            contextlib.redirect_stdout(io.StringIO()),
+        ):
+            code = setup.main()
+        self.assertEqual(code, 0)
+        self.assertEqual(events, ["flush", "screen", "flush", "steps"])
 
     def test_crash_propagates(self) -> None:
         """A failing step is Python's own traceback: it propagates.

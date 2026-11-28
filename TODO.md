@@ -1,9 +1,11 @@
-rename deploy/template.env to template.env.txt
+Start the openai and other oauth login process after hitting next button from first run screen
 
-does it print model?
-where it need to handle pi's json?
-Previous commands checked stuff, like google present, superuser present
-Quitting will allow you to do it again, no we dont endorse this
+/login openai-codex, luna, test with real and fake
+Update docs with new screens, for adding users and login links. New instruction for prod. Render the tui in plaintext.
+
+Pi theme should have more contrast. Lets have our theme for pi and tui?
+
+rename deploy/template.env to template.env.txt
 
 ```
 debian@desmo:~$ pi auth login openai-codex --no-browser
@@ -13,22 +15,7 @@ Waiting for authentication...
 ^CLogin cancelled.
 ```
 Lets communicate with pi login bidirectionally
-can we bind ctrl+v to paste,
-
-https:localhost:8443 for test
-Set button should be test
-Save - "setup Pi"
-
-     Authorized redirect URI for the Google Cloud console:
-     https://localhost:8443/accounts/google/login/callback/
-
-Whats all the timeout stuff? Reimplement it?
-Use model fetch as working test?
-
-/login openai-codex, luna, test with real and fake
-Update docs with new screens, for adding users and login links. New instruction for prod. Render the tui in plaintext.
-
-Pi theme should have more contrast. Lets have our theme for pi and tui?
+can we bind ctrl+v to paste
 
 Lets make a chore tracker. We should have chores which have a repetition schedule of either days per week or every N days/weeks/months. It shows chores from earliest to latest due date. Any logged in user can create and complete an instance. Chore titles are clickable links that leads to details page where we can see past instances (who and when completed it) and edit. We can archive chores too and view them with a filter.
 Test with changing site theme. Generate color schemes. Then try to upgrade to postgis. And file uploads.

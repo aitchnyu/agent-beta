@@ -29,6 +29,8 @@ if TYPE_CHECKING:
     from ops.superuserloginlink import Superuser
 
 GREEN, YELLOW, RED, BOLD, RESET = "\033[32m", "\033[33m", "\033[31m", "\033[1m", "\033[0m"
+SIGN_IN_TITLE = "pi signs in with {provider}"
+SIGN_IN_NOTE = "it prints a link for a browser; ctrl+c abandons the sign-in"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -77,16 +79,22 @@ async def _check_provider(provider: piauth.Provider) -> None:
 
 
 def pi_step(provider: piauth.Provider, api_key: str) -> PiOutcome:
-    """Save the screen's key for pi, then fetch the provider's models.
+    """Save the screen's key or run pi's sign-in, then fetch the provider's models.
 
     A provider that takes a key gets the key typed on the screen, saved
-    in pi's own file. A sign-in-only provider signed in on the screen
-    already. A model list is the whole test: a refusal from pi is a
-    failed outcome that says how to continue.
+    in pi's own file. A sign-in-only provider signs in here: the screen is
+    gone, so pi's own login takes the terminal. A model list is the whole
+    test: a refusal from pi is a failed outcome that says how to continue.
     """
     outcome = PiOutcome(provider=provider.id, login=" ".join(piauth.login_command(provider)))
     if provider.api_key:
         piauth.store_key(provider.id, api_key)
+    else:
+        print(
+            paint(SIGN_IN_TITLE.format(provider=provider.id), BOLD if sys.stdout.isatty() else "")
+        )
+        print(f"  {SIGN_IN_NOTE}", flush=True)
+        piauth.login_on_terminal(provider)
     try:
         asyncio.run(_check_provider(provider))
     except piauth.PiError as error:
@@ -165,10 +173,11 @@ def format_report(outcome: Outcome, *, color: bool = False) -> str:
 
 
 def drop_stale_input() -> None:
-    """Drop what the terminal buffered before the screen starts.
+    """Drop what the terminal buffered: before the screen, and before the steps.
 
     Anything typed while the installer ran — the command line pasted a
     second time, impatient Enters — would land in the first field.
+    Anything typed as the screen ended would land in pi's login prompt.
     Textual flushes only when it stops reading, never when it starts.
     """
     if sys.stdin.isatty():
@@ -191,9 +200,11 @@ def main() -> int:
     # Past the screen they would wake a dead app, so both get their defaults.
     for signal_number in (signal.SIGTSTP, signal.SIGCONT):
         signal.signal(signal_number, signal.SIG_DFL)
-    # From here to the report, ctrl+c must not end the run. pi's own
-    # calls run off the terminal, so none of them is cancelled by it.
+    # From here to the report, ctrl+c must not end the run. pi's model
+    # checks run off the terminal; its login runs on it, and ctrl+c ends
+    # that login alone.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
+    drop_stale_input()
     outcome = run_steps(app.values)
     print(format_report(outcome, color=sys.stdout.isatty()))
     return 0

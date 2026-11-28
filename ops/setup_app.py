@@ -1,10 +1,9 @@
 """setup_app — ``desmosetup``'s one screen: domain, first superuser, Google, pi provider.
 
-The screen collects values. One choice acts at once: a pi provider that
-only signs in hands the terminal to pi's own login. Every other step runs
-on the terminal once the screen is gone (ops/setup.py). The first run is
-the only run: nothing here looks for what the machine already holds, and
-no key leaves the screen — Next is the only way out.
+The screen only collects values: every step runs on the terminal once it
+is gone (ops/setup.py). The first run is the only run: nothing here looks
+for what the machine already holds, and no key leaves the screen — Next
+is the only way out.
 """
 
 from __future__ import annotations
@@ -33,6 +32,7 @@ CREDS_ENV = Path("/etc/credentials/desmo/.env.vm")
 LOCAL_DOMAIN = "https://localhost:8443"
 PROVIDER_PROMPT = "choose a provider…"
 READY_HINT = "Fill the fields, then press Next"
+SIGN_IN_HINT = "pi's sign-in for {provider} starts after Next"
 # The domain is typed either as a domain name — dot-separated labels, at
 # least two: a domain or a subdomain — or as the local origin, literally.
 DOMAIN_NAME_RE = re.compile(
@@ -345,7 +345,7 @@ class SetupScreen(Screen[None]):
 
     @on(Select.Changed, "#provider")
     def _provider_chosen(self, _event: Select.Changed) -> None:
-        """Show the key field for a key provider; start pi's sign-in at once for a sign-in-only one."""
+        """Show the key field for a key provider; say when a sign-in-only one signs in."""
         provider = self._chosen()
         self.query_one("#api_key-row", Vertical).display = provider is not None and provider.api_key
         # A key typed for the previous provider must not be saved under
@@ -354,16 +354,9 @@ class SetupScreen(Screen[None]):
         self._set_message("provider", "")
         self._set_message("api_key", "")
         if provider is not None and not provider.api_key:
-            self._start_sign_in(provider)
-
-    def _start_sign_in(self, provider: piauth.Provider) -> None:
-        """Hand the terminal to pi's own sign-in; the screen comes back once pi exits."""
-        self._set_status(
-            f"pi's sign-in for {provider.id} takes the terminal — back here once it is done"
-        )
-        with self.app.suspend():
-            piauth.login_on_terminal(provider)
-        self._set_status(READY_HINT)
+            self._set_status(SIGN_IN_HINT.format(provider=provider.id))
+        else:
+            self._set_status(READY_HINT)
 
     def _answers(self) -> Answers:
         """Return the screen's fields as they were typed."""

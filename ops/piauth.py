@@ -217,8 +217,7 @@ def login_on_terminal(provider: Provider) -> None:
 
     While pi runs, this process ignores ctrl+c and pi must feel it: a
     child inherits an ignored SIGINT, so pi gets the default back before
-    it starts. The caller owns the terminal — the screen is suspended or
-    gone.
+    it starts. The caller owns the terminal — the screen is gone.
     """
     previous = signal.signal(signal.SIGINT, signal.SIG_IGN)
     try:
