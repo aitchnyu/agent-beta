@@ -1,8 +1,8 @@
 """Tests for ops/setup.py and ops/setup_app.py — the desmosetup command.
 
 No Textual pilots (operator decision 2026-11-20). The terminal steps run
-with every command scripted; the screen's pure helpers — the origin
-rules, validation, the domain step — are read directly.
+with every command scripted; the screen's one rule, validation, is read
+directly, and so are the installer's flags.
 
 Class inventory:
 
@@ -10,14 +10,14 @@ Class inventory:
 - PiStepTests, the key or the sign-in, the model list, the opt-out
 - RunStepsTests, the steps run in order and make one Outcome
 - ReportTests, three parts under bold headings, coloured or plain
-- MainTests, one way through: Next, the steps, the report; a crash
-  propagates
 - DropStaleInputTests, keystrokes buffered before the screen are
   dropped
-- ValidateTests, every refusal as (field, message), in screen order
-- TypedOriginTests, the https origin a typed domain means
-- CurrentDomainTests, the origin read off the credentials env
-- ApplyDomainTests, the provisioner's set-domain step through sudo
+- MainTests, one way through: Next, the steps, the report; a crash
+  propagates
+- ArgsTests, the installer's six flags, each checked for shape
+- ValidateTests, every refusal as (field, message)
+- CommandTests, the command refuses an unknown argument and hands the
+  flags on
 """
 
 from __future__ import annotations
@@ -25,11 +25,9 @@ from __future__ import annotations
 import contextlib
 import io
 import signal
-import tempfile
 import termios
 import unittest
 from dataclasses import replace
-from pathlib import Path
 from typing import TYPE_CHECKING
 from unittest import mock
 
@@ -49,9 +47,19 @@ SECRET = "GOCSPX-" + "x" * 30
 API_KEY = "sk-pilot"
 LOGIN = "pi auth login zai --api-key"
 ENABLED = setup.PiOutcome(provider="zai", login=LOGIN)
-VALUES = setup_app.Values(
+FLAGS = {
+    "--base-url": "https://desmo.example",
+    "--first-name": "Jane",
+    "--last-name": "Doe",
+    "--email": "jane@example.com",
+}
+ARGS = setup.InstallArgs(
+    homepage="https://desmo.example", first="Jane", last="Doe", email="jane@example.com"
+)
+WITH_GOOGLE = replace(ARGS, google_key=CLIENT_ID, google_secret=SECRET)
+CHOICE = setup_app.PiChoice(provider=ZAI, api_key=API_KEY)
+VALUES = setup.Values(
     homepage="https://desmo.example",
-    set_domain=False,
     first="Jane",
     last="Doe",
     email="jane@example.com",
@@ -60,17 +68,26 @@ VALUES = setup_app.Values(
     provider=ZAI,
     api_key=API_KEY,
 )
-WITH_GOOGLE = replace(VALUES, google_key=CLIENT_ID, google_secret=SECRET)
-VALID = setup_app.Answers(
-    domain="https://localhost:8443",
-    first="Jane",
-    last="Doe",
-    email="jane@example.com",
-    google_key="",
-    google_secret="",
-    provider="zai",
-    api_key=API_KEY,
-)
+VALID = setup_app.Answers(provider="zai", api_key=API_KEY)
+
+
+def values_of(args: setup.InstallArgs) -> setup.Values:
+    """Return the Values the steps take for these arguments and the screen's choice."""
+    return setup.Values(
+        homepage=args.homepage,
+        first=args.first,
+        last=args.last,
+        email=args.email,
+        google_key=args.google_key,
+        google_secret=args.google_secret,
+        provider=CHOICE.provider,
+        api_key=CHOICE.api_key,
+    )
+
+
+def argv(**changes: str) -> list[str]:
+    """Return the flags as a command line, with some values changed."""
+    return [item for flag, value in {**FLAGS, **changes}.items() for item in (flag, value)]
 
 
 def outcome(google: googleoauth.GoogleStatus, pi: setup.PiOutcome) -> setup.Outcome:
@@ -112,7 +129,7 @@ class GoogleStepTests(unittest.TestCase):
         - the status after the store comes back
         """
         with mock.patch.object(googleoauth, "store", return_value=self.SET) as store:
-            found = setup.google_step(WITH_GOOGLE)
+            found = setup.google_step(values_of(WITH_GOOGLE))
         self.assertEqual(found, self.SET)
         store.assert_called_once_with(CLIENT_ID, SECRET)
 
@@ -237,20 +254,17 @@ class RunStepsTests(unittest.TestCase):
 
     Tests script each step and record the order they ran in.
 
-    - test_steps_run_in_order, domain, superuser, Google, pi — and the
-      homepage comes from the screen
-    - test_the_same_domain_runs_no_step, a domain equal to the one in
-      effect is not set again
+    - test_steps_run_in_order, superuser, link, Google, pi — with what
+      the installer's flags and the screen handed on
     - test_superuser_failure_propagates, a failing superuser verb is this
       repo's own bug: it propagates
     """
 
     def test_steps_run_in_order(self) -> None:
-        """The domain, superuser, Google and pi steps run in that order.
+        """The superuser, its link, Google and pi steps run in that order.
 
-        - the domain is set first, so the links carry the new origin
-        - the superuser is created with the typed details; no one asks first
-        - pi gets the key the screen collected
+        - the superuser is created from the flags' details; no one asks first
+        - pi gets the provider and the key the screen collected
         """
         order: list[str] = []
         unset = googleoauth.GoogleStatus(configured=False)
@@ -264,11 +278,7 @@ class RunStepsTests(unittest.TestCase):
 
             return run
 
-        changed = replace(WITH_GOOGLE, set_domain=True)
         with (
-            mock.patch.object(
-                setup_app, "apply_domain", side_effect=step("domain", None)
-            ) as domain,
             mock.patch.object(
                 superuserloginlink, "create_first", side_effect=step("superuser", JANE)
             ) as create,
@@ -278,30 +288,13 @@ class RunStepsTests(unittest.TestCase):
             mock.patch.object(setup, "google_step", side_effect=step("google", unset)) as google,
             mock.patch.object(setup, "pi_step", side_effect=step("pi", ENABLED)) as pi,
         ):
-            found = setup.run_steps(changed)
-        self.assertEqual(order, ["domain", "superuser", "link", "google", "pi"])
-        domain.assert_called_once_with("https://desmo.example")
+            found = setup.run_steps(values_of(WITH_GOOGLE))
+        self.assertEqual(order, ["superuser", "link", "google", "pi"])
         create.assert_called_once_with("Jane", "Doe", "jane@example.com")
         mint.assert_called_once_with("jane@example.com")
-        google.assert_called_once_with(changed)
+        google.assert_called_once_with(values_of(WITH_GOOGLE))
         pi.assert_called_once_with(ZAI, API_KEY)
         self.assertEqual(found, outcome(unset, ENABLED))
-
-    def test_the_same_domain_runs_no_step(self) -> None:
-        """A domain equal to the one in effect is not set again.
-
-        - no service restarts; the steps start with the superuser
-        """
-        unset = googleoauth.GoogleStatus(configured=False)
-        with (
-            mock.patch.object(setup_app, "apply_domain") as domain,
-            mock.patch.object(superuserloginlink, "create_first", return_value=JANE),
-            mock.patch.object(superuserloginlink, "login_link", return_value=LINK),
-            mock.patch.object(setup, "google_step", return_value=unset),
-            mock.patch.object(setup, "pi_step", return_value=ENABLED),
-        ):
-            setup.run_steps(VALUES)
-        domain.assert_not_called()
 
     def test_superuser_failure_propagates(self) -> None:
         """A failing superuser verb propagates: it is this repo's own bug.
@@ -350,11 +343,11 @@ class ReportTests(unittest.TestCase):
         """
         self.assertEqual(
             setup.format_report(outcome(self.SET, ENABLED)),
-            f"Login stuff\n"
+            "Login\n"
             f"  Login link for Jane Doe: {LINK}\n"
             "  Homepage link: https://desmo.example\n"
             "\n"
-            "Google stuff\n"
+            "Google\n"
             "  Google login is set\n"
             f"    Authorized redirect URL: {CALLBACK}\n"
             "\n"
@@ -375,7 +368,7 @@ class ReportTests(unittest.TestCase):
         )
         self.assertEqual(
             setup.format_report(outcome(self.UNSET, ENABLED)).split("\n\n")[1],
-            f"Google stuff\n  {setup.google_unset_message()}",
+            f"Google\n  {setup.google_unset_message()}",
         )
 
     def test_pi_failure_names_the_login_command(self) -> None:
@@ -400,10 +393,10 @@ class ReportTests(unittest.TestCase):
         """
         green, yellow, red, bold = setup.GREEN, setup.YELLOW, setup.RED, setup.BOLD
         painted = setup.format_report(outcome(self.SET, ENABLED), color=True).split("\n")
-        self.assertEqual(painted[0], f"{bold}Login stuff{setup.RESET}")
+        self.assertEqual(painted[0], f"{bold}Login{setup.RESET}")
         self.assertEqual(painted[1], f"  {green}Login link for Jane Doe: {LINK}{setup.RESET}")
         self.assertEqual(painted[2], "  Homepage link: https://desmo.example")
-        self.assertEqual(painted[4], f"{bold}Google stuff{setup.RESET}")
+        self.assertEqual(painted[4], f"{bold}Google{setup.RESET}")
         self.assertEqual(painted[5], "  Google login is set")
         self.assertEqual(painted[6], f"    {green}Authorized redirect URL: {CALLBACK}{setup.RESET}")
         self.assertEqual(painted[8], f"{bold}Pi{setup.RESET}")
@@ -456,9 +449,10 @@ class DropStaleInputTests(unittest.TestCase):
 class MainTests(unittest.TestCase):
     """One way through: Next, the steps, the report; a crash propagates.
 
-    Tests stand in for the app and for the steps, then read what main() prints.
+    Tests stand in for the app and for the steps, then read what run_first() prints.
 
-    - test_next_runs_the_steps_and_prints_the_report, exit 0
+    - test_next_runs_the_steps_and_prints_the_report, the arguments and
+      the choice reach the steps as one Values; exit 0
     - test_no_next_exits_1_without_a_report, a screen that ended without
       Next is a crash or a closed terminal
     - test_signals_through_the_steps, ctrl+c cannot end the run, and
@@ -469,12 +463,12 @@ class MainTests(unittest.TestCase):
     """
 
     class FakeApp:
-        """The app as main() sees it: run(), then values."""
+        """The app as run_first() sees it: run(), then choice."""
 
         def __init__(
-            self, values: setup_app.Values | None, after_run: Callable[[], None] | None = None
+            self, choice: setup_app.PiChoice | None, after_run: Callable[[], None] | None = None
         ) -> None:
-            self.values = values
+            self.choice = choice
             self.ran = False
             self.after_run = after_run
 
@@ -484,15 +478,13 @@ class MainTests(unittest.TestCase):
             if self.after_run is not None:
                 self.after_run()
 
-    def run_main(
+    def run_first(
         self,
         app: FakeApp,
-        steps: setup.Outcome
-        | Exception
-        | Callable[[setup_app.Values], setup.Outcome]
-        | None = None,
+        args: setup.InstallArgs = ARGS,
+        steps: setup.Outcome | Exception | Callable[[setup.Values], setup.Outcome] | None = None,
     ) -> tuple[int, str, str]:
-        """Call setup.main() on the fake app; return the exit code, stdout and stderr.
+        """Call setup.run_first() on the fake app; return the exit code, stdout and stderr.
 
         ``steps`` is what run_steps answers, the error it raises, or its
         stand-in.
@@ -509,20 +501,30 @@ class MainTests(unittest.TestCase):
             contextlib.redirect_stdout(out),
             contextlib.redirect_stderr(err),
         ):
-            code = setup.main()
+            code = setup.run_first(args)
         self.assertTrue(app.ran)
         return code, out.getvalue(), err.getvalue()
 
     def test_next_runs_the_steps_and_prints_the_report(self) -> None:
-        """A saved screen runs the steps, prints the report and exits 0.
+        """The arguments and the screen's choice reach the steps as one Values; the report prints.
 
-        - the screen's values reach the steps
+        - Google's flags ride along when they were given; exit 0
         """
+        seen: list[setup.Values] = []
+
+        def steps(values: setup.Values) -> setup.Outcome:
+            """Record the values, then answer the outcome."""
+            seen.append(values)
+            return outcome(googleoauth.GoogleStatus(configured=False), ENABLED)
+
         found = outcome(googleoauth.GoogleStatus(configured=False), ENABLED)
-        code, out, err = self.run_main(self.FakeApp(VALUES), steps=found)
+        code, out, err = self.run_first(self.FakeApp(CHOICE), args=WITH_GOOGLE, steps=steps)
         self.assertEqual(code, 0)
+        self.assertEqual(seen, [values_of(WITH_GOOGLE)])
         self.assertEqual(out.strip(), setup.format_report(found))
         self.assertEqual(err, "")
+        self.run_first(self.FakeApp(CHOICE), steps=steps)
+        self.assertEqual(seen[-1], VALUES)
 
     def test_no_next_exits_1_without_a_report(self) -> None:
         """A screen that ended without Next exits 1 and prints nothing.
@@ -530,28 +532,28 @@ class MainTests(unittest.TestCase):
         - no steps run: there is nothing to report
         """
         with mock.patch("ops.setup.run_steps") as steps:
-            code, out, err = self.run_main(self.FakeApp(None))
+            code, out, err = self.run_first(self.FakeApp(None))
         steps.assert_not_called()
         self.assertEqual((code, out, err), (1, "", ""))
 
     def test_signals_through_the_steps(self) -> None:
         """ctrl+c cannot end the run, and Textual's stop/continue handlers are gone.
 
-        - SIGINT is ignored while the steps run (pi's own calls run off
+        - SIGINT is ignored while the steps run (pi's model checks run off
           the terminal)
         - SIGTSTP and SIGCONT are back to their defaults
         """
         watched = (signal.SIGINT, signal.SIGTSTP, signal.SIGCONT)
-        for number in watched:  # main() leaves these set: the process ends after the report
+        for number in watched:  # the steps leave these set: the process ends after the report
             self.addCleanup(signal.signal, number, signal.getsignal(number))
         seen: list[object] = []
 
-        def steps(_values: setup_app.Values) -> setup.Outcome:
+        def steps(_values: setup.Values) -> setup.Outcome:
             """Record the signal dispositions while the steps run."""
             seen.extend(signal.getsignal(number) for number in watched)
             return outcome(googleoauth.GoogleStatus(configured=False), ENABLED)
 
-        code, _out, _err = self.run_main(self.FakeApp(VALUES), steps=steps)
+        code, _out, _err = self.run_first(self.FakeApp(CHOICE), steps=steps)
         self.assertEqual(seen, [signal.SIG_IGN, signal.SIG_DFL, signal.SIG_DFL])
         self.assertEqual(code, 0)
 
@@ -561,12 +563,12 @@ class MainTests(unittest.TestCase):
         - the second flush comes after the screen and before run_steps,
           so nothing typed as the screen ended reaches pi's login
         """
-        for number in (signal.SIGINT, signal.SIGTSTP, signal.SIGCONT):  # main() leaves these set
+        for number in (signal.SIGINT, signal.SIGTSTP, signal.SIGCONT):  # the steps leave these set
             self.addCleanup(signal.signal, number, signal.getsignal(number))
         events: list[str] = []
-        app = self.FakeApp(VALUES, after_run=lambda: events.append("screen"))
+        app = self.FakeApp(CHOICE, after_run=lambda: events.append("screen"))
 
-        def steps(_values: setup_app.Values) -> setup.Outcome:
+        def steps(_values: setup.Values) -> setup.Outcome:
             """Record the steps' place in the order."""
             events.append("steps")
             return outcome(googleoauth.GoogleStatus(configured=False), ENABLED)
@@ -577,7 +579,7 @@ class MainTests(unittest.TestCase):
             mock.patch("ops.setup.run_steps", side_effect=steps),
             contextlib.redirect_stdout(io.StringIO()),
         ):
-            code = setup.main()
+            code = setup.run_first(ARGS)
         self.assertEqual(code, 0)
         self.assertEqual(events, ["flush", "screen", "flush", "steps"])
 
@@ -588,55 +590,75 @@ class MainTests(unittest.TestCase):
         """
         refusal = "createuser failed (exit code 1): database is unreachable"
         with self.assertRaisesRegex(superuserloginlink.SetupError, r"^createuser failed"):
-            self.run_main(self.FakeApp(VALUES), steps=superuserloginlink.SetupError(refusal))
+            self.run_first(self.FakeApp(CHOICE), steps=superuserloginlink.SetupError(refusal))
 
 
-class ValidateTests(unittest.TestCase):
-    """Every refusal as (field, message), in screen order.
+class ArgsTests(unittest.TestCase):
+    """The installer's six flags, each checked for shape.
 
-    Tests start from valid answers and change what a field holds.
+    Tests parse argument lists and read what comes back, or what refuses.
 
-    - test_valid_answers_pass, []
-    - test_each_required_field_is_named, a blank name, email or provider
-      names the field
-    - test_bad_email_is_named
-    - test_google_needs_both_fields, the empty one of a half pair is named
-    - test_bad_google_pair_is_refused, the wrong one of the pair is named
-    - test_a_typed_domain_is_a_name_or_the_local_origin
-    - test_a_key_provider_needs_the_key, and a sign-in-only provider does
-      not
-    - test_every_refusal_comes_back_in_screen_order
+    - test_the_flags_parse, the origin drops its trailing slash; Google
+      comes whole
+    - test_google_left_empty_parses, no Google flags is a pair of empty strings
+    - test_a_bad_origin_is_refused
+    - test_a_bad_name_is_refused, a space, a digit first, an underscore, 51 letters
+    - test_a_bad_email_is_refused, no at-sign, or too long
+    - test_a_half_google_pair_is_refused
+    - test_a_bad_google_pair_is_refused
+    - test_a_missing_flag_is_argparse_s_own_refusal, a usage text and code 2
     """
 
-    def test_valid_answers_pass(self) -> None:
-        """Valid answers are not refused.
+    def refusal(self, flags: list[str]) -> str:
+        """Return the message parse_args() refuses ``flags`` with."""
+        with self.assertRaises(SystemExit) as raised:
+            setup.parse_args(flags)
+        self.assertIsInstance(raised.exception.code, str)
+        return str(raised.exception.code)
 
-        - a valid Google pair passes too
+    def test_the_flags_parse(self) -> None:
+        """Every flag comes through; the origin loses its spaces and its trailing slash.
+
+        - Google's pair arrives whole
         """
-        self.assertEqual(setup_app.validate(VALID, ZAI), [])
-        self.assertEqual(
-            setup_app.validate(replace(VALID, google_key=CLIENT_ID, google_secret=SECRET), ZAI),
-            [],
-        )
+        slashed = argv(**{"--base-url": "https://desmo.example /"})
+        found = setup.parse_args([*slashed, "--google-key", CLIENT_ID, "--google-secret", SECRET])
+        self.assertEqual(found, WITH_GOOGLE)
+        self.assertEqual(setup.parse_args(argv()), ARGS)
 
-    def test_each_required_field_is_named(self) -> None:
-        """A blank name, email or provider names the field.
+    def test_google_left_empty_parses(self) -> None:
+        """No Google flags is a pair of empty strings.
 
-        - the name and email hints are the command's own
+        - the steps read that as not set
         """
-        for field, message in (
-            ("first", NAME_HINT),
-            ("last", NAME_HINT),
-            ("email", EMAIL_HINT),
-        ):
-            with self.subTest(field=field):
+        self.assertEqual((ARGS.google_key, ARGS.google_secret), ("", ""))
+
+    def test_a_bad_origin_is_refused(self) -> None:
+        """An origin that is not https://host[:port] is refused with its text.
+
+        - the hint names the shape
+        """
+        for origin in ("http://desmo.example", "desmo.example", "https://desmo.example/path"):
+            with self.subTest(origin=origin):
                 self.assertEqual(
-                    setup_app.validate(replace(VALID, **{field: ""}), ZAI),
-                    [(field, message)],
+                    self.refusal(argv(**{"--base-url": origin})),
+                    f"--base-url must be {setup.ORIGIN_HINT} (got: '{origin}')",
                 )
-        self.assertEqual(setup_app.validate(VALID, None), [("provider", setup_app.PROVIDER_PROMPT)])
 
-    def test_bad_email_is_named(self) -> None:
+    def test_a_bad_name_is_refused(self) -> None:
+        """A name of the wrong shape is refused for either flag.
+
+        - the hint is the createuser command's own
+        """
+        for flag in ("--first-name", "--last-name"):
+            for name in ("Jane Doe", "3Jane", "Jane_Doe", "J" * 51):
+                with self.subTest(flag=flag, name=name):
+                    self.assertEqual(
+                        self.refusal(argv(**{flag: name})),
+                        f"{flag}: {NAME_HINT} (got: '{name}')",
+                    )
+
+    def test_a_bad_email_is_refused(self) -> None:
         """An email without an at-sign, or one too long, gets the hint.
 
         - the limit is the RFC 5321 forward-path length
@@ -644,288 +666,114 @@ class ValidateTests(unittest.TestCase):
         for email in ("jane.example.com", "jane@" + "x" * 260 + ".com"):
             with self.subTest(email=email[:12]):
                 self.assertEqual(
-                    setup_app.validate(replace(VALID, email=email), ZAI),
-                    [("email", EMAIL_HINT)],
+                    self.refusal(argv(**{"--email": email})),
+                    f"--email: {EMAIL_HINT} (got: '{email}')",
                 )
 
-    def test_google_needs_both_fields(self) -> None:
-        """The empty one of a half pair is named.
+    def test_a_half_google_pair_is_refused(self) -> None:
+        """One Google flag of the pair is refused."""
+        self.assertEqual(
+            self.refusal([*argv(), "--google-key", CLIENT_ID]),
+            setup.GOOGLE_PAIR_HINT,
+        )
+        self.assertEqual(
+            self.refusal([*argv(), "--google-secret", SECRET]),
+            setup.GOOGLE_PAIR_HINT,
+        )
 
-        - a key alone names the secret; a secret alone names the key
+    def test_a_bad_google_pair_is_refused(self) -> None:
+        """A pair of the wrong shape names the wrong flag with its hint."""
+        bad_key = "desmo.example"
+        self.assertEqual(
+            self.refusal([*argv(), "--google-key", bad_key, "--google-secret", SECRET]),
+            f"--google-key: {googleoauth.CLIENT_ID_HINT}",
+        )
+        self.assertEqual(
+            self.refusal([*argv(), "--google-key", CLIENT_ID, "--google-secret", "short"]),
+            f"--google-secret: {googleoauth.SECRET_HINT}",
+        )
+
+    def test_a_missing_flag_is_argparse_s_own_refusal(self) -> None:
+        """A missing or an unknown flag is argparse's refusal: a usage text, code 2.
+
+        - nothing of the first run starts
         """
-        self.assertEqual(
-            setup_app.validate(replace(VALID, google_key=CLIENT_ID), ZAI),
-            [("google_secret", setup_app.GOOGLE_HALF_HINT)],
-        )
-        self.assertEqual(
-            setup_app.validate(replace(VALID, google_secret=SECRET), ZAI),
-            [("google_key", setup_app.GOOGLE_HALF_HINT)],
-        )
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as raised:
+            setup.parse_args(["--base-url", "https://desmo.example"])
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("--first-name", err.getvalue())
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
+            setup.parse_args([*argv(), "--token", "abc123"])
+        self.assertEqual(raised.exception.code, 2)
 
-    def test_bad_google_pair_is_refused(self) -> None:
-        """The wrong one of the pair is named.
 
-        - a bad key names the key; a bad secret names the secret
+class ValidateTests(unittest.TestCase):
+    """Every refusal as (field, message).
+
+    Tests start from valid answers and change what a field holds.
+
+    - test_valid_answers_pass, []; a sign-in-only provider needs no key
+    - test_a_missing_provider_is_named
+    - test_a_key_provider_needs_the_key, and whitespace is blank
+    """
+
+    def test_valid_answers_pass(self) -> None:
+        """Valid answers are not refused.
+
+        - a sign-in-only provider passes without a key
         """
+        self.assertEqual(setup_app.validate(VALID, ZAI), [])
         self.assertEqual(
-            setup_app.validate(replace(VALID, google_key="nope", google_secret=SECRET), ZAI),
-            [("google_key", googleoauth.CLIENT_ID_HINT)],
-        )
-        self.assertEqual(
-            setup_app.validate(replace(VALID, google_key=CLIENT_ID, google_secret="short"), ZAI),
-            [("google_secret", googleoauth.SECRET_HINT)],
+            setup_app.validate(setup_app.Answers(provider="openai-codex", api_key=""), CODEX),
+            [],
         )
 
-    def test_a_typed_domain_is_a_name_or_the_local_origin(self) -> None:
-        """`your.domain`, `sub.your.domain` and the local origin pass; empty and anything else get the hint.
-
-        - the domain cannot be skipped
-        """
-        for typed in ("your.domain", "sub.your.domain", setup_app.LOCAL_DOMAIN):
-            with self.subTest(typed=typed):
-                self.assertEqual(setup_app.validate(replace(VALID, domain=typed), ZAI), [])
-        for typed in (
-            "",
-            "localhost",
-            "localhost:8443",
-            "http://localhost:8443",
-            "https://your.domain",
-            "your.domain:8443",
-            "your.domain/",
-            "local host",
-        ):
-            with self.subTest(typed=typed):
-                self.assertEqual(
-                    setup_app.validate(replace(VALID, domain=typed), ZAI),
-                    [("domain", setup_app.DOMAIN_HINT)],
-                )
+    def test_a_missing_provider_is_named(self) -> None:
+        """No provider names the field with the dropdown's own prompt."""
+        self.assertEqual(
+            setup_app.validate(setup_app.Answers(provider="", api_key=""), None),
+            [("provider", setup_app.PROVIDER_PROMPT)],
+        )
 
     def test_a_key_provider_needs_the_key(self) -> None:
-        """A provider that takes a key is refused without one.
+        """A key provider with a blank key names the key field.
 
-        - a sign-in-only provider needs no key
+        - whitespace is blank too
         """
-        self.assertEqual(
-            setup_app.validate(replace(VALID, api_key=""), ZAI),
-            [("api_key", setup_app.API_KEY_HINT)],
-        )
-        self.assertEqual(setup_app.validate(replace(VALID, api_key=""), CODEX), [])
-
-    def test_every_refusal_comes_back_in_screen_order(self) -> None:
-        """Every refusal comes back at once, in screen order.
-
-        - domain, then the names, then Google, then pi
-        """
-        answers = replace(
-            VALID,
-            domain="http://x",
-            first="1",
-            email="nope",
-            google_key=CLIENT_ID,
-            provider="",
-            api_key="",
-        )
-        self.assertEqual(
-            [field for field, _message in setup_app.validate(answers, None)],
-            ["domain", "first", "email", "google_secret", "provider"],
-        )
+        for key in ("", "   "):
+            with self.subTest(key=key):
+                self.assertEqual(
+                    setup_app.validate(setup_app.Answers(provider="zai", api_key=key), ZAI),
+                    [("api_key", setup_app.API_KEY_HINT)],
+                )
 
 
-class TypedOriginTests(unittest.TestCase):
-    """The https origin a typed domain means.
+class CommandTests(unittest.TestCase):
+    """The command behind ``./run desmosetup``.
 
-    Tests feed what the operator types.
+    Tests parse flags with the command's own parser and stand in for the first run.
 
-    - test_the_local_origin_is_taken_literally, `https://localhost:8443`
-      means itself
-    - test_a_domain_or_a_subdomain_gets_https, `your.domain` and
-      `sub.your.domain` mean `https://…`
-    - test_spaces_around_are_dropped, padding changes nothing
-    - test_anything_else_raises, `localhost`, ports, schemes and slashes
-      raise the hint
+    - test_the_flags_reach_the_first_run
+    - test_an_unknown_argument_is_refused
     """
 
-    LOCAL = "https://localhost:8443"
-
-    def test_the_local_origin_is_taken_literally(self) -> None:
-        """`https://localhost:8443` means itself.
-
-        - so the report's links carry the port the forward listens on
-        """
-        self.assertEqual(setup_app.typed_origin(self.LOCAL), self.LOCAL)
-
-    def test_a_domain_or_a_subdomain_gets_https(self) -> None:
-        """`your.domain` means `https://your.domain`.
-
-        - a subdomain is a domain name too
-        """
-        self.assertEqual(setup_app.typed_origin("your.domain"), "https://your.domain")
-        self.assertEqual(setup_app.typed_origin("sub.your.domain"), "https://sub.your.domain")
-
-    def test_spaces_around_are_dropped(self) -> None:
-        """Padding spaces change nothing.
-
-        - inside the text, a space is not a domain name
-        """
-        self.assertEqual(setup_app.typed_origin(f"  {self.LOCAL}  "), self.LOCAL)
-
-    def test_anything_else_raises(self) -> None:
-        """`localhost`, ports, schemes and slashes raise the hint.
-
-        - `localhost` on its own would mean port 443, which nothing
-          forwards: the local origin is typed in full instead
-        - the screen refuses it first; this is the last line of defence
-        """
-        for typed in (
-            "",
-            "localhost",
-            "localhost:8443",
-            "http://localhost:8443",
-            "https://your.domain",
-            "your.domain:8443",
-            "your.domain/",
-            "your..domain",
-            "-your.domain",
+    def test_the_flags_reach_the_first_run(self) -> None:
+        """The parsed flags reach the first run as InstallArgs."""
+        args = setup.SetupCommand().build_parser().parse_args(argv())
+        with (
+            mock.patch("ops.setup.run_first", return_value=0) as first,
+            self.assertRaises(SystemExit) as raised,
         ):
-            with self.subTest(typed=typed), self.assertRaisesRegex(ValueError, "^a domain"):
-                setup_app.typed_origin(typed)
+            setup.SetupCommand.run(args, [])
+        first.assert_called_once_with(ARGS)
+        self.assertEqual(raised.exception.code, 0)
 
-
-class CurrentDomainTests(unittest.TestCase):
-    """The origin read off the credentials env.
-
-    Tests point CREDS_ENV at a temp file and read what comes back.
-
-    - test_without_credentials_env, a machine without the file serves the
-      local origin
-    - test_first_origin_of_the_list, the first of a comma list
-    - test_trailing_slash_is_dropped, the origin comes back bare
-    - test_no_base_urls_line, a file without the line falls back to the
-      local origin
-    - test_parse_absent_line, text without the line parses to ''
-    """
-
-    def setUp(self) -> None:
-        temp = tempfile.TemporaryDirectory()
-        self.addCleanup(temp.cleanup)
-        self.env = Path(temp.name) / ".env.vm"
-        patch = mock.patch.object(setup_app, "CREDS_ENV", self.env)
-        patch.start()
-        self.addCleanup(patch.stop)
-
-    def test_without_credentials_env(self) -> None:
-        """A machine without the credentials env serves the local origin.
-
-        - nothing is read
-        """
-        self.assertEqual(setup_app.current_domain(), "https://localhost:8443")
-
-    def test_first_origin_of_the_list(self) -> None:
-        """The first origin of a comma list is the site's.
-
-        - quotes are dropped
-        """
-        self.env.write_text('SECRET_KEY="x"\nBASE_URLS="https://a.example, https://b.example"\n')
-        self.assertEqual(setup_app.current_domain(), "https://a.example")
-
-    def test_trailing_slash_is_dropped(self) -> None:
-        """A trailing slash is dropped from the origin.
-
-        - the same origin the site prints in links
-        """
-        self.env.write_text('BASE_URLS="https://a.example/"\n')
-        self.assertEqual(setup_app.current_domain(), "https://a.example")
-
-    def test_no_base_urls_line(self) -> None:
-        """A file without a BASE_URLS line falls back to the local origin.
-
-        - an empty value does too
-        """
-        self.env.write_text('SECRET_KEY="x"\n')
-        self.assertEqual(setup_app.current_domain(), "https://localhost:8443")
-        self.env.write_text('BASE_URLS=""\n')
-        self.assertEqual(setup_app.current_domain(), "https://localhost:8443")
-
-    def test_parse_absent_line(self) -> None:
-        """Text without a BASE_URLS line parses to ''.
-
-        - nothing is guessed
-        """
-        self.assertEqual(setup_app.parse_env_origin("DEBUG=False\n"), "")
-
-
-class ApplyDomainTests(unittest.TestCase):
-    """The provisioner's set-domain step through sudo.
-
-    Tests stand in for the process and read what comes back, or what raises.
-
-    - test_success_returns_nothing, exit 0 is enough: the report shows the
-      origin
-    - test_argv_carries_sudo_and_the_origin, sudo -n, bash, the
-      provisioner, set-domain, the origin
-    - test_refusal_raises_with_its_line, a non-zero exit is a
-      DomainError carrying the last line
-    - test_no_output_is_its_own_message, a silent failure says so
-    """
-
-    def apply(
-        self, returncode: int, stdout: str = "", stderr: str = ""
-    ) -> tuple[object, mock.Mock]:
-        """Run apply_domain on a scripted process.
-
-        Returns what it returned — or the refusal it raised — and the
-        subprocess stand-in.
-        """
-        proc = mock.Mock(returncode=returncode, stdout=stdout, stderr=stderr)
-        with mock.patch("subprocess.run", return_value=proc) as run:
-            result: object = None
-            try:
-                setup_app.apply_domain("https://a.example")
-            except setup_app.DomainError as error:
-                result = str(error)
-            return result, run
-
-    def test_success_returns_nothing(self) -> None:
-        """Exit 0 returns nothing.
-
-        - the report prints the origin; the step's own line is not shown
-        """
-        self.assertIsNone(self.apply(0, stdout="domain set: https://a.example\n")[0])
-
-    def test_argv_carries_sudo_and_the_origin(self) -> None:
-        """The argv is sudo -n, bash, the provisioner, set-domain and the origin.
-
-        - output is captured, so a refusal can show its own last line
-        """
-        _result, run = self.apply(0)
-        run.assert_called_once_with(
-            [
-                "sudo",
-                "-n",
-                "bash",
-                str(setup_app.REPO_ROOT / "deploy" / "inside-vm.sh"),
-                "set-domain",
-                "https://a.example",
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-
-    def test_refusal_raises_with_its_line(self) -> None:
-        """A non-zero exit is a DomainError carrying the last line.
-
-        - the line is the provisioner's own refusal
-        """
-        refusal = "REFUSING: one https origin, https://host[:port] (got: 'x')."
-        self.assertEqual(self.apply(1, stderr=refusal + "\n")[0], refusal)
-
-    def test_no_output_is_its_own_message(self) -> None:
-        """A silent failure says so.
-
-        - never an empty message
-        """
-        self.assertEqual(self.apply(1)[0], "no output")
+    def test_an_unknown_argument_is_refused(self) -> None:
+        """A leftover argument is a usage error naming it."""
+        args = setup.SetupCommand().build_parser().parse_args(argv())
+        with self.assertRaisesRegex(SystemExit, r"^unknown argument: --token$"):
+            setup.SetupCommand.run(args, ["--token", "abc123"])
 
 
 if __name__ == "__main__":

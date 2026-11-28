@@ -61,8 +61,9 @@ function lives depends on its role:
   the HOST driver (`./localvm provision-full <inst>|provision-blank|delete|shell|…`)
   and `runasdesmo <inst> <cmd…>`, the run-as-desmo hop.
 - `deploy/install.sh` — the production entry: curl|bash'd as root inside a
-  fresh VM; builds the payload from a published git ref and execs the
-  provisioner. Owns the repo identity (`repo_url`).
+  fresh VM; checks the operator's flags, builds the payload from a
+  published git ref, execs the provisioner, then starts the first run
+  with those flags. Owns the repo identity (`repo_url`).
 - `ops/checkframework2.py` — the testing battery only (checkframework2's
   in-container gate; run in-container as `uv run --no-sync python -m ops.checkframework2`).
 - `deploy/inside-vm.sh` and `deploy/install-playwright.sh` — whole-script

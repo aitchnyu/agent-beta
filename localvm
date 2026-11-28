@@ -140,8 +140,9 @@ The container '$1' is up — the proxy device is attached. Browse:
 Get in / administer:
   ./localvm shell $1
 provision-full runs unattended and skips the first-run setup. In that
-shell, run this once, as debian:
-  desmosetup                domain, first superuser, Google login, pi provider
+shell, run it once, as debian — the installer's flags, then one screen
+for pi:
+  desmosetup --base-url https://localhost:8443 --first-name Jane --last-name Doe --email jane@example.com
 A one-time link for an existing user:
   ./localvm runasdesmo $1 ./run djangomanage makeloginlink <email>
 EOF
@@ -287,7 +288,15 @@ provision-blank() {
 Blank container '$instance' is up. Get in and run the installer (provisions from a
 published ref — the container serves loopback only, like provision-full):
   ./localvm shell $instance
-  curl -fsSL https://raw.githubusercontent.com/${raw_path}/main/deploy/install.sh | bash -s
+
+  args=(
+    --base-url https://localhost:8443
+    --first-name Jane
+    --last-name Doe
+    --email jane@example.com
+  )
+  curl -fsSL https://raw.githubusercontent.com/${raw_path}/main/deploy/install.sh \\
+    | sudo bash -s -- "\${args[@]}"
 EOF
 }
 
@@ -340,14 +349,16 @@ provision-full() {
     local raw_path
     raw_path="$(_raw_path "$repo_url")"
     # git clone --branch takes tags and branches alike; the ref rides the
-    # exec's ARGV (arg 2 onward), never a string interpolation.
-    local branch_args=()
-    [ -n "$ref" ] && branch_args=(--branch "$ref")
+    # exec's ARGV (arg 2 onward), never a string interpolation. No
+    # terminal here, so the first run does not follow: the origin is all
+    # the installer needs.
+    local install_args=(--base-url https://localhost:8443)
+    [ -n "$ref" ] && install_args+=(--branch "$ref")
     # The install streams back; its exit code is the verdict (pipefail on
     # the inner leg — a failed download must not read as a blank success).
     if ! incus exec "$instance" -- bash -c \
       'set -o pipefail; curl -fsSL "$1" | bash -s -- "${@:2}"' _ \
-      "https://raw.githubusercontent.com/${raw_path}/main/deploy/install.sh" "${branch_args[@]}"
+      "https://raw.githubusercontent.com/${raw_path}/main/deploy/install.sh" "${install_args[@]}"
     then
       echo "PROVISION FAILED — instance '$instance' is partially built; the last phase banner above names where it stopped." >&2
       echo "Rebuild: ./localvm delete $instance && ./localvm provision-full $instance" >&2

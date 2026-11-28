@@ -12,12 +12,28 @@ Debian instance you can ssh into — into a running
 deployment of a published ref of this repo. Ssh in and run:
 
 ```bash
+args=(
+  --base-url https://your.domain
+  --first-name Jane
+  --last-name Doe
+  --email jane@example.com
+  # --google-key 1234-abc.apps.googleusercontent.com 
+  # --google-secret GOCSPX-…
+  # --release v1
+)
 curl -fsSL https://raw.githubusercontent.com/aitchnyu/agent-beta/main/deploy/install.sh \
-  | sudo bash -s -- --base-url https://your.domain
+  | sudo bash -s -- "${args[@]}"
 ```
 
-- **`--base-url`** — the public origin, `https://host[:port]` . Omitted → loopback-only (the local test mode
-  below). The first-run setup can set it later, on its screen.
+The arguments are checked first: a wrong one stops the install before the
+machine changes.
+
+- **`--base-url`** — the public origin, `https://host[:port]`.
+- **`--first-name`, `--last-name`, `--email`** — the first superuser.
+- **`--google-key` / `--google-secret`** — Google login (see
+  [Google OAuth (social login)](#google-oauth-social-login)): both, or
+  neither. Register `https://your.domain/accounts/google/login/callback/`
+  as its redirect URI.
 - **`--release <tag>` / `--branch <name>`** — tag/branch; the
   default is the latest published tag (`main` when none exist).
 
@@ -27,11 +43,11 @@ and then runs a few self-tests.
 The installer finishes in the ssh session you opened — running the
 first-run setup once, then landing you at the machine's prompt as debian.
 The site is **https://your.domain/**. The setup is one command,
-`desmosetup`, run once:
+`desmosetup`, which the installer starts with these arguments:
 
-- one screen for the domain, the first superuser, Google sign-in and the
-  agent's provider;
-- then the terminal steps and a report carrying the links — see
+- one screen for the agent's provider — the one input it takes;
+- then the terminal steps — the first superuser, Google, pi — and the
+  report carrying the links; see
   [First-run setup (`desmosetup`)](#first-run-setup-desmosetup).
 
 The login link signs you in once, then expires. A second superuser later, by
@@ -58,50 +74,15 @@ by hand — see [Google OAuth (social login)](#google-oauth-social-login).
 
 `desmosetup` runs once, at the end of the interactive install. It is the
 only run: nothing in it asks what the machine already holds, and no
-message names the command again. It is one screen; the terminal steps
-follow once the screen is gone, then the report prints.
+message names the command again. The site's origin, the first superuser
+and Google came on the installer's command line; the one screen takes
+pi's provider, the terminal steps follow once the screen is gone, then
+the report prints.
 
-Four titled boxes tell the sections apart. They are taller than a small
-terminal: they sit at the top, and the screen scrolls. Filled in, before
-**Next** (80 columns, example values):
+The screen, filled in before **Next** (80 columns, example values):
 
 ```text
  ⭘                                desmosetup
-╭─ Domain ─────────────────────────────────────────────────────────────────────╮
-│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  your.domain                                                             ▎ │
-│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
-╰──────────────────────────────────────────────────────────────────────────────╯
-
-╭─ First superuser details ────────────────────────────────────────────────────╮
-│ Super user first name:                                                       │
-│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  Jane                                                                    ▎ │
-│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
-│                                                                              │
-│ Super user last name:                                                        │
-│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  Doe                                                                     ▎ │
-│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
-│                                                                              │
-│ Super user email:                                                            │
-│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  jane@example.com                                                        ▎ │
-│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
-╰──────────────────────────────────────────────────────────────────────────────╯
-
-╭─ Google login (can skip) ────────────────────────────────────────────────────╮
-│ Google key:                                                                  │
-│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  1234567890-abc123.apps.googleusercontent.com                            ▎ │
-│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
-│                                                                              │
-│ Google secret:                                                               │
-│ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
-│ ▊  •••••••••••••••••••••••••••••••••••••                                   ▎ │
-│ ▊▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▎ │
-╰──────────────────────────────────────────────────────────────────────────────╯
-
 ╭─ Pi provider ────────────────────────────────────────────────────────────────╮
 │ Pi provider:                                                                 │
 │ ▊▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▎ │
@@ -121,42 +102,27 @@ terminal: they sit at the top, and the screen scrolls. Filled in, before
  Fill the fields, then press Next
 ```
 
-- **Domain** — required, with no suggestion: type a domain, a subdomain,
-  or `https://localhost:8443` literally for a local install.
-- **First superuser details** — the three fields are required.
-  - The account they name is created; nothing is looked up first.
-- **Google login (can skip)**
-  - Both fields empty means Google login is not set.
-  - Both given stores them — see
-    [Google OAuth (social login)](#google-oauth-social-login).
 - **Pi provider** — the dropdown pi's registry fills.
   - A provider that takes a key shows the **API key** field, masked.
   - A provider that only signs in starts nothing yet: its sign-in runs
     on the terminal after Next.
-- **Next** is refused while
-  - the domain is empty, or is neither a domain, a subdomain, nor
-    `https://localhost:8443`;
-  - a name, the email or the provider is missing;
-  - Google has only one of its two fields;
-  - the provider takes a key and the key is empty.
+- **Next** is refused while the provider is missing, or the provider
+  takes a key and the key is empty.
 - A refused field gets its message under the input, and a toast at the
-  bottom lists every refused field with its message; the view goes to the
-  first one. The status line names them too.
+  bottom names it with its message. The status line names it too.
 - No key leaves the screen: ctrl+q and ctrl+c do nothing. **Next** is the
   only way on.
 
 #### On the terminal, after the screen
 
-1. **Domain** — set when it differs from the one in effect: the
-   provisioner's `set-domain` step rewrites the origin, renders the caddy
-   site again, restarts granian and huey, and reloads caddy.
-2. **Superuser** — created from the typed details, then its 24-hour link
-   is minted.
-3. **Google** — the key and secret are stored when both were given.
-4. **Pi** — the key typed on the screen is saved in pi's own credential
+1. **Superuser** — created from the installer's `--first-name`,
+   `--last-name` and `--email`, then its 24-hour link is minted.
+2. **Google** — `--google-key` and `--google-secret` are stored when both
+   were given; see [Google OAuth (social login)](#google-oauth-social-login).
+3. **Pi** — the key typed on the screen is saved in pi's own credential
    file. A provider that only signs in signs in here: pi's own login
    takes the terminal and prints a link for a browser.
-5. **Model** — pi's model list is the whole test: `pi --list-models`
+4. **Model** — pi's model list is the whole test: `pi --list-models`
    lists a provider's rows only when its credential is usable.
    - pi picks its own model; the setup saves nothing about models.
    - For Z.AI that is `glm-5.3` at `high` today: pi's own default, which
@@ -175,11 +141,11 @@ Everything set (in a real terminal, the headings are bold and the login
 link and the redirect URL are coloured):
 
 ```text
-Login stuff
+Login
   Login link for Jane Doe: https://your.domain/login-with-secret/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_/
   Homepage link: https://your.domain
 
-Google stuff
+Google
   Google login is set
     Authorized redirect URL: https://your.domain/accounts/google/login/callback/
 
@@ -191,11 +157,11 @@ Google left empty and pi's model list empty — each is a report part,
 never a crash (the two by-hand lines are coloured):
 
 ```text
-Login stuff
+Login
   Login link for Jane Doe: https://your.domain/login-with-secret/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789-_/
   Homepage link: https://your.domain
 
-Google stuff
+Google
   Google login not set. You may run `cd /srv/desmo/main && ./run djangomanage addoauth google <client_id> <secret>`
 
 Pi
@@ -232,7 +198,13 @@ the `debian` operator exists after install; no key setup either way):
 ```bash
 ./localvm provision-blank desmo
 ./localvm shell desmo
-curl -fsSL https://raw.githubusercontent.com/aitchnyu/agent-beta/main/deploy/install.sh | bash -s
+args=(
+  --base-url https://localhost:8443
+  --first-name Jane
+  --last-name Doe
+  --email jane@example.com
+)
+curl -fsSL https://raw.githubusercontent.com/aitchnyu/agent-beta/main/deploy/install.sh | bash -s -- "${args[@]}"
 ```
 
 The install streams its phases, runs the first-run setup (once,
@@ -251,26 +223,25 @@ The agent is one command away: type pi
 debian@desmo:~$
 ```
 
-The first run is one command — `desmosetup`, also runnable by hand. It
-shows one screen, runs the terminal steps, then prints a report; both
-are in [First-run setup (`desmosetup`)](#first-run-setup-desmosetup).
-On the VM it is on debian's PATH; `./run` below needs `/srv/desmo/main`.
+The first run is one command — `desmosetup`, which the installer starts
+with its flags. It shows one screen for pi, runs the terminal steps, then
+prints a report; both are in
+[First-run setup (`desmosetup`)](#first-run-setup-desmosetup). On the VM
+it is on debian's PATH; `./run` below needs `/srv/desmo/main`.
 
-What it sets, with the by-hand equivalent of each:
+What the install sets, with the by-hand equivalent of each:
 
-1. **Domain** — a typed domain name runs the provisioner's `set-domain`
-   step after the screen: it rewrites the origin in the credentials env,
-   re-renders the caddy site, and restarts granian, huey and caddy. By
-   hand:
+1. **Origin** — `--base-url` is the site's origin, baked in by the
+    provisioner. To change it later, by hand:
 
     ```bash
     cd /srv/desmo/main
     sudo bash deploy/inside-vm.sh set-domain https://your.domain
     ```
 
-2. **First superuser** — the screen's three fields create the first
-    superuser when none exists, and the report prints its one-time login
-    link (24h). By hand:
+2. **First superuser** — the installer's `--first-name`, `--last-name`
+    and `--email` create the first superuser when none exists, and the
+    report prints its one-time login link (24h). By hand:
 
     ```bash
     cd /srv/desmo/main
@@ -278,8 +249,8 @@ What it sets, with the by-hand equivalent of each:
     ./run djangomanage makeloginlink jane@example.com --minutes 1440
     ```
 
-3. **Google OAuth** — the screen's Google key and secret are stored.
-   By hand:
+3. **Google OAuth** — the installer's `--google-key` and
+    `--google-secret` are stored. By hand:
 
     ```bash
     cd /srv/desmo/main && ./run djangomanage addoauth google <client_id> <client_secret>
@@ -322,11 +293,12 @@ The container 'desmo' is up — the proxy device is attached. Browse:
 
 The container ships with the agent unconfigured. `provision-full` runs
 unattended, so it skips the first-run setup: nothing has asked for the
-domain, the first superuser, Google sign-in or pi's provider and model.
-Run it yourself — it is on debian's PATH, so there is nothing to cd into:
+first superuser, Google sign-in or pi's provider. Run it yourself, with
+the installer's flags — it is on debian's PATH, so there is nothing to
+cd into:
 
 ```console
-debian@desmo:~$ desmosetup
+debian@desmo:~$ desmosetup --base-url https://localhost:8443 --first-name Jane --last-name Doe --email jane@example.com
 ```
 
 The screen and the report are under
@@ -429,8 +401,8 @@ default (loopback-only, no domain) — the published-ref + domain path is
 The operator/agent surface is a shell, not the web — `pi` starts
 the agent TUI. There is nothing to configure: all
 container config is the tracked static template `deploy/template.env` (zero
-operator inputs — editing it is a repo edit). The one value set after
-provision is the site's origin: `desmosetup`'s Domain box rewrites
+operator inputs — editing it is a repo edit). The one value that can be
+set after provision is the site's origin: `set-domain`, by hand, rewrites
 `BASE_URLS` in the installed env.
 
 - **Secrets are generated on the VM at provision time**: `SECRET_KEY` +
@@ -519,13 +491,12 @@ The container's `.git` is its own history — copy anything you need off it
 
 2. **Paste it** into the API key field after choosing Z.AI on the
    `desmosetup` screen, then press **Next**. A provider that only signs
-   in launches pi's own login instead.
+   in launches pi's own login once the screen is gone.
 
 3. **Model** — pi's model list is fetched, and the report ends with
    "Pi is enabled with zai. Just run `pi`". pi then picks its own model:
    for Z.AI `glm-5.3` at `high` today. To choose another one, do it
    inside pi — the steps are below.
-
 ### By hand, inside pi
 
 The screenshots below show `glm-5.3-flash`; pi's own default today is
@@ -572,19 +543,19 @@ background setup agent runs.
 
 ## Google OAuth (social login)
 
-On the machine, `desmosetup` stores the credentials: fill **Google
-key** and **Google secret** on its screen (see
-[First-run setup](#first-run-setup-desmosetup)). The report then prints
-the redirect URI to register:
+On the machine, the installer stores the credentials: `--google-key` and
+`--google-secret` (see
+[Install on your VM](#install-on-your-vm-production)). The client must
+exist first, so register its redirect URI when you create it; the report
+then repeats it:
 
 ```text
 Google login is set
      Authorized redirect URL: https://your.domain/accounts/google/login/callback/
 ```
 
-Register that redirect URI on the Google app. Both fields left empty
-means Google sign-in is not set, and the report names the by-hand
-command below:
+Both flags left off means Google sign-in is not set, and the report names
+the by-hand command below:
 
 ```text
 Google login not set. You may run `cd /srv/desmo/main && ./run djangomanage addoauth google <client_id> <secret>`
@@ -875,8 +846,8 @@ fan-out as its own task — push-service HTTP never runs inline in a request.
 
 App/dev via the `run` script (test suites + agent on the dev machine; the
 web app itself runs only on the VM/container): `init`,
-`pi`, the first-run commands — `desmosetup` (domain, first superuser,
-Google login, pi provider: one screen, then a report) and
+`pi`, the first-run commands — `desmosetup` (first superuser, Google
+login, pi provider: one screen for pi, then a report) and
 `desmosuperuserloginlink` (a fresh login link) — `test`,
 `typecheck`, `lintfix`, `playwrighttest`, `screenshots`, `checkframework1`,
 `checkframework2`, `checkmarkdownd2`, `createscratch`, `checkscratch`,
@@ -1018,8 +989,8 @@ creates what, when) lives in `deploy/inside-vm.sh`'s header.
 │   ├── pi                         the agent launcher (baked from deploy/pi.sh —
 │   │                               pure delegation to ./run pi; shadows npm's pi)
 │   ├── desmosetup,               the first-run commands (installed from deploy/*.sh,
-│   │   desmosuperuserloginlink   same delegation: one screen for the domain, superuser,
-│   │                             Google, pi + a report; a fresh login link)
+│   │   desmosuperuserloginlink   same delegation: one screen for pi, the first superuser and
+│   │                             Google from the installer's flags, + a report; a fresh login link)
 │   ├── uv, uvx                    system-wide uv (python envs, on every user's PATH)
 │   ├── pgbackrest                 DB backup tool (apt; plain-file repo)
 │   └── fd                         symlink → fdfind (Debian's binary name)

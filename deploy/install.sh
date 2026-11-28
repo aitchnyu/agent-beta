@@ -8,26 +8,40 @@
 # - ZERO provisioning logic lives here — it manufactures the SAME
 #   two-file payload the local dev path ships (deploy/inside-vm.sh + the
 #   seed tarball of tracked files) and execs the unchanged provisioner.
-# - The only operator input it carries is BASE_URL.
+# - The operator's inputs ride the flags below, all checked before the
+#   machine changes.
 #
+#   args=(
+#     --base-url https://example.com
+#     --first-name Jane
+#     --last-name Doe
+#     --email jane@example.com
+#     # --google-key 1234-abc.apps.googleusercontent.com --google-secret GOCSPX-…
+#     # --release v1
+#   )
 #   curl -fsSL https://raw.githubusercontent.com/aitchnyu/agent-beta/main/deploy/install.sh \
-#     | sudo bash -s -- --base-url https://example.com [--release <tag> | --branch <name>]
+#     | sudo bash -s -- "${args[@]}"
 #
 # User inputs (nothing else — secrets are minted inside, the rest is the
 # tracked deploy/template.env):
 #   --base-url  url    the public origin, https://host[:port]; DNS must
-#                      already point at the VM (omitted → loopback-only,
-#                      README § VM (test server)).
+#                      already point at the VM.
+#   --first-name, --last-name, --email   the first superuser; a terminal
+#                      run (the first run follows) needs all three.
+#   --google-key, --google-secret       Google login: both, or neither.
 #   --release tag     what to install; default: the latest published
 #                     tag, falling back to main when none exist.
 #   --branch  name    any branch instead (mutually exclusive).
+#   --check-args      check the flags and exit: what the tests drive.
 #
 # After the provision's phases: basic self-tests (units active + one
 # HTTPS smoke on the site root), then — interactive terminals only —
-# the first-run setup (desmosetup: domain, first superuser, Google
-# sign-in, pi's provider) and a login as debian. The full in-VM
-# battery stays a local-test follow-up (ops.checkframework2 — which
-# itself refuses non-loopback installs: a --base-url VM never runs it).
+# the first-run setup (desmosetup: one screen for pi's provider, then
+# the superuser, Google and the report) and a login as debian. A run
+# without a terminal (localvm provision-full) provisions and stops.
+# The full in-VM battery stays a local-test follow-up
+# (ops.checkframework2 — which itself refuses non-loopback installs: a
+# --base-url VM never runs it).
 #
 # PIPE-SAFETY: the entire body below is ONE { … } compound command.
 # `bash -s` fed from a pipe reads the script LAZILY — any child that
@@ -50,27 +64,64 @@ clone_dir=/tmp/desmo-install
 
 {
 usage() {
-  echo "Usage: curl -fsSL <raw-url>/deploy/install.sh | sudo bash -s -- [--base-url https://host[:port]] [--release tag | --branch name]" >&2
+  echo "Usage: curl -fsSL <raw-url>/deploy/install.sh | sudo bash -s -- --base-url https://host[:port] --first-name <first> --last-name <last> --email <email> [--google-key <key> --google-secret <secret>] [--release tag | --branch name]" >&2
   [[ -n "${1:-}" ]] && echo "  $1" >&2
   exit 1
 }
 
 # ── flags ───────────────────────────────────────────────────────────────────
-base_url="" branch="" release=""
+base_url="" branch="" release="" first="" last="" email="" google_key="" google_secret=""
+check_args=no
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --base-url) [[ $# -ge 2 ]] || usage "--base-url needs a value"; base_url="$2"; shift 2 ;;
-    --branch)  [[ $# -ge 2 ]] || usage "--branch needs a value";  branch="$2";  shift 2 ;;
-    --release) [[ $# -ge 2 ]] || usage "--release needs a value"; release="$2"; shift 2 ;;
+    --base-url)      [[ $# -ge 2 ]] || usage "--base-url needs a value";      base_url="$2";      shift 2 ;;
+    --first-name)    [[ $# -ge 2 ]] || usage "--first-name needs a value";    first="$2";          shift 2 ;;
+    --last-name)     [[ $# -ge 2 ]] || usage "--last-name needs a value";     last="$2";           shift 2 ;;
+    --email)         [[ $# -ge 2 ]] || usage "--email needs a value";         email="$2";          shift 2 ;;
+    --google-key)    [[ $# -ge 2 ]] || usage "--google-key needs a value";    google_key="$2";     shift 2 ;;
+    --google-secret) [[ $# -ge 2 ]] || usage "--google-secret needs a value"; google_secret="$2";  shift 2 ;;
+    --branch)        [[ $# -ge 2 ]] || usage "--branch needs a value";        branch="$2";         shift 2 ;;
+    --release)       [[ $# -ge 2 ]] || usage "--release needs a value";       release="$2";        shift 2 ;;
+    --check-args)    check_args=yes; shift ;;
     *) usage "unknown flag: $1" ;;
   esac
 done
+
+# ── arguments: every check comes before the machine changes ─────────────────
+# The shapes desmosetup checks too (ops/setup.py); ops/tests/test_install.py
+# keeps the two in step.
+name_re="^[A-Za-z][A-Za-z'-]{0,49}$"
+email_re='^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$'
+client_id_re='^[0-9]+-[A-Za-z0-9]+\.apps\.googleusercontent\.com$'
 [[ -n "$branch" && -n "$release" ]] && usage "--branch and --release are mutually exclusive"
+[ -n "$base_url" ] || usage "--base-url is needed: https://host[:port]"
 base_url="${base_url// /}"
 # ONE https origin (scheme + optional port; no wildcards — caddy can't
 # ACME-serve them over HTTP-01).
-if [ -n "$base_url" ] && ! [[ "$base_url" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?/?$ ]]; then
-  usage "--base-url must be ONE https origin, https://host[:port] (got: '$base_url')"
+[[ "$base_url" =~ ^https://[A-Za-z0-9.-]+(:[0-9]+)?/?$ ]] \
+  || usage "--base-url must be one https origin, https://host[:port] (got: '$base_url')"
+[ -z "$first" ] || [[ "$first" =~ $name_re ]] \
+  || usage "--first-name: names are letters, hyphens and apostrophes, starting with a letter (got: '$first')"
+[ -z "$last" ] || [[ "$last" =~ $name_re ]] \
+  || usage "--last-name: names are letters, hyphens and apostrophes, starting with a letter (got: '$last')"
+[ -z "$email" ] || { [[ "$email" =~ $email_re ]] && [ "${#email}" -le 254 ]; } \
+  || usage "--email: that does not look like an email address (got: '$email')"
+if [ -n "$google_key" ] || [ -n "$google_secret" ]; then
+  { [ -n "$google_key" ] && [ -n "$google_secret" ]; } || usage "--google-key and --google-secret go together"
+  [[ "$google_key" =~ $client_id_re ]] \
+    || usage "--google-key: a Google client key looks like 1234567890-abc123.apps.googleusercontent.com"
+  { [ "${#google_secret}" -ge 20 ] && [[ "$google_secret" != *" "* ]]; } \
+    || usage "--google-secret: that Google secret looks wrong (Google secrets are about 35 characters, no spaces)"
+fi
+# A terminal means the first run follows: it needs the first superuser.
+if [ -t 1 ]; then
+  [ -n "$first" ] || usage "--first-name is needed"
+  [ -n "$last" ] || usage "--last-name is needed"
+  [ -n "$email" ] || usage "--email is needed"
+fi
+if [ "$check_args" = yes ]; then
+  echo "args ok"
+  exit 0
 fi
 
 # ── guards ──────────────────────────────────────────────────────────────────
@@ -135,8 +186,8 @@ done
 echo "    units active (granian, huey, caddy, redis, postgres, backup timer)"
 # Smoke the origin's hostname on the VM's :443 (an origin port like :8443
 # is the operator's forward, not this machine's); -k only for loopback's
-# internal CA. No --base-url → the template's loopback origin.
-probe_origin="${base_url:-https://localhost:8443}"
+# internal CA.
+probe_origin="$base_url"
 probe_host="${probe_origin#*://}"       # strip the scheme
 probe_host="${probe_host%%/*}"          # strip any trailing path
 probe_host="${probe_host%%:*}"          # strip the port
@@ -182,8 +233,13 @@ fi
 # </dev/tty: bash -s's stdin is the curl pipe — instant EOF for su's shell.
 if [ -t 1 ]; then
   # The first run, once. sudo, not su: su kills the session on ctrl+c.
+  # The flags ride as separate arguments: sudo -i hands them to debian's
+  # login shell intact — but drops an empty one, so Google's two come
+  # only when they were given.
   _banner "==> first-run setup"
-  sudo -n -u debian -i desmosetup </dev/tty \
+  first_run=(desmosetup --base-url "$base_url" --first-name "$first" --last-name "$last" --email "$email")
+  [ -z "$google_key" ] || first_run+=(--google-key "$google_key" --google-secret "$google_secret")
+  sudo -n -u debian -i "${first_run[@]}" </dev/tty \
     || _banner "==> first-run setup did not finish — the traceback above says where"
   exec su -l debian </dev/tty
 fi

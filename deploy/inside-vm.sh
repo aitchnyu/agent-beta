@@ -30,8 +30,9 @@
 # - Phase 0 validates the template straight out of the tarball (before
 #   any mutation); phase 3 installs it as the credentials env and mints
 #   the three machine secrets into it.
-# - `set-domain` (after provisioning, from desmosetup) is the one later
-#   operator input: it rewrites BASE_URLS in the installed env, renders
+# - `set-domain` (after provisioning, by hand as root) is the one later
+#   operator input — the origin itself came from install.sh's --base-url:
+#   it rewrites BASE_URLS in the installed env, renders
 #   the caddy site again, and restarts the services that read them.
 #
 # ── The fs this provision creates/touches (phase in parens) ────────────────
@@ -56,7 +57,7 @@
 #   │   └── profile.d/pi.sh      login-shell notice: type pi (2)
 #   ├── usr/local/bin/
 #   │   ├── pi                     agent launcher (2)
-#   │   ├── desmosetup             post-provision setup: domain, superuser, Google, pi (2)
+#   │   ├── desmosetup             post-provision setup: a screen for pi, and report
 #   │   ├── desmosuperuserloginlink  the first superuser's login link (2)
 #   │   └── fd                    symlink → fdfind (1); uv, node ride
 #   │                             apt/npm/NodeSource repos; caddy rides the
@@ -82,7 +83,7 @@
 #   provision     as ROOT — the one the driver execs (all phases)
 #   seed-commit   as desmo — self-dispatched by phase 8
 #   bootstrap     as desmo — self-dispatched by phase 9
-#   set-domain    as ROOT — after provisioning, from desmosetup
+#   set-domain    as ROOT — after provisioning, by hand
 
 set -Eeuo pipefail
 
@@ -114,7 +115,7 @@ _banner() { echo "[$(date +%T)] $*"; }
 # this trap names the line (-E errtrace: fires inside functions and
 # subshells too). Handled failures — if/||/until conditions, `|| true`
 # contracts — correctly do NOT fire it. set-domain drops it (below): it
-# is no provision, and desmosetup shows its last line as the cause.
+# is no provision, and its own last line names the cause.
 trap 'st=$?; echo "[$(date +%T)] PROVISION FAILED (line $LINENO, exit $st)" >&2' ERR
 
 provision() {
@@ -675,7 +676,8 @@ bootstrap() {
 
 # Change the site's origin after provisioning (root): the env file, the
 # caddy site and the services that read them — the writes phases 3, 4 and
-# 11 do, for one new origin. `desmosetup` calls it through sudo.
+# 11 do, for one new origin. Run it by hand:
+#   sudo bash deploy/inside-vm.sh set-domain https://host[:port]
 set_domain() { # <https origin>
   local url="${1:-}" hostname tls new_env
   # Checks first — each refuses before anything is written:
@@ -751,10 +753,10 @@ case "${1:-}" in
   bootstrap) bootstrap ;;        # desmo — phase 9
   set-domain)
     # No PROVISION FAILED banner: the failing command's own last line is
-    # what desmosetup shows (ops/setup_app.py apply_domain).
+    # the cause.
     trap - ERR
     set_domain "${2:-}"
-    ;;  # root — after provisioning, from desmosetup
+    ;;  # root — after provisioning, by hand
   *)
     echo "usage: inside-vm.sh {provision|seed-commit|bootstrap|set-domain <https origin>}" >&2
     exit 1

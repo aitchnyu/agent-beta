@@ -107,9 +107,9 @@ pi() {
     # The agent TUI, .env env exported — the ONE launcher. On the VM the
     # PATH entry /usr/local/bin/pi (deploy/pi.sh) purely delegates here
     # (it shadows npm's pi and exports PI_REAL_BIN); setup is assumed
-    # (provisioning/repo guarantee binary + .pi/ policy); provider auth +
-    # model live in pi's own stores (desmosetup writes them; by hand
-    # /login, /model — README § Pi setup).
+    # (provisioning/repo guarantee binary + .pi/ policy); provider auth
+    # lives in pi's own stores (desmosetup writes it; by hand /login —
+    # README § Pi setup).
   # The VM's sanctioned entry is the debian user; dev runs as its own user.
   if is_running_on_vm && [ "$(id -un)" != "debian" ]; then
     echo "Refusing: on the VM, pi runs as the debian user only — log in as debian." >&2
@@ -405,8 +405,8 @@ ${H}Usage:${R} run <command> [args…]        (works on dev and the VM; the VM's
  ${H}Setup + agent${R}
   ${C}init${R}                first-time setup: .env, uv sync, playwright, DB + migrate (dev only)
   ${C}pi${R}                  the pi coding-agent TUI (scratch-driven edit → deploy loop)
-  ${C}desmosetup${R}         the post-provision setup, one Textual screen: domain, first superuser,
-                          Google login, pi provider — then the terminal steps and a report
+  ${C}desmosetup${R}         the post-provision setup (the installer runs it): one Textual screen
+                          for pi's provider, then the terminal steps and a report
   ${C}desmosuperuserloginlink${R}
                           print the first superuser's one-time login link; creates nothing
 

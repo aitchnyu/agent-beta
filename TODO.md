@@ -1,11 +1,38 @@
+We will partially replace the textual way to input stuff
+
+We will use this format
+```
+args=(
+  --base-url https://example.com
+  # --token abc123
+  --verbose
+)
+curl -fsSL https://example.com/install.sh | bash -s -- "${args[@]}"
+```
+
+It will take 
+     optional release/branch
+     domain
+     superuser first name
+     superuser last name
+     superuser email
+     google key (can skip)
+     google secret (can skip)
+
+The textual thing will help with pi. Then publish the report. Remove the stuff from "login stuff" and "google stuff" headings though.
+
+rename deploy/template.env to template.env.txt
+inline the playwright install thing?
+
 Start the openai and other oauth login process after hitting next button from first run screen
 
 /login openai-codex, luna, test with real and fake
 Update docs with new screens, for adding users and login links. New instruction for prod. Render the tui in plaintext.
 
+Remove the textual thing?
 Pi theme should have more contrast. Lets have our theme for pi and tui?
 
-rename deploy/template.env to template.env.txt
+
 
 ```
 debian@desmo:~$ pi auth login openai-codex --no-browser

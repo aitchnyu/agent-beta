@@ -1,8 +1,9 @@
 """setup — ``desmosetup``: the terminal steps behind the one screen, and the report.
 
-ops/setup_app.py collects the values. Once the screen is gone this module
-runs the steps in order — domain, superuser, Google, pi — and prints the
-report.
+The installer collected the site's origin, the first superuser and
+Google on its command line; ops/setup_app.py collects pi's provider. Once
+the screen is gone this module runs the steps in order — superuser,
+Google, pi — and prints the report.
 
 One run only: nothing here asks what the machine holds, and no message
 names the command again. Only pi can fail — a report part then says how
@@ -11,7 +12,9 @@ to continue.
 
 from __future__ import annotations
 
+import argparse
 import asyncio
+import re
 import signal
 import sys
 import termios
@@ -23,14 +26,43 @@ from ops.command import Command
 from ops.googleoauth import GoogleStatus
 
 if TYPE_CHECKING:
-    import argparse
-
-    from ops.setup_app import Values
-    from ops.superuserloginlink import Superuser
+    from collections.abc import Sequence
 
 GREEN, YELLOW, RED, BOLD, RESET = "\033[32m", "\033[33m", "\033[31m", "\033[1m", "\033[0m"
 SIGN_IN_TITLE = "pi signs in with {provider}"
 SIGN_IN_NOTE = "it prints a link for a browser; ctrl+c abandons the sign-in"
+# One https origin: a scheme, a host, an optional port. The installer
+# checks the same shape before it changes anything.
+ORIGIN_RE = re.compile(r"^https://[A-Za-z0-9.-]+(:[0-9]+)?$")
+ORIGIN_HINT = "one https origin, https://host[:port]"
+GOOGLE_PAIR_HINT = "--google-key and --google-secret go together"
+DESCRIPTION = "The first run: one screen for pi's provider, then the steps and the report."
+
+
+@dataclass(frozen=True, kw_only=True)
+class InstallArgs:
+    """What the installer collected on its command line; each value checked for shape."""
+
+    homepage: str
+    first: str
+    last: str
+    email: str
+    google_key: str = ""
+    google_secret: str = ""
+
+
+@dataclass(frozen=True, kw_only=True)
+class Values:
+    """The installer's arguments and the screen's choice, as the steps take them."""
+
+    homepage: str
+    first: str
+    last: str
+    email: str
+    google_key: str
+    google_secret: str
+    provider: piauth.Provider
+    api_key: str
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -50,11 +82,79 @@ class PiOutcome:
 class Outcome:
     """What the terminal steps achieved; the report prints it."""
 
-    superuser: Superuser
+    superuser: superuserloginlink.Superuser
     link: str
     homepage: str
     google: GoogleStatus
     pi: PiOutcome
+
+
+def add_install_flags(parser: argparse.ArgumentParser) -> None:
+    """Declare the installer's six flags on ``parser``."""
+    add = parser.add_argument
+    add("--base-url", required=True, help=f"the site's origin: {ORIGIN_HINT}")
+    add("--first-name", required=True, help="the first superuser's first name")
+    add("--last-name", required=True, help="the first superuser's last name")
+    add("--email", required=True, help="the first superuser's email")
+    add("--google-key", default="", help="Google OAuth client key; both Google flags or neither")
+    add("--google-secret", default="", help="Google OAuth client secret")
+
+
+def _origin(text: str) -> str:
+    """Return the origin without its spaces and trailing slash; a bad shape is a usage error.
+
+    Spaces go as the installer drops them: a value pasted with one is
+    still the origin the operator meant.
+    """
+    origin = text.replace(" ", "").rstrip("/")
+    if not ORIGIN_RE.match(origin):
+        raise SystemExit(f"--base-url must be {ORIGIN_HINT} (got: '{text}')")
+    return origin
+
+
+def _name(flag: str, text: str) -> str:
+    """Return a superuser name; a bad shape is a usage error."""
+    if not superuserloginlink.NAME_RE.match(text):
+        raise SystemExit(f"{flag}: {superuserloginlink.NAME_HINT} (got: '{text}')")
+    return text
+
+
+def _email(text: str) -> str:
+    """Return the superuser's email; a bad shape is a usage error."""
+    if not superuserloginlink.EMAIL_RE.match(text) or len(text) > superuserloginlink.EMAIL_MAX:
+        raise SystemExit(f"--email: {superuserloginlink.EMAIL_HINT} (got: '{text}')")
+    return text
+
+
+def install_args(parsed: argparse.Namespace) -> InstallArgs:
+    """Return the parsed flags as InstallArgs; a value of the wrong shape is a usage error."""
+    key, secret = str(parsed.google_key), str(parsed.google_secret)
+    if bool(key) != bool(secret):
+        raise SystemExit(GOOGLE_PAIR_HINT)
+    problem = googleoauth.check_values(key, secret) if key else None
+    if problem is not None:
+        flag = "--google-key" if problem == googleoauth.CLIENT_ID_HINT else "--google-secret"
+        raise SystemExit(f"{flag}: {problem}")
+    return InstallArgs(
+        homepage=_origin(str(parsed.base_url)),
+        first=_name("--first-name", str(parsed.first_name)),
+        last=_name("--last-name", str(parsed.last_name)),
+        email=_email(str(parsed.email)),
+        google_key=key,
+        google_secret=secret,
+    )
+
+
+def parse_args(argv: Sequence[str] | None) -> InstallArgs:
+    """Return the installer's arguments from ``argv`` (the process's own when None).
+
+    argparse refuses a missing or an unknown flag itself; a value of the
+    wrong shape is a usage error carrying its message.
+    """
+    parser = argparse.ArgumentParser(prog="desmosetup", description=DESCRIPTION)
+    # aihere inline below two function here
+    add_install_flags(parser)
+    return install_args(parser.parse_args(argv))
 
 
 def google_step(values: Values) -> GoogleStatus:
@@ -76,6 +176,11 @@ async def _check_provider(provider: piauth.Provider) -> None:
         message = f"pi lists no model for {provider.id} — the credential may be missing or wrong"
         raise piauth.PiError(message)
     piauth.opt_out_of_analytics()
+
+
+def paint(text: str, colour: str) -> str:
+    """Wrap the text in one ANSI code; the text itself when the code is empty."""
+    return f"{colour}{text}{RESET}" if colour else text
 
 
 def pi_step(provider: piauth.Provider, api_key: str) -> PiOutcome:
@@ -103,9 +208,7 @@ def pi_step(provider: piauth.Provider, api_key: str) -> PiOutcome:
 
 
 def run_steps(values: Values) -> Outcome:
-    """Run the terminal steps in order: domain, superuser, Google, pi."""
-    if values.set_domain:
-        setup_app.apply_domain(values.homepage)
+    """Run the terminal steps in order: superuser, Google, pi."""
     superuser = superuserloginlink.create_first(values.first, values.last, values.email)
     link = superuserloginlink.login_link(superuser.email)
     google = google_step(values)
@@ -117,11 +220,6 @@ def run_steps(values: Values) -> Outcome:
         google=google,
         pi=pi,
     )
-
-
-def paint(text: str, colour: str) -> str:
-    """Wrap the text in one ANSI code; the text itself when the code is empty."""
-    return f"{colour}{text}{RESET}" if colour else text
 
 
 def google_unset_message() -> str:
@@ -162,8 +260,8 @@ def format_report(outcome: Outcome, *, color: bool = False) -> str:
     green, yellow, red, bold = (GREEN, YELLOW, RED, BOLD) if color else ("", "", "", "")
     link = paint(f"Login link for {outcome.superuser.name}: {outcome.link}", green)
     parts = (
-        ("Login stuff", [link, f"Homepage link: {outcome.homepage}"]),
-        ("Google stuff", google_lines(outcome.google, green, yellow)),
+        ("Login", [link, f"Homepage link: {outcome.homepage}"]),
+        ("Google", google_lines(outcome.google, green, yellow)),
         ("Pi", pi_lines(outcome.pi, red)),
     )
     return "\n\n".join(
@@ -184,7 +282,7 @@ def drop_stale_input() -> None:
         termios.tcflush(sys.stdin.fileno(), termios.TCIFLUSH)
 
 
-def main() -> int:
+def run_first(install: InstallArgs) -> int:
     """Run the screen, the terminal steps and the report; return the exit code.
 
     Only Next ends the screen. A crash on the way is a bug: Python's own
@@ -193,7 +291,8 @@ def main() -> int:
     drop_stale_input()
     app = setup_app.SetupApp()
     app.run()
-    if app.values is None:
+    choice = app.choice
+    if choice is None:
         # No Next: the screen crashed (Textual printed it) or the terminal closed.
         return 1
     # Textual's driver keeps its SIGTSTP and SIGCONT handlers installed.
@@ -205,17 +304,40 @@ def main() -> int:
     # that login alone.
     signal.signal(signal.SIGINT, signal.SIG_IGN)
     drop_stale_input()
-    outcome = run_steps(app.values)
+    values = Values(
+        homepage=install.homepage,
+        first=install.first,
+        last=install.last,
+        email=install.email,
+        google_key=install.google_key,
+        google_secret=install.google_secret,
+        provider=choice.provider,
+        api_key=choice.api_key,
+    )
+    outcome = run_steps(values)
     print(format_report(outcome, color=sys.stdout.isatty()))
     return 0
 
 
+def main(argv: Sequence[str] | None = None) -> int:
+    """Run the first run from ``argv`` (the process's own arguments when None)."""
+    return run_first(parse_args(argv))
+
+
 class SetupCommand(Command):
-    """Set the site up after provision: domain, first superuser, Google login, pi's model."""
+    """Set the site up after provision: first superuser, Google login, pi's provider."""
 
     name = "desmosetup"
 
+    def build_parser(self) -> argparse.ArgumentParser:
+        """Build the command's parser: the installer's six flags."""
+        parser = super().build_parser()
+        add_install_flags(parser)
+        return parser
+
     @staticmethod
-    def run(_args: argparse.Namespace, _extra: list[str]) -> None:
-        """Exit with main()'s code, so the installer sees a failure."""
-        raise SystemExit(main())
+    def run(args: argparse.Namespace, extra: list[str]) -> None:
+        """Run the first run with the parsed flags, so the installer sees a failure."""
+        if extra:
+            raise SystemExit(f"unknown argument: {extra[0]}")
+        raise SystemExit(run_first(install_args(args)))
